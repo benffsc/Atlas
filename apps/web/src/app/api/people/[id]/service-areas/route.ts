@@ -106,6 +106,19 @@ export async function POST(
     );
     if (!place) return apiNotFound("Place", place_id);
 
+    // Check for conflicts before inserting
+    const conflicts = await queryRows<{
+      person_id: string;
+      person_name: string;
+      service_type: string;
+      place_id: string;
+      place_name: string;
+      match_type: string;
+    }>(
+      `SELECT * FROM sot.check_service_area_conflicts($1, $2, $3)`,
+      [id, place_id, service_type]
+    );
+
     const result = await queryOne<{ id: string }>(
       `INSERT INTO sot.trapper_service_places (person_id, place_id, service_type, notes, source_system, evidence_type)
        VALUES ($1, $2, $3, $4, 'atlas_ui', 'staff_verified')
@@ -117,7 +130,7 @@ export async function POST(
       [id, place_id, service_type, notes || null]
     );
 
-    return apiSuccess({ id: result?.id, action: "added" });
+    return apiSuccess({ id: result?.id, action: "added", conflicts });
   } catch (error) {
     console.error("[API] Error adding service area:", error);
     return apiServerError("Failed to add service area");

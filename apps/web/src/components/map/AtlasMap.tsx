@@ -51,6 +51,7 @@ import type {
   TnrPriorityPlace,
   Zone,
   Volunteer,
+  TrapperTerritory,
   ClinicClient,
   HistoricalSource,
   DataCoverageZone,
@@ -123,6 +124,7 @@ const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
       { id: "zones", label: "Observation Zones", color: "#10b981", defaultEnabled: false },
       { id: "volunteers", label: "Volunteers", color: "#FFD700", defaultEnabled: false },
       { id: "clinic_clients", label: "Clinic Clients", color: "#8b5cf6", defaultEnabled: false },
+      { id: "trapper_territories", label: "Trapper Coverage", color: "#0ea5e9", defaultEnabled: false },
     ],
   },
   {
@@ -240,6 +242,7 @@ function AtlasMapInner() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [clinicClients, setClinicClients] = useState<ClinicClient[]>([]);
+  const [trapperTerritories, setTrapperTerritories] = useState<TrapperTerritory[]>([]);
   const [historicalSources, setHistoricalSources] = useState<HistoricalSource[]>([]);
   const [dataCoverage, setDataCoverage] = useState<DataCoverageZone[]>([]);
   const [summary, setSummary] = useState<MapSummary | null>(null);
@@ -670,6 +673,9 @@ function AtlasMapInner() {
     return Array.from(apiLayers);
   }, [enabledLayers]);
 
+  // Read trapper filter from URL params for territory map highlighting
+  const trapperFilter = searchParams.get("trapper") || undefined;
+
   const {
     data: mapData,
     error: mapError,
@@ -681,6 +687,7 @@ function AtlasMapInner() {
     riskFilter,
     dataFilter,
     diseaseFilter,
+    trapper: enabledLayers.trapper_territories ? trapperFilter : undefined,
     fromDate: dateFrom || undefined,
     toDate: dateTo || undefined,
     enabled: layers.length > 0,
@@ -698,6 +705,7 @@ function AtlasMapInner() {
       setZones((mapData.zones || []) as unknown as Zone[]);
       setVolunteers((mapData.volunteers || []) as unknown as Volunteer[]);
       setClinicClients((mapData.clinic_clients || []) as unknown as ClinicClient[]);
+      setTrapperTerritories((mapData.trapper_territories || []) as unknown as TrapperTerritory[]);
       setHistoricalSources((mapData.historical_sources || []) as unknown as HistoricalSource[]);
       setDataCoverage((mapData.data_coverage || []) as unknown as DataCoverageZone[]);
       setSummary(mapData.summary || null);
@@ -710,6 +718,7 @@ function AtlasMapInner() {
       setZones([]);
       setVolunteers([]);
       setClinicClients([]);
+      setTrapperTerritories([]);
       setHistoricalSources([]);
       setDataCoverage([]);
     }
@@ -1025,6 +1034,84 @@ function AtlasMapInner() {
     layer.addTo(mapRef.current);
     layersRef.current.volunteers = layer;
   }, [volunteers, enabledLayers.volunteers, colors]);
+
+  // Update Trapper Territories layer (FFS-565)
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (layersRef.current.trapper_territories) {
+      mapRef.current.removeLayer(layersRef.current.trapper_territories);
+    }
+    if (!enabledLayers.trapper_territories || trapperTerritories.length === 0) return;
+
+    const layer = L.layerGroup();
+
+    // Color by trapper_type
+    const typeColors: Record<string, string> = {
+      ffsc_volunteer: "#3b82f6",   // blue
+      ffsc_staff: "#3b82f6",       // blue
+      ffsc_trapper: "#3b82f6",     // blue
+      coordinator: "#3b82f6",      // blue
+      head_trapper: "#3b82f6",     // blue
+      community_trapper: "#d97706", // amber
+      rescue_operator: "#8b5cf6",  // purple
+      colony_caretaker: "#059669", // green
+    };
+
+    // Size by service_type
+    const typeSizes: Record<string, number> = {
+      primary_territory: 24,
+      regular: 18,
+      occasional: 14,
+      home_rescue: 16,
+    };
+
+    trapperTerritories.forEach((t) => {
+      if (!t.lat || !t.lng) return;
+
+      const color = typeColors[t.trapper_type] || "#6b7280";
+      const size = typeSizes[t.service_type] || 14;
+      const isPrimary = t.service_type === "primary_territory";
+
+      const marker = L.marker([t.lat, t.lng], {
+        icon: isPrimary
+          ? createPinMarker(color, { size })
+          : createCircleMarker(color, { size }),
+      });
+
+      const availLabel = t.availability_status === "available" ? "Available"
+        : t.availability_status === "busy" ? "Busy" : "On Leave";
+      const availColor = t.availability_status === "available" ? "#16a34a"
+        : t.availability_status === "busy" ? "#d97706" : "#6b7280";
+
+      const serviceLabel = t.service_type === "primary_territory" ? "Primary Territory"
+        : t.service_type === "regular" ? "Regular"
+        : t.service_type === "occasional" ? "Occasional"
+        : t.service_type === "home_rescue" ? "Home Rescue"
+        : t.service_type;
+
+      marker.bindPopup(`
+        <div style="min-width:180px">
+          <strong><a href="/trappers/${escapeHtml(t.person_id)}" style="color:#0d6efd">${escapeHtml(t.trapper_name)}</a></strong>
+          <div style="margin-top:4px;font-size:12px">
+            <span style="display:inline-block;padding:1px 6px;border-radius:3px;background:${color}20;color:${color};font-weight:500">${serviceLabel}</span>
+            <span style="display:inline-block;padding:1px 6px;border-radius:3px;color:${availColor};font-weight:500;margin-left:4px">${availLabel}</span>
+          </div>
+          <div style="margin-top:4px;font-size:11px;color:#666">
+            ${escapeHtml(t.place_name)}
+          </div>
+          <div style="margin-top:2px;font-size:11px;color:#888">
+            ${t.active_assignments} active assignment${t.active_assignments !== 1 ? "s" : ""}
+            ${t.tier ? ` · ${escapeHtml(t.tier)}` : ""}
+          </div>
+        </div>
+      `);
+
+      layer.addLayer(marker);
+    });
+
+    layer.addTo(mapRef.current);
+    layersRef.current.trapper_territories = layer;
+  }, [trapperTerritories, enabledLayers.trapper_territories]);
 
   // Update Clinic Clients layer
   useEffect(() => {

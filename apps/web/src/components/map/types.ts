@@ -72,6 +72,20 @@ export interface Volunteer {
   is_active: boolean;
 }
 
+export interface TrapperTerritory {
+  person_id: string;
+  trapper_name: string;
+  trapper_type: string;
+  tier: string | null;
+  service_type: string;
+  availability_status: string;
+  active_assignments: number;
+  place_id: string;
+  place_name: string;
+  lat: number;
+  lng: number;
+}
+
 export interface ClinicClient {
   id: string;
   address: string;

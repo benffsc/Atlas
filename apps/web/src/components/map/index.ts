@@ -33,6 +33,7 @@ export type {
   TnrPriorityPlace,
   Zone,
   Volunteer,
+  TrapperTerritory,
   ClinicClient,
   HistoricalSource,
   DataCoverageZone,

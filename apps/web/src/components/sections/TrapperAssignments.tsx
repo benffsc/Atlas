@@ -46,6 +46,15 @@ interface SuggestedTrapper {
   service_type: string;
   role: string | null;
   match_reason: string;
+  availability_status?: string;
+  active_assignments?: number;
+  total_cats_caught?: number;
+  total_score?: number;
+  territory_score?: number;
+  availability_score?: number;
+  workload_score?: number;
+  performance_score?: number;
+  recency_score?: number;
 }
 
 type AssignMode = "official" | "search";
@@ -430,6 +439,10 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
           <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
             {suggestedTrappers.map((s) => {
               const colors = MATCH_REASON_COLORS[s.match_reason] || MATCH_REASON_COLORS.previous_assignment;
+              const hasScore = typeof s.total_score === "number";
+              const availColor = s.availability_status === "available" ? "#16a34a"
+                : s.availability_status === "busy" ? "#d97706"
+                : s.availability_status === "on_leave" ? "#6b7280" : "#16a34a";
               return (
                 <div
                   key={s.person_id}
@@ -454,8 +467,39 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontWeight: 500, fontSize: "0.9rem" }}>{s.trapper_name}</span>
-                    <TrapperBadge trapperType={s.trapper_type} size="sm" />
+                    {hasScore && (
+                      <span style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "50%",
+                        background: s.total_score! >= 60 ? "#dcfce7" : s.total_score! >= 30 ? "#fef3c7" : "#f3f4f6",
+                        color: s.total_score! >= 60 ? "#166534" : s.total_score! >= 30 ? "#92400e" : "#6b7280",
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                      }}>
+                        {s.total_score}
+                      </span>
+                    )}
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                        <span style={{ fontWeight: 500, fontSize: "0.9rem" }}>{s.trapper_name}</span>
+                        <TrapperBadge trapperType={s.trapper_type} size="sm" />
+                        {s.availability_status && s.availability_status !== "available" && (
+                          <span style={{ fontSize: "0.65rem", color: availColor, fontWeight: 500 }}>
+                            {s.availability_status === "busy" ? "Busy" : "On Leave"}
+                          </span>
+                        )}
+                      </div>
+                      {hasScore && (
+                        <div style={{ fontSize: "0.65rem", color: "#888", marginTop: "0.1rem" }}>
+                          {typeof s.active_assignments === "number" && `${s.active_assignments} active`}
+                          {typeof s.total_cats_caught === "number" && ` · ${s.total_cats_caught} caught`}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
                     {s.service_type && s.service_type !== "historical" && (

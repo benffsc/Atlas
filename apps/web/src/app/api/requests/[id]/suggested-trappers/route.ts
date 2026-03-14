@@ -4,16 +4,26 @@ import { getSession } from "@/lib/auth";
 import { apiSuccess, apiError, apiServerError } from "@/lib/api-response";
 import { requireValidUUID } from "@/lib/api-validation";
 
-interface SuggestedTrapper {
+interface ScoredTrapper {
   person_id: string;
   trapper_name: string;
   trapper_type: string;
   service_type: string;
   role: string | null;
   match_reason: string;
+  availability_status: string;
+  active_assignments: number;
+  total_cats_caught: number;
+  days_since_last_here: number;
+  territory_score: number;
+  availability_score: number;
+  workload_score: number;
+  performance_score: number;
+  recency_score: number;
+  total_score: number;
 }
 
-/** GET /api/requests/[id]/suggested-trappers — Suggest trappers based on place */
+/** GET /api/requests/[id]/suggested-trappers — Suggest and score trappers based on place */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -42,10 +52,10 @@ export async function GET(
     );
     const assignedIds = new Set(assigned.map(a => a.trapper_person_id));
 
-    // Call the DB function
-    const suggestions = await queryRows<SuggestedTrapper>(
-      `SELECT * FROM sot.find_trappers_for_place($1)`,
-      [req.place_id]
+    // Call the scored DB function
+    const suggestions = await queryRows<ScoredTrapper>(
+      `SELECT * FROM sot.score_trappers_for_place($1, $2)`,
+      [req.place_id, id]
     );
 
     // Filter out already-assigned trappers

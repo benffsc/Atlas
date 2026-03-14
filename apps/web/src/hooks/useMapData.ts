@@ -47,6 +47,8 @@ export interface UseMapDataOptions {
   toDate?: string;
   /** Viewport bounds for efficient loading */
   bounds?: MapDataBounds;
+  /** Filter trapper territories to a single trapper */
+  trapper?: string;
   /** Set to false to disable fetching */
   enabled?: boolean;
   /** Additional SWR configuration */
@@ -140,6 +142,19 @@ export interface MapDataResponse {
   historical_sources?: unknown[];
   data_coverage?: unknown[];
   annotations?: unknown[];
+  trapper_territories?: Array<{
+    person_id: string;
+    trapper_name: string;
+    trapper_type: string;
+    tier: string | null;
+    service_type: string;
+    availability_status: string;
+    active_assignments: number;
+    place_id: string;
+    place_name: string;
+    lat: number;
+    lng: number;
+  }>;
 }
 
 const fetcher = async (url: string): Promise<MapDataResponse> => {
@@ -181,6 +196,9 @@ function buildMapDataKey(options: UseMapDataOptions): string | null {
   }
   if (options.toDate) {
     params.set("to", options.toDate);
+  }
+  if (options.trapper) {
+    params.set("trapper", options.trapper);
   }
   if (options.bounds) {
     params.set(

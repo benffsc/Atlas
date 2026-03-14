@@ -195,6 +195,19 @@ export async function GET(req: NextRequest) {
       description: string | null;
       opacity: number;
     }>;
+    trapper_territories?: Array<{
+      person_id: string;
+      trapper_name: string;
+      trapper_type: string;
+      tier: string | null;
+      service_type: string;
+      availability_status: string;
+      active_assignments: number;
+      place_id: string;
+      place_name: string;
+      lat: number;
+      lng: number;
+    }>;
     annotations?: Array<{
       annotation_id: string;
       lat: number;
@@ -735,6 +748,68 @@ export async function GET(req: NextRequest) {
       } catch (e) {
         console.warn("volunteers layer failed:", e);
         result.volunteers = [];
+      }
+    }
+
+    // Trapper Territories layer (FFS-565)
+    if (layers.includes("trapper_territories")) {
+      try {
+        const trapperFilter = searchParams.get("trapper");
+        const trapperCondition = trapperFilter ? `AND tsp.person_id = '${trapperFilter.replace(/'/g, "''")}'` : "";
+
+        const territories = await queryRows<{
+          person_id: string;
+          trapper_name: string;
+          trapper_type: string;
+          tier: string | null;
+          service_type: string;
+          availability_status: string;
+          active_assignments: number;
+          place_id: string;
+          place_name: string;
+          lat: number;
+          lng: number;
+        }>(`
+          SELECT
+            tsp.person_id::text,
+            p.display_name AS trapper_name,
+            COALESCE(tp.trapper_type, 'community_trapper') AS trapper_type,
+            vt.tier,
+            tsp.service_type,
+            COALESCE(tp.availability_status, 'available') AS availability_status,
+            (
+              SELECT COUNT(*)::int
+              FROM ops.request_trapper_assignments rta
+              WHERE rta.trapper_person_id = tsp.person_id AND rta.status = 'active'
+            ) AS active_assignments,
+            pl.place_id::text,
+            COALESCE(pl.display_name, pl.formatted_address, 'Unknown') AS place_name,
+            ST_Y(pl.location::geometry) AS lat,
+            ST_X(pl.location::geometry) AS lng
+          FROM sot.trapper_service_places tsp
+          JOIN sot.people p ON p.person_id = tsp.person_id AND p.merged_into_person_id IS NULL
+          JOIN sot.places pl ON pl.place_id = tsp.place_id AND pl.merged_into_place_id IS NULL AND pl.location IS NOT NULL
+          LEFT JOIN sot.trapper_profiles tp ON tp.person_id = tsp.person_id
+          LEFT JOIN sot.v_trapper_tiers vt ON vt.person_id = tsp.person_id
+          WHERE tsp.end_date IS NULL
+            ${trapperCondition}
+            ${zone ? `AND pl.service_zone = '${zone}'` : ""}
+            ${boundsCondition}
+          ORDER BY
+            CASE tsp.service_type
+              WHEN 'primary_territory' THEN 1
+              WHEN 'regular' THEN 2
+              WHEN 'occasional' THEN 3
+              WHEN 'home_rescue' THEN 4
+              ELSE 5
+            END,
+            p.display_name
+          LIMIT 1000
+        `);
+        result.trapper_territories = territories;
+      } catch (e) {
+        console.warn("trapper_territories layer failed:", e);
+        result.trapper_territories = [];
       }
     }
 
