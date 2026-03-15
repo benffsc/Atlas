@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import type { IntakeSubmission } from "@/lib/intake-types";
-import { SubmissionStatusBadge, formatAge, formatDate, normalizeName } from "@/components/intake/IntakeBadges";
+import { SubmissionStatusBadge, KittenPriorityBadge, formatAge, formatDate, normalizeName } from "@/components/intake/IntakeBadges";
 import { formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
 import { COLORS, TYPOGRAPHY } from "@/lib/design-tokens";
 import { formatEnum, TRIAGE_LABELS } from "@/lib/display-labels";
@@ -124,7 +124,7 @@ export function IntakeQueueRow({
       {/* Cat count */}
       <td>
         <div>{sub.cat_count_estimate ?? "?"}</div>
-        {sub.has_kittens && <span style={{ fontSize: TYPOGRAPHY.size['2xs'], color: COLORS.warning }}>+kittens</span>}
+        <KittenPriorityBadge score={sub.kitten_priority_score} hasKittens={sub.has_kittens} />
       </td>
 
       {/* Status — simplified per FFS-108 */}

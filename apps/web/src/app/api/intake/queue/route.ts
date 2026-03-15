@@ -51,6 +51,11 @@ interface IntakeSubmission {
   contact_attempt_count: number | null;
   // Test mode
   is_test: boolean;
+  // Kitten priority (FFS-559)
+  kitten_priority_score: number | null;
+  kitten_assessment_outcome: string | null;
+  kitten_assessed_at: string | null;
+  kitten_redirect_destination: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -198,7 +203,11 @@ export async function GET(request: NextRequest) {
         last_contacted_at,
         last_contact_method,
         contact_attempt_count,
-        is_test
+        is_test,
+        kitten_priority_score,
+        kitten_assessment_outcome,
+        kitten_assessed_at,
+        kitten_redirect_destination
       FROM ops.v_intake_triage_queue
       ${whereClause}
       ORDER BY

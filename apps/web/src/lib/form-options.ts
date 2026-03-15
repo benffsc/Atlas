@@ -340,6 +340,15 @@ export const KITTEN_OUTCOME_OPTIONS = [
   { value: "declined", label: "Declined", shortLabel: "Declined" },
 ] as const satisfies readonly FormOption[];
 
+/** Assessment outcomes — what happened after in-person kitten assessment (FFS-559) */
+export const KITTEN_ASSESSMENT_OUTCOME_OPTIONS = [
+  { value: "taken_in", label: "Taken in (foster/shelter)", shortLabel: "Taken in" },
+  { value: "tnr", label: "TNR'd (returned to field)", shortLabel: "TNR'd" },
+  { value: "redirected", label: "Redirected to another shelter", shortLabel: "Redirected" },
+  { value: "temp_hold", label: "Temporary hold (caller keeping)", shortLabel: "Temp hold" },
+  { value: "no_action", label: "No action needed", shortLabel: "No action" },
+] as const satisfies readonly FormOption[];
+
 export const KITTEN_READINESS_OPTIONS = [
   { value: "high", label: "High (friendly, ideal age)", shortLabel: "High (friendly, ideal age)" },
   { value: "medium", label: "Medium (needs work)", shortLabel: "Medium (needs work)" },

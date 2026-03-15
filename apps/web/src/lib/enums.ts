@@ -28,6 +28,7 @@ import {
   EARTIP_ESTIMATE_OPTIONS as _EARTIP_ESTIMATE_OPTIONS,
   FEEDING_FREQUENCY_OPTIONS as _FEEDING_FREQUENCY_OPTIONS,
   PERMISSION_STATUS_OPTIONS as _PERMISSION_STATUS_OPTIONS,
+  KITTEN_ASSESSMENT_OUTCOME_OPTIONS as _KITTEN_ASSESSMENT_OUTCOME_OPTIONS,
   getValues,
 } from "./form-options";
 
@@ -68,6 +69,8 @@ export const EARTIP_ESTIMATE = getValues(_EARTIP_ESTIMATE_OPTIONS) as unknown as
 export const FEEDING_FREQUENCY = getValues(_FEEDING_FREQUENCY_OPTIONS) as unknown as readonly ["daily", "free_fed", "few_times_week", "occasionally", "rarely", "not_fed"];
 
 export const PROPERTY_TYPE = getValues(_PROPERTY_TYPE_OPTIONS) as unknown as readonly ["private_home", "condo_townhome", "duplex_multiplex", "apartment_complex", "mobile_home_park", "farm_ranch", "rural_unincorporated", "business", "industrial", "public_park", "school_campus", "church_religious", "government_municipal", "vacant_lot", "other"];
+
+export const KITTEN_ASSESSMENT_OUTCOME = getValues(_KITTEN_ASSESSMENT_OUTCOME_OPTIONS) as unknown as readonly ["taken_in", "tnr", "redirected", "temp_hold", "no_action"];
 
 // =============================================================================
 // HANDOFF ENUMS
@@ -223,6 +226,7 @@ export const ENTITY_ENUMS = {
   EARTIP_ESTIMATE,
   FEEDING_FREQUENCY,
   PROPERTY_TYPE,
+  KITTEN_ASSESSMENT_OUTCOME,
 
   // Handoff
   HANDOFF_REASON,
@@ -262,6 +266,7 @@ export type CountConfidence = (typeof COUNT_CONFIDENCE)[number];
 export type EartipEstimate = (typeof EARTIP_ESTIMATE)[number];
 export type FeedingFrequency = (typeof FEEDING_FREQUENCY)[number];
 export type PropertyType = (typeof PROPERTY_TYPE)[number];
+export type KittenAssessmentOutcome = (typeof KITTEN_ASSESSMENT_OUTCOME)[number];
 
 export type HandoffReason = (typeof HANDOFF_REASON)[number];
 

@@ -77,6 +77,10 @@ export interface IntakeSubmission {
   previous_tnr: boolean | null;
   kitten_age_estimate: string | null;
   kitten_behavior: string | null;
+  kitten_priority_score: number | null;
+  kitten_assessment_outcome: string | null;
+  kitten_assessed_at: string | null;
+  kitten_redirect_destination: string | null;
 }
 
 export interface CommunicationLog {

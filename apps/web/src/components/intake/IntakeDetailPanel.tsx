@@ -15,9 +15,12 @@ import {
 } from "@/lib/intake-types";
 import {
   SubmissionStatusBadge,
+  KittenPriorityBadge,
   formatDate,
   normalizeName,
 } from "@/components/intake/IntakeBadges";
+import { KITTEN_ASSESSMENT_OUTCOME_OPTIONS } from "@/lib/form-options";
+import { getKittenPriorityTier, KITTEN_PRIORITY_LABELS } from "@/lib/display-labels";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
 export interface IntakeDetailPanelProps {
@@ -111,6 +114,12 @@ export function IntakeDetailPanel({
   const [urgentDowngradeReason, setUrgentDowngradeReason] = useState("");
   const [savingUrgentDowngrade, setSavingUrgentDowngrade] = useState(false);
 
+  // Kitten assessment state (FFS-559)
+  const [showKittenAssessment, setShowKittenAssessment] = useState(false);
+  const [kittenOutcome, setKittenOutcome] = useState(submission.kitten_assessment_outcome || "");
+  const [kittenRedirectDest, setKittenRedirectDest] = useState(submission.kitten_redirect_destination || "");
+  const [savingKittenAssessment, setSavingKittenAssessment] = useState(false);
+
   // Inline contact form state
   const [showInlineContactForm, setShowInlineContactForm] = useState<"note" | "call" | null>(null);
   const [contactForm, setContactForm] = useState({
@@ -149,6 +158,9 @@ export function IntakeDetailPanel({
     setEditingContact(false);
     setShowEditHistory(false);
     setEditHistory([]);
+    setShowKittenAssessment(false);
+    setKittenOutcome(submission.kitten_assessment_outcome || "");
+    setKittenRedirectDest(submission.kitten_redirect_destination || "");
     setStatusEdits({
       submission_status: submission.submission_status || "new",
       appointment_date: submission.appointment_date || "",
@@ -994,13 +1006,147 @@ export function IntakeDetailPanel({
               </div>
             </div>
           ) : (
+            <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
               <div><strong>Count:</strong> {submission.cat_count_estimate ?? "Unknown"}</div>
               {submission.ownership_status && <div><strong>Type:</strong> {submission.ownership_status.replace(/_/g, " ")}</div>}
               {submission.fixed_status && <div><strong>Fixed:</strong> {submission.fixed_status.replace(/_/g, " ")}</div>}
-              {submission.has_kittens && <div style={{ color: COLORS.warning }}><strong>Kittens present</strong></div>}
+              {submission.has_kittens && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <KittenPriorityBadge score={submission.kitten_priority_score} hasKittens={submission.has_kittens} />
+                  {submission.kitten_priority_score != null && (
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "0.5rem" }}>
+                      {submission.kitten_priority_score}/100
+                    </span>
+                  )}
+                </div>
+              )}
               {submission.has_medical_concerns && <div style={{ color: COLORS.error }}><strong>Medical concerns</strong></div>}
             </div>
+
+            {/* Kitten Assessment Outcome (FFS-559) */}
+            {submission.has_kittens && submission.kitten_priority_score != null && (
+              <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+                {submission.kitten_assessment_outcome ? (
+                  <div style={{ fontSize: "0.85rem" }}>
+                    <strong>Assessment:</strong>{" "}
+                    {KITTEN_ASSESSMENT_OUTCOME_OPTIONS.find(o => o.value === submission.kitten_assessment_outcome)?.label || submission.kitten_assessment_outcome}
+                    {submission.kitten_assessed_at && (
+                      <span style={{ color: "var(--muted)", marginLeft: "0.5rem" }}>
+                        ({formatDate(submission.kitten_assessed_at)})
+                      </span>
+                    )}
+                    {submission.kitten_redirect_destination && (
+                      <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                        Redirected to: {submission.kitten_redirect_destination}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    {!showKittenAssessment ? (
+                      <button
+                        onClick={() => setShowKittenAssessment(true)}
+                        style={{
+                          padding: "0.375rem 0.75rem",
+                          fontSize: "0.8rem",
+                          background: COLORS.primary,
+                          color: COLORS.white,
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Record Assessment Outcome
+                      </button>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                        <label style={{ fontSize: "0.8rem", fontWeight: 500 }}>Assessment Outcome</label>
+                        <select
+                          value={kittenOutcome}
+                          onChange={(e) => setKittenOutcome(e.target.value)}
+                          style={{ padding: "0.375rem", fontSize: "0.85rem", borderRadius: "4px", border: "1px solid var(--border)" }}
+                        >
+                          <option value="">Select outcome...</option>
+                          {KITTEN_ASSESSMENT_OUTCOME_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                        {kittenOutcome === "redirected" && (
+                          <input
+                            type="text"
+                            placeholder="Destination shelter/rescue name"
+                            value={kittenRedirectDest}
+                            onChange={(e) => setKittenRedirectDest(e.target.value)}
+                            style={{ padding: "0.375rem", fontSize: "0.85rem", borderRadius: "4px", border: "1px solid var(--border)" }}
+                          />
+                        )}
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                          <button
+                            onClick={async () => {
+                              if (!kittenOutcome) return;
+                              setSavingKittenAssessment(true);
+                              try {
+                                const payload: Record<string, unknown> = {
+                                  kitten_assessment_outcome: kittenOutcome,
+                                };
+                                if (kittenOutcome === "redirected" && kittenRedirectDest) {
+                                  payload.kitten_redirect_destination = kittenRedirectDest;
+                                }
+                                const data = await postApi<{ submission: IntakeSubmission }>(
+                                  `/api/intake/queue/${submission.submission_id}`,
+                                  payload,
+                                  { method: "PATCH" }
+                                );
+                                onSubmissionUpdate({ ...submission, ...data.submission });
+                                setShowKittenAssessment(false);
+                                setToastMessage("Kitten assessment recorded");
+                                setTimeout(() => setToastMessage(null), 3000);
+                                onRefresh();
+                              } catch (err) {
+                                console.error("Failed to save kitten assessment:", err);
+                              } finally {
+                                setSavingKittenAssessment(false);
+                              }
+                            }}
+                            disabled={!kittenOutcome || savingKittenAssessment}
+                            style={{
+                              padding: "0.375rem 0.75rem",
+                              fontSize: "0.8rem",
+                              background: kittenOutcome ? COLORS.success : COLORS.gray500,
+                              color: COLORS.white,
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: kittenOutcome ? "pointer" : "not-allowed",
+                            }}
+                          >
+                            {savingKittenAssessment ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowKittenAssessment(false);
+                              setKittenOutcome("");
+                              setKittenRedirectDest("");
+                            }}
+                            style={{
+                              padding: "0.375rem 0.75rem",
+                              fontSize: "0.8rem",
+                              background: "transparent",
+                              border: "1px solid var(--border)",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
           )}
         </div>
 

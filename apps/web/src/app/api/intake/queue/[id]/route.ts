@@ -160,6 +160,10 @@ export async function PATCH(
       'property_owner_email',
       // Custom fields (JSONB)
       'custom_fields',
+      // Kitten assessment (FFS-559)
+      'kitten_assessment_outcome',
+      'kitten_assessed_at',
+      'kitten_redirect_destination',
     ];
 
     const allAllowedFields = [...statusFields, ...answerFields];
@@ -209,6 +213,11 @@ export async function PATCH(
 
     if (updates.length === 0) {
       return apiBadRequest("No valid fields to update");
+    }
+
+    // Auto-set kitten_assessed_at when outcome is recorded (FFS-559)
+    if ('kitten_assessment_outcome' in body && body.kitten_assessment_outcome && !('kitten_assessed_at' in body)) {
+      updates.push(`kitten_assessed_at = NOW()`);
     }
 
     // If address is being corrected, clear old geo data and place link

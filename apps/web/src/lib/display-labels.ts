@@ -185,6 +185,21 @@ export const MATCH_FIELD_LABELS: Record<string, string> = {
   payload: "Record data",
 };
 
+// ── Kitten priority (FFS-559) ────────────────────────────────────────
+
+export const KITTEN_PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
+  high: { label: "High", color: "#dc3545" },
+  medium: { label: "Med", color: "#fd7e14" },
+  low: { label: "Low", color: "#6c757d" },
+};
+
+export function getKittenPriorityTier(score: number | null): "high" | "medium" | "low" | null {
+  if (score == null || score === 0) return null;
+  if (score >= 70) return "high";
+  if (score >= 40) return "medium";
+  return "low";
+}
+
 // ── Triage categories ───────────────────────────────────────────────
 
 export const TRIAGE_LABELS: Record<string, string> = {

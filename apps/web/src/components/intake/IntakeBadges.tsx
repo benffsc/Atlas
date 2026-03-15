@@ -5,7 +5,7 @@
  */
 
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
-import { formatEnum, TRIAGE_LABELS } from "@/lib/display-labels";
+import { formatEnum, TRIAGE_LABELS, KITTEN_PRIORITY_LABELS, getKittenPriorityTier } from "@/lib/display-labels";
 
 // Consistent badge styling
 const badgeBase: React.CSSProperties = {
@@ -49,6 +49,32 @@ export function TriageBadge({ category, score, isLegacy }: { category: string | 
         </span>
       )}
     </div>
+  );
+}
+
+export function KittenPriorityBadge({ score, hasKittens }: { score: number | null; hasKittens: boolean | null }) {
+  if (!hasKittens) return null;
+
+  const tier = getKittenPriorityTier(score);
+  if (!tier) {
+    // has_kittens but no score — fallback to old "+kittens" display
+    return (
+      <span style={{ fontSize: TYPOGRAPHY.size['2xs'], color: COLORS.warning }}>+kittens</span>
+    );
+  }
+
+  const tierInfo = KITTEN_PRIORITY_LABELS[tier];
+  return (
+    <span
+      style={{
+        ...badgeBase,
+        background: tierInfo.color,
+        color: "#fff",
+      }}
+      title={`Kitten priority score: ${score}/100`}
+    >
+      Kitten: {tierInfo.label} ({score})
+    </span>
   );
 }
 
