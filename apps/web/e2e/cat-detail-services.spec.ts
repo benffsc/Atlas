@@ -73,7 +73,7 @@ async function fetchJson<T>(
 // Regression test for master-detail parsing bug
 // ============================================================================
 
-test.describe("CAT-SVC: Service Data Completeness", () => {
+test.describe("CAT-SVC: Service Data Completeness @workflow", () => {
   test.setTimeout(60000);
 
   test("CAT-SVC-001: Cat detail appointments include vaccine data when present", async ({

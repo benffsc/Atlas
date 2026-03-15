@@ -71,7 +71,7 @@ async function fetchRequest(
 // Test Suite
 // --------------------------------------------------------------------------
 
-test.describe('Request Submission Variations @real-api', () => {
+test.describe('Request Submission Variations @workflow @real-api', () => {
   let testPlaceId: string;
   const createdIds: string[] = [];
 

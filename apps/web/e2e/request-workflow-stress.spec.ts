@@ -26,7 +26,7 @@ import { unwrapApiResponse } from './helpers/api-response';
 // API ENDPOINT TESTS
 // ============================================================================
 
-test.describe('API: Request Counts', () => {
+test.describe('API: Request Counts @workflow', () => {
   test('GET /api/requests/counts returns valid counts', async ({ request }) => {
     const response = await request.get('/api/requests/counts');
     expect(response.ok()).toBeTruthy();

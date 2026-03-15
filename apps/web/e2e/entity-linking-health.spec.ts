@@ -14,7 +14,7 @@
 import { test, expect } from "@playwright/test";
 import { unwrapApiResponse } from './helpers/api-response';
 
-test.describe("Entity Linking Health (MIG_2430-2435)", () => {
+test.describe("Entity Linking Health (MIG_2430-2435) @data-quality", () => {
   test.setTimeout(30000);
 
   test("clinic address leakage is zero", async ({ request }) => {

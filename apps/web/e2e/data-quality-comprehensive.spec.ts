@@ -15,7 +15,7 @@
 import { test, expect } from "@playwright/test";
 import { unwrapApiResponse } from "./helpers/api-response";
 
-test.describe("Entity Link Integrity", () => {
+test.describe("Entity Link Integrity @data-quality", () => {
   test.describe("Appointment Links", () => {
     test("appointment link rates are acceptable", async ({ request }) => {
       const response = await request.get("/api/health/data-quality");

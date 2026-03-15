@@ -12,7 +12,7 @@ import { unwrapApiResponse } from './helpers/api-response';
  * - Colony estimates align with verified alterations
  */
 
-test.describe('Data Consistency', () => {
+test.describe('Data Consistency @data-quality', () => {
 
   test.describe('API Health', () => {
     test('requests API returns valid data', async ({ request }) => {

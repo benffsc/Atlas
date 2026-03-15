@@ -79,7 +79,7 @@ function runStaffQuestionTest(question: StaffQuestion) {
 // Questions asked every morning when opening Atlas
 // ============================================================================
 
-test.describe("Daily Coordinator Workflow @real-api", () => {
+test.describe("Daily Coordinator Workflow @workflow @real-api", () => {
   test.describe("Morning Intake Review", () => {
     for (const question of INTAKE_QUESTIONS) {
       runStaffQuestionTest(question);

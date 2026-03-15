@@ -1,4 +1,4 @@
-name: E2E Tests
+name: Test Suite
 
 on:
   push:
@@ -10,13 +10,61 @@ on:
     branches: [main]
     paths:
       - 'apps/web/**'
+  schedule:
+    # Weekly Tippy AI test run — Sundays at 6am UTC
+    - cron: '0 6 * * 0'
   workflow_dispatch:
+    inputs:
+      test_scope:
+        description: 'Test scope to run'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - smoke
+          - full
+          - tippy
+          - all
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
-    name: Playwright E2E Tests
+  # ── Unit Tests (Vitest) ─────────────────────────────────
+  unit:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+  # ── Smoke Tests (fast, runs on PRs) ────────────────────
+  smoke:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request' || github.event.inputs.test_scope == 'smoke'
 
     defaults:
       run:
@@ -44,28 +92,140 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      - name: Start server and run tests
+      - name: Run smoke tests
         run: |
           npm run start &
-          sleep 10
-          npm run test:e2e
+          npx wait-on http://localhost:3000 --timeout 30000
+          npm run test:e2e:smoke
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           CI: true
 
-      - name: Upload test results
+      - name: Upload smoke report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
+          name: smoke-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+  # ── Full E2E Suite (on push to main) ───────────────────
+  e2e-full:
+    name: Full E2E Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: >
+      github.event_name == 'push' ||
+      github.event.inputs.test_scope == 'full' ||
+      github.event.inputs.test_scope == 'all'
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build application
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run full E2E suite (excluding AI tests)
+        run: |
+          npm run start &
+          npx wait-on http://localhost:3000 --timeout 30000
+          npx playwright test --grep-invert "@real-api|@vision-api"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          CI: true
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-full-report
           path: apps/web/playwright-report/
           retention-days: 30
 
-      - name: Upload test screenshots
+      - name: Upload failure screenshots
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test-screenshots
           path: apps/web/test-results/
           retention-days: 7
+
+  # ── Tippy AI Tests (weekly cron or manual) ─────────────
+  tippy:
+    name: Tippy AI Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: >
+      github.event.schedule ||
+      github.event.inputs.test_scope == 'tippy' ||
+      github.event.inputs.test_scope == 'all'
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Build application
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run Tippy AI tests with archiving
+        run: |
+          npm run start &
+          npx wait-on http://localhost:3000 --timeout 30000
+          mkdir -p test-results/tippy-archive
+          INCLUDE_REAL_API=1 npx playwright test --grep "@real-api" --reporter=json,html 2>&1 | tee "test-results/tippy-archive/tippy-run-$(date +%Y-%m-%d-%H%M).json"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          CI: true
+
+      - name: Upload Tippy results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tippy-results-${{ github.run_number }}
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/tippy-archive/
+          retention-days: 90

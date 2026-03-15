@@ -26,7 +26,7 @@ const TEST_SUBMISSION = {
   is_test: true, // Flag for cleanup
 };
 
-test.describe('Webhook Intake Flow', () => {
+test.describe('Webhook Intake Flow @api', () => {
 
   test('webhook endpoint accepts POST requests', async ({ request }) => {
     // Test that the webhook endpoint exists and responds

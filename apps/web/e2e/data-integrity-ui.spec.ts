@@ -28,7 +28,7 @@ import {
 // CONFIDENCE FILTERING TESTS (INV-19)
 // ============================================================================
 
-test.describe("Confidence Filtering (INV-19)", () => {
+test.describe("Confidence Filtering (INV-19) @data-quality", () => {
   test.setTimeout(30000);
 
   test("Person page does not display low-confidence emails", async ({

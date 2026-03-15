@@ -144,7 +144,7 @@ async function cleanupAllRequests(request: APIRequestContext): Promise<void> {
 // TESTS
 // ============================================================================
 
-test.describe('Real API: Request Creation with All Scenarios', () => {
+test.describe('Real API: Request Creation with All Scenarios @workflow', () => {
   test.setTimeout(120000);
 
   let testPlaceId: string | null = null;

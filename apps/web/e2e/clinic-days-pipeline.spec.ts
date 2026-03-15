@@ -111,7 +111,7 @@ async function getClinicDaysList(request: { get: (url: string) => Promise<{ ok()
 // Phase 2: Cartesian Product Fixes (FFS-96, FFS-122)
 // ============================================================================
 
-test.describe('Clinic Days List - No Cartesian Products (FFS-96)', () => {
+test.describe('Clinic Days List - No Cartesian Products (FFS-96) @data-quality', () => {
 
   test('total_cats matches clinichq_cats (no inflated counts)', async ({ page }) => {
     const data = await getClinicDaysList(page.request, 10);

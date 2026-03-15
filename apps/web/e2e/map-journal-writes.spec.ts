@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { TEST_PREFIX } from './fixtures/test-data';
 
-test.describe('Journal & Annotation Write Tests', () => {
+test.describe('Journal & Annotation Write Tests @workflow', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(30000);
 

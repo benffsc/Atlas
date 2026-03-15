@@ -129,7 +129,7 @@ const BASE_INTAKE = {
 // Test Suite
 // --------------------------------------------------------------------------
 
-test.describe('Intake Submission Variations @real-api', () => {
+test.describe('Intake Submission Variations @workflow @real-api', () => {
   const createdIntakeIds: string[] = [];
   const createdRequestIds: string[] = [];
 

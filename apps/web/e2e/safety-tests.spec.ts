@@ -16,7 +16,7 @@ import { navigateTo, findRealEntity } from "./ui-test-helpers";
 // SOFT BLACKLIST TESTS
 // ============================================================================
 
-test.describe("Soft Blacklist Enforcement", () => {
+test.describe("Soft Blacklist Enforcement @data-quality", () => {
   test.setTimeout(30000);
 
   /**

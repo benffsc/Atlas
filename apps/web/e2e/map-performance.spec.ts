@@ -15,7 +15,7 @@ import { unwrapApiResponse } from './helpers/api-response';
  * - Viewport pan: no lag, smooth loading
  */
 
-test.describe('Map Performance', () => {
+test.describe('Map Performance @smoke @workflow', () => {
 
   test('map page loads within acceptable time', async ({ page }) => {
     const start = Date.now();

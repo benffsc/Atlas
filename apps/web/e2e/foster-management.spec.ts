@@ -34,7 +34,7 @@ async function findRealFoster(request: import('@playwright/test').APIRequestCont
 // Foster Roster Page
 // ============================================================================
 
-test.describe('Foster Roster Page', () => {
+test.describe('Foster Roster Page @workflow', () => {
 
   test('page loads with content', async ({ page }) => {
     await navigateTo(page, '/fosters');

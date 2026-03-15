@@ -51,7 +51,7 @@ async function findRequestWithPlace(request: import('@playwright/test').APIReque
 // Trapper List Page
 // ============================================================================
 
-test.describe('Trapper List Page', () => {
+test.describe('Trapper List Page @workflow', () => {
 
   test('page loads with aggregate stats', async ({ page }) => {
     await navigateTo(page, '/trappers');

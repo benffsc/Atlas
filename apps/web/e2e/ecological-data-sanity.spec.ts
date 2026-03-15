@@ -37,7 +37,7 @@ interface EcologyStats {
   estimated_work_remaining: number | null;
 }
 
-test.describe('Colony Estimate Sanity', () => {
+test.describe('Colony Estimate Sanity @data-quality', () => {
 
   test('colony estimates have valid ranges', async ({ request }) => {
     // Get places with colony data

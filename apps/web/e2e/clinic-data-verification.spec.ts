@@ -36,7 +36,7 @@ interface Appointment {
   procedure_type: string | null;
 }
 
-test.describe('Clinic Data Cross-Reference', () => {
+test.describe('Clinic Data Cross-Reference @data-quality', () => {
 
   test('cats API returns cats with microchips', async ({ request }) => {
     const response = await request.get('/api/cats?limit=50');

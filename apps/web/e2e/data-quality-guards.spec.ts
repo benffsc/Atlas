@@ -48,7 +48,7 @@ async function fetchJson(
 // Ledger ref: DQ-001 (Wildhaven Campgrounds as person)
 // ============================================================================
 
-test.describe("DQ: Organization Names Filtered from People", () => {
+test.describe("DQ: Organization Names Filtered from People @data-quality", () => {
   test.setTimeout(30000);
 
   /**

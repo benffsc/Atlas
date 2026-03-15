@@ -24,7 +24,7 @@ import {
   getTabBarBadgeCount,
 } from './ui-test-helpers';
 
-test.describe('UI: Request Detail Interactions', () => {
+test.describe('UI: Request Detail Interactions @workflow', () => {
   test.setTimeout(45000);
 
   let requestId: string | null = null;

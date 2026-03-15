@@ -26,7 +26,7 @@
 import { test, expect } from '@playwright/test';
 import { navigateTo, mockAllWrites, waitForLoaded } from './ui-test-helpers';
 
-test.describe('UI: Intake Queue Interactions', () => {
+test.describe('UI: Intake Queue Interactions @workflow', () => {
   test.setTimeout(45000);
 
   test.beforeEach(async ({ page }) => {

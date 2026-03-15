@@ -52,7 +52,7 @@ const MOCK_PLACE = {
   cat_count: 5,
 };
 
-test.describe('Mocked Intake Workflow', () => {
+test.describe('Mocked Intake Workflow @workflow', () => {
 
   test('can submit intake form with mocked API', async ({ page }) => {
     // Intercept the submission API - return success without saving

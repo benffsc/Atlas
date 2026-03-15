@@ -47,7 +47,7 @@ async function tippyFetch(
 // TIER 1: MOCKED INFRASTRUCTURE TESTS (Always run, no API credits)
 // ============================================================================
 
-test.describe("Tippy Infrastructure (Mocked)", () => {
+test.describe("Tippy Infrastructure (Mocked) @real-api", () => {
   // All mocked tests need to be on a page for browser fetch to work
   test.beforeEach(async ({ page }) => {
     await page.goto("/");

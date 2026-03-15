@@ -21,7 +21,7 @@ import { unwrapApiResponse } from "./helpers/api-response";
 // BEACON SUMMARY ENDPOINT TESTS
 // ============================================================================
 
-test.describe("Beacon Analytics: Summary Endpoint", () => {
+test.describe("Beacon Analytics: Summary Endpoint @smoke @api", () => {
   test("GET /api/beacon/summary returns 200", async ({ request }) => {
     const response = await request.get("/api/beacon/summary");
     expect(response.ok()).toBeTruthy();

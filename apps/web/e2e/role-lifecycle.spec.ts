@@ -48,7 +48,7 @@ async function fetchJson(
 // DQ-004: Map Badge Accuracy — No Stale Roles on Pins
 // ============================================================================
 
-test.describe("DQ: Map Badge Accuracy", () => {
+test.describe("DQ: Map Badge Accuracy @workflow", () => {
   test.setTimeout(45000);
 
   test("Map pin people with foster also have volunteer role", async ({ request }) => {

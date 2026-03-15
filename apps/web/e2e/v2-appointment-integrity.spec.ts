@@ -35,7 +35,7 @@ interface Cat {
   altered_status?: string;
 }
 
-test.describe('V2 Appointment Detail API', () => {
+test.describe('V2 Appointment Detail API @data-quality', () => {
   test.setTimeout(60000);
 
   test('appointment detail API returns data without error', async ({ request }) => {

@@ -22,7 +22,7 @@ test.setTimeout(60000);
 // DASHBOARD & NAVIGATION TESTS
 // ============================================================================
 
-test.describe('Dashboard Navigation', () => {
+test.describe('Dashboard Navigation @workflow', () => {
 
   test('dashboard loads with key sections', async ({ page }) => {
     await navigateTo(page, '/');

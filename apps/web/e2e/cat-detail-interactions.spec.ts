@@ -24,7 +24,7 @@ import {
   waitForLoaded,
 } from './ui-test-helpers';
 
-test.describe('UI: Cat Detail Interactions', () => {
+test.describe('UI: Cat Detail Interactions @workflow', () => {
   test.setTimeout(45000);
 
   let catId: string | null = null;

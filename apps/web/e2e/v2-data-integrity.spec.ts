@@ -77,7 +77,7 @@ interface DiseaseBadge {
 // API Data Integrity Tests
 // ============================================================================
 
-test.describe('API Data Integrity - Appointments', () => {
+test.describe('API Data Integrity - Appointments @data-quality', () => {
   test.setTimeout(60000);
 
   test('appointments API returns enriched columns', async ({ request }) => {

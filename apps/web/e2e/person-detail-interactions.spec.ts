@@ -22,7 +22,7 @@ import {
   getTabBarBadgeCount,
 } from './ui-test-helpers';
 
-test.describe('UI: Person Detail Interactions', () => {
+test.describe('UI: Person Detail Interactions @workflow', () => {
   test.setTimeout(60000);
 
   let personId: string | null = null;

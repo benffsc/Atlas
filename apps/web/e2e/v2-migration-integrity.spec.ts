@@ -16,7 +16,7 @@ import { navigateTo, waitForLoaded, findRealEntity } from './ui-test-helpers';
  * ALL TESTS ARE READ-ONLY - no data modifications.
  */
 
-test.describe('V2 Migration: Relationship Table APIs', () => {
+test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
   test.setTimeout(60000);
 
   test.describe('Person-Place Relationships (sot.person_place)', () => {

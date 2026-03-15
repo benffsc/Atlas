@@ -15,7 +15,7 @@ import { unwrapApiResponse } from './helpers/api-response';
  * Updated for Atlas 2.5 architecture (FFS-552).
  */
 
-test.describe('Dangerous Action Protection', () => {
+test.describe('Dangerous Action Protection @smoke', () => {
 
   test('delete/archive buttons have confirmation dialogs', async ({ page, request }) => {
     const requestId = await findRealEntity(request, 'requests');

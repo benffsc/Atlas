@@ -16,7 +16,7 @@ import { navigateTo, findRealEntity } from "./ui-test-helpers";
 // TWOCOLUMNLAYOUT TESTS
 // ============================================================================
 
-test.describe("TwoColumnLayout Component", () => {
+test.describe("TwoColumnLayout Component @smoke @workflow", () => {
   test.setTimeout(30000);
 
   test("Request page uses TwoColumnLayout with correct proportions", async ({

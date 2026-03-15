@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('MAP_012: API Data Audit', () => {
+test.describe('MAP_012: API Data Audit @smoke @workflow', () => {
   test.setTimeout(60000);
 
   // map-details returns contexts, data_sources, journal, disease_badges arrays

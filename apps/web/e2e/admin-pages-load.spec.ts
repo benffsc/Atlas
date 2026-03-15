@@ -7,7 +7,7 @@ import { navigateTo, waitForLoaded } from './ui-test-helpers';
  * Verifies that each admin page loads without crashing.
  * Auth is provided via shared storageState from auth.setup.ts.
  */
-test.describe('UI: Admin Pages Smoke Test', () => {
+test.describe('UI: Admin Pages Smoke Test @smoke', () => {
   test.setTimeout(30000);
 
   const adminPages = [

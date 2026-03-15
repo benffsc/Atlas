@@ -8,7 +8,7 @@ import { navigateTo } from './ui-test-helpers';
  * Auth handled by storageState + navigateTo() fallback.
  */
 
-test.describe('Smoke Tests', () => {
+test.describe('Smoke Tests @smoke', () => {
 
   test('dashboard loads and shows stats', async ({ page }) => {
     await navigateTo(page, '/');

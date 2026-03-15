@@ -17,7 +17,7 @@ import { unwrapApiResponse } from "./helpers/api-response";
 // Match cats by: microchip first, then clinichq_animal_id.
 // ============================================================================
 
-test.describe("Cat Identity Fallback Chain (INV-9)", () => {
+test.describe("Cat Identity Fallback Chain (INV-9) @data-quality", () => {
   test.setTimeout(30000);
 
   test("cats with microchip have it as primary identifier", async ({ request }) => {

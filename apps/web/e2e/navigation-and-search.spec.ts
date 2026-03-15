@@ -17,7 +17,7 @@ import { navigateTo, findRealEntity } from './ui-test-helpers';
 
 test.setTimeout(30000);
 
-test.describe('UI: Navigation & Search', () => {
+test.describe('UI: Navigation & Search @smoke', () => {
 
   // ---- Test 1 ----
   test('Homepage loads with map', async ({ page }) => {

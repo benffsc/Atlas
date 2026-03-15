@@ -150,7 +150,7 @@ function extractContext(text: string, match: string, contextChars: number = 50):
 // VERY LOW RISK EXTRACTIONS
 // ============================================================================
 
-test.describe("Very Low Risk Extractions (Auto-safe)", () => {
+test.describe("Very Low Risk Extractions (Auto-safe) @data-quality", () => {
   test.setTimeout(120000);
 
   test("Microchip IDs from cat notes", async ({ request }) => {

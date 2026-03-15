@@ -40,7 +40,7 @@ const MOCK_PLACE_WITH_CONTEXTS = {
   ],
 };
 
-test.describe('Place Context UI Tests', () => {
+test.describe('Place Context UI Tests @workflow', () => {
   test('place detail page loads with mocked context badges', async ({ page }) => {
     // Mock place API to return place with contexts
     await page.route('**/api/places/mock-place-001', async (route) => {

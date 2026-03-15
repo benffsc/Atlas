@@ -79,7 +79,7 @@ const CLINICHQ_ID_PATTERN = /\b(\d{2})-(\d{2,5})\b/g;
 // DATA GAP DETECTION TESTS
 // ============================================================================
 
-test.describe("Data Gap Detection", () => {
+test.describe("Data Gap Detection @data-quality", () => {
   test.setTimeout(120000);
 
   test("Cats missing microchip data", async ({ request }) => {

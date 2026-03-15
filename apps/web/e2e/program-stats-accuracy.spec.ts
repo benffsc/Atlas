@@ -28,7 +28,7 @@ const EXPECTED_RANGES = {
   lmfm_2025: { min: 50, max: 200 },
 };
 
-test.describe("Program Statistics Accuracy", () => {
+test.describe("Program Statistics Accuracy @data-quality", () => {
   test.describe("Foster Program Statistics", () => {
     test("v_foster_program_ytd returns accurate yearly totals", async ({
       request,

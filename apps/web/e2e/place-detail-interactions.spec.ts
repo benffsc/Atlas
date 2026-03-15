@@ -32,7 +32,7 @@ async function pageLoadedSuccessfully(page: import('@playwright/test').Page): Pr
   return !hasError;
 }
 
-test.describe('UI: Place Detail Interactions', () => {
+test.describe('UI: Place Detail Interactions @workflow', () => {
   test.setTimeout(45000);
 
   let placeId: string | null = null;

@@ -114,7 +114,7 @@ const cleanupData: TestCleanupData = {
 // SECTION 1: API VALIDATION TESTS
 // ============================================================================
 
-test.describe('API: Request Creation Endpoint', () => {
+test.describe('API: Request Creation Endpoint @workflow', () => {
   test('POST /api/requests requires minimum data', async ({ request }) => {
     // Empty body should fail
     const response = await request.post('/api/requests', {

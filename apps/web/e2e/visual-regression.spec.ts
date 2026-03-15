@@ -37,7 +37,7 @@ async function pageHasError(page: import("@playwright/test").Page): Promise<bool
 // PAGE LAYOUT SCREENSHOTS
 // ============================================================================
 
-test.describe("Page Layout Screenshots", () => {
+test.describe("Page Layout Screenshots @visual", () => {
   test.setTimeout(60000);
 
   test("Request detail page layout", async ({ page, request }) => {

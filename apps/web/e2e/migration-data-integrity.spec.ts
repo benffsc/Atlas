@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
  * ALL TESTS ARE READ-ONLY - no data modifications.
  */
 
-test.describe('MIG_555: Adopted Cats -> Place Links', () => {
+test.describe('MIG_555: Adopted Cats -> Place Links @data-quality', () => {
   test.setTimeout(60000);
 
   test('places API responds with valid structure', async ({ request }) => {

@@ -17,7 +17,7 @@ const IDENTITY_REVIEW_URL = "/admin/reviews/identity";
 // REVIEW DASHBOARD TESTS
 // ============================================================================
 
-test.describe("Review Dashboard", () => {
+test.describe("Review Dashboard @workflow", () => {
   test.setTimeout(30000);
 
   test("Review dashboard loads and shows queue counts", async ({ page }) => {

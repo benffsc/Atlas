@@ -8,7 +8,7 @@
 import { test, expect } from '@playwright/test';
 import { navigateTo, mockAllWrites, findRealEntity, waitForLoaded } from './ui-test-helpers';
 
-test.describe('UI: Handoff Workflow', () => {
+test.describe('UI: Handoff Workflow @workflow', () => {
   test.setTimeout(60000);
 
   let realRequestId: string | null = null;

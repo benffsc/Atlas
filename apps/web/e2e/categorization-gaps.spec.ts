@@ -13,7 +13,7 @@
 import { test, expect } from "@playwright/test";
 import { unwrapApiResponse } from "./helpers/api-response";
 
-test.describe("Categorization Gap Detection", () => {
+test.describe("Categorization Gap Detection @data-quality", () => {
   test.describe("SCAS Pattern Detection Gaps", () => {
     test("detect SCAS-like IDs not classified as county_scas", async ({
       request,

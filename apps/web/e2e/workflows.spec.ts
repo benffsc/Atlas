@@ -11,7 +11,7 @@ import { unwrapApiResponse } from './helpers/api-response';
  * - Intake queue operations
  */
 
-test.describe('Navigation Workflows', () => {
+test.describe('Navigation Workflows @workflow', () => {
 
   test('dashboard to request detail flow', async ({ page }) => {
     await navigateTo(page, '/');

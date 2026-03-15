@@ -18,7 +18,7 @@ import { unwrapApiResponse } from "./helpers/api-response";
 // CLAUDE.md defines: 'airtable', 'clinichq', 'web_intake'
 // ============================================================================
 
-test.describe("Source System Compliance", () => {
+test.describe("Source System Compliance @data-quality", () => {
   const DEFINED_SOURCES = [
     "airtable",
     "clinichq",

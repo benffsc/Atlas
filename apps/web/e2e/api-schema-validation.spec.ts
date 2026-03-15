@@ -54,7 +54,7 @@ const EXPECTED_COLUMNS = {
   ],
 };
 
-test.describe("API Schema Validation", () => {
+test.describe("API Schema Validation @api", () => {
   test("People API returns expected columns", async ({ page }) => {
     const response = await page.request.get("/api/people?limit=1");
     expect(response.ok()).toBeTruthy();

@@ -16,7 +16,7 @@ import { unwrapApiResponse } from "./helpers/api-response";
 // Also: on_hold (with hold_reason), cancelled
 // ============================================================================
 
-test.describe("Request Lifecycle", () => {
+test.describe("Request Lifecycle @data-quality", () => {
   test("GET /api/requests returns valid status values", async ({ request }) => {
     const response = await request.get("/api/requests?limit=100");
     expect(response.ok()).toBeTruthy();
