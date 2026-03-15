@@ -30,7 +30,7 @@ describe("detectRoles", () => {
   });
 
   it("detects trapper from trapperStats", () => {
-    const roles = detectRoles(mockPersonData({ trapperStats: { total_assignments: 5 } as PersonDetailData["trapperStats"] }));
+    const roles = detectRoles(mockPersonData({ trapperStats: { total_assignments: 5 } as unknown as PersonDetailData["trapperStats"] }));
     expect(roles).toContain("trapper");
   });
 
