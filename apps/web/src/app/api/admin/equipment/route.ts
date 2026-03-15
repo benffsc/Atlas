@@ -1,5 +1,6 @@
 import { queryRows, queryOne } from "@/lib/db";
-import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
+import { requireValidUUID } from "@/lib/api-validation";
 import { NextRequest } from "next/server";
 
 interface EquipmentRow {
@@ -116,5 +117,85 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Equipment list error:", error);
     return apiServerError("Failed to fetch equipment");
+  }
+}
+
+/**
+ * POST /api/admin/equipment
+ * Actions: checkout, return
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { action, equipment_id, person_id, notes } = body;
+
+    if (!action || !equipment_id) {
+      return apiBadRequest("action and equipment_id are required");
+    }
+
+    requireValidUUID(equipment_id, "equipment");
+
+    if (action === "checkout") {
+      if (!person_id) {
+        return apiBadRequest("person_id is required for checkout");
+      }
+      requireValidUUID(person_id, "person");
+
+      // Verify equipment exists and is available
+      const equip = await queryOne<{ is_available: boolean }>(
+        `SELECT is_available FROM ops.equipment WHERE equipment_id = $1`,
+        [equipment_id]
+      );
+      if (!equip) return apiNotFound("equipment", equipment_id);
+      if (!equip.is_available) return apiBadRequest("Equipment is already checked out");
+
+      // Create checkout record and mark unavailable
+      const checkout = await queryOne<{ checkout_id: string }>(
+        `INSERT INTO ops.equipment_checkouts (equipment_id, person_id, checked_out_at, notes, source_system)
+         VALUES ($1, $2, NOW(), $3, 'atlas_ui')
+         RETURNING checkout_id`,
+        [equipment_id, person_id, notes || null]
+      );
+
+      await queryOne(
+        `UPDATE ops.equipment SET is_available = FALSE WHERE equipment_id = $1`,
+        [equipment_id]
+      );
+
+      return apiSuccess({ checkout_id: checkout?.checkout_id, action: "checked_out" });
+
+    } else if (action === "return") {
+      // Find active checkout
+      const activeCheckout = await queryOne<{ checkout_id: string }>(
+        `SELECT checkout_id FROM ops.equipment_checkouts
+         WHERE equipment_id = $1 AND returned_at IS NULL
+         ORDER BY checked_out_at DESC LIMIT 1`,
+        [equipment_id]
+      );
+
+      if (!activeCheckout) return apiBadRequest("No active checkout found for this equipment");
+
+      // Mark returned and equipment available
+      await queryOne(
+        `UPDATE ops.equipment_checkouts SET returned_at = NOW() WHERE checkout_id = $1`,
+        [activeCheckout.checkout_id]
+      );
+
+      await queryOne(
+        `UPDATE ops.equipment SET is_available = TRUE WHERE equipment_id = $1`,
+        [equipment_id]
+      );
+
+      return apiSuccess({ checkout_id: activeCheckout.checkout_id, action: "returned" });
+
+    } else {
+      return apiBadRequest(`Unknown action: ${action}. Expected 'checkout' or 'return'`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
+    console.error("Equipment action error:", error);
+    return apiServerError("Failed to process equipment action");
   }
 }

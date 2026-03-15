@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { fetchApi } from "@/lib/api-client";
+import { fetchApi, postApi } from "@/lib/api-client";
+import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 
 interface EquipmentItem {
   equipment_id: string;
@@ -67,6 +68,12 @@ export default function EquipmentAdminPage() {
   const [checkouts, setCheckouts] = useState<CheckoutRecord[]>([]);
   const [loadingCheckouts, setLoadingCheckouts] = useState(false);
 
+  // Checkout/return state
+  const [showCheckoutForm, setShowCheckoutForm] = useState(false);
+  const [checkoutPerson, setCheckoutPerson] = useState<PersonReference>({ person_id: null, display_name: "", is_resolved: false });
+  const [checkoutNotes, setCheckoutNotes] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+
   const fetchEquipment = useCallback(async () => {
     try {
       const params = new URLSearchParams();
@@ -105,6 +112,48 @@ export default function EquipmentAdminPage() {
       setCheckouts([]);
     } finally {
       setLoadingCheckouts(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!selectedItem || !checkoutPerson.person_id) return;
+    setActionLoading(true);
+    try {
+      await postApi("/api/admin/equipment", {
+        action: "checkout",
+        equipment_id: selectedItem.equipment_id,
+        person_id: checkoutPerson.person_id,
+        notes: checkoutNotes || undefined,
+      });
+      setShowCheckoutForm(false);
+      setCheckoutPerson({ person_id: null, display_name: "", is_resolved: false });
+      setCheckoutNotes("");
+      await fetchEquipment();
+      // Refresh detail panel
+      const updated = equipment.find(e => e.equipment_id === selectedItem.equipment_id);
+      if (updated) openDetail({ ...updated, is_available: false, active_checkout_person: checkoutPerson.display_name, active_checkout_date: new Date().toISOString() });
+      else setSelectedItem(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Checkout failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReturn = async () => {
+    if (!selectedItem) return;
+    setActionLoading(true);
+    try {
+      await postApi("/api/admin/equipment", {
+        action: "return",
+        equipment_id: selectedItem.equipment_id,
+      });
+      await fetchEquipment();
+      openDetail({ ...selectedItem, is_available: true, active_checkout_person: null, active_checkout_date: null });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Return failed");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -320,6 +369,111 @@ export default function EquipmentAdminPage() {
               <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>{selectedItem.total_checkouts}</div>
             </div>
           </div>
+
+          {/* Action buttons */}
+          <div style={{ marginBottom: "1.25rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {selectedItem.is_available ? (
+              <button
+                onClick={() => setShowCheckoutForm(!showCheckoutForm)}
+                style={{
+                  padding: "0.375rem 0.75rem",
+                  fontSize: "0.8rem",
+                  background: "#b45309",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                Check Out
+              </button>
+            ) : (
+              <button
+                onClick={handleReturn}
+                disabled={actionLoading}
+                style={{
+                  padding: "0.375rem 0.75rem",
+                  fontSize: "0.8rem",
+                  background: "#166534",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: actionLoading ? "wait" : "pointer",
+                  fontWeight: 500,
+                  opacity: actionLoading ? 0.7 : 1,
+                }}
+              >
+                {actionLoading ? "Returning..." : "Return Equipment"}
+              </button>
+            )}
+          </div>
+
+          {/* Checkout form */}
+          {showCheckoutForm && (
+            <div style={{
+              marginBottom: "1.25rem",
+              padding: "0.75rem",
+              background: "var(--muted-bg)",
+              borderRadius: "6px",
+              border: "1px solid var(--border)",
+            }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>Check Out To</div>
+              <PersonReferencePicker
+                value={checkoutPerson}
+                onChange={setCheckoutPerson}
+                placeholder="Search for person..."
+                inputStyle={{ fontSize: "0.85rem" }}
+              />
+              <div style={{ marginTop: "0.5rem" }}>
+                <input
+                  type="text"
+                  value={checkoutNotes}
+                  onChange={(e) => setCheckoutNotes(e.target.value)}
+                  placeholder="Notes (optional)"
+                  style={{
+                    width: "100%",
+                    padding: "0.375rem 0.5rem",
+                    fontSize: "0.8rem",
+                    borderRadius: "4px",
+                    border: "1px solid var(--border)",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                <button
+                  onClick={handleCheckout}
+                  disabled={!checkoutPerson.person_id || actionLoading}
+                  style={{
+                    padding: "0.3rem 0.6rem",
+                    fontSize: "0.8rem",
+                    background: checkoutPerson.person_id ? "#b45309" : "#ccc",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: checkoutPerson.person_id && !actionLoading ? "pointer" : "not-allowed",
+                    fontWeight: 500,
+                  }}
+                >
+                  {actionLoading ? "..." : "Confirm Checkout"}
+                </button>
+                <button
+                  onClick={() => { setShowCheckoutForm(false); setCheckoutPerson({ person_id: null, display_name: "", is_resolved: false }); setCheckoutNotes(""); }}
+                  style={{
+                    padding: "0.3rem 0.6rem",
+                    fontSize: "0.8rem",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {selectedItem.notes && (
             <div style={{ marginBottom: "1.25rem" }}>
