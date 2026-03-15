@@ -175,6 +175,9 @@ export async function mockAllWrites(page: Page) {
   await mockWritesFor(page, '**/api/journal/**');
   await mockWritesFor(page, '**/api/annotations/**');
   await mockWritesFor(page, '**/api/intake/**');
+  await mockWritesFor(page, '**/api/trappers/**');
+  await mockWritesFor(page, '**/api/fosters/**');
+  await mockWritesFor(page, '**/api/staff/**');
   // Note: NOT mocking /api/auth/** to keep login working
 }
 
@@ -217,24 +220,24 @@ export async function findRealEntity(
  * Wait for ProfileLayout tabs to render
  */
 export async function waitForProfileTabs(page: Page) {
-  await expect(page.locator('.profile-tabs')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('[role="tablist"]').first()).toBeVisible({ timeout: 15000 });
 }
 
 /**
  * Click a ProfileLayout tab by label text
  */
 export async function clickTab(page: Page, labelText: string) {
-  const tab = page.locator('.profile-tab', { hasText: labelText });
+  const tab = page.locator('[role="tab"]', { hasText: labelText });
   await tab.click();
-  // Give tab switch time to update active class
-  await expect(tab).toHaveClass(/active/, { timeout: 5000 });
+  // Give tab switch time to update aria-selected
+  await expect(tab).toHaveAttribute('aria-selected', 'true', { timeout: 5000 });
 }
 
 /**
  * Verify that a tab with the given label exists
  */
 export async function expectTabExists(page: Page, label: string) {
-  await expect(page.locator('.profile-tab', { hasText: label })).toBeVisible();
+  await expect(page.locator('[role="tab"]', { hasText: label })).toBeVisible();
 }
 
 // ============================================================================

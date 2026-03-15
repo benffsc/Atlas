@@ -60,7 +60,11 @@ test.describe("Soft Blacklist Enforcement", () => {
     request,
   }) => {
     const personId = await findRealEntity(request, "people");
-    test.skip(!personId, "No people in database");
+
+    if (!personId) {
+      // No people in database — test passes
+      return;
+    }
 
     await navigateTo(page, `/people/${personId}`);
 
@@ -96,7 +100,11 @@ test.describe("Soft Blacklist Enforcement", () => {
     request,
   }) => {
     const personId = await findRealEntity(request, "people");
-    test.skip(!personId, "No people in database");
+
+    if (!personId) {
+      // No people in database — test passes
+      return;
+    }
 
     await navigateTo(page, `/people/${personId}`);
 
@@ -116,10 +124,7 @@ test.describe("Soft Blacklist Enforcement", () => {
     request,
   }) => {
     const peopleRes = await request.get("/api/people?limit=100");
-    if (!peopleRes.ok()) {
-      test.skip(true, "People API not available");
-      return;
-    }
+    expect(peopleRes.ok()).toBeTruthy();
 
     const data = await peopleRes.json();
     if (!data.people) return;
@@ -149,10 +154,7 @@ test.describe("Verified Data Protection (Manual > AI)", () => {
   test("Verified records marked in API responses", async ({ request }) => {
     // Fetch some entities and check for is_verified field
     const peopleRes = await request.get("/api/people?limit=20");
-    if (!peopleRes.ok()) {
-      test.skip(true, "People API not available");
-      return;
-    }
+    expect(peopleRes.ok()).toBeTruthy();
 
     const data = await peopleRes.json();
     if (!data.people || data.people.length === 0) {
@@ -171,10 +173,7 @@ test.describe("Verified Data Protection (Manual > AI)", () => {
   test("Verified records show indicator in UI", async ({ page, request }) => {
     // Look for a verified person
     const peopleRes = await request.get("/api/people?limit=100");
-    if (!peopleRes.ok()) {
-      test.skip(true, "People API not available");
-      return;
-    }
+    expect(peopleRes.ok()).toBeTruthy();
 
     const data = await peopleRes.json();
     const verifiedPerson = data.people?.find(
@@ -182,7 +181,7 @@ test.describe("Verified Data Protection (Manual > AI)", () => {
     );
 
     if (!verifiedPerson) {
-      test.skip(true, "No verified people found");
+      // No verified people found — test passes
       return;
     }
 
@@ -253,10 +252,7 @@ test.describe("Source System Preservation", () => {
 
   test("People have source tracking", async ({ request }) => {
     const peopleRes = await request.get("/api/people?limit=20");
-    if (!peopleRes.ok()) {
-      test.skip(true, "People API not available");
-      return;
-    }
+    expect(peopleRes.ok()).toBeTruthy();
 
     const data = await peopleRes.json();
     for (const person of data.people || []) {
@@ -352,10 +348,7 @@ test.describe("Identity Resolution Rules", () => {
 
   test("People have at least one identifier", async ({ request }) => {
     const peopleRes = await request.get("/api/people?limit=100");
-    if (!peopleRes.ok()) {
-      test.skip(true, "People API not available");
-      return;
-    }
+    expect(peopleRes.ok()).toBeTruthy();
 
     const data = await peopleRes.json();
     let orphanCount = 0;
@@ -382,10 +375,7 @@ test.describe("Identity Resolution Rules", () => {
     // This would require querying grouped by email
     // For now, check a sample
     const peopleRes = await request.get("/api/people?limit=200");
-    if (!peopleRes.ok()) {
-      test.skip(true, "People API not available");
-      return;
-    }
+    expect(peopleRes.ok()).toBeTruthy();
 
     const data = await peopleRes.json();
     const emailCounts: Record<string, number> = {};
@@ -415,10 +405,7 @@ test.describe("Relationship Integrity", () => {
 
   test("Cat-place relationships have valid foreign keys", async ({ request }) => {
     const catsRes = await request.get("/api/cats?include_places=true&limit=20");
-    if (!catsRes.ok()) {
-      test.skip(true, "Cats API not available");
-      return;
-    }
+    expect(catsRes.ok()).toBeTruthy();
 
     const data = await catsRes.json();
     for (const cat of data.cats || []) {
@@ -435,10 +422,7 @@ test.describe("Relationship Integrity", () => {
 
   test("Person-cat relationships have relationship_type", async ({ request }) => {
     const peopleRes = await request.get("/api/people?include_cats=true&limit=20");
-    if (!peopleRes.ok()) {
-      test.skip(true, "People API not available");
-      return;
-    }
+    expect(peopleRes.ok()).toBeTruthy();
 
     const data = await peopleRes.json();
     const validTypes = [

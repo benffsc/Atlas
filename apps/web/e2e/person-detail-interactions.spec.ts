@@ -2,8 +2,11 @@
  * Person Detail Page — UI Interaction Tests
  *
  * Verifies the person detail page (/people/[id]) loads correctly,
- * TabBar tabs render and switch (Details, History, Admin), header
+ * TabBar tabs render and switch (Overview, Details, History, Admin), header
  * displays name and badges, and key sections function.
+ *
+ * Updated for PersonDetailShell refactor: both /people/[id] and /trappers/[id]
+ * now render PersonDetailShell with role-based config. Person default tab is Overview.
  *
  * All write operations are mocked via mockAllWrites — no real data is modified.
  */
@@ -50,10 +53,11 @@ test.describe('UI: Person Detail Interactions', () => {
     await waitForLoaded(page);
     await expectTabBarVisible(page);
 
-    // New TabBar tabs: Details, History, Admin
-    const tabs = ['Details', 'History', 'Admin'];
+    // PersonDetailShell tabs: Overview, Details, History, Admin
+    const tabs = ['Overview', 'Details', 'History', 'Admin'];
     for (const tabName of tabs) {
-      await expect(page.locator(`button:has-text("${tabName}")`)).toBeVisible();
+      const tab = page.locator(`[role="tab"]:has-text("${tabName}")`).first();
+      await expect(tab).toBeVisible();
     }
   });
 
@@ -68,7 +72,7 @@ test.describe('UI: Person Detail Interactions', () => {
     await expectTabBarVisible(page);
 
     // Click through each tab
-    const tabs = ['Details', 'History', 'Admin'];
+    const tabs = ['Overview', 'Details', 'History', 'Admin'];
     for (const tabName of tabs) {
       await switchToTabBarTab(page, tabName);
       // Verify tab content area exists

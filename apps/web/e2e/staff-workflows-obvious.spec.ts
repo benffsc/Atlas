@@ -12,7 +12,7 @@
  *
  * Updated for Atlas 2.5 architecture (FFS-552):
  * - Request tabs: Linked Cats, Trip Reports, Photos, Activity, Admin
- * - Person tabs: Details, History, Admin
+ * - Person tabs: Overview, Details, History, Admin (PersonDetailShell)
  * - Place tabs: Details, Requests, Ecology, Media
  *
  * Run: npm run test:e2e -- e2e/staff-workflows-obvious.spec.ts
@@ -307,8 +307,8 @@ test.describe("Staff Workflow: People Management", () => {
     await navigateTo(page, `/people/${personId}`);
     await waitForLoaded(page);
 
-    // Atlas 2.5: Person tabs are Details, History, Admin
-    const expectedTabs = ["Details", "History", "Admin"];
+    // PersonDetailShell tabs: Overview, Details, History, Admin
+    const expectedTabs = ["Overview", "Details", "History", "Admin"];
     let found = 0;
     for (const tab of expectedTabs) {
       const tabButton = page
