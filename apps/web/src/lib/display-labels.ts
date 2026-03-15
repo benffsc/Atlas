@@ -254,6 +254,88 @@ export function formatStatus(status: string | null | undefined): string {
   return SEARCH_STATUS_LABELS[status] || titleCase(status);
 }
 
+// ── SAC (Shelter Animals Count) vocabulary (FFS-416) ────────────────
+// Maps FFSC-specific intake/outcome terms to ASPCA SAC national standards
+// for grant reporting compatibility. These are DISPLAY mappings only —
+// no schema changes needed. Use formatSacIntakeType() and formatSacOutcome()
+// to convert FFSC values for SAC-compatible reports.
+
+/** SAC Intake Type — maps call_type + ownership_status to SAC categories */
+export const SAC_INTAKE_TYPE_LABELS: Record<string, string> = {
+  // SAC standard intake types
+  stray: "Stray/At-Large",
+  owner_relinquished: "Owner/Guardian Relinquished",
+  transfer_in: "Transferred In",
+  return_to_field: "Return-to-Field (RTF)",
+  other_intake: "Other Intake",
+};
+
+/** Map FFSC call_type + ownership to SAC intake type */
+export function classifySacIntakeType(
+  callType: string | null,
+  ownershipStatus: string | null,
+): string {
+  // Owner's own pet = Owner Relinquished
+  if (ownershipStatus === "my_cat") return "owner_relinquished";
+  // Colony TNR = Return-to-Field
+  if (callType === "colony_tnr") return "return_to_field";
+  // Stray, newcomer, unknown = Stray/At-Large
+  if (ownershipStatus === "unknown_stray" || ownershipStatus === "newcomer") return "stray";
+  // Community cats being fed = Stray/At-Large (SAC classification)
+  if (ownershipStatus === "community_colony") return "stray";
+  // Kitten rescue = Stray/At-Large
+  if (callType === "kitten_rescue") return "stray";
+  // Medical/wellness for non-owned = Stray
+  if (callType === "medical_concern" || callType === "wellness_check") return "stray";
+  // Pet spay/neuter (not my_cat) = Other
+  if (callType === "pet_spay_neuter") return "other_intake";
+  // Info, relocation, caretaker support = Other
+  if (callType === "info_only" || callType === "relocation" || callType === "caretaker_support") return "other_intake";
+  return "other_intake";
+}
+
+export function formatSacIntakeType(callType: string | null, ownershipStatus: string | null): string {
+  const sacType = classifySacIntakeType(callType, ownershipStatus);
+  return SAC_INTAKE_TYPE_LABELS[sacType] || "Other Intake";
+}
+
+/** SAC Outcome Type — maps resolution_outcome to SAC live release categories */
+export const SAC_OUTCOME_LABELS: Record<string, string> = {
+  return_to_field: "Return-to-Field (RTF)",
+  adoption: "Adoption",
+  transfer_out: "Transfer Out",
+  died_in_care: "Died in Care",
+  euthanasia: "Shelter Euthanasia",
+  owner_requested_euthanasia: "Owner/Guardian Requested Euthanasia",
+  missing_lost_stolen: "Missing/Lost/Stolen",
+  other_live: "Other Live Outcome",
+  other_outcome: "Other Outcome",
+};
+
+/** Map FFSC resolution_outcome to SAC outcome type */
+export function classifySacOutcome(
+  resolutionOutcome: string | null,
+  callType?: string | null,
+): string {
+  if (!resolutionOutcome) return "other_outcome";
+  // Successful TNR = Return-to-Field
+  if (resolutionOutcome === "successful") return "return_to_field";
+  // Partial success = still RTF (some cats were fixed)
+  if (resolutionOutcome === "partial") return "return_to_field";
+  // Referred out = Transfer Out
+  if (resolutionOutcome === "referred_out") return "transfer_out";
+  // Unable to complete = Other
+  if (resolutionOutcome === "unable_to_complete") return "other_outcome";
+  // No longer needed = Other
+  if (resolutionOutcome === "no_longer_needed") return "other_outcome";
+  return "other_outcome";
+}
+
+export function formatSacOutcome(resolutionOutcome: string | null, callType?: string | null): string {
+  const sacType = classifySacOutcome(resolutionOutcome, callType);
+  return SAC_OUTCOME_LABELS[sacType] || "Other Outcome";
+}
+
 // ── Generic formatter ───────────────────────────────────────────────
 
 /**
