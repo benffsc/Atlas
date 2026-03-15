@@ -1,14 +1,18 @@
 /**
- * Form Configuration Layer (FFS-496)
+ * Form Configuration Layer (FFS-496, FFS-497)
  *
- * Declares which sections and fields each form context shows via static
- * JSON config objects. A single <RequestForm config={...} /> component
- * renders any config. Configs start as TypeScript objects — the admin UI
- * (FFS-519) will later load them from ops.form_page_configs.
+ * Declares which sections and fields each form context shows via JSON
+ * config objects. A single <RequestForm config={...} /> component
+ * renders any config.
+ *
+ * Configs are stored in ops.app_config (key = 'form_config.<id>') and
+ * editable via /admin/forms/configs. The TypeScript constants below serve
+ * as fallback defaults when no DB row exists.
  *
  * Usage:
- *   import { FFR_NEW_CONFIG } from '@/lib/form-configs';
- *   <RequestForm config={FFR_NEW_CONFIG} state={state} onChange={handlers} />
+ *   import { FFR_NEW_CONFIG, getFormConfigFromDb } from '@/lib/form-configs';
+ *   // Client-side (static): <RequestForm config={FFR_NEW_CONFIG} ... />
+ *   // Server-side (DB-backed): const config = await getFormConfigFromDb('ffr_new');
  */
 
 // ── Section component types ─────────────────────────────────────────
@@ -280,4 +284,29 @@ export function getFormConfig(id: string): FormConfig | undefined {
  */
 export function listFormConfigs(): { id: string; label: string }[] {
   return Object.values(FORM_CONFIGS).map((c) => ({ id: c.id, label: c.label }));
+}
+
+/**
+ * Load a form config from the database (ops.app_config), falling back to
+ * the TypeScript constant if no DB row exists. Server-side only.
+ *
+ * @example
+ *   const config = await getFormConfigFromDb('ffr_new');
+ */
+export async function getFormConfigFromDb(id: string): Promise<FormConfig> {
+  const fallback = FORM_CONFIGS[id];
+  try {
+    // Dynamic import to avoid bundling server-only code in client
+    const { getServerConfig } = await import("@/lib/server-config");
+    const dbConfig = await getServerConfig<FormConfig | null>(
+      `form_config.${id}`,
+      null
+    );
+    if (dbConfig && dbConfig.sections && Array.isArray(dbConfig.sections)) {
+      return dbConfig as FormConfig;
+    }
+  } catch {
+    // DB unavailable or server-config not available — use fallback
+  }
+  return fallback || { id, label: id, sections: [] };
 }

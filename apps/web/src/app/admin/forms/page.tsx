@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { AdminSidebar } from "@/components/SidebarLayout";
 import Link from "next/link";
 
 interface TemplateListItem {
@@ -15,6 +16,14 @@ interface TemplateListItem {
 }
 
 export default function AdminFormsPage() {
+  return (
+    <AdminSidebar>
+      <AdminFormsContent />
+    </AdminSidebar>
+  );
+}
+
+function AdminFormsContent() {
   const [templates, setTemplates] = useState<TemplateListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -180,7 +189,7 @@ export default function AdminFormsPage() {
                     fontWeight: 500,
                   }}
                 >
-                  Fields
+                  Edit Fields
                 </Link>
                 <Link
                   href={`/admin/forms/preview/${t.template_key}`}
@@ -206,16 +215,39 @@ export default function AdminFormsPage() {
           borderRadius: "8px",
           fontSize: "0.875rem",
           color: "#666",
+          display: "flex",
+          gap: "1.5rem",
+          flexWrap: "wrap",
         }}
       >
-        <strong>Field Registry:</strong>{" "}
-        <Link
-          href="/api/forms/fields"
-          target="_blank"
-          style={{ color: "#27ae60" }}
-        >
-          View all field definitions
-        </Link>
+        <div>
+          <strong>Section Configs:</strong>{" "}
+          <Link
+            href="/admin/forms/configs"
+            style={{ color: "#27ae60" }}
+          >
+            Configure digital form sections
+          </Link>
+        </div>
+        <div>
+          <strong>Print Layouts:</strong>{" "}
+          <Link
+            href="/admin/forms/layouts"
+            style={{ color: "#27ae60" }}
+          >
+            Configure print form sections
+          </Link>
+        </div>
+        <div>
+          <strong>Field Registry:</strong>{" "}
+          <Link
+            href="/api/forms/fields"
+            target="_blank"
+            style={{ color: "#27ae60" }}
+          >
+            View all field definitions
+          </Link>
+        </div>
       </div>
     </div>
   );
