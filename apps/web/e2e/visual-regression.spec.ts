@@ -23,10 +23,11 @@ async function pageHasError(page: import("@playwright/test").Page): Promise<bool
   if (
     bodyText.includes('Failed to fetch') ||
     bodyText.includes('Internal Server Error') ||
-    bodyText.includes('not found') ||
     bodyText.includes('Something went wrong') ||
-    bodyText.includes('500') ||
-    bodyText.includes('404')
+    bodyText.includes('Error 500') ||
+    bodyText.includes('Error 404') ||
+    bodyText.includes('Page not found') ||
+    bodyText.includes('404 Not Found')
   ) {
     return true;
   }
