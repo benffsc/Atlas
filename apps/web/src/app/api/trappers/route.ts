@@ -215,32 +215,30 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    return apiSuccess(
-      {
-        trappers,
-        aggregates: aggregates || {
-          total_active_trappers: 0,
-          ffsc_trappers: 0,
-          community_trappers: 0,
-          inactive_trappers: 0,
-          all_clinic_cats: 0,
-          all_clinic_days: 0,
-          avg_cats_per_day_all: 0,
-          felv_positive_rate_pct_all: null,
-          all_site_visits: 0,
-          first_visit_success_rate_pct_all: null,
-          all_cats_caught: 0,
-          available_trappers: 0,
-          busy_trappers: 0,
-          on_leave_trappers: 0,
-        },
+    return apiSuccess({
+      trappers,
+      aggregates: aggregates || {
+        total_active_trappers: 0,
+        ffsc_trappers: 0,
+        community_trappers: 0,
+        inactive_trappers: 0,
+        all_clinic_cats: 0,
+        all_clinic_days: 0,
+        avg_cats_per_day_all: 0,
+        felv_positive_rate_pct_all: null,
+        all_site_visits: 0,
+        first_visit_success_rate_pct_all: null,
+        all_cats_caught: 0,
+        available_trappers: 0,
+        busy_trappers: 0,
+        on_leave_trappers: 0,
       },
-      {
+      pagination: {
         limit,
         offset,
         hasMore: trappers.length === limit,
-      }
-    );
+      },
+    });
   } catch (error) {
     console.error("Error fetching trappers:", error);
     return apiServerError("Failed to fetch trappers");
