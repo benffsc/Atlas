@@ -8,6 +8,7 @@
 
 // Main layouts
 export { TwoColumnLayout } from './TwoColumnLayout';
+export { ListDetailLayout } from './ListDetailLayout';
 
 // Content grouping
 export { Section } from './Section';
