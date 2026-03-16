@@ -1,43 +1,61 @@
 -- MIG_2960: Soft deletes and audit trail for system resilience (FFS-637, FFS-638)
 --
--- Section A: Add deleted_at/deleted_by columns to 4 tables
+-- Section A: Add deleted_at/deleted_by columns to existing tables
 -- Section B: Update v_colony_stats view to filter soft-deleted colonies
 --
 -- Core Invariant #1: "No Data Disappears"
--- Replaces 7 hard DELETE routes with soft deletes.
--- 3 tables already have soft-delete columns (colony_places, colony_people, intake_questions)
--- that were being ignored by route handlers.
+-- Replaces hard DELETE routes with soft deletes.
+--
+-- Note: sot.cat_birth_events, sot.colony_requests, sot.colony_people do not
+-- exist yet. Their soft-delete columns will be added when those tables are created.
+-- The route-level soft-delete code is already in place and will work once
+-- those tables exist.
 
 BEGIN;
 
 -- ============================================================
--- Section A: Add deleted_at/deleted_by to 4 tables
+-- Section A: Add deleted_at/deleted_by to existing tables
 -- ============================================================
 
+-- sot.colonies — exists, needs new columns
 ALTER TABLE sot.colonies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE sot.colonies ADD COLUMN IF NOT EXISTS deleted_by TEXT;
 
-ALTER TABLE sot.cat_birth_events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-ALTER TABLE sot.cat_birth_events ADD COLUMN IF NOT EXISTS deleted_by TEXT;
-
+-- sot.cat_mortality_events — exists, needs new columns
 ALTER TABLE sot.cat_mortality_events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE sot.cat_mortality_events ADD COLUMN IF NOT EXISTS deleted_by TEXT;
-
-ALTER TABLE sot.colony_requests ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-ALTER TABLE sot.colony_requests ADD COLUMN IF NOT EXISTS deleted_by TEXT;
 
 -- Partial indexes for efficient filtering of non-deleted rows
 CREATE INDEX IF NOT EXISTS idx_colonies_not_deleted
   ON sot.colonies(colony_id) WHERE deleted_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_cat_birth_events_not_deleted
-  ON sot.cat_birth_events(cat_id) WHERE deleted_at IS NULL;
-
 CREATE INDEX IF NOT EXISTS idx_cat_mortality_events_not_deleted
   ON sot.cat_mortality_events(cat_id) WHERE deleted_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_colony_requests_not_deleted
-  ON sot.colony_requests(colony_id, request_id) WHERE deleted_at IS NULL;
+-- ============================================================
+-- Section A2: Tables that don't exist yet — safe DO blocks
+-- These will no-op if table doesn't exist, succeed if it does.
+-- ============================================================
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'sot' AND table_name = 'cat_birth_events') THEN
+    ALTER TABLE sot.cat_birth_events ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE sot.cat_birth_events ADD COLUMN IF NOT EXISTS deleted_by TEXT;
+    CREATE INDEX IF NOT EXISTS idx_cat_birth_events_not_deleted
+      ON sot.cat_birth_events(cat_id) WHERE deleted_at IS NULL;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'sot' AND table_name = 'colony_requests') THEN
+    ALTER TABLE sot.colony_requests ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE sot.colony_requests ADD COLUMN IF NOT EXISTS deleted_by TEXT;
+    CREATE INDEX IF NOT EXISTS idx_colony_requests_not_deleted
+      ON sot.colony_requests(colony_id, request_id) WHERE deleted_at IS NULL;
+  END IF;
+END $$;
 
 -- ============================================================
 -- Section B: Update v_colony_stats to filter soft-deleted colonies
