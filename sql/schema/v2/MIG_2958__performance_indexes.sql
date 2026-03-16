@@ -6,8 +6,8 @@
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_requests_status
   ON ops.requests(status);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_requests_is_test
-  ON ops.requests(is_test) WHERE is_test = TRUE;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_intake_submissions_is_test
+  ON ops.intake_submissions(is_test) WHERE is_test = TRUE;
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_requests_created_at_status
   ON ops.requests(created_at, status);

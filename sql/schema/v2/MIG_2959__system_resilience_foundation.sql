@@ -106,7 +106,7 @@ FROM ops.request_status_history h;
 INSERT INTO ops.app_config (key, value, description, category)
 VALUES (
   'org.clinic_address_patterns',
-  '["% 1814%Empire Industrial%", "%1820%Empire Industrial%", "%845 Todd%"]'::jsonb,
+  '["%1814%Empire Industrial%", "%1820%Empire Industrial%", "%845 Todd%"]'::jsonb,
   'ILIKE patterns for identifying FFSC clinic addresses. Used by ops.is_clinic_address() and health checks.',
   'org'
 )
