@@ -157,10 +157,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
            JOIN merged m ON m.merged_into_person_id = p.person_id
          )
          SELECT m.person_id::TEXT, m.first_name, m.last_name,
-           (SELECT id_value FROM sot.person_identifiers
+           (SELECT id_value_norm FROM sot.person_identifiers
             WHERE person_id = m.person_id AND id_type = 'email' AND confidence >= 0.5
             ORDER BY confidence DESC NULLS LAST LIMIT 1) as email,
-           (SELECT id_value FROM sot.person_identifiers
+           (SELECT id_value_norm FROM sot.person_identifiers
             WHERE person_id = m.person_id AND id_type = 'phone' AND confidence >= 0.5
             ORDER BY confidence DESC NULLS LAST LIMIT 1) as phone
          FROM merged m

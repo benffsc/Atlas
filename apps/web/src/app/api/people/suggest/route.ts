@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     if (hasEmail) {
       const blacklisted = await queryOne<{ count: number }>(
         `SELECT count(*)::int as count FROM sot.data_engine_soft_blacklist
-         WHERE id_type = 'email' AND id_value = sot.norm_email($1)`,
+         WHERE identifier_type = 'email' AND identifier_norm = sot.norm_email($1)`,
         [email]
       );
       if (blacklisted && blacklisted.count > 0) {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     if (hasPhone) {
       const blacklisted = await queryOne<{ count: number }>(
         `SELECT count(*)::int as count FROM sot.data_engine_soft_blacklist
-         WHERE id_type = 'phone' AND id_value = sot.norm_phone_us($1)`,
+         WHERE identifier_type = 'phone' AND identifier_norm = sot.norm_phone_us($1)`,
         [phone]
       );
       if (blacklisted && blacklisted.count > 0) {
@@ -110,10 +110,10 @@ export async function POST(request: NextRequest) {
         p.first_name,
         p.last_name,
         p.entity_type,
-        (SELECT id_value FROM sot.person_identifiers
+        (SELECT id_value_norm FROM sot.person_identifiers
          WHERE person_id = p.person_id AND id_type = 'email' AND confidence >= 0.5
          ORDER BY confidence DESC LIMIT 1) as email,
-        (SELECT id_value FROM sot.person_identifiers
+        (SELECT id_value_norm FROM sot.person_identifiers
          WHERE person_id = p.person_id AND id_type = 'phone' AND confidence >= 0.5
          ORDER BY confidence DESC LIMIT 1) as phone,
         (SELECT count(*)::int FROM sot.person_cat WHERE person_id = p.person_id) as cat_count,

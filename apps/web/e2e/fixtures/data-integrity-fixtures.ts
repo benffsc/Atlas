@@ -23,7 +23,7 @@ export const FIND_LOW_CONFIDENCE_IDENTIFIERS = `
     p.person_id,
     p.display_name,
     pi.id_type,
-    pi.id_value,
+    pi.id_value_norm,
     pi.confidence,
     pi.source_system
   FROM sot.people p
@@ -287,11 +287,11 @@ export const CHECK_BLACKLIST_VIOLATIONS = `
   SELECT
     p.person_id,
     p.display_name,
-    pi.id_value,
+    pi.id_value_norm,
     bl.reason
   FROM sot.people p
   JOIN sot.person_identifiers pi ON p.person_id = pi.person_id
-  JOIN sot.data_engine_soft_blacklist bl ON LOWER(pi.id_value) = LOWER(bl.identifier_value)
+  JOIN sot.data_engine_soft_blacklist bl ON LOWER(pi.id_value_norm) = LOWER(bl.identifier_norm)
   WHERE p.merged_into_person_id IS NULL
     AND pi.is_active = TRUE
     AND pi.id_type = 'email'
@@ -347,7 +347,7 @@ export interface LowConfidenceIdentifier {
   person_id: string;
   display_name: string;
   id_type: string;
-  id_value: string;
+  id_value_norm: string;
   confidence: number;
   source_system: string;
 }
@@ -388,6 +388,6 @@ export interface OrgAsPerson {
 export interface BlacklistViolation {
   person_id: string;
   display_name: string;
-  id_value: string;
+  id_value_norm: string;
   reason: string;
 }

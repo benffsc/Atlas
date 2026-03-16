@@ -3817,7 +3817,7 @@ async function queryStaffInfo(
           s.role,
           s.department,
           s.is_active,
-          (SELECT pi.id_value FROM sot.person_identifiers pi
+          (SELECT pi.id_value_norm FROM sot.person_identifiers pi
            WHERE pi.person_id = s.person_id AND pi.id_type = 'email'
            LIMIT 1) as email
         FROM ops.staff s
