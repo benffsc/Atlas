@@ -100,7 +100,7 @@ Deep technical docs that remain relevant:
 | `ACTIVE_FLOW_SAFETY_GATE.md` | Safety checklist |
 | `DEVELOPER_GUIDE.md` | Dev setup |
 | `SECURITY_REVIEW.md` | Security notes |
-| `PLACE_CONTEXTS.md` | Place tagging |
+
 | `VERIFICATION_LAYER_DESIGN.md` | Verification design |
 | `DATA_RELIABILITY_ANALYSIS.md` | ClinicHQ reliability |
 

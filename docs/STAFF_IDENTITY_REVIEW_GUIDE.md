@@ -208,4 +208,4 @@ Contact an administrator or leave the item for later review.
 ---
 
 *Last updated: February 2026*
-*See also: [Identity Resolution Architecture](IDENTITY_RESOLUTION_ARCHITECTURE.md) for technical details*
+*See also: [Entity Resolution Architecture](ARCHITECTURE_ENTITY_RESOLUTION.md) for technical details*
