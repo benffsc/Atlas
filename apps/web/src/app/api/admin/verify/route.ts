@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiError } from "@/lib/api-response";
+import { logFieldEdits, type EntityType } from "@/lib/audit";
 
 interface VerifyRequest {
   table: string;
@@ -28,6 +29,17 @@ const ID_COLUMNS: Record<string, string> = {
   "sot.places": "place_id",
   "sot.people": "person_id",
   "sot.cats": "cat_id",
+};
+
+const ENTITY_TYPE_MAP: Record<string, EntityType> = {
+  colony_estimates: "place",
+  birth_events: "cat",
+  mortality_events: "cat",
+  vitals: "cat",
+  requests: "request",
+  places: "place",
+  people: "person",
+  cats: "cat",
 };
 
 // POST - Mark a record as verified
@@ -64,6 +76,15 @@ export async function POST(request: NextRequest) {
       return apiError("Record not found", 404);
     }
 
+    // Audit trail for verification
+    const entityType = ENTITY_TYPE_MAP[table];
+    if (entityType) {
+      await logFieldEdits(entityType, record_id, [
+        { field: "verified_at", oldValue: null, newValue: result.verified_at },
+        { field: "verified_by_staff_id", oldValue: null, newValue: staffIdValue },
+      ], { editedBy: staffIdValue || "web_user", editSource: "web_ui", reason: "staff_verification" });
+    }
+
     return apiSuccess({
       success: true,
       verified_at: result.verified_at,
@@ -96,6 +117,12 @@ export async function DELETE(request: NextRequest) {
 
     const idColumn = ID_COLUMNS[tableName];
 
+    // Fetch old values before clearing
+    const oldValues = await queryOne<{ verified_at: string; verified_by_staff_id: string }>(
+      `SELECT verified_at, verified_by_staff_id FROM ${tableName} WHERE ${idColumn} = $1`,
+      [record_id]
+    );
+
     // Clear verification
     const result = await queryOne<{ [key: string]: string }>(
       `UPDATE ${tableName}
@@ -108,6 +135,15 @@ export async function DELETE(request: NextRequest) {
 
     if (!result) {
       return apiError("Record not found", 404);
+    }
+
+    // Audit trail for unverification
+    const entityType = ENTITY_TYPE_MAP[table];
+    if (entityType) {
+      await logFieldEdits(entityType, record_id, [
+        { field: "verified_at", oldValue: oldValues?.verified_at ?? null, newValue: null },
+        { field: "verified_by_staff_id", oldValue: oldValues?.verified_by_staff_id ?? null, newValue: null },
+      ], { editedBy: "web_user", editSource: "web_ui", reason: "unverification" });
     }
 
     return apiSuccess({ success: true });
@@ -153,6 +189,7 @@ export async function GET(request: NextRequest) {
            MAX(created_at) AS latest_created
          FROM sot.cat_birth_events
          WHERE source_type = 'ai_parsed'
+           AND deleted_at IS NULL
 
          UNION ALL
 
@@ -163,6 +200,7 @@ export async function GET(request: NextRequest) {
            MAX(created_at) AS latest_created
          FROM sot.cat_mortality_events
          WHERE source_type = 'ai_parsed'
+           AND deleted_at IS NULL
 
          UNION ALL
 

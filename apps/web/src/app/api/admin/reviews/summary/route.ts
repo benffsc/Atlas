@@ -136,11 +136,11 @@ export async function GET() {
           0
         )::int +
         COALESCE(
-          (SELECT COUNT(*) FROM sot.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL AND deleted_at IS NULL),
           0
         )::int +
         COALESCE(
-          (SELECT COUNT(*) FROM sot.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL AND deleted_at IS NULL),
           0
         )::int as total,
         COALESCE(
@@ -148,11 +148,11 @@ export async function GET() {
           0
         )::int as colony_estimates,
         COALESCE(
-          (SELECT COUNT(*) FROM sot.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.cat_birth_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL AND deleted_at IS NULL),
           0
         )::int as reproduction,
         COALESCE(
-          (SELECT COUNT(*) FROM sot.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL),
+          (SELECT COUNT(*) FROM sot.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL AND deleted_at IS NULL),
           0
         )::int as mortality
     `, []);

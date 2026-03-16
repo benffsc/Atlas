@@ -42,12 +42,14 @@ export async function GET() {
         COUNT(*) FILTER (WHERE cat_id IS NOT NULL)::INT AS with_cat_id,
         COUNT(DISTINCT place_id)::INT AS unique_places
       FROM sot.cat_mortality_events
+      WHERE deleted_at IS NULL
     `);
 
     // Get by cause
     const byCause = await queryRows<CauseStat>(`
       SELECT death_cause::TEXT, COUNT(*)::INT AS count
       FROM sot.cat_mortality_events
+      WHERE deleted_at IS NULL
       GROUP BY death_cause
       ORDER BY count DESC
     `);
@@ -56,6 +58,7 @@ export async function GET() {
     const byAge = await queryRows<AgeStat>(`
       SELECT death_age_category::TEXT, COUNT(*)::INT AS count
       FROM sot.cat_mortality_events
+      WHERE deleted_at IS NULL
       GROUP BY death_age_category
       ORDER BY count DESC
     `);
@@ -66,6 +69,7 @@ export async function GET() {
         COALESCE(source_system, 'unknown') AS source_system,
         COUNT(*)::INT AS count
       FROM sot.cat_mortality_events
+      WHERE deleted_at IS NULL
       GROUP BY source_system
       ORDER BY count DESC
     `);
@@ -74,7 +78,8 @@ export async function GET() {
     const thisYear = await queryOne<{ count: number }>(`
       SELECT COUNT(*)::INT AS count
       FROM sot.cat_mortality_events
-      WHERE death_year = EXTRACT(YEAR FROM CURRENT_DATE)
+      WHERE deleted_at IS NULL
+        AND death_year = EXTRACT(YEAR FROM CURRENT_DATE)
     `);
 
     return apiSuccess({

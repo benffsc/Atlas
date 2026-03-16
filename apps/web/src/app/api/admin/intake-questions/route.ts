@@ -197,10 +197,11 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    // Only delete custom questions
+    // Soft-delete custom questions (set inactive instead of removing)
     const result = await execute(`
-      DELETE FROM ops.intake_questions
-      WHERE question_id = $1 AND is_custom = TRUE
+      UPDATE ops.intake_questions
+      SET is_active = FALSE, updated_at = NOW()
+      WHERE question_id = $1 AND is_custom = TRUE AND is_active = TRUE
     `, [question_id]);
 
     if (result.rowCount === 0) {

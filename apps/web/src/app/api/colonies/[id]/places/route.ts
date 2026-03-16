@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
+import { logFieldEdit } from "@/lib/audit";
 
 // POST /api/colonies/[id]/places - Link a place to colony
 export async function POST(
@@ -26,9 +27,9 @@ export async function POST(
       return apiBadRequest("added_by is required");
     }
 
-    // Verify colony exists
+    // Verify colony exists (and is not soft-deleted)
     const colony = await queryOne<{ colony_id: string }>(
-      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1`,
+      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1 AND deleted_at IS NULL`,
       [colonyId]
     );
 
@@ -86,8 +87,9 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ colony_id: string }>(
-      `DELETE FROM sot.colony_places
-       WHERE colony_id = $1 AND place_id = $2
+      `UPDATE sot.colony_places
+       SET deactivated_at = NOW(), is_active = FALSE
+       WHERE colony_id = $1 AND place_id = $2 AND is_active = TRUE
        RETURNING colony_id`,
       [colonyId, placeId]
     );
@@ -95,6 +97,10 @@ export async function DELETE(
     if (!result) {
       return apiNotFound("place link", placeId);
     }
+
+    await logFieldEdit("colony", colonyId, "colony_places", placeId, null, {
+      editedBy: "web_user", editSource: "web_ui", reason: "place_unlinked",
+    });
 
     return apiSuccess({ deleted: true });
   } catch (error) {

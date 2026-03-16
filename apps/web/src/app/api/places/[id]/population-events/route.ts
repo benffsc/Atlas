@@ -38,6 +38,7 @@ export async function GET(
       FROM sot.cat_birth_events be
       JOIN sot.cats c ON c.cat_id = be.cat_id
       WHERE be.place_id = $1
+        AND be.deleted_at IS NULL
       ORDER BY COALESCE(be.birth_date, be.created_at) DESC
       LIMIT 50
     `;
@@ -60,6 +61,7 @@ export async function GET(
       JOIN sot.cats c ON c.cat_id = me.cat_id
       -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
       JOIN sot.cat_place cpr ON cpr.cat_id = me.cat_id AND cpr.place_id = $1
+      WHERE me.deleted_at IS NULL
       ORDER BY COALESCE(me.death_date, me.created_at) DESC
       LIMIT 50
     `;

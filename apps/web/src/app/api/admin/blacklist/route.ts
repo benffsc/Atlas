@@ -9,6 +9,7 @@ import {
   apiNotFound,
   apiServerError,
 } from "@/lib/api-response";
+import { logFieldEdit } from "@/lib/audit";
 
 interface BlacklistRow {
   id: string;
@@ -88,6 +89,13 @@ export async function POST(request: NextRequest) {
       [identifier_type, identifier_norm.toLowerCase().trim(), reason, session.display_name]
     );
 
+    // Audit trail for blacklist addition
+    if (created) {
+      await logFieldEdit("soft_blacklist" as any, created.id, "identifier", null, {
+        identifier_type, identifier_norm: identifier_norm.toLowerCase().trim(), reason,
+      }, { editedBy: session.display_name || "admin", editSource: "web_ui", reason: "blacklist_add" });
+    }
+
     return apiSuccess(created);
   } catch (error) {
     // Handle unique constraint violation
@@ -112,12 +120,26 @@ export async function DELETE(request: NextRequest) {
     const id = request.nextUrl.searchParams.get("id");
     if (!id) return apiBadRequest("Missing 'id' query parameter");
 
+    // Fetch entry before deleting for audit trail
+    const entry = await queryOne<BlacklistRow>(
+      "SELECT * FROM sot.soft_blacklist WHERE id = $1",
+      [id]
+    );
+
     const deleted = await queryOne<{ id: string }>(
       "DELETE FROM sot.soft_blacklist WHERE id = $1 RETURNING id",
       [id]
     );
 
     if (!deleted) return apiNotFound("Blacklist entry", id);
+
+    // Audit trail for blacklist removal
+    if (entry) {
+      await logFieldEdit("soft_blacklist" as any, id, "identifier", {
+        identifier_type: entry.identifier_type, identifier_norm: entry.identifier_norm, reason: entry.reason,
+      }, null, { editedBy: session.display_name || "admin", editSource: "web_ui", reason: "blacklist_remove" });
+    }
+
     return apiSuccess({ deleted: id });
   } catch (error) {
     console.error("Failed to delete blacklist entry:", error);

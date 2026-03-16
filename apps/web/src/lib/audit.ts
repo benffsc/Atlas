@@ -5,7 +5,7 @@ import { query } from "./db";
  * Uses the ops.entity_edits table via log_field_edit() function.
  */
 
-export type EntityType = "person" | "cat" | "place" | "request" | "intake_submission";
+export type EntityType = "person" | "cat" | "place" | "request" | "intake_submission" | "colony" | "colony_place" | "colony_person" | "colony_request" | "soft_blacklist";
 
 export interface FieldChange {
   field: string;

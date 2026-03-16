@@ -128,7 +128,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           (
             SELECT cme.cause::TEXT
             FROM sot.cat_mortality_events cme
-            WHERE cme.cat_id = c.cat_id
+            WHERE cme.cat_id = c.cat_id AND cme.deleted_at IS NULL
             LIMIT 1
           ) AS death_cause,
           -- FeLV/FIV status from ops.cat_test_results (MIG_2117 V2 schema)
@@ -218,7 +218,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           (
             SELECT cme.cause::TEXT
             FROM sot.cat_mortality_events cme
-            WHERE cme.cat_id = c.cat_id
+            WHERE cme.cat_id = c.cat_id AND cme.deleted_at IS NULL
             LIMIT 1
           ) AS death_cause,
           NULL AS felv_status,

@@ -56,6 +56,7 @@ export async function GET() {
         COUNT(*)::INT AS count,
         MAX(created_at)::TEXT AS last_updated
       FROM sot.cat_birth_events
+      WHERE deleted_at IS NULL
       GROUP BY source_system
       ORDER BY count DESC
     `);
@@ -67,6 +68,7 @@ export async function GET() {
         COUNT(*)::INT AS count,
         MAX(created_at)::TEXT AS last_updated
       FROM sot.cat_mortality_events
+      WHERE deleted_at IS NULL
       GROUP BY source_system
       ORDER BY count DESC
     `);
@@ -140,7 +142,7 @@ export async function GET() {
       SELECT
         (SELECT COUNT(*)::INT FROM sot.place_colony_estimates) AS colony_estimates,
         0::INT AS birth_events,
-        (SELECT COUNT(*)::INT FROM sot.cat_mortality_events) AS mortality_events,
+        (SELECT COUNT(*)::INT FROM sot.cat_mortality_events WHERE deleted_at IS NULL) AS mortality_events,
         (SELECT COUNT(DISTINCT place_id)::INT FROM sot.place_colony_estimates) AS places_with_ecology
     `);
 

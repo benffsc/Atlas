@@ -89,6 +89,7 @@ export async function GET() {
             WHERE EXTRACT(YEAR FROM COALESCE(death_date, created_at)) = EXTRACT(YEAR FROM CURRENT_DATE)
           )::INT AS this_year
         FROM sot.cat_mortality_events
+        WHERE deleted_at IS NULL
       `),
 
       // Birth stats - cat_birth_events may not exist in V2
@@ -100,6 +101,7 @@ export async function GET() {
           COUNT(*)::INT AS births,
           COUNT(DISTINCT litter_id)::INT AS litters
         FROM sot.cat_birth_events
+        WHERE deleted_at IS NULL
       `),
 
       // Recent activity (last 30 days)

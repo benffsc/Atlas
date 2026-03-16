@@ -46,6 +46,7 @@ export async function GET() {
       FROM sot.cat_mortality_events cme
       LEFT JOIN sot.cats c ON c.cat_id = cme.cat_id
       LEFT JOIN sot.places p ON p.place_id = cme.place_id
+      WHERE cme.deleted_at IS NULL
       ORDER BY cme.created_at DESC
       LIMIT 500
     `;
@@ -96,7 +97,7 @@ export async function PATCH(request: NextRequest) {
     params.push(mortality_event_id);
 
     await query(
-      `UPDATE sot.cat_mortality_events SET ${updates.join(", ")} WHERE mortality_event_id = $${paramIndex}`,
+      `UPDATE sot.cat_mortality_events SET ${updates.join(", ")} WHERE mortality_event_id = $${paramIndex} AND deleted_at IS NULL`,
       params
     );
 

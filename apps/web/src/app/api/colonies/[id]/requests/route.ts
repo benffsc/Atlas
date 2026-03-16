@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
+import { logFieldEdit } from "@/lib/audit";
 
 // POST /api/colonies/[id]/requests - Link a request to colony
 export async function POST(
@@ -21,9 +22,9 @@ export async function POST(
       return apiBadRequest("added_by is required");
     }
 
-    // Verify colony exists
+    // Verify colony exists (and is not soft-deleted)
     const colony = await queryOne<{ colony_id: string }>(
-      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1`,
+      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1 AND deleted_at IS NULL`,
       [colonyId]
     );
 
@@ -41,11 +42,13 @@ export async function POST(
       return apiNotFound("request", request_id);
     }
 
-    // Insert the link (ignore if already exists)
+    // Insert the link (re-activate if previously soft-deleted, ignore if active)
     await queryOne(
       `INSERT INTO sot.colony_requests (colony_id, request_id, added_by)
        VALUES ($1, $2, $3)
-       ON CONFLICT (colony_id, request_id) DO NOTHING`,
+       ON CONFLICT (colony_id, request_id) DO UPDATE
+         SET deleted_at = NULL, deleted_by = NULL
+         WHERE sot.colony_requests.deleted_at IS NOT NULL`,
       [colonyId, request_id, added_by.trim()]
     );
 
@@ -71,8 +74,9 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ colony_id: string }>(
-      `DELETE FROM sot.colony_requests
-       WHERE colony_id = $1 AND request_id = $2
+      `UPDATE sot.colony_requests
+       SET deleted_at = NOW(), deleted_by = 'web_user'
+       WHERE colony_id = $1 AND request_id = $2 AND deleted_at IS NULL
        RETURNING colony_id`,
       [colonyId, requestId]
     );
@@ -80,6 +84,10 @@ export async function DELETE(
     if (!result) {
       return apiNotFound("request link", requestId);
     }
+
+    await logFieldEdit("colony", colonyId, "colony_requests", requestId, null, {
+      editedBy: "web_user", editSource: "web_ui", reason: "request_unlinked",
+    });
 
     return apiSuccess({ deleted: true });
   } catch (error) {

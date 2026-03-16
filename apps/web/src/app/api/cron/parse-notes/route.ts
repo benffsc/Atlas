@@ -370,6 +370,7 @@ export async function GET(request: NextRequest) {
                 SELECT 1 FROM sot.cat_mortality_events cme
                 WHERE cme.source_record_id = r.request_id::TEXT
                   AND cme.source_system = 'notes_parser_cron'
+                  AND cme.deleted_at IS NULL
               )
             LIMIT 200
           )

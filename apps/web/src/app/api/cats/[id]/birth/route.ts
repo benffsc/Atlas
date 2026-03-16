@@ -88,6 +88,7 @@ export async function GET(
       LEFT JOIN sot.cats mc ON mc.cat_id = be.mother_cat_id
       LEFT JOIN sot.places p ON p.place_id = be.place_id
       WHERE be.cat_id = $1
+        AND be.deleted_at IS NULL
     `;
     const birthEvent = await queryOne<BirthEvent>(birthSql, [id]);
 
@@ -103,6 +104,7 @@ export async function GET(
         FROM sot.cat_birth_events be
         JOIN sot.cats c ON c.cat_id = be.cat_id
         WHERE be.litter_id = $1 AND be.cat_id != $2
+          AND be.deleted_at IS NULL
         LIMIT 10
       `;
       siblings = await queryRows<Sibling>(siblingsSql, [birthEvent.litter_id, id]);
@@ -168,7 +170,7 @@ export async function POST(
 
     // Check if cat already has birth event
     const existing = await queryOne<{ birth_event_id: string }>(
-      "SELECT birth_event_id FROM sot.cat_birth_events WHERE cat_id = $1",
+      "SELECT birth_event_id FROM sot.cat_birth_events WHERE cat_id = $1 AND deleted_at IS NULL",
       [id]
     );
 
@@ -298,8 +300,9 @@ export async function DELETE(
     requireValidUUID(id, "cat");
 
     const deleteSql = `
-      DELETE FROM sot.cat_birth_events
-      WHERE cat_id = $1
+      UPDATE sot.cat_birth_events
+      SET deleted_at = NOW(), deleted_by = 'web_user'
+      WHERE cat_id = $1 AND deleted_at IS NULL
       RETURNING birth_event_id
     `;
 

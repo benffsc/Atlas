@@ -1768,7 +1768,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           ) as place_id
         FROM ops.appointments a
         JOIN sot.cats c ON c.cat_id = a.cat_id
-        LEFT JOIN sot.cat_birth_events be ON be.mother_cat_id = a.cat_id
+        LEFT JOIN sot.cat_birth_events be ON be.mother_cat_id = a.cat_id AND be.deleted_at IS NULL
         WHERE a.is_lactating = true
           AND c.sex = 'Female'
           AND be.birth_event_id IS NULL
@@ -1820,7 +1820,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           END AS mortality_timing
         FROM ops.appointments a
         JOIN sot.cats c ON c.cat_id = a.cat_id
-        LEFT JOIN sot.cat_mortality_events me ON me.cat_id = a.cat_id
+        LEFT JOIN sot.cat_mortality_events me ON me.cat_id = a.cat_id AND me.deleted_at IS NULL
         WHERE a.death_type IS NOT NULL
           AND TRIM(a.death_type) != ''
           AND me.event_id IS NULL
@@ -1868,7 +1868,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
           END AS cause
         FROM ops.appointments a
         JOIN sot.cats c ON c.cat_id = a.cat_id
-        LEFT JOIN sot.cat_mortality_events me ON me.cat_id = a.cat_id
+        LEFT JOIN sot.cat_mortality_events me ON me.cat_id = a.cat_id AND me.deleted_at IS NULL
         WHERE (
             LOWER(a.medical_notes) LIKE '%euthanized%'
             OR LOWER(a.medical_notes) LIKE '%euthanasia%'
@@ -1903,6 +1903,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       SET is_deceased = true, deceased_at = me.event_date::timestamptz, updated_at = NOW()
       FROM sot.cat_mortality_events me
       WHERE c.cat_id = me.cat_id
+        AND me.deleted_at IS NULL
         AND (c.is_deceased IS NULL OR c.is_deceased = false)
     `);
     results.cats_marked_deceased = deceasedResult.rowCount || 0;

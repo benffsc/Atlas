@@ -25,7 +25,7 @@ export async function GET(
   try {
     // Verify colony exists
     const colony = await queryOne<{ colony_id: string }>(
-      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1`,
+      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1 AND deleted_at IS NULL`,
       [colonyId]
     );
 

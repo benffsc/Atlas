@@ -124,6 +124,7 @@ export async function GET() {
       FROM sot.cat_mortality_events me
       JOIN sot.cats c ON c.cat_id = me.cat_id
       WHERE me.source_system IN ('ai_parsed', 'note_parser', 'beacon')
+        AND me.deleted_at IS NULL
       ORDER BY me.created_at DESC
       LIMIT 50
     `, []);
@@ -162,6 +163,7 @@ export async function GET() {
       JOIN sot.cats c ON c.cat_id = be.cat_id
       WHERE be.source_system IN ('ai_parsed', 'note_parser', 'beacon')
         AND be.birth_date_precision IN ('estimate', 'season_only', 'year_only')
+        AND be.deleted_at IS NULL
       ORDER BY be.created_at DESC
       LIMIT 50
     `, []);

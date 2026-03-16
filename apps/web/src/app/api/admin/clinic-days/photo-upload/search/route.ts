@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
           (
             SELECT cme.cause::TEXT
             FROM sot.cat_mortality_events cme
-            WHERE cme.cat_id = c.cat_id
+            WHERE cme.cat_id = c.cat_id AND cme.deleted_at IS NULL
             LIMIT 1
           ) AS death_cause,
           FALSE AS needs_microchip,

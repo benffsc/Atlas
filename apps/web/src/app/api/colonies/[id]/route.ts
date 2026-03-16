@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
+import { logFieldEdit } from "@/lib/audit";
 
 interface ColonyDetail {
   colony_id: string;
@@ -131,6 +132,7 @@ export async function GET(
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.people rq ON rq.person_id = r.requester_person_id
       WHERE cr.colony_id = $1
+        AND cr.deleted_at IS NULL
       ORDER BY cr.added_at DESC`,
       [id]
     );
@@ -206,7 +208,7 @@ export async function PATCH(
     const result = await queryOne<{ colony_id: string }>(
       `UPDATE sot.colonies
        SET ${updates.join(", ")}
-       WHERE colony_id = $${paramIndex}
+       WHERE colony_id = $${paramIndex} AND deleted_at IS NULL
        RETURNING colony_id`,
       values
     );
@@ -222,7 +224,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/colonies/[id] - Delete colony
+// DELETE /api/colonies/[id] - Soft-delete colony
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -231,13 +233,19 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ colony_id: string }>(
-      `DELETE FROM sot.colonies WHERE colony_id = $1 RETURNING colony_id`,
+      `UPDATE sot.colonies SET deleted_at = NOW(), deleted_by = 'web_user'
+       WHERE colony_id = $1 AND deleted_at IS NULL
+       RETURNING colony_id`,
       [id]
     );
 
     if (!result) {
       return apiNotFound("colony", id);
     }
+
+    await logFieldEdit("colony", id, "deleted_at", null, new Date().toISOString(), {
+      editedBy: "web_user", editSource: "web_ui", reason: "colony_soft_delete",
+    });
 
     return apiSuccess({ deleted: true });
   } catch (error) {

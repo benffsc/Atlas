@@ -39,6 +39,7 @@ export async function GET() {
         COUNT(DISTINCT litter_id)::INT AS unique_litters,
         COUNT(*) FILTER (WHERE birth_year = EXTRACT(YEAR FROM CURRENT_DATE))::INT AS births_this_year
       FROM sot.cat_birth_events
+      WHERE deleted_at IS NULL
     `);
 
     // Get births by source
@@ -47,6 +48,7 @@ export async function GET() {
         COALESCE(source_system, 'unknown') AS source_system,
         COUNT(*)::INT AS count
       FROM sot.cat_birth_events
+      WHERE deleted_at IS NULL
       GROUP BY source_system
       ORDER BY count DESC
     `);
@@ -57,6 +59,7 @@ export async function GET() {
         COALESCE(birth_season, 'unknown') AS season,
         COUNT(*)::INT AS count
       FROM sot.cat_birth_events
+      WHERE deleted_at IS NULL
       GROUP BY birth_season
       ORDER BY
         CASE birth_season

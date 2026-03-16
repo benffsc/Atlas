@@ -83,8 +83,8 @@ export async function GET(
        FROM sot.place_contexts pc
        JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
        LEFT JOIN sot.known_organizations ko ON ko.org_id = pc.known_org_id
-       LEFT JOIN sot.colony_places cp ON cp.place_id = pc.place_id
-       LEFT JOIN sot.colonies c ON c.colony_id = cp.colony_id
+       LEFT JOIN sot.colony_places cp ON cp.place_id = pc.place_id AND cp.is_active = TRUE
+       LEFT JOIN sot.colonies c ON c.colony_id = cp.colony_id AND c.deleted_at IS NULL
        WHERE pc.place_id = $1
          AND pc.valid_to IS NULL
        ORDER BY pct.sort_order`,

@@ -103,6 +103,7 @@ export async function GET(
       FROM sot.cat_mortality_events me
       LEFT JOIN sot.places p ON p.place_id = me.place_id
       WHERE me.cat_id = $1
+        AND me.deleted_at IS NULL
     `;
     const mortality = await queryOne<MortalityEvent>(mortalitySql, [id]);
 
@@ -220,11 +221,12 @@ export async function DELETE(
   try {
     requireValidUUID(id, "cat");
 
-    // Delete mortality event and reset cat deceased status
+    // Soft-delete mortality event and reset cat deceased status
     const deleteSql = `
-      WITH deleted AS (
-        DELETE FROM sot.cat_mortality_events
-        WHERE cat_id = $1
+      WITH soft_deleted AS (
+        UPDATE sot.cat_mortality_events
+        SET deleted_at = NOW(), deleted_by = 'web_user'
+        WHERE cat_id = $1 AND deleted_at IS NULL
         RETURNING cat_id
       )
       UPDATE sot.cats

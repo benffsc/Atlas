@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
+import { logFieldEdit } from "@/lib/audit";
 
 interface ColonyPerson {
   colony_people_id: string;
@@ -116,9 +117,9 @@ export async function POST(
       return apiBadRequest("assigned_by is required");
     }
 
-    // Verify colony exists
+    // Verify colony exists (and is not soft-deleted)
     const colony = await queryOne<{ colony_id: string }>(
-      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1`,
+      `SELECT colony_id FROM sot.colonies WHERE colony_id = $1 AND deleted_at IS NULL`,
       [colonyId]
     );
 
@@ -198,8 +199,9 @@ export async function DELETE(
 
   try {
     const result = await queryOne<{ colony_people_id: string }>(
-      `DELETE FROM sot.colony_people
-       WHERE colony_id = $1 AND person_id = $2 AND role_type = $3
+      `UPDATE sot.colony_people
+       SET is_active = FALSE, ended_at = NOW()
+       WHERE colony_id = $1 AND person_id = $2 AND role_type = $3 AND is_active = TRUE
        RETURNING colony_people_id`,
       [colonyId, personId, roleType]
     );
@@ -207,6 +209,10 @@ export async function DELETE(
     if (!result) {
       return apiNotFound("person-role link", `${personId}/${roleType}`);
     }
+
+    await logFieldEdit("colony", colonyId, "colony_people", `${personId}/${roleType}`, null, {
+      editedBy: "web_user", editSource: "web_ui", reason: "person_removed",
+    });
 
     return apiSuccess({ deleted: true });
   } catch (error) {

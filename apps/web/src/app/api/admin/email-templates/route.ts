@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
 import { apiSuccess, apiBadRequest, apiNotFound, apiError, apiForbidden, apiServerError } from "@/lib/api-response";
+import { logFieldEdit } from "@/lib/audit";
 
 interface EmailTemplate {
   template_id: string;
@@ -243,7 +244,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Require admin role
-    await requireRole(request, ["admin"]);
+    const session = await requireRole(request, ["admin"]);
 
     const { searchParams } = new URL(request.url);
     const templateId = searchParams.get("template_id");
@@ -256,6 +257,11 @@ export async function DELETE(request: NextRequest) {
       `UPDATE ops.email_templates SET is_active = FALSE, updated_at = NOW() WHERE template_id = $1`,
       [templateId]
     );
+
+    // Audit trail for template deactivation
+    await logFieldEdit("request" as any, templateId, "is_active", true, false, {
+      editedBy: session.display_name || "admin", editSource: "web_ui", reason: "template_deactivation",
+    });
 
     return apiSuccess({ success: true });
   } catch (error) {
