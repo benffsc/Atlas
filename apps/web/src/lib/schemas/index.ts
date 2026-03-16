@@ -29,6 +29,8 @@ import {
   COLONY_DURATION,
   COUNT_CONFIDENCE,
   FEEDING_FREQUENCY,
+  PERMISSION_STATUS,
+  EARTIP_ESTIMATE,
 } from "@/lib/enums";
 
 // =============================================================================
@@ -154,7 +156,77 @@ export const UpdateRequestSchema = z.object({
   observation_eartips_seen: z.number().int().min(0).nullable().optional(),
   observation_notes: z.string().max(2000).nullable().optional(),
   skip_trip_report_check: z.boolean().optional(),
-}).passthrough(); // Allow additional fields (MIG_2531/2532 Beacon fields, etc.)
+  // ──────────────────────────────────────────────────────────────────────────
+  // MIG_2532: Beacon-critical fields
+  // ──────────────────────────────────────────────────────────────────────────
+  peak_count: z.number().int().min(0).max(999).nullable().optional(),
+  awareness_duration: z.string().max(100).nullable().optional(),
+  county: z.string().max(100).nullable().optional(),
+  cats_are_friendly: z.string().max(50).nullable().optional(),
+  eartip_count: z.number().int().min(0).max(999).nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // MIG_2531/2532: Kitten tracking
+  // ──────────────────────────────────────────────────────────────────────────
+  kitten_behavior: z.string().max(100).nullable().optional(),
+  kitten_contained: z.string().max(50).nullable().optional(),
+  mom_present: z.string().max(50).nullable().optional(),
+  mom_fixed: z.string().max(50).nullable().optional(),
+  can_bring_in: z.string().max(50).nullable().optional(),
+  kitten_age_estimate: z.string().max(100).nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // MIG_2522: Third-party reporter
+  // ──────────────────────────────────────────────────────────────────────────
+  is_third_party_report: z.boolean().nullable().optional(),
+  third_party_relationship: z.string().max(200).nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // Trapping logistics
+  // ──────────────────────────────────────────────────────────────────────────
+  dogs_on_site: z.string().max(50).nullable().optional(),
+  trap_savvy: z.string().max(50).nullable().optional(),
+  previous_tnr: z.string().max(50).nullable().optional(),
+  handleability: z.string().max(100).nullable().optional(),
+  best_trapping_time: z.string().max(500).nullable().optional(),
+  best_times_seen: z.string().max(500).nullable().optional(),
+  traps_overnight_safe: z.boolean().nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // Property & access
+  // ──────────────────────────────────────────────────────────────────────────
+  permission_status: z.enum(PERMISSION_STATUS).nullable().optional(),
+  is_property_owner: z.boolean().nullable().optional(),
+  has_property_access: z.string().max(50).nullable().optional(),
+  property_owner_name: z.string().max(200).nullable().optional(),
+  property_owner_phone: z.string().max(30).nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // Feeding
+  // ──────────────────────────────────────────────────────────────────────────
+  feeding_location: z.string().max(500).nullable().optional(),
+  feeding_time: z.string().max(200).nullable().optional(),
+  feeding_schedule: z.string().max(100).nullable().optional(), // Legacy alias for feeding_frequency
+  // ──────────────────────────────────────────────────────────────────────────
+  // Urgency
+  // ──────────────────────────────────────────────────────────────────────────
+  urgency_reasons: z.array(z.string().max(100)).max(20).nullable().optional(),
+  urgency_notes: z.string().max(2000).nullable().optional(),
+  urgency_deadline: z.string().max(100).nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // Triage
+  // ──────────────────────────────────────────────────────────────────────────
+  triage_category: z.string().max(50).nullable().optional(),
+  important_notes: z.array(z.string().max(200)).max(20).nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // Cat description
+  // ──────────────────────────────────────────────────────────────────────────
+  cat_name: z.string().max(200).nullable().optional(),
+  cat_description: z.string().max(2000).nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // Site contact (FFS-442)
+  // ──────────────────────────────────────────────────────────────────────────
+  site_contact_person_id: z.string().uuid().nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // Staff/admin
+  // ──────────────────────────────────────────────────────────────────────────
+  received_by: z.string().uuid().nullable().optional(),
+});
 
 export type UpdateRequestInput = z.infer<typeof UpdateRequestSchema>;
 

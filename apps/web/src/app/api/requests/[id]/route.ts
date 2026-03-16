@@ -638,14 +638,93 @@ export async function PATCH(
       }
     }
 
-    // V1 columns that are silently ignored (no DB column or deprecated):
-    // - cats_are_friendly, preferred_contact_method, assigned_to, assigned_trapper_type
-    // - assignment_notes, scheduled_date, scheduled_time_range
-    // - cats_trapped, cats_returned
-    // - permission_status, traps_overnight_safe, access_without_contact
-    // - urgency_reasons, urgency_deadline, urgency_notes, kitten_age_weeks
-    // - kitten_assessment_status, kitten_assessment_outcome
-    // Use POST /api/requests/[id]/trappers for trapper assignment
+    // MIG_2532/FFS-603: cats_are_friendly, permission_status, traps_overnight_safe,
+    // urgency_reasons, urgency_deadline, urgency_notes — now handled below.
+    // Remaining V1 columns that are truly deprecated:
+    // - preferred_contact_method (use ContactCard instead)
+    // - assigned_to, assigned_trapper_type, assignment_notes (use /api/requests/[id]/trappers)
+    // - scheduled_date, scheduled_time_range (use trapper assignment scheduling)
+    // - cats_trapped, cats_returned (use trip reports)
+    // - access_without_contact, kitten_age_weeks (superseded by new fields)
+    // - kitten_assessment_status, kitten_assessment_outcome (use kitten assessment API)
+
+    if (body.cats_are_friendly !== undefined) {
+      updates.push(`cats_are_friendly = $${paramIndex}`);
+      values.push(body.cats_are_friendly);
+      paramIndex++;
+    }
+
+    if (body.permission_status !== undefined) {
+      updates.push(`permission_status = $${paramIndex}`);
+      values.push(body.permission_status);
+      paramIndex++;
+    }
+
+    if (body.traps_overnight_safe !== undefined) {
+      updates.push(`traps_overnight_safe = $${paramIndex}`);
+      values.push(body.traps_overnight_safe);
+      paramIndex++;
+    }
+
+    if (body.urgency_reasons !== undefined) {
+      updates.push(`urgency_reasons = $${paramIndex}`);
+      values.push(body.urgency_reasons);
+      paramIndex++;
+    }
+
+    if (body.urgency_deadline !== undefined) {
+      updates.push(`urgency_deadline = $${paramIndex}`);
+      values.push(body.urgency_deadline);
+      paramIndex++;
+    }
+
+    if (body.urgency_notes !== undefined) {
+      updates.push(`urgency_notes = $${paramIndex}`);
+      values.push(body.urgency_notes);
+      paramIndex++;
+    }
+
+    if (body.eartip_count !== undefined) {
+      updates.push(`eartip_count = $${paramIndex}`);
+      values.push(body.eartip_count);
+      paramIndex++;
+    }
+
+    if (body.handleability !== undefined) {
+      updates.push(`handleability = $${paramIndex}`);
+      values.push(body.handleability);
+      paramIndex++;
+    }
+
+    if (body.best_times_seen !== undefined) {
+      updates.push(`best_times_seen = $${paramIndex}`);
+      values.push(body.best_times_seen);
+      paramIndex++;
+    }
+
+    if (body.important_notes !== undefined) {
+      updates.push(`important_notes = $${paramIndex}`);
+      values.push(body.important_notes);
+      paramIndex++;
+    }
+
+    if (body.property_owner_name !== undefined) {
+      updates.push(`property_owner_name = $${paramIndex}`);
+      values.push(body.property_owner_name);
+      paramIndex++;
+    }
+
+    if (body.property_owner_phone !== undefined) {
+      updates.push(`property_owner_phone = $${paramIndex}`);
+      values.push(body.property_owner_phone);
+      paramIndex++;
+    }
+
+    if (body.count_confidence !== undefined) {
+      updates.push(`count_confidence = $${paramIndex}`);
+      values.push(body.count_confidence);
+      paramIndex++;
+    }
 
     // Hold management (hold_reason + hold_reason_notes exist in V2 via MIG_2495)
     if (body.hold_reason !== undefined && body.hold_reason !== current.hold_reason) {

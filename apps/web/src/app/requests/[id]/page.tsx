@@ -6,6 +6,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments, ClinicNotesSection } from "@/components/sections";
 import type { JournalEntry } from "@/components/sections";
 import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
+import { RequestSection, GuidedActionBar, REQUEST_SECTIONS } from "@/components/request";
 import { LegacyUpgradeWizard } from "@/components/forms";
 import { LogSiteVisitModal, CompleteRequestModal, CloseRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal, TripReportModal } from "@/components/modals";
 import { StatusBadge, PriorityBadge, PropertyTypeBadge } from "@/components/badges";
@@ -14,18 +15,16 @@ import { ColonyEstimates } from "@/components/charts";
 import { ClassificationSuggestionBanner } from "@/components/admin";
 import { EntityPreviewModal } from "@/components/search";
 import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
-import { SmartField, YesNoSmartField, isLegacySource, TabBar, TabPanel } from "@/components/ui";
+import { SmartField, TabBar, TabPanel } from "@/components/ui";
 import { formatPhone, formatAddress } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "./types";
-import { COLORS, TYPOGRAPHY, SPACING, BORDERS, REQUEST_STATUS_COLORS, getStatusColor } from "@/lib/design-tokens";
+import { COLORS, TYPOGRAPHY, SPACING, BORDERS, getStatusColor } from "@/lib/design-tokens";
 import { getOutcomeLabel, getOutcomeColor, getReasonLabel, type ResolutionOutcome } from "@/lib/request-status";
 import {
-  PAGE_CONTAINER, FIELD_LABEL, FIELD_HINT, FIELD_VALUE, FIELD_VALUE_EMPTY,
-  INPUT, GRID_2COL, GRID_3COL, GRID_AUTO, FLEX_CENTER, FLEX_CENTER_SM,
-  FLEX_BETWEEN, FLEX_WRAP_SM, ACTIONS_ROW, WARNING_BANNER, ERROR_BANNER,
-  MB_LG, MT_LG, SKELETON_LINE, SKELETON_BLOCK, quickStatusButton,
+  PAGE_CONTAINER, WARNING_BANNER, ERROR_BANNER,
+  MB_LG, SKELETON_LINE, SKELETON_BLOCK,
 } from "../styles";
 
 interface TripReportRow {
@@ -46,23 +45,6 @@ interface TripReportRow {
   created_at: string;
 }
 
-// MIG_2530: Simplified 4-state status system
-const STATUS_OPTIONS = [
-  { value: "new", label: "New" },
-  { value: "working", label: "Working" },
-  { value: "paused", label: "Paused" },
-  { value: "completed", label: "Completed" },
-  { value: "redirected", label: "Redirected" },
-  { value: "handed_off", label: "Handed Off" },
-];
-
-const PRIORITY_OPTIONS = [
-  { value: "urgent", label: "Urgent" },
-  { value: "high", label: "High" },
-  { value: "normal", label: "Normal" },
-  { value: "low", label: "Low" },
-];
-
 function LegacyBadge() {
   return (
     <span className="badge" style={{ background: COLORS.gray100, color: COLORS.gray600, fontSize: TYPOGRAPHY.size.xs, padding: `${SPACING.xs} ${SPACING.sm}`, border: `1px solid ${COLORS.gray300}` }} title="Imported from Airtable">
@@ -71,48 +53,6 @@ function LegacyBadge() {
   );
 }
 
-// Field display component for consistent styling
-function Field({ label, value, hint, fullWidth, editable, onEdit }: {
-  label: string;
-  value: React.ReactNode;
-  hint?: string;
-  fullWidth?: boolean;
-  editable?: boolean;
-  onEdit?: () => void;
-}) {
-  const isEmpty = value === null || value === undefined || value === "" || value === "Unknown";
-  return (
-    <div style={{ gridColumn: fullWidth ? "1 / -1" : undefined }}>
-      <div style={{ ...FLEX_CENTER_SM, marginBottom: SPACING.xs }}>
-        <span style={FIELD_LABEL}>{label}</span>
-        {hint && <span style={FIELD_HINT}>({hint})</span>}
-        {editable && onEdit && (
-          <button onClick={onEdit} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.7rem", color: "#6366f1", padding: 0, marginLeft: "auto" }}>
-            Edit
-          </button>
-        )}
-      </div>
-      <div style={isEmpty ? FIELD_VALUE_EMPTY : FIELD_VALUE}>
-        {isEmpty ? "\u2014" : value}
-      </div>
-    </div>
-  );
-}
-
-// Yes/No/Unknown field
-function YesNoField({ label, value, hint }: { label: string; value: boolean | null; hint?: string }) {
-  const display = value === true ? "Yes" : value === false ? "No" : "Unknown";
-  const color = value === true ? COLORS.successDark : value === false ? COLORS.errorDark : COLORS.textMuted;
-  return (
-    <div>
-      <div style={{ ...FLEX_CENTER_SM, marginBottom: SPACING.xs }}>
-        <span style={FIELD_LABEL}>{label}</span>
-        {hint && <span style={FIELD_HINT}>({hint})</span>}
-      </div>
-      <div style={{ fontWeight: TYPOGRAPHY.weight.semibold, color }}>{display}</div>
-    </div>
-  );
-}
 
 export default function RequestDetailPage() {
   const params = useParams();
@@ -130,55 +70,9 @@ export default function RequestDetailPage() {
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, setSavingRename] = useState(false);
 
-  // Inline notes editing state
-  const [editingNotes, setEditingNotes] = useState(false);
-  const [notesValue, setNotesValue] = useState("");
-  const [savingNotes, setSavingNotes] = useState(false);
 
-  // Edit mode state
-  const [editing, setEditing] = useState(false);
+  // Status change saving state
   const [saving, setSaving] = useState(false);
-  const [editForm, setEditForm] = useState({
-    status: "",
-    priority: "",
-    summary: "",
-    notes: "",
-    estimated_cat_count: "" as number | "",
-    kitten_count: "" as number | "",
-    has_kittens: false,
-    cats_are_friendly: null as boolean | null,
-    assigned_to: "",
-    scheduled_date: "",
-    scheduled_time_range: "",
-    resolution_notes: "",
-    cats_trapped: "" as number | "",
-    cats_returned: "" as number | "",
-    peak_count: "" as number | "",
-    awareness_duration: "",
-    county: "",
-    feeding_location: "",
-    feeding_time: "",
-    is_emergency: null as boolean | null,
-    has_medical_concerns: false,
-    medical_description: "",
-    is_third_party_report: null as boolean | null,
-    third_party_relationship: "",
-    dogs_on_site: "",
-    trap_savvy: "",
-    previous_tnr: "",
-    best_trapping_time: "",
-    eartip_count: "" as number | "",
-    permission_status: "",
-    access_notes: "",
-    traps_overnight_safe: null as boolean | null,
-    property_type: "",
-    colony_duration: "",
-    is_being_fed: null as boolean | null,
-    feeder_name: "",
-    feeding_frequency: "",
-    best_times_seen: "",
-    handleability: "",
-  });
 
   // Modal states
   const [showObservationModal, setShowObservationModal] = useState(false);
@@ -201,14 +95,6 @@ export default function RequestDetailPage() {
   // Footer tab state (replaces collapsible sections)
   const [activeTab, setActiveTab] = useState<string>("cats");
 
-  // Collapsible sections (keeping for edit mode compatibility)
-  const [sectionsCollapsed, setSectionsCollapsed] = useState<Record<string, boolean>>({
-    cats: false,
-    photos: true,
-    colony: false,
-    activity: false,
-    admin: true,
-  });
 
   // Session/Staff info
   const { user: currentUser } = useCurrentUser();
@@ -247,7 +133,6 @@ export default function RequestDetailPage() {
       try {
         const data = await fetchApi<RequestDetail>(`/api/requests/${requestId}`);
         setRequest(data);
-        initEditForm(data);
         if (data.place_coordinates) {
           setMapUrl(`https://maps.googleapis.com/maps/api/staticmap?center=${data.place_coordinates.lat},${data.place_coordinates.lng}&zoom=16&size=400x200&markers=color:green%7C${data.place_coordinates.lat},${data.place_coordinates.lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`);
         }
@@ -263,55 +148,10 @@ export default function RequestDetailPage() {
     fetchTripReports();
   }, [requestId, fetchJournalEntries, fetchTripReports]);
 
-  const initEditForm = (data: RequestDetail) => {
-    setEditForm({
-      status: data.status,
-      priority: data.priority,
-      summary: data.summary || "",
-      notes: data.notes || "",
-      estimated_cat_count: data.estimated_cat_count ?? "",
-      kitten_count: data.kitten_count ?? "",
-      has_kittens: data.has_kittens,
-      cats_are_friendly: data.cats_are_friendly,
-      assigned_to: data.assigned_to || "",
-      scheduled_date: data.scheduled_date || "",
-      scheduled_time_range: data.scheduled_time_range || "",
-      resolution_notes: data.resolution_notes || "",
-      cats_trapped: data.cats_trapped ?? "",
-      cats_returned: data.cats_returned ?? "",
-      peak_count: data.peak_count ?? "",
-      awareness_duration: data.awareness_duration || "",
-      county: data.county || "",
-      feeding_location: data.feeding_location || "",
-      feeding_time: data.feeding_time || "",
-      is_emergency: data.is_emergency,
-      has_medical_concerns: data.has_medical_concerns ?? false,
-      medical_description: data.medical_description || "",
-      is_third_party_report: data.is_third_party_report,
-      third_party_relationship: data.third_party_relationship || "",
-      dogs_on_site: data.dogs_on_site || "",
-      trap_savvy: data.trap_savvy || "",
-      previous_tnr: data.previous_tnr || "",
-      best_trapping_time: data.best_trapping_time || "",
-      eartip_count: data.eartip_count ?? "",
-      permission_status: data.permission_status || "",
-      access_notes: data.access_notes || "",
-      traps_overnight_safe: data.traps_overnight_safe,
-      property_type: data.property_type || "",
-      colony_duration: data.colony_duration || "",
-      is_being_fed: data.is_being_fed,
-      feeder_name: data.feeder_name || "",
-      feeding_frequency: data.feeding_frequency || "",
-      best_times_seen: data.best_times_seen || "",
-      handleability: data.handleability || "",
-    });
-  };
-
   const refreshRequest = async () => {
     try {
       const data = await fetchApi<RequestDetail>(`/api/requests/${requestId}`);
       setRequest(data);
-      initEditForm(data);
     } catch {
       /* optional: refresh failure is non-critical, keep existing data */
     }
@@ -381,24 +221,6 @@ export default function RequestDetailPage() {
     }
   };
 
-  const startEditNotes = () => {
-    setNotesValue(request?.notes || "");
-    setEditingNotes(true);
-  };
-
-  const handleSaveNotes = async () => {
-    setSavingNotes(true);
-    try {
-      await postApi(`/api/requests/${requestId}`, { notes: notesValue.trim() || null }, { method: "PATCH" });
-      await refreshRequest();
-      setEditingNotes(false);
-    } catch (err) {
-      setError("Failed to save notes");
-    } finally {
-      setSavingNotes(false);
-    }
-  };
-
   // FFS-442: Site contact change handler
   const handleSiteContactChange = async (personId: string | null) => {
     setSavingSiteContact(true);
@@ -419,84 +241,6 @@ export default function RequestDetailPage() {
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const payload: Record<string, unknown> = {
-        status: editForm.status,
-        priority: editForm.priority,
-        summary: editForm.summary || null,
-        notes: editForm.notes || null,
-        estimated_cat_count: editForm.estimated_cat_count === "" ? null : Number(editForm.estimated_cat_count),
-        kitten_count: editForm.kitten_count === "" ? null : Number(editForm.kitten_count),
-        has_kittens: editForm.has_kittens,
-        cats_are_friendly: editForm.cats_are_friendly,
-        assigned_to: editForm.assigned_to || null,
-        scheduled_date: editForm.scheduled_date || null,
-        scheduled_time_range: editForm.scheduled_time_range || null,
-        resolution_notes: editForm.resolution_notes || null,
-        cats_trapped: editForm.cats_trapped === "" ? null : Number(editForm.cats_trapped),
-        cats_returned: editForm.cats_returned === "" ? null : Number(editForm.cats_returned),
-        peak_count: editForm.peak_count === "" ? null : Number(editForm.peak_count),
-        awareness_duration: editForm.awareness_duration || null,
-        county: editForm.county || null,
-        feeding_location: editForm.feeding_location || null,
-        feeding_time: editForm.feeding_time || null,
-        is_emergency: editForm.is_emergency,
-        has_medical_concerns: editForm.has_medical_concerns,
-        medical_description: editForm.medical_description || null,
-        is_third_party_report: editForm.is_third_party_report,
-        third_party_relationship: editForm.third_party_relationship || null,
-        dogs_on_site: editForm.dogs_on_site || null,
-        trap_savvy: editForm.trap_savvy || null,
-        previous_tnr: editForm.previous_tnr || null,
-        best_trapping_time: editForm.best_trapping_time || null,
-        eartip_count: editForm.eartip_count === "" ? null : Number(editForm.eartip_count),
-        permission_status: editForm.permission_status || null,
-        access_notes: editForm.access_notes || null,
-        traps_overnight_safe: editForm.traps_overnight_safe,
-        property_type: editForm.property_type || null,
-        colony_duration: editForm.colony_duration || null,
-        is_being_fed: editForm.is_being_fed,
-        feeder_name: editForm.feeder_name || null,
-        feeding_frequency: editForm.feeding_frequency || null,
-        best_times_seen: editForm.best_times_seen || null,
-        handleability: editForm.handleability || null,
-      };
-      await postApi(`/api/requests/${requestId}`, payload, { method: "PATCH" });
-      await refreshRequest();
-      setEditing(false);
-    } catch (err) {
-      const apiErr = err as ApiError;
-      setError(apiErr.message || "Failed to save changes");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const getQuickStatusOptions = () => {
-    if (!request) return [];
-    const working = { value: "working", label: "Start Working", color: REQUEST_STATUS_COLORS.working.border };
-    const resume = { value: "working", label: "Resume", color: REQUEST_STATUS_COLORS.working.border };
-    const pause = { value: "paused", label: "Pause", color: REQUEST_STATUS_COLORS.paused.border };
-    const complete = { value: "completed", label: "Close Case", color: REQUEST_STATUS_COLORS.completed.border };
-    const reopen = { value: "new", label: "Reopen", color: REQUEST_STATUS_COLORS.new.border };
-    switch (request.status) {
-      case "new": return [working, pause, complete];
-      case "working": return [complete, pause];
-      case "paused": return [resume, complete];
-      case "completed": case "cancelled": return [reopen];
-      case "triaged": return [working, complete];
-      case "scheduled": case "in_progress": return [complete, pause];
-      case "on_hold": return [resume, complete];
-      default: return [];
-    }
-  };
-
-  const toggleSection = (key: string) => {
-    setSectionsCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
-  };
 
   if (loading) {
     return (
@@ -530,279 +274,19 @@ export default function RequestDetailPage() {
   const isResolved = request.status === "completed" || request.status === "cancelled" || request.status === "partial";
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // EDIT MODE RENDER
+  // Helper: modal handler for GuidedActionBar
   // ═══════════════════════════════════════════════════════════════════════════
-  if (editing) {
-    return (
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "1rem" }}>
-        <BackButton fallbackHref="/requests" />
-        <div style={{ marginTop: "1rem", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Edit Request</h1>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button onClick={() => { setEditing(false); if (request) initEditForm(request); }} className="btn btn-secondary">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="btn">{saving ? "Saving..." : "Save Changes"}</button>
-          </div>
-        </div>
-        {error && <div className="alert alert-error" style={MB_LG}>{error}</div>}
-
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={MB_LG}>Status & Priority</h3>
-          <div style={GRID_2COL}>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Status</label>
-              <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} style={INPUT}>
-                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Priority</label>
-              <select value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })} style={INPUT}>
-                {PRIORITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={MB_LG}>Case Summary</h3>
-          <div style={MB_LG}>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Title</label>
-            <input type="text" value={editForm.summary} onChange={(e) => setEditForm({ ...editForm, summary: e.target.value })} placeholder="Brief description of the request..." style={INPUT} />
-          </div>
-          <div>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Notes</label>
-            <textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Additional details about the situation..." rows={4} style={INPUT} />
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={MB_LG}>Colony Assessment</h3>
-          <div style={GRID_3COL}>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Adult Cats Needing TNR</label>
-              <input type="number" value={editForm.estimated_cat_count} onChange={(e) => setEditForm({ ...editForm, estimated_cat_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Eartipped</label>
-              <input type="number" value={editForm.eartip_count} onChange={(e) => setEditForm({ ...editForm, eartip_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Peak Count Observed</label>
-              <input type="number" value={editForm.peak_count} onChange={(e) => setEditForm({ ...editForm, peak_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Handleability</label>
-              <select value={editForm.handleability} onChange={(e) => setEditForm({ ...editForm, handleability: e.target.value })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="friendly">Friendly / Carrier OK</option>
-                <option value="trap_needed">Trap Needed</option>
-                <option value="mixed">Mixed</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Colony Duration</label>
-              <select value={editForm.colony_duration} onChange={(e) => setEditForm({ ...editForm, colony_duration: e.target.value })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="under_1_month">Less than 1 month</option>
-                <option value="1_to_6_months">1-6 months</option>
-                <option value="6_to_24_months">6 months - 2 years</option>
-                <option value="over_2_years">Over 2 years</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>County</label>
-              <select value={editForm.county} onChange={(e) => setEditForm({ ...editForm, county: e.target.value })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="sonoma">Sonoma</option>
-                <option value="marin">Marin</option>
-                <option value="napa">Napa</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ marginTop: "1rem" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-              <input type="checkbox" checked={editForm.has_kittens} onChange={(e) => setEditForm({ ...editForm, has_kittens: e.target.checked })} />
-              <span style={{ fontWeight: 500 }}>Has Kittens</span>
-            </label>
-            {editForm.has_kittens && (
-              <div style={{ marginTop: "0.5rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Kitten Count</label>
-                <input type="number" value={editForm.kitten_count} onChange={(e) => setEditForm({ ...editForm, kitten_count: e.target.value ? Number(e.target.value) : "" })} min="0" style={{ width: "120px", padding: "0.5rem" }} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={MB_LG}>Trapping Logistics</h3>
-          <div style={GRID_3COL}>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Property Access</label>
-              <select value={editForm.permission_status} onChange={(e) => setEditForm({ ...editForm, permission_status: e.target.value })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="granted">Granted</option>
-                <option value="pending">Pending</option>
-                <option value="denied">Denied</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Property Type</label>
-              <select value={editForm.property_type} onChange={(e) => setEditForm({ ...editForm, property_type: e.target.value })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="private_home">Private Home</option>
-                <option value="apartment_complex">Apartment Complex</option>
-                <option value="mobile_home_park">Mobile Home Park</option>
-                <option value="business">Business</option>
-                <option value="farm_ranch">Farm / Ranch</option>
-                <option value="public_park">Public Park</option>
-                <option value="industrial">Industrial</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Dogs on Site</label>
-              <select value={editForm.dogs_on_site} onChange={(e) => setEditForm({ ...editForm, dogs_on_site: e.target.value })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-                <option value="containable">Yes, but containable</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Trap-Savvy Cats</label>
-              <select value={editForm.trap_savvy} onChange={(e) => setEditForm({ ...editForm, trap_savvy: e.target.value })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-                <option value="some">Some</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Previous TNR</label>
-              <select value={editForm.previous_tnr} onChange={(e) => setEditForm({ ...editForm, previous_tnr: e.target.value })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-                <option value="partial">Partial</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Traps Safe Overnight</label>
-              <select value={editForm.traps_overnight_safe === null ? "" : editForm.traps_overnight_safe ? "yes" : "no"} onChange={(e) => setEditForm({ ...editForm, traps_overnight_safe: e.target.value === "" ? null : e.target.value === "yes" })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ marginTop: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Access Notes</label>
-            <textarea value={editForm.access_notes} onChange={(e) => setEditForm({ ...editForm, access_notes: e.target.value })} placeholder="Gate codes, parking, hazards..." rows={2} style={INPUT} />
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Best Times Seen</label>
-              <input type="text" value={editForm.best_times_seen} onChange={(e) => setEditForm({ ...editForm, best_times_seen: e.target.value })} placeholder="e.g., Early morning, dusk" style={INPUT} />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Best Trapping Time</label>
-              <input type="text" value={editForm.best_trapping_time} onChange={(e) => setEditForm({ ...editForm, best_trapping_time: e.target.value })} placeholder="e.g., Weekday mornings" style={INPUT} />
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={MB_LG}>Feeding Information</h3>
-          <div style={GRID_3COL}>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Being Fed?</label>
-              <select value={editForm.is_being_fed === null ? "" : editForm.is_being_fed ? "yes" : "no"} onChange={(e) => setEditForm({ ...editForm, is_being_fed: e.target.value === "" ? null : e.target.value === "yes" })} style={INPUT}>
-                <option value="">Unknown</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeder Name</label>
-              <input type="text" value={editForm.feeder_name} onChange={(e) => setEditForm({ ...editForm, feeder_name: e.target.value })} style={INPUT} />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Frequency</label>
-              <select value={editForm.feeding_frequency} onChange={(e) => setEditForm({ ...editForm, feeding_frequency: e.target.value })} style={INPUT}>
-                <option value="">Select frequency...</option>
-                <option value="daily">Daily</option>
-                <option value="few_times_week">A few times a week</option>
-                <option value="occasionally">Occasionally</option>
-                <option value="rarely">Rarely / Not at all</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Feeding Location</label>
-              <input type="text" value={editForm.feeding_location} onChange={(e) => setEditForm({ ...editForm, feeding_location: e.target.value })} placeholder="e.g., Back porch" style={INPUT} />
-            </div>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem", background: "#fef2f2", border: "1px solid #fecaca" }}>
-          <h3 style={{ marginBottom: "1rem", color: "#991b1b" }}>Medical & Emergency</h3>
-          <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-              <input type="checkbox" checked={editForm.is_emergency === true} onChange={(e) => setEditForm({ ...editForm, is_emergency: e.target.checked ? true : null })} />
-              <span style={{ fontWeight: 500 }}>Emergency Situation</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-              <input type="checkbox" checked={editForm.has_medical_concerns} onChange={(e) => setEditForm({ ...editForm, has_medical_concerns: e.target.checked })} />
-              <span style={{ fontWeight: 500 }}>Medical Concerns</span>
-            </label>
-          </div>
-          {editForm.has_medical_concerns && (
-            <div style={{ marginTop: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Describe Medical Concerns</label>
-              <textarea value={editForm.medical_description} onChange={(e) => setEditForm({ ...editForm, medical_description: e.target.value })} rows={2} style={INPUT} />
-            </div>
-          )}
-        </div>
-
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem" }}>
-          <h3 style={MB_LG}>Scheduling</h3>
-          <div style={GRID_2COL}>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Scheduled Date</label>
-              <input type="date" value={editForm.scheduled_date} onChange={(e) => setEditForm({ ...editForm, scheduled_date: e.target.value })} style={INPUT} />
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Time Range</label>
-              <input type="text" value={editForm.scheduled_time_range} onChange={(e) => setEditForm({ ...editForm, scheduled_time_range: e.target.value })} placeholder="e.g., Morning, 8am-12pm" style={INPUT} />
-            </div>
-          </div>
-        </div>
-
-        {isResolved && (
-          <div className="card" style={{ padding: "1.5rem", marginBottom: "1rem", background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
-            <h3 style={{ marginBottom: "1rem", color: "#166534" }}>Resolution</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Cats Trapped</label>
-                <input type="number" value={editForm.cats_trapped} onChange={(e) => setEditForm({ ...editForm, cats_trapped: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
-              </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Cats Returned</label>
-                <input type="number" value={editForm.cats_returned} onChange={(e) => setEditForm({ ...editForm, cats_returned: e.target.value ? Number(e.target.value) : "" })} min="0" style={INPUT} />
-              </div>
-            </div>
-            <div>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Resolution Notes</label>
-              <textarea value={editForm.resolution_notes} onChange={(e) => setEditForm({ ...editForm, resolution_notes: e.target.value })} rows={3} style={INPUT} />
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const handleOpenModal = (modal: "close" | "hold" | "observation" | "trip-report") => {
+    switch (modal) {
+      case "close": setShowCloseModal(true); break;
+      case "hold": setShowHoldModal(true); break;
+      case "observation": setShowObservationModal(true); break;
+      case "trip-report": setShowTripReportModal(true); break;
+    }
+  };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // MAIN VIEW RENDER (Case File Layout)
+  // MAIN VIEW RENDER (Case File Layout — inline section editing)
   // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "1rem" }}>
@@ -850,32 +334,31 @@ export default function RequestDetailPage() {
 
           {/* Actions */}
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-            <button onClick={() => setEditing(true)} className="btn btn-secondary" style={{ fontSize: "0.85rem" }}>Edit</button>
             <button onClick={() => setShowHistory(!showHistory)} className="btn btn-secondary" style={{ fontSize: "0.85rem" }}>{showHistory ? "Hide History" : "History"}</button>
           </div>
         </div>
 
-        {/* Quick Status Actions */}
-        <div style={{ ...ACTIONS_ROW, marginBottom: SPACING.lg }}>
-          <span style={{ fontSize: TYPOGRAPHY.size.sm, color: "var(--muted)" }}>Actions:</span>
-          {getQuickStatusOptions().map((opt) => (
-            <button key={opt.value} onClick={() => handleQuickStatusChange(opt.value)} disabled={saving} style={quickStatusButton(opt.color, saving)}>
-              {opt.label}
-            </button>
-          ))}
+        {/* Guided Action Bar — status-aware guidance + quick actions */}
+        <GuidedActionBar
+          request={request}
+          saving={saving}
+          onStatusChange={handleQuickStatusChange}
+          onOpenModal={handleOpenModal}
+        />
+
+        {/* Secondary actions row */}
+        <div style={{ display: "flex", gap: SPACING.sm, flexWrap: "wrap", marginBottom: SPACING.lg }}>
+          {request.requester_email && <button onClick={() => setShowEmailModal(true)} className="btn btn-sm btn-secondary">Email</button>}
+          {request.status !== "redirected" && request.status !== "handed_off" && !isResolved && (
+            <>
+              <button onClick={() => setShowRedirectModal(true)} className="btn btn-sm btn-secondary">Redirect</button>
+              <button onClick={() => setShowHandoffModal(true)} className="btn btn-sm btn-secondary">Hand Off</button>
+            </>
+          )}
           {previousStatus && previousStatus !== request.status && (
             <button onClick={() => handleQuickStatusChange(previousStatus)} disabled={saving} style={{ padding: `0.35rem ${SPACING.md}`, fontSize: TYPOGRAPHY.size.sm, background: "transparent", color: COLORS.gray500, border: `1px dashed ${COLORS.gray500}`, borderRadius: BORDERS.radius.md, cursor: "pointer" }}>Undo</button>
           )}
-          <div style={{ marginLeft: "auto", display: "flex", gap: SPACING.sm }}>
-            <button onClick={() => setShowObservationModal(true)} className="btn btn-sm btn-secondary">Log Visit</button>
-            <button onClick={() => setShowTripReportModal(true)} className="btn btn-sm btn-secondary">Log Session</button>
-            {request.requester_email && <button onClick={() => setShowEmailModal(true)} className="btn btn-sm btn-secondary">Email</button>}
-            {request.status !== "redirected" && request.status !== "handed_off" && !isResolved && (
-              <>
-                <button onClick={() => setShowRedirectModal(true)} className="btn btn-sm btn-secondary">Redirect</button>
-                <button onClick={() => setShowHandoffModal(true)} className="btn btn-sm btn-secondary">Hand Off</button>
-              </>
-            )}
+          <div style={{ marginLeft: "auto" }}>
             {request.is_archived ? (
               <button onClick={handleRestore} disabled={saving} className="btn btn-sm" style={{ background: COLORS.success, color: COLORS.white }}>
                 {saving ? "Restoring..." : "Restore"}
@@ -1094,120 +577,17 @@ export default function RequestDetailPage() {
             LEFT COLUMN - Main Case Information
             ═══════════════════════════════════════════════════════════════════════ */}
         <div>
-          {/* ─────────────────────────────────────────────────────────────────────
-              CASE SUMMARY
-              ───────────────────────────────────────────────────────────────────── */}
-          <CaseSection title="Case Summary" icon="📋" color="#3b82f6"
-            actions={!editing && !editingNotes ? (
-              <button onClick={startEditNotes} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "#6366f1", fontWeight: 500 }}>Edit</button>
-            ) : undefined}
-          >
-            {editingNotes ? (
-              <div>
-                <textarea
-                  value={notesValue}
-                  onChange={(e) => setNotesValue(e.target.value)}
-                  placeholder="Add case notes..."
-                  rows={6}
-                  autoFocus
-                  style={{ ...INPUT, width: "100%", resize: "vertical" }}
-                />
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-                  <button onClick={handleSaveNotes} disabled={savingNotes} className="btn btn-sm">{savingNotes ? "Saving..." : "Save"}</button>
-                  <button onClick={() => setEditingNotes(false)} className="btn btn-sm btn-secondary">Cancel</button>
-                </div>
-              </div>
-            ) : request.notes ? (
-              <div style={{ whiteSpace: "pre-wrap", fontSize: "0.95rem", lineHeight: 1.5 }}>{request.notes}</div>
-            ) : (
-              <p onClick={startEditNotes} style={{ color: "var(--muted)", fontStyle: "italic", cursor: "pointer" }}>Add notes...</p>
-            )}
-          </CaseSection>
-
-          {/* ─────────────────────────────────────────────────────────────────────
-              COLONY ASSESSMENT - Structured intake fields (SmartField hides zeros)
-              ───────────────────────────────────────────────────────────────────── */}
-          <CaseSection title="Colony Assessment" icon="🐱" color="#f59e0b">
-            <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1rem", margin: 0 }}>
-              <SmartField label="Adult Cats" value={request.estimated_cat_count} hint="needing TNR" showWhen="always" legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Eartipped" value={request.eartip_count} showWhen="nonzero" legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Eartip Estimate" value={request.eartip_estimate?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Peak Observed" value={request.peak_count} showWhen="nonzero" legacyMode={isLegacySource(request.source_system)} />
-              <YesNoSmartField label="Has Kittens" value={request.has_kittens} legacyMode={isLegacySource(request.source_system)} />
-              {request.has_kittens && <SmartField label="Kitten Count" value={request.kitten_count} showWhen="nonzero" />}
-              {request.has_kittens && <SmartField label="Kitten Age (weeks)" value={request.kitten_age_weeks} showWhen="nonzero" />}
-              {request.wellness_cat_count != null && request.wellness_cat_count > 0 && <SmartField label="Wellness Cat Count" value={request.wellness_cat_count} showWhen="nonzero" />}
-              <YesNoSmartField label="Cats Are Friendly" value={request.cats_are_friendly} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Handleability" value={request.handleability?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Colony Duration" value={request.colony_duration?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="County" value={request.county} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Count Confidence" value={request.count_confidence?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-            </dl>
-            {request.location_description && (
-              <div style={{ marginTop: "1rem", padding: "0.75rem", background: "var(--muted-bg)", borderRadius: "6px", fontSize: "0.9rem" }}>
-                <strong>Location Notes:</strong> {request.location_description}
-              </div>
-            )}
-            {request.kitten_notes && (
-              <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", fontSize: "0.9rem", borderLeft: "3px solid #f59e0b" }}>
-                <strong>Kitten Notes:</strong> {request.kitten_notes}
-              </div>
-            )}
-            {request.kitten_mixed_ages_description && (
-              <div style={{ marginTop: "0.5rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", fontSize: "0.9rem", borderLeft: "3px solid #f59e0b" }}>
-                <strong>Mixed Ages:</strong> {request.kitten_mixed_ages_description}
-              </div>
-            )}
-          </CaseSection>
-
-          {/* ─────────────────────────────────────────────────────────────────────
-              TRAPPING LOGISTICS (SmartField hides empty values)
-              ───────────────────────────────────────────────────────────────────── */}
-          <CaseSection title="Trapping Logistics" icon="🪤" color="#166534">
-            <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1rem", margin: 0 }}>
-              <SmartField label="Property Access" value={request.permission_status?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Property Type" value={request.property_type?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Dogs on Site" value={request.dogs_on_site?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Trap-Savvy" value={request.trap_savvy?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Previous TNR" value={request.previous_tnr?.replace(/_/g, " ")} legacyMode={isLegacySource(request.source_system)} />
-              <YesNoSmartField label="Traps Safe Overnight" value={request.traps_overnight_safe} legacyMode={isLegacySource(request.source_system)} />
-              <YesNoSmartField label="Access Without Contact" value={request.access_without_contact} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Best Times Seen" value={request.best_times_seen} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Best Contact Times" value={request.best_contact_times} legacyMode={isLegacySource(request.source_system)} />
-              <SmartField label="Best Trapping Time" value={request.best_trapping_time} legacyMode={isLegacySource(request.source_system)} />
-            </dl>
-            {request.is_property_owner === false && (request.property_owner_name || request.property_owner_phone) && (
-              <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#eff6ff", borderRadius: "6px", fontSize: "0.9rem", borderLeft: "3px solid #3b82f6" }}>
-                <strong>Property Owner:</strong>{" "}
-                {request.property_owner_name}{request.property_owner_phone ? ` — ${formatPhone(request.property_owner_phone)}` : ""}
-                {request.authorization_pending && <span className="badge" style={{ background: COLORS.warning, color: COLORS.black, marginLeft: "0.5rem", fontSize: "0.75rem" }}>Authorization Pending</span>}
-              </div>
-            )}
-            {request.access_notes && (
-              <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f0fdf4", borderRadius: "6px", fontSize: "0.9rem", borderLeft: "3px solid #166534" }}>
-                <strong>Access Notes:</strong> {request.access_notes}
-              </div>
-            )}
-          </CaseSection>
-
-          {/* ─────────────────────────────────────────────────────────────────────
-              FEEDING INFORMATION (only shows details if being fed)
-              ───────────────────────────────────────────────────────────────────── */}
-          {(request.is_being_fed || request.feeder_name || request.feeding_frequency || isLegacySource(request.source_system)) && (
-            <CaseSection title="Feeding Information" icon="🍽️" color="#6366f1">
-              <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1rem", margin: 0 }}>
-                <YesNoSmartField label="Being Fed" value={request.is_being_fed} showWhen="defined" legacyMode={isLegacySource(request.source_system)} />
-                {(request.is_being_fed || isLegacySource(request.source_system)) && (
-                  <>
-                    <SmartField label="Feeder" value={request.feeder_name} legacyMode={isLegacySource(request.source_system)} />
-                    <SmartField label="Frequency" value={request.feeding_frequency ? request.feeding_frequency.replace(/_/g, " ") : null} legacyMode={isLegacySource(request.source_system)} />
-                    <SmartField label="Feeding Time" value={request.feeding_time} legacyMode={isLegacySource(request.source_system)} />
-                    <SmartField label="Location" value={request.feeding_location} legacyMode={isLegacySource(request.source_system)} />
-                  </>
-                )}
-              </dl>
-            </CaseSection>
-          )}
+          {/* ═══════════════════════════════════════════════════════════════════
+              INLINE SECTION EDITING — Config-driven RequestSection components
+              ═══════════════════════════════════════════════════════════════════ */}
+          {REQUEST_SECTIONS.map((sectionConfig) => (
+            <RequestSection
+              key={sectionConfig.id}
+              config={sectionConfig}
+              request={request}
+              onSaved={refreshRequest}
+            />
+          ))}
 
           {/* ─────────────────────────────────────────────────────────────────────
               INTAKE EXTENDED DATA (fields preserved from intake without dedicated columns)
