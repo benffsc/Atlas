@@ -380,7 +380,7 @@ The person who submits a request is often NOT the person who lives at the locati
 | Actual Resident | Jane reports cats in her backyard | Yes |
 | Colony Caretaker | Kim feeds cats at vacant lot | Maybe |
 
-**Current Problem:** We often create `person_place_relationships` linking the requestor to the request's place as a "resident" — this pollutes place data.
+**Current Problem:** We often create `sot.person_place` linking the requestor to the request's place as a "resident" — this pollutes place data.
 
 ### ServiceNow Pattern: Caller vs Affected Party
 

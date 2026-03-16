@@ -186,7 +186,7 @@ Understanding the strengths and limitations of each data source is critical for 
 
 **Key Tables:**
 - `cat_intake_events` — When animals entered FFSC programs (MIG_879)
-- `person_cat_relationships` (where source_system='shelterluv') — Adopter, foster, owner relationships
+- `sot.person_cat` (where source_system='shelterluv') — Adopter, foster, owner relationships
 - `place_contexts` (where assigned_by='shelterluv_events_processor') — Place tags from outcomes
 
 ---
@@ -269,7 +269,7 @@ SELECT
   cat_linking_status,
   COUNT(*) as count,
   ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) as pct
-FROM trapper.sot_appointments
+FROM ops.appointments
 GROUP BY cat_linking_status
 ORDER BY count DESC;
 ```
@@ -404,14 +404,14 @@ Two separate sources of pollution were discovered:
 
 **Root Cause 1 (data_fix):** Unknown process created `owner_relationship` links from cats to ALL of a contact person's addresses instead of just the appointment site. Lorri Bogdanski (Victory Outreach contact) has 3 places: the church, her current home, and an old home. All 780 links were to personal addresses of contact people.
 
-**Root Cause 2 (ShelterLuv):** MIG_555 (`link_adopted_cats_to_places.sql`) has a design flaw — it joins `person_place_relationships` without filtering, creating `adopter_residence` links to ALL of an adopter's addresses. 40 out of 541 adopters have multiple places (up to 8), causing 405 bad links.
+**Root Cause 2 (ShelterLuv):** MIG_555 (`link_adopted_cats_to_places.sql`) has a design flaw — it joins `sot.person_place` without filtering, creating `adopter_residence` links to ALL of an adopter's addresses. 40 out of 541 adopters have multiple places (up to 8), causing 405 bad links.
 
 ```sql
 -- The problematic pattern in MIG_555:
-INSERT INTO cat_place_relationships (cat_id, place_id, ...)
+INSERT INTO sot.cat_place (cat_id, place_id, ...)
 SELECT pcr.cat_id, ppr.place_id, ...  -- ALL places, not filtered!
-FROM person_cat_relationships pcr
-JOIN person_place_relationships ppr ON ppr.person_id = pcr.person_id
+FROM sot.person_cat pcr
+JOIN sot.person_place ppr ON ppr.person_id = pcr.person_id
 WHERE pcr.relationship_type = 'adopter'
 ```
 
@@ -434,7 +434,7 @@ WHERE pcr.relationship_type = 'adopter'
 
 **Prevention:**
 - MIG_555 needs redesign to link to ONE address per adoption (the most recent or primary)
-- Future link-creation processes should filter `person_place_relationships` rather than joining all
+- Future link-creation processes should filter `sot.person_place` rather than joining all
 
 **What Tippy should know:**
 > "In early February 2026, we discovered and fixed two sources of incorrect cat-place links. About 1,185 total bad links were deleted. Cats were incorrectly appearing at addresses they weren't actually at — because some processes linked cats to ALL of a person's addresses instead of just the relevant one. The Victory Outreach Church case (Blackie) and Mario Vidrio case (203 wrong links) are now fixed. If staff asks about cats appearing at unexpected addresses from before 2026-02-09, explain that we cleaned up pollution from automated linking. The cat should now only appear at locations where it was actually seen or where its actual adopter lives."
@@ -699,7 +699,7 @@ Three systemic issues found in cat-place linking pipeline:
 | Colony detection | None | Auto-tags 15+ cats |
 
 **What Tippy should know:**
-> "Cats are now linked to addresses where they were FIRST seen, not where owner later moved. If a cat shows at an unexpected address, check `person_place_relationships.created_at` against the cat's first appointment date. Places with 15+ cats from one person are auto-tagged as `colony_site` in `place_contexts`."
+> "Cats are now linked to addresses where they were FIRST seen, not where owner later moved. If a cat shows at an unexpected address, check `sot.person_place.created_at` against the cat's first appointment date. Places with 15+ cats from one person are auto-tagged as `colony_site` in `place_contexts`."
 
 **Key Learning:** Address ordering must consider temporal context. Person moves ≠ cat moves.
 
@@ -744,11 +744,11 @@ The `classify_owner_name()` function correctly returned `'address'`, but `find_o
 
 **Solution:**
 - **MIG_899:** Added enriched columns for misc flags (polydactyl, bradycardia, etc.) with proper boolean checking
-- **MIG_900:** Created canonical `trapper.is_positive_value()` function that handles: Yes, TRUE, Y, Checked, Positive, 1, Left, Right, Bilateral (case-insensitive). Updated `process_staged_appointment()` to use it.
+- **MIG_900:** Created canonical `sot.is_positive_value()` function that handles: Yes, TRUE, Y, Checked, Positive, 1, Left, Right, Bilateral (case-insensitive). Updated `process_staged_appointment()` to use it.
 - **MIG_901:** Created 4 data quality monitoring views (`v_appointment_data_quality`, `v_clinichq_boolean_values`, `v_appointment_linking_gaps`, `v_data_quality_health`)
 - **MIG_902:** Added phone-only appointment linking — 37 appointments linked, 1,183 person-cat relationships created
 - **MIG_903:** Created views to track unresolvable appointments (ClinicHQ data entry issue, not Atlas bug)
-- **TypeScript fix:** Updated `/api/ingest/process/[id]/route.ts` to use `trapper.is_positive_value()` instead of `= 'Yes'`
+- **TypeScript fix:** Updated `/api/ingest/process/[id]/route.ts` to use `sot.is_positive_value()` instead of `= 'Yes'`
 
 **Result:**
 | Metric | Before | After |
@@ -760,11 +760,11 @@ The `classify_owner_name()` function correctly returned `'address'`, but `find_o
 
 **North Star Alignment:** All fixes verified against CLAUDE.md rules. No violations except the TypeScript route which was fixed.
 
-**Key Learning:** Always use `trapper.is_positive_value()` for boolean extraction. Never hardcode `= 'Yes'`.
+**Key Learning:** Always use `sot.is_positive_value()` for boolean extraction. Never hardcode `= 'Yes'`.
 
 ### 2026-02-04: DQ_008 — Unlinked Cats Deep Investigation + Gap Prevention
 
-**Problem:** After MIG_884-886, 3,536 cats still have no `person_cat_relationships`. Needed root cause analysis per category and preventive invariants.
+**Problem:** After MIG_884-886, 3,536 cats still have no `sot.person_cat`. Needed root cause analysis per category and preventive invariants.
 
 **Investigation:**
 Deep query analysis traced every unlinked cat to its source system and reason:
@@ -774,7 +774,7 @@ Deep query analysis traced every unlinked cat to its source system and reason:
   - 351 have NO contact info (email or phone) on the appointment — cannot auto-link
   - 205 have email but `link_appointments_to_owners()` didn't process them
   - 106 have phone ONLY — **BUG**: function has `WHERE a.owner_email IS NOT NULL`, skipping phone-only records entirely
-- **439 ClinicHQ without appointments**: Cat records exist from ingest but no `sot_appointments` row links to them
+- **439 ClinicHQ without appointments**: Cat records exist from ingest but no `ops.appointments` row links to them
 - **48 both sources + 10 no identifiers**: Edge cases
 
 **Bug found:** `link_appointments_to_owners()` (MIG_862, Step 2) requires email to process:
@@ -803,15 +803,15 @@ Fix: `WHERE (a.owner_email IS NOT NULL OR a.owner_phone IS NOT NULL) AND a.perso
 **Problem:** Beacon readiness audit found 4 gaps: cat-place coverage 91.7%, geocoding 92.2%, trapper-appointment linking 3.2%, mortality cron limit 50.
 
 **Investigation:**
-- Cat-place gap root cause: 2,569 cats have no `person_cat_relationships` at all (hard ceiling). 438 adopter+resident cats were linkable but `link_cats_to_places()` hadn't been re-run after MIG_877 backfill. 105 ClinicHQ people had addresses in staged_records but no `person_place_relationships`.
+- Cat-place gap root cause: 2,569 cats have no `sot.person_cat` at all (hard ceiling). 438 adopter+resident cats were linkable but `link_cats_to_places()` hadn't been re-run after MIG_877 backfill. 105 ClinicHQ people had addresses in staged_records but no `sot.person_place`.
 - Geocoding: 91 places permanently failed after 5 attempts. Cron IS running (*/30 in vercel.json).
 - Trapper-appointment: Current function matches via owner email/phone = trapper, which is fundamentally wrong (owner ≠ trapper). Real path is appointment → cat → place → request → trapper.
 - Mortality: ShelterLuv mortality already handled by MIG_874 (`process_shelterluv_events`).
 
 **Solution:**
-- **MIG_884:** Backfilled 105 ClinicHQ owner addresses into `person_place_relationships`. Expanded `link_cats_to_places()` to include `requester` role (unlocked 1,951 additional cat-place edges). Re-running the function alone created 4,542 edges from MIG_877 backlog.
+- **MIG_884:** Backfilled 105 ClinicHQ owner addresses into `sot.person_place`. Expanded `link_cats_to_places()` to include `requester` role (unlocked 1,951 additional cat-place edges). Re-running the function alone created 4,542 edges from MIG_877 backlog.
 - **MIG_885:** Re-queued 86 permanently failed geocoding places. Increased `record_geocoding_result()` max_attempts from 5 to 10. 1,167 places now in geocoding queue.
-- **MIG_886:** Added `request_id` column to `sot_appointments`. Created `link_appointments_to_requests()` using place + attribution window (MIG_860 rules). Updated `link_appointments_to_trappers()` with two-pass: request chain first, email/phone fallback. 1,348 appointments linked to requests, 972 got trappers.
+- **MIG_886:** Added `request_id` column to `ops.appointments`. Created `link_appointments_to_requests()` using place + attribution window (MIG_860 rules). Updated `link_appointments_to_trappers()` with two-pass: request chain first, email/phone fallback. 1,348 appointments linked to requests, 972 got trappers.
 - Mortality cron limit increased from 50 to 200 per run.
 
 **Result:**
@@ -868,10 +868,10 @@ Fix: `WHERE (a.owner_email IS NOT NULL OR a.owner_phone IS NOT NULL) AND a.perso
 **Solution (MIG_881):**
 - **Phase 1:** Reversed COALESCE in `process_clinichq_owner_info(integer)` to prefer Owner Phone over Owner Cell Phone
 - **Phase 2a:** Re-linked 1,386 cross-linked appointments to correct people (143 people affected)
-- **Phase 2b:** Removed 7,616 orphaned person_cat_relationships
-- **Phase 2c:** Created 880 correct person_cat_relationships
+- **Phase 2b:** Removed 7,616 orphaned sot.person_cat
+- **Phase 2c:** Created 880 correct sot.person_cat
 - **Phase 3:** Merged 8 phantom "Gordon" first-name-only records into canonical Gordon Maxwell
-- **Phase 4:** Removed 176 `@petlink.tmp` fabricated emails from person_identifiers
+- **Phase 4:** Removed 176 `@petlink.tmp` fabricated emails from sot.person_identifiers
 - **Phase 5:** Marked 575 first-name-only web_app records as `data_quality='needs_review'`
 
 **Result:**
@@ -908,7 +908,7 @@ Fix: `WHERE (a.owner_email IS NOT NULL OR a.owner_phone IS NOT NULL) AND a.perso
 **Solution:**
 - **MIG_875:** Created `source_semantic_queries` table + `v_source_authority_map` view. Added `authority_domains` JSONB to `orchestrator_sources`. Documents which system owns what.
 - **MIG_876:** Reset events `last_sync_timestamp` to NULL (forces re-sync). Added `last_check_at` column to distinguish "checked but nothing new" from "hasn't run."
-- **MIG_877:** Backfilled ~4,960 SL people addresses into `person_place_relationships` via `find_or_create_place_deduped()`.
+- **MIG_877:** Backfilled ~4,960 SL people addresses into `sot.person_place` via `find_or_create_place_deduped()`.
 - **MIG_878:** Backfilled place contexts (adopter_residence, foster_home, relocation_destination, colony_site) for outcome relationships that now have places.
 - **MIG_879:** Created `cat_intake_events` table + `process_shelterluv_intake_events()`. Processed 4,179 intake events. Reset intake events that were incorrectly marked processed by outcome processor.
 - **MIG_880:** Registered `v_source_authority_map`, `v_source_semantic_queries`, `v_cat_intake_summary` in Tippy catalog.
@@ -962,7 +962,7 @@ Fix: `WHERE (a.owner_email IS NOT NULL OR a.owner_phone IS NOT NULL) AND a.perso
 **Problem:** Cats linked to people as caretakers (or foster, adopter, colony_caretaker) were NOT linked to those people's places. Example: cat with microchip 981020053820871 is connected to Toni Price (caretaker) who has an address, but the cat shows "No places linked" in the UI.
 
 **Investigation:**
-- The entity linking pipeline creates `person_cat_relationships` (Step 7, MIG_862) from appointments
+- The entity linking pipeline creates `sot.person_cat` (Step 7, MIG_862) from appointments
 - But `link_cats_to_places()` (MIG_797) only handles `relationship_type = 'owner'`
 - `link_cats_to_places()` was also never called from the pipeline — only the older `run_cat_place_linking()` (staged_records path) was invoked
 - Result: thousands of cats with person links but no place links
@@ -982,8 +982,8 @@ Fix: `WHERE (a.owner_email IS NOT NULL OR a.owner_phone IS NOT NULL) AND a.perso
 **Problem:** Some places on the Beacon map showed 1000+ cats, far exceeding what's physically possible. Separately, some cats had dozens of identifiers.
 
 **Investigation:**
-- Map cat counts come from `COUNT(DISTINCT cat_id) FROM cat_place_relationships` — this query never excluded merged cats
-- When Cat A is merged into Cat B, `sot_cats.merged_into_cat_id` is set on Cat A, but its `cat_place_relationships` rows remain orphaned
+- Map cat counts come from `COUNT(DISTINCT cat_id) FROM sot.cat_place` — this query never excluded merged cats
+- When Cat A is merged into Cat B, `sot.cats.merged_into_cat_id` is set on Cat A, but its `sot.cat_place` rows remain orphaned
 - Similarly, `cat_identifiers` on merged cats were never transferred to the canonical cat
 - Multiple source_tables could link the same cat to the same place, creating duplicate rows
 - Low-confidence microchip format guesses (truncated, AVID reinterpretations) accumulated alongside real chips
@@ -996,15 +996,15 @@ Fix: `WHERE (a.owner_email IS NOT NULL OR a.owner_phone IS NOT NULL) AND a.perso
 
 **Solution:**
 - **MIG_868:** Audit + remediation for places
-  - Diagnostic queries comparing `cat_place_relationships` against actual appointment evidence
-  - Removes all `cat_place_relationships` for merged cats
+  - Diagnostic queries comparing `sot.cat_place` against actual appointment evidence
+  - Removes all `sot.cat_place` for merged cats
   - Deduplicates same-cat-same-place entries (keeps `appointment_info` source)
   - Removes residual `appointment_person_link` pollution from pre-MIG_590
 - **MIG_869:** Audit + remediation for cat identifiers
   - Re-points identifiers from merged cats to their canonical cat (or removes if duplicate)
   - Removes junk microchip identifiers (too short, all letters, all zeros, test data)
   - Removes low-confidence format guesses where high-confidence chip exists
-- **map-data/route.ts:** All cat count subqueries now JOIN `sot_cats` with `merged_into_cat_id IS NULL`
+- **map-data/route.ts:** All cat count subqueries now JOIN `sot.cats` with `merged_into_cat_id IS NULL`
 - **v_map_atlas_pins (MIG_820):** Cat count subquery updated to exclude merged cats
 
 **Result:** Run MIG_868 then MIG_869. Map cat counts will reflect only active (non-merged) cats with valid place links.
@@ -1047,7 +1047,7 @@ Fix: `WHERE (a.owner_email IS NOT NULL OR a.owner_phone IS NOT NULL) AND a.perso
 
 1. **Pipeline stall:** The `process_clinichq_owner_info()` backfill job last ran January 18. All appointments from Jan 19-26 had zero `owner_email`/`owner_phone`, completely blocking the automatic cat→place linking pipeline.
 
-2. **No relationship validation:** `cat_place_relationships` and `person_cat_relationships` accept any INSERT with valid UUIDs — no check that the cat was actually observed at that place. A manual fix initially linked the wrong person's cats to the wrong place because no guardrail flagged the error.
+2. **No relationship validation:** `sot.cat_place` and `sot.person_cat` accept any INSERT with valid UUIDs — no check that the cat was actually observed at that place. A manual fix initially linked the wrong person's cats to the wrong place because no guardrail flagged the error.
 
 **Investigation:**
 - January 2026: 16.3% of appointments missing owner contact info (vs 0.2-1.4% baseline in 2025)
@@ -1125,7 +1125,7 @@ The `UNIQUE (source_system, source_record_id)` constraint didn't catch this beca
 **Investigation:** Heather Singkeo brought in cat 981020033918588 (owned by Gary) multiple times. System couldn't distinguish "brought in by" from "owner".
 
 **Solution:**
-- MIG_544-547: Created `person_cat_relationships` table with relationship types
+- MIG_544-547: Created `sot.person_cat` table with relationship types
 - MIG_550: Fixed function to properly track owner vs brought_in_by relationships
 - Added `/api/cats/[id]` and `/api/people/[id]/cats` endpoints
 
@@ -1186,15 +1186,15 @@ A geographic zone with sparse data. May indicate lack of activity OR lack of dat
 
 ```sql
 -- Operational: Current state
-SELECT * FROM trapper.v_place_operational_state
+SELECT * FROM ops.v_place_operational_state
 WHERE has_active_request = true;
 
 -- Ecological: Historical
-SELECT * FROM trapper.v_place_ecological_context
+SELECT * FROM ops.v_place_ecological_context
 WHERE was_significant_source = true;
 
 -- Complete profile with both layers
-SELECT * FROM trapper.v_place_complete_profile
+SELECT * FROM ops.v_place_complete_profile
 WHERE place_id = 'your-uuid';
 ```
 
@@ -1228,12 +1228,12 @@ Higher scores indicate areas more likely to have unaltered pets:
 ```sql
 -- High priority areas
 SELECT area_name, tnr_priority_score, pet_ownership_index
-FROM trapper.ref_sonoma_geography
+FROM ref.sonoma_geography
 WHERE area_type = 'zip'
 ORDER BY tnr_priority_score DESC;
 
 -- Correlation with actual activity
-SELECT * FROM trapper.v_area_tnr_correlation
+SELECT * FROM ops.v_area_tnr_correlation
 WHERE correlation_status = 'underserved';
 ```
 
@@ -1275,7 +1275,7 @@ Brief summaries of development sessions for context on system evolution.
 **Context:** After MIG_884-886 closed Beacon gaps, deep investigation of remaining 3,536 unlinked cats to understand root causes and document preventive invariants.
 
 **Key Discoveries:**
-1. **3,536 cats have no `person_cat_relationships`** (not 2,569 as initially estimated — recounted)
+1. **3,536 cats have no `sot.person_cat`** (not 2,569 as initially estimated — recounted)
 2. **1,461 ShelterLuv-only cats**: Have no clinic appointments. 3,348 SL adoption/foster events exist but 1,616 adoptions + 1,732 fosters are NOT processed. `process_shelterluv_outcomes()` needs to process all events.
 3. **662 ClinicHQ cats with appointments but no person link**:
    - 351 appointments have NO contact info (email/phone) — cannot auto-link
@@ -1310,7 +1310,7 @@ This is in MIG_862 (`link_appointments_to_owners()` Step 2). Affects 106+ cats.
 
 **Key Discoveries:**
 1. Cat-place gap was mostly caused by `link_cats_to_places()` not being re-run after MIG_877 ShelterLuv address backfill — 4,542 edges were sitting unlinked
-2. 2,569 cats have NO `person_cat_relationships` at all — this is the hard ceiling for person→place→cat linking
+2. 2,569 cats have NO `sot.person_cat` at all — this is the hard ceiling for person→place→cat linking
 3. Trapper-appointment linking was fundamentally broken: owner_email ≠ trapper. The correct chain is appointment → place → request → trapper_assignments
 4. Only 289 requests exist with 187 having trapper assignments, limiting the request chain approach
 5. ShelterLuv mortality (Euthanasia + UnassistedDeathInCustody) was already handled by MIG_874 — not a real gap
@@ -1319,7 +1319,7 @@ This is in MIG_862 (`link_appointments_to_owners()` Step 2). Affects 106+ cats.
 **Changes Made:**
 - MIG_884: ClinicHQ owner address backfill (105 person_place links) + requester role expansion in `link_cats_to_places()` (1,951 edges) + re-run (4,542 edges from backlog)
 - MIG_885: Re-queued 86 failed geocoding places, increased max_attempts 5→10, 1,167 places now in queue
-- MIG_886: Added `request_id` to `sot_appointments`, created `link_appointments_to_requests()`, updated `link_appointments_to_trappers()` with two-pass (request chain + email/phone), 1,348 appointments linked to requests, 972 got trappers
+- MIG_886: Added `request_id` to `ops.appointments`, created `link_appointments_to_requests()`, updated `link_appointments_to_trappers()` with two-pass (request chain + email/phone), 1,348 appointments linked to requests, 972 got trappers
 - Mortality cron limit 50→200
 - Person aliases API committed (from other session)
 
@@ -1362,7 +1362,7 @@ This is in MIG_862 (`link_appointments_to_owners()` Step 2). Affects 106+ cats.
 
 **Critical Gaps — Updated after deep investigation (2026-02-04):**
 
-**Cat-place coverage at 92.9%** (was 91.7%) — 3,536 cats have no person_cat_relationships:
+**Cat-place coverage at 92.9%** (was 91.7%) — 3,536 cats have no sot.person_cat:
 | Category | Count | Actionable? |
 |----------|-------|-------------|
 | ShelterLuv-only (unprocessed outcomes) | 1,461 | Yes — run `process_shelterluv_outcomes()` |
@@ -1405,7 +1405,7 @@ This is in MIG_862 (`link_appointments_to_owners()` Step 2). Affects 106+ cats.
 1. `process_clinichq_owner_info(integer)` (MIG_573) preferred Owner Cell Phone over Owner Phone via COALESCE — cell phones are shared in households, causing identity cross-linking
 2. 30+ affected clients across 1,386 appointments linked to wrong person
 3. The `(uuid, integer)` overload (unified pipeline) already used correct logic — only the legacy `(integer)` overload had the bug
-4. 177 `@petlink.tmp` fabricated emails existed in person_identifiers from an older migration
+4. 177 `@petlink.tmp` fabricated emails existed in sot.person_identifiers from an older migration
 5. 579 first-name-only web_app people records with `data_quality='normal'` needed flagging
 6. MIG_152's cell-phone-first priority was correct for observation extraction but wrong for identity matching — the pattern leaked into MIG_573
 
@@ -1597,8 +1597,8 @@ Atlas uses an AI-powered attribute extraction system to convert unstructured tex
 
 | Source | Tables | Est. Records |
 |--------|--------|--------------|
-| Clinic Notes | `sot_appointments` | ~50,000 |
-| Request Notes | `sot_requests` | ~15,000 |
+| Clinic Notes | `ops.appointments` | ~50,000 |
+| Request Notes | `ops.requests` | ~15,000 |
 | Google Maps | `google_map_entries` | ~5,600 |
 | Web Intake | `web_intake_submissions` | ~3,000 |
 | Site Observations | `site_observations` | ~2,000 |
@@ -1607,23 +1607,23 @@ Atlas uses an AI-powered attribute extraction system to convert unstructured tex
 
 ```sql
 -- Which places have kitten history?
-SELECT * FROM trapper.v_place_attributes
+SELECT * FROM ops.v_place_attributes
 WHERE has_kitten_history = true;
 
 -- Show disease-risk locations
-SELECT * FROM trapper.v_place_attributes
+SELECT * FROM ops.v_place_attributes
 WHERE has_disease_history = true;
 
 -- Find safety concern clients
-SELECT * FROM trapper.v_person_attributes
+SELECT * FROM ops.v_person_attributes
 WHERE safety_concern = true;
 
 -- Emergency requests with kittens
-SELECT * FROM trapper.v_request_attributes
+SELECT * FROM ops.v_request_attributes
 WHERE is_emergency = true AND has_kittens = true;
 
 -- Extraction coverage by attribute
-SELECT * FROM trapper.v_attribute_coverage;
+SELECT * FROM ops.v_attribute_coverage;
 ```
 
 ### Confidence Levels
@@ -1721,7 +1721,7 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 **Changes Made:**
 - MIG_875: Source System Authority Map (orchestrator_sources.authority_domains, source_semantic_queries table, v_source_authority_map view)
 - MIG_876: Fix events sync (reset timestamp, add last_check_at for accurate health)
-- MIG_877: Backfill ~4,960 SL people addresses into person_place_relationships
+- MIG_877: Backfill ~4,960 SL people addresses into sot.person_place
 - MIG_878: Backfill place contexts for outcome relationships (adopter_residence, foster_home, relocation_destination, colony_site)
 - MIG_879: cat_intake_events table + process_shelterluv_intake_events() function, processed 4,179 events
 - MIG_880: Registered 3 new views in Tippy catalog
@@ -1743,7 +1743,7 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 **Key Discoveries:**
 1. **TS Upload Route Diverged from SQL Processor** — The TypeScript UI upload route (`/api/ingest/process/[id]/route.ts`) never got the `should_be_person()` guard from MIG_573. Pseudo-profiles like "5403 San Antonio Road Petaluma" were being created as people via `find_or_create_person()` instead of routed to `clinic_owner_accounts`.
 2. **Email Soft Blacklist Never Checked** — `data_engine_score_candidates()` checked `data_engine_soft_blacklist` for phones (reducing score to 0.5) but NOT for emails. Org email `marinferals@yahoo.com` (Marin Friends of Ferals) auto-matched at full score, causing Carlos Lopez's cats to be linked to Jeanie Garcia.
-3. **Shared Identifier Orphan Pattern** — Carlos Lopez had 13 duplicate records with ZERO `person_identifiers` entries. When `find_or_create_person()` encounters a taken email/phone, the new person silently gets no identifiers (INSERT conflicts). This makes them invisible to future dedup.
+3. **Shared Identifier Orphan Pattern** — Carlos Lopez had 13 duplicate records with ZERO `sot.person_identifiers` entries. When `find_or_create_person()` encounters a taken email/phone, the new person silently gets no identifiers (INSERT conflicts). This makes them invisible to future dedup.
 4. **`link_cats_to_places()` Linked to ALL Person Places** — Created cat-place edges to every historical address a person had. 92.3% of appointments have `inferred_place_id` but it wasn't used.
 5. **ClinicHQ XLSX Stores Address in Name Field** — For Silveira Ranch, "5403 San Antonio Road Petaluma" was in `Owner First Name`, not `Owner Address`. The `Owner Address` field only had "San Antonio Rd, Petaluma, CA 94952" without house number.
 6. **Marin Friends of Ferals** — An outside TNR organization. Email `marinferals@yahoo.com` and phone `7074799459` are shared org identifiers used by both Jeanie Garcia and Carlos Lopez.
@@ -1796,7 +1796,7 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 **Context:** Review of multiple sessions' changes revealed three structural gaps: INV-10 centralized linking functions were documented in North Star but never built, pipeline backfill process was undocumented, and duplicate migration numbers existed.
 
 **Key Discoveries:**
-1. 5+ different code paths INSERT directly into `cat_place_relationships` and `person_cat_relationships` with inconsistent source attribution and zero evidence validation
+1. 5+ different code paths INSERT directly into `sot.cat_place` and `sot.person_cat` with inconsistent source attribution and zero evidence validation
 2. A manual SQL fix had linked the wrong person's cats to the wrong place — the system accepted it silently (no semantic validation)
 3. MIG_790 and MIG_791 each had duplicate numbers from separate sessions
 4. MIG_795 (pipeline fix) had a dead Step 4 that would fail on fresh run (wrong return type)
@@ -1890,7 +1890,7 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 
 ### Session: 2026-01-30 - Person Deduplication Audit System
 
-**Context:** The task ledger reported ~14,536 exact-name duplicate people in `sot_people`. The existing dedup system only catches duplicates during new record ingestion (via `find_or_create_person()` and the Data Engine). It had never proactively scanned the full person table. Many duplicates were created before the Data Engine was operational.
+**Context:** The task ledger reported ~14,536 exact-name duplicate people in `sot.people`. The existing dedup system only catches duplicates during new record ingestion (via `find_or_create_person()` and the Data Engine). It had never proactively scanned the full person table. Many duplicates were created before the Data Engine was operational.
 
 **Key Discoveries:**
 1. **Existing infrastructure was solid but unused at scale** — `merge_people()` (MIG_260), `merge_email_duplicates()` / `merge_phone_duplicates()` (MIG_575) existed but had never been run against the full dataset
@@ -1942,14 +1942,14 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 - Staff can merge, keep separate, or skip individual pairs or batch-select multiple
 - Merging uses `merge_place_into()` which atomically relinks all 23+ FK references
 - `place_safe_to_merge()` blocks merges of FFSC facilities, parent-child pairs, and already-merged places
-- Run `SELECT * FROM trapper.refresh_place_dedup_candidates();` to re-scan after significant data changes
+- Run `SELECT * FROM sot.refresh_place_dedup_candidates();` to re-scan after significant data changes
 
 ### Session: 2026-01-31 - Map Improvements (MAP_002-007)
 
 **Context:** Staff reported confusion about map pin colors, cluster contamination from single disease pins, system account names appearing on map popups, and search bar blocking the navigation marker.
 
 **Key Discoveries:**
-- **Root cause of Sandra Nicander pollution:** `process_clinichq_owner_info()` (MIG_574) resolved person identity via email/phone, then unconditionally created `person_place_relationships` with `role='resident'` for anyone on a ClinicHQ appointment. When FFSC staff were listed as contacts on appointments for colony cats, they got linked to every address they handled — hundreds of spurious "resident" links polluting map popups and search results.
+- **Root cause of Sandra Nicander pollution:** `process_clinichq_owner_info()` (MIG_574) resolved person identity via email/phone, then unconditionally created `sot.person_place` with `role='resident'` for anyone on a ClinicHQ appointment. When FFSC staff were listed as contacts on appointments for colony cats, they got linked to every address they handled — hundreds of spurious "resident" links polluting map popups and search results.
 - `v_map_atlas_pins` people subquery also had no filtering for `is_system_account` or organization names
 - The `active` pin_style covered both places with verified cats AND places with only requests/intakes, making them visually indistinguishable
 - Cluster `iconCreateFunction` used `markers.some()`, causing a single disease pin to turn an entire cluster of 50+ pins orange
@@ -1991,7 +1991,7 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 - **L2 (IDENTITY):** Identity resolution via `match_volunteerhub_volunteer()` → `find_or_create_person()` (INV-3, INV-5)
 - **L3 (ENRICHMENT):** Phone/place enrichment via `enrich_from_volunteerhub()`
 - **L4 (CLASSIFICATION):** VH group memberships → `person_roles` via `process_volunteerhub_group_roles()` (INV-2: preserves manual head_trapper/coordinator designations)
-- **L5 (SOT):** `person_roles`, `person_place_relationships` via centralized functions (INV-10)
+- **L5 (SOT):** `person_roles`, `sot.person_place` via centralized functions (INV-10)
 - **L6 (WORKFLOWS):** Cron endpoint for automated sync, health endpoint for monitoring
 - **L7 (BEACON):** Map displays role badges in popups, volunteer star overlay on pins
 - **INV-1:** Temporal membership tracking (left_at instead of deletion)
@@ -2030,7 +2030,7 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 - `entity_edits` table had CHECK constraints that didn't include `volunteerhub_sync` as edit_source or `link`/`unlink` as edit_type
 - `internal_account_types` had a "POTL" contains pattern that false-positived on the surname "Spotleson" (real volunteer Oceana Spotleson)
 - 9 VH volunteers have NO email or phone — data engine correctly rejects them (no identifiers), but these are real people who signed up on VolunteerHub
-- `sot_people.data_source` is an enum, not text — required explicit cast
+- `sot.people.data_source` is an enum, not text — required explicit cast
 
 **Bugs Fixed (MIG_812 + MIG_813):**
 1. `match_volunteerhub_volunteer()`: `role_type` → `role` column
@@ -2040,20 +2040,20 @@ Running log of staff feedback on Tippy responses, used to identify gaps and impr
 5. `sync_volunteer_group_memberships()`: edit_type `update` → `link`/`unlink`
 6. `internal_account_types`: POTL pattern `contains` → `starts_with`
 7. `volunteerhub_volunteers.email`: dropped NOT NULL
-8. `create_skeleton_person()`: added `::trapper.data_source` cast
+8. `create_skeleton_person()`: added `::ops.data_source` cast
 
 **New Infrastructure (MIG_813):**
 - `trusted_person_sources` table: registry of sources allowed to create skeleton people (VH + ShelterLuv = yes, ClinicHQ = no)
-- `create_skeleton_person()`: creates `sot_people` with `data_quality = 'skeleton'`, `is_canonical = false` from trusted sources
+- `create_skeleton_person()`: creates record in `sot.people` with `data_quality = 'skeleton'`, `is_canonical = false` from trusted sources
 - Enhanced `match_volunteerhub_volunteer()`: 5 strategies (email → phone → data_engine → staff_name → skeleton)
 - `enrich_skeleton_people()`: periodic function that merges skeletons INTO existing people when contact info arrives, or promotes them to normal quality
 - Integrated into sync script as Step 5 (runs every sync)
 
 **Sync Results:**
-- 1346 VH volunteers, 1346 matched to sot_people (100%)
+- 1346 VH volunteers, 1346 matched to sot.people (100%)
 - 47 user groups, 1876 active memberships
 - 537 roles: 1299 volunteer, 95 foster, 23 ffsc_trapper, 15 caretaker, 13 staff
-- 837 new sot_people from VH, 782 places created
+- 837 new sot.people from VH, 782 places created
 - 9 skeleton people (name only, awaiting enrichment)
 
 **Staff Impact:**
@@ -2218,9 +2218,9 @@ Understanding how data flows through Atlas and what triggers automatically vs ma
 | `/api/cron/geocode-pending` | Geocodes new places via Google Places API | Every 30 min (cron) |
 | `/api/cron/beacon-enrich` | Colony estimate refresh, extraction queue, data staleness | Daily 10 AM PT |
 | `/api/cron/volunteerhub-sync` | Full VH API sync (volunteers, groups, memberships, roles) | Every 6 hours |
-| `trg_queue_appointment_extraction` | Queues new appointments for AI attribute extraction | On INSERT to `sot_appointments` |
+| `trg_queue_appointment_extraction` | Queues new appointments for AI attribute extraction | On INSERT to `ops.appointments` |
 | `trg_queue_intake_extraction` | Queues new intake submissions for extraction | On INSERT to `web_intake_submissions` |
-| `trg_queue_request_extraction` | Queues new requests for extraction | On INSERT to `sot_requests` |
+| `trg_queue_request_extraction` | Queues new requests for extraction | On INSERT to `ops.requests` |
 | `trg_site_obs_colony_estimate` | Creates colony estimate from site observations | On INSERT to `site_observations` |
 
 ### Semi-Automatic (triggered by staff action)
@@ -2372,7 +2372,7 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 **Key Discoveries:**
 1. `journal_entries` used nullable FK columns for polymorphic entity linking — extending to annotations follows the same pattern
 2. `v_journal_entries` view required DROP + CREATE (not CREATE OR REPLACE) because adding `primary_annotation_id` changed column order
-3. MIG_555 initial run failed due to `source_table NOT NULL` constraint on `cat_place_relationships` — fixed by adding `source_table: 'person_cat_relationships'`
+3. MIG_555 initial run failed due to `source_table NOT NULL` constraint on `sot.cat_place` — fixed by adding `source_table: 'sot.person_cat'`
 4. `journal_entity_links` CHECK constraint needed expansion to include `'annotation'` as valid entity type
 
 **Changes Made:**
@@ -2404,7 +2404,7 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 **Context:** Staff noticed "Holiday Duncan" at 2411 Alexander Valley Rd, Healdsburg showing as both "Foster" and "Trapper" on the Beacon map, despite being a ClinicHQ clinic client (not an FFSC volunteer). Also "Wildhaven Campgrounds" appeared as a person name.
 
 **Key Discoveries:**
-1. **Map pin role badges come from `person_roles` table**, NOT `person_place_relationships`. The `v_map_atlas_pins` view (MIG_822) runs a correlated subquery: `SELECT ARRAY_AGG(DISTINCT pr.role) FROM person_roles WHERE role_status = 'active'`.
+1. **Map pin role badges come from `person_roles` table**, NOT `sot.person_place`. The `v_map_atlas_pins` view (MIG_822) runs a correlated subquery: `SELECT ARRAY_AGG(DISTINCT pr.role) FROM person_roles WHERE role_status = 'active'`.
 2. **ClinicHQ processing does NOT assign volunteer roles** — `process_clinichq_owner_info()` creates people and links them to places but never calls `assign_person_role()`.
 3. **Three pathways can incorrectly assign roles:**
    - **ShelterLuv name matching** (HIGH RISK): `process_shelterluv_animal()` uses `ILIKE '%name%'` substring matching to assign foster roles — no email/phone verification required.
@@ -2433,11 +2433,11 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 **Key Discoveries:**
 1. **No automated role deactivation existed.** When VH volunteers left ALL groups, `volunteerhub_group_memberships.left_at` was set but `person_roles.role_status` stayed `'active'` forever — stale badges persisted indefinitely.
 2. **ShelterLuv provides `Foster Person Email`** but `process_shelterluv_animal()` (MIG_469/621) never used it — relied on name-only `ILIKE '%name%'` matching instead.
-3. **MIG_511 already had correct email-first matching** for foster relationships but did NOT assign person_roles — only created person_cat_relationships.
+3. **MIG_511 already had correct email-first matching** for foster relationships but did NOT assign person_roles — only created sot.person_cat.
 4. **Business rule enforcement gap:** No code path validated "foster/trapper requires volunteer" before role assignment.
 
 **Changes Made:**
-- **MIG_828**: Replaced `process_shelterluv_animal()` name-only foster matching with email-first via `person_identifiers`. Unmatched fosters queued in `shelterluv_unmatched_fosters` for staff review.
+- **MIG_828**: Replaced `process_shelterluv_animal()` name-only foster matching with email-first via `sot.person_identifiers`. Unmatched fosters queued in `shelterluv_unmatched_fosters` for staff review.
 - **MIG_829**: Created `deactivate_orphaned_vh_roles()` function (30-day grace period), `role_reconciliation_log` table, and reconciliation views: `v_stale_volunteer_roles`, `v_role_without_volunteer`, `v_role_source_conflicts`.
 - **MIG_831**: Retroactive data cleanup — deactivated ShelterLuv name-only foster roles, orphaned VH roles, and Holiday Duncan's incorrect badges.
 - **PATCH /api/people/[id]/roles**: Staff can now deactivate/activate roles with audit trail.
@@ -2494,7 +2494,7 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 **Key Discoveries:**
 1. **Staging dedup constraint violation** — The pre-check query used `(source_row_id = $3 OR row_hash = $4)` which could match TWO different records. If Record A matched by source_row_id with a different hash, the UPDATE to set A's hash could conflict with Record B that already had that hash. This is a TOCTOU (time-of-check-time-of-use) race condition in the dedup logic.
 2. **"Uploaded: undefined" in success message** — Upload API returned `stored_filename` but not `original_filename`. The UI referenced the wrong field.
-3. **0 new people from owner_info** — NOT a bug. All owners in the upload already existed in `sot_people` (matched by email/phone). The metric `people_created_or_matched` counts both new and matched people. Since the user exported with date overlap covering existing records, all matches are expected.
+3. **0 new people from owner_info** — NOT a bug. All owners in the upload already existed in `sot.people` (matched by email/phone). The metric `people_created_or_matched` counts both new and matched people. Since the user exported with date overlap covering existing records, all matches are expected.
 
 **Changes Made:**
 - Rewrote staging dedup to use sequential two-step check: first by hash (skip if found), then by source_row_id (safe to update since hash is unique)
@@ -2514,14 +2514,14 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 **Context:** Cat detail page showed "Sex: Unknown" for cats with known sex from ClinicHQ, "Failed to update cat" on any edit, and altered status showed "Unknown" for spayed/neutered cats (95% of records).
 
 **Key Discoveries:**
-1. **PATCH API used wrong column names** — Referenced `name`, `is_eartipped`, `color_pattern` which don't exist in `sot_cats`. Correct columns: `display_name`, `altered_status`, `primary_color`. Also cast to `::trapper.cat_sex` enum that doesn't exist (column is plain text).
+1. **PATCH API used wrong column names** — Referenced `name`, `is_eartipped`, `color_pattern` which don't exist in `sot.cats`. Correct columns: `display_name`, `altered_status`, `primary_color`. Also cast to `::sot.cat_sex` enum that doesn't exist (column is plain text).
 2. **Sex case mismatch** — DB stores "Male"/"Female" (capitalized from ClinicHQ), edit dropdown uses "male"/"female" (lowercase). Dropdown couldn't match → showed "Unknown" even for cats with known sex.
 3. **Altered status logic checked only "Yes"** — DB values: `spayed` (17,276), `neutered` (15,538), `Yes` (1,370), `No` (326), `intact` (259). Old code only matched `=== "Yes"`, missing 95% of altered cats.
 4. **Edit form read wrong field for color** — Used `cat.coat_pattern` (always NULL from `v_cat_detail`) instead of `cat.color` (mapped from `primary_color`).
 
 **Changes Made:**
 - Fixed PATCH API to use correct column names (`display_name`, `altered_status`, `primary_color`)
-- Removed nonexistent `::trapper.cat_sex` enum cast
+- Removed nonexistent `::sot.cat_sex` enum cast
 - Normalized sex to lowercase on form init so dropdown pre-selects correctly
 - Fixed altered status to recognize "spayed", "neutered", and "Yes" as altered
 - Read mode now shows "Yes — Spayed" / "Yes — Neutered" for specific status
@@ -2540,10 +2540,10 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 
 ### Session: 2026-02-03 — DQ_002: Map Cat Count Audit + Identifier Cleanup
 
-**Context:** Map showed some places with 1000+ cats. Investigation revealed merged cats were being counted in `cat_place_relationships` queries throughout the map data pipeline. Also discovered cats accumulating 10+ identifiers from format detection guesses and un-transferred merged cat identifiers.
+**Context:** Map showed some places with 1000+ cats. Investigation revealed merged cats were being counted in `sot.cat_place` queries throughout the map data pipeline. Also discovered cats accumulating 10+ identifiers from format detection guesses and un-transferred merged cat identifiers.
 
 **Key Discoveries:**
-1. **Merged cats inflating map counts** — `v_map_atlas_pins` and all `map-data/route.ts` queries counted `cat_place_relationships` without filtering `merged_into_cat_id IS NULL`. Post-merge, the old cat's place links remained as orphans.
+1. **Merged cats inflating map counts** — `v_map_atlas_pins` and all `map-data/route.ts` queries counted `sot.cat_place` without filtering `merged_into_cat_id IS NULL`. Post-merge, the old cat's place links remained as orphans.
 2. **Duplicate cat-place links** — Same cat at same place appeared via different `source_table` values (e.g., `appointment_info` + `entity_linking`), doubling the count.
 3. **Identifier accumulation** — Multi-format microchip detection (MIG_553) created separate rows for truncated/AVID/10-digit interpretations. Merged cats' identifiers never transferred to canonical cat.
 
@@ -2565,7 +2565,7 @@ If a row in ClinicHQ changes (e.g., staff corrects a note), the new export will 
 **Key Discoveries:**
 1. **All duplicates created before Jan 25, 2026** — The Data Engine (MIG_314-317) was implemented correctly but these records predate it. No new duplicates have been created since.
 2. **`should_be_person()` works but wasn't used historically** — Tests confirmed the function correctly classifies "Cast Kay Tee Inc Cast Kay Tee Inc" as organization, "Sonoma County Landfill Petaluma" as address. But older ingest paths didn't call it.
-3. **Zero-identifier duplicates = orphan pattern from INV-24** — All 37 "Cast Kay Tee Inc" records have zero person_identifiers. ClinicHQ sends owner data with no email/phone, creating new person each appointment.
+3. **Zero-identifier duplicates = orphan pattern from INV-24** — All 37 "Cast Kay Tee Inc" records have zero sot.person_identifiers. ClinicHQ sends owner data with no email/phone, creating new person each appointment.
 4. **Current pipeline is correct** — TS upload route (Step 1) uses `should_be_person()`. Data Engine rejects no-identifier cases. `clinic_owner_accounts` receives pseudo-profiles.
 5. **Place display_names from file_upload/legacy_import** — Person names ("Samantha Tresch", "Karen Brisebois") stored as place display_name. ShelterLuv "X residence" pattern is intentional.
 6. **Doubled place names** — "Comstock Middle School Comstock Middle School" from data entry errors in file_upload.
@@ -2624,7 +2624,7 @@ This pattern was common throughout FFSC operations until Atlas was implemented i
 | 3 Hicks Valley places | Variant addresses from different sources | Merge to 1052 Hicks Valley Rd |
 
 **Invariant Discovered:**
-> **INV-32: Pre-2024 Person-Cat Links Are Suspect.** ClinicHQ data before 2024 often used partner org emails (marinferals@yahoo.com, etc.) instead of actual resident contact info. The `person_cat_relationships` from this era may link cats to the wrong person. Org emails must be in `data_engine_soft_blacklist`. For accurate cat counts, use **place views** rather than person-cat links. Historical relationships won't be retroactively fixed — the place is the source of truth for "cats at this location".
+> **INV-32: Pre-2024 Person-Cat Links Are Suspect.** ClinicHQ data before 2024 often used partner org emails (marinferals@yahoo.com, etc.) instead of actual resident contact info. The `sot.person_cat` from this era may link cats to the wrong person. Org emails must be in `data_engine_soft_blacklist`. For accurate cat counts, use **place views** rather than person-cat links. Historical relationships won't be retroactively fixed — the place is the source of truth for "cats at this location".
 
 **What Tippy should know:**
 > "Jeanie Garcia shows 20+ cats because of a historical data pattern. Until 2024, FFSC used partner organization contact info (Marin Friends of Ferals: marinferals@yahoo.com) for appointment bookings even when the actual resident was different. The cats at 1052 Hicks Valley Rd are actually Carlos Lopez's, but they're linked to Jeanie Garcia because her appointments used the org email. This pattern is now prevented by the soft-blacklist system, but historical links remain. Staff should use the place view (Hicks Valley Rd) to see all cats at the location rather than relying on person-cat links."
@@ -2675,7 +2675,7 @@ The audit counted `owner_email IS NOT NULL` as "has email". But ClinicHQ exports
 - Intake records without owner contact
 
 **System Impact:**
-- **880 people (6.5%)** have no identifiers in `person_identifiers`
+- **880 people (6.5%)** have no identifiers in `sot.person_identifiers`
 - **11,314 appointments (23.7%)** have empty email strings - these can't link to people via email
 - The address+name candidate finding (MIG_896) targets this 6.5% + 23.7%
 
@@ -2788,11 +2788,11 @@ Records that pointed to merged entities were updated to point to canonical entit
 
 | Table | Issue | Count Fixed |
 |-------|-------|-------------|
-| cat_place_relationships | Pointed to merged place | 7,295 deleted (canonical existed) |
-| person_place_relationships | Pointed to merged place | 1,188 deleted (canonical existed) |
-| person_place_relationships | Pointed to merged person | 70 deleted (canonical existed) |
-| sot_appointments | person_id pointed to merged | 592 updated |
-| sot_appointments | trapper_person_id pointed to merged | 77 updated |
+| sot.cat_place | Pointed to merged place | 7,295 deleted (canonical existed) |
+| sot.person_place | Pointed to merged place | 1,188 deleted (canonical existed) |
+| sot.person_place | Pointed to merged person | 70 deleted (canonical existed) |
+| ops.appointments | person_id pointed to merged | 592 updated |
+| ops.appointments | trapper_person_id pointed to merged | 77 updated |
 | google_map_entries | Pointed to merged place | 184 updated |
 | place_colony_estimates | Pointed to merged place | 122 updated |
 

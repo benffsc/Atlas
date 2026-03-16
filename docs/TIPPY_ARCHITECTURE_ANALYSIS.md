@@ -49,7 +49,7 @@ All data flows through `staged_records` for auditability, then through centraliz
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        sot_people                                │
+│                        sot.people                                │
 │  (Every human FFSC has interacted with)                         │
 │  Identity: person_identifiers (email, phone)                     │
 └──────────────────────┬──────────────────────────────────────────┘
@@ -58,7 +58,7 @@ All data flows through `staged_records` for auditability, then through centraliz
           │            │            │
           ▼            ▼            ▼
 ┌─────────────┐  ┌──────────┐  ┌───────────────┐
-│ sot_requests│  │sot_cats  │  │    places     │
+│ops.requests │  │sot.cats  │  │  sot.places   │
 │ (TNR jobs)  │  │(animals) │  │ (locations)   │
 └─────────────┘  └──────────┘  └───────────────┘
 ```
@@ -74,9 +74,9 @@ People are matched via **email** or **phone** (never name alone):
 
 | Table | Links | Purpose |
 |-------|-------|---------|
-| `person_place_relationships` | person ↔ place | Who lives/works where |
-| `cat_place_relationships` | cat ↔ place | Where cats are located |
-| `person_cat_relationships` | person ↔ cat | Foster/adopter/caretaker |
+| `sot.person_place` | person ↔ place | Who lives/works where |
+| `sot.cat_place` | cat ↔ place | Where cats are located |
+| `sot.person_cat` | person ↔ cat | Foster/adopter/caretaker |
 | `request_trapper_assignments` | request ↔ person | Who trapped where |
 | `place_contexts` | place ↔ context_type | Colony sites, foster homes, etc. |
 
@@ -228,7 +228,7 @@ Unified data quality check.
 Create a table to store view metadata Tippy can query:
 
 ```sql
-CREATE TABLE trapper.tippy_view_catalog (
+CREATE TABLE ops.tippy_view_catalog (
   view_name TEXT PRIMARY KEY,
   category TEXT NOT NULL,
   description TEXT NOT NULL,
@@ -327,37 +327,37 @@ This creates a feedback loop for architecture improvement.
 ### For Entity Lookups
 ```sql
 -- Person by name/email/phone
-SELECT * FROM trapper.v_person_detail WHERE ...
+SELECT * FROM ops.v_person_detail WHERE ...
 
 -- Cat by microchip/name
-SELECT * FROM trapper.v_cat_detail WHERE ...
+SELECT * FROM ops.v_cat_detail WHERE ...
 
 -- Place by address
-SELECT * FROM trapper.v_place_detail WHERE ...
+SELECT * FROM ops.v_place_detail WHERE ...
 ```
 
 ### For Statistics
 ```sql
 -- Request attribution
-SELECT * FROM trapper.v_request_alteration_stats WHERE request_id = ...
+SELECT * FROM ops.v_request_alteration_stats WHERE request_id = ...
 
 -- Trapper performance
-SELECT * FROM trapper.v_trapper_full_stats WHERE person_id = ...
+SELECT * FROM ops.v_trapper_full_stats WHERE person_id = ...
 
 -- Place TNR history
-SELECT * FROM trapper.v_place_alteration_history WHERE place_id = ...
+SELECT * FROM ops.v_place_alteration_history WHERE place_id = ...
 ```
 
 ### For Data Quality
 ```sql
 -- Overall health
-SELECT * FROM trapper.v_data_quality_dashboard;
+SELECT * FROM ops.v_data_quality_dashboard;
 
 -- Pending duplicates
-SELECT * FROM trapper.v_duplicate_merge_candidates;
+SELECT * FROM ops.v_duplicate_merge_candidates;
 
 -- Processing queue
-SELECT * FROM trapper.v_processing_dashboard;
+SELECT * FROM ops.v_processing_dashboard;
 ```
 
 ---

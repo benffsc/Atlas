@@ -83,7 +83,7 @@ The full attribution chain:
 Requester (person)
     ↓ person_identifiers (email/phone)
     ↓
-Request ←→ Place ←→ Cats (via cat_place_relationships)
+Request ←→ Place ←→ Cats (via sot.cat_place)
     ↓
 Clinic Visit (matched by booking person email/phone)
     ↓

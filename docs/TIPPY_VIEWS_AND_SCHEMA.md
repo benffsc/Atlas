@@ -49,7 +49,7 @@ The view catalog organizes views into 6 categories:
 To make a view accessible to Tippy:
 
 ```sql
-INSERT INTO trapper.tippy_view_catalog (
+INSERT INTO ops.tippy_view_catalog (
     view_name,
     category,
     description,
@@ -70,13 +70,13 @@ INSERT INTO trapper.tippy_view_catalog (
 
 ```sql
 -- Find views by category
-SELECT * FROM trapper.tippy_discover_schema('stats');
+SELECT * FROM ops.tippy_discover_schema('stats');
 
 -- Search views by keyword
-SELECT * FROM trapper.tippy_discover_schema(NULL, 'trapper');
+SELECT * FROM ops.tippy_discover_schema(NULL, 'ops');
 
 -- Execute a query against a cataloged view
-SELECT * FROM trapper.tippy_query_view(
+SELECT * FROM ops.tippy_query_view(
     'v_trapper_full_stats',
     '[{"column_name": "display_name", "operator": "ILIKE", "value": "%ben%"}]'::jsonb,
     10
@@ -142,13 +142,13 @@ Track which views Tippy queries to optimize performance:
 
 ```sql
 -- Most popular views
-SELECT * FROM trapper.v_tippy_view_popularity;
+SELECT * FROM ops.v_tippy_view_popularity;
 
 -- Usage by category
-SELECT * FROM trapper.v_tippy_usage_summary;
+SELECT * FROM ops.v_tippy_usage_summary;
 
 -- Recent queries
-SELECT * FROM trapper.tippy_view_usage
+SELECT * FROM ops.tippy_view_usage
 ORDER BY created_at DESC
 LIMIT 20;
 ```

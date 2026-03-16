@@ -134,7 +134,7 @@ SELECT
     payload->>'Owner First Name' as animal_id,
     payload->>'Owner Last Name' as org,
     LEFT(payload->>'Appointment Date', 10) as date
-FROM trapper.staged_records
+FROM ops.staged_records
 WHERE source_system = 'clinichq'
   AND source_table = 'owner_info'
   AND payload->>'Owner Last Name' = 'SCAS'

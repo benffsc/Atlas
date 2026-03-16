@@ -10,9 +10,9 @@ This document defines the **required patterns** for all data ingestion into Atla
 
 | Entity | Function | Purpose |
 |--------|----------|---------|
-| Person | `trapper.find_or_create_person()` | Creates/finds person with identity matching |
-| Place | `trapper.find_or_create_place_deduped()` | Creates/finds place with deduplication |
-| Cat | `trapper.find_or_create_cat_by_microchip()` | Creates/finds cat by microchip |
+| Person | `sot.find_or_create_person()` | Creates/finds person with identity matching |
+| Place | `sot.find_or_create_place_deduped()` | Creates/finds place with deduplication |
+| Cat | `sot.find_or_create_cat_by_microchip()` | Creates/finds cat by microchip |
 
 ---
 
@@ -21,7 +21,7 @@ This document defines the **required patterns** for all data ingestion into Atla
 ### Function Signature
 
 ```sql
-trapper.find_or_create_person(
+sot.find_or_create_person(
     p_email TEXT,           -- Email address (normalized automatically)
     p_phone TEXT,           -- Phone number (normalized via norm_phone_us)
     p_first_name TEXT,      -- First name
@@ -44,14 +44,14 @@ trapper.find_or_create_person(
 ```javascript
 // JavaScript (ingest script)
 const personResult = await client.query(`
-  SELECT trapper.find_or_create_person($1, $2, $3, $4, NULL, $5) AS person_id
+  SELECT sot.find_or_create_person($1, $2, $3, $4, NULL, $5) AS person_id
 `, [email, phone, firstName, lastName, 'airtable']);
 const personId = personResult.rows[0]?.person_id;
 ```
 
 ```sql
 -- SQL (migration or stored function)
-v_person_id := trapper.find_or_create_person(
+v_person_id := sot.find_or_create_person(
     v_email, v_phone, v_first_name, v_last_name, NULL, 'clinichq'
 );
 ```
@@ -70,7 +70,7 @@ v_person_id := trapper.find_or_create_person(
 ### Function Signature
 
 ```sql
-trapper.find_or_create_place_deduped(
+sot.find_or_create_place_deduped(
     p_formatted_address TEXT,   -- Full address string
     p_display_name TEXT,        -- Optional place name
     p_lat DOUBLE PRECISION,     -- Latitude (NULL triggers geocoding queue)
@@ -91,12 +91,12 @@ trapper.find_or_create_place_deduped(
 ```javascript
 // With geocoded coordinates
 const placeResult = await client.query(`
-  SELECT trapper.find_or_create_place_deduped($1, NULL, $2, $3, $4) AS place_id
+  SELECT sot.find_or_create_place_deduped($1, NULL, $2, $3, $4) AS place_id
 `, [geocodedAddress, lat, lng, 'airtable']);
 
 // Without coordinates (will be geocoded later)
 const placeResult = await client.query(`
-  SELECT trapper.find_or_create_place_deduped($1, NULL, NULL, NULL, $2) AS place_id
+  SELECT sot.find_or_create_place_deduped($1, NULL, NULL, NULL, $2) AS place_id
 `, [rawAddress, 'web_intake']);
 ```
 
@@ -114,7 +114,7 @@ const placeResult = await client.query(`
 ### Function Signature
 
 ```sql
-trapper.find_or_create_cat_by_microchip(
+sot.find_or_create_cat_by_microchip(
     p_microchip TEXT,
     p_name TEXT DEFAULT NULL,
     p_sex TEXT DEFAULT NULL,
@@ -137,7 +137,7 @@ trapper.find_or_create_cat_by_microchip(
 ### Usage Example
 
 ```sql
-v_cat_id := trapper.find_or_create_cat_by_microchip(
+v_cat_id := sot.find_or_create_cat_by_microchip(
     v_rec.microchip,
     v_rec.animal_name,
     v_rec.sex,
@@ -185,7 +185,7 @@ Use these **exact values** for `source_system`:
 ### What It Does
 
 ```sql
-trapper.norm_phone_us(p_phone TEXT) RETURNS TEXT
+sot.norm_phone_us(p_phone TEXT) RETURNS TEXT
 ```
 
 1. Strips all non-digits
@@ -199,8 +199,8 @@ trapper.norm_phone_us(p_phone TEXT) RETURNS TEXT
 
 ```sql
 -- Correct lookup
-SELECT person_id FROM trapper.person_identifiers
-WHERE id_type = 'phone' AND id_value_norm = trapper.norm_phone_us('(707) 555-1234');
+SELECT person_id FROM sot.person_identifiers
+WHERE id_type = 'phone' AND id_value_norm = sot.norm_phone_us('(707) 555-1234');
 ```
 
 ---
@@ -232,7 +232,7 @@ Entities can be merged. Always handle this.
 ```typescript
 // Check if place was merged
 const mergeCheck = await queryOne<{ merged_into_place_id: string | null }>(
-  `SELECT merged_into_place_id FROM trapper.places WHERE place_id = $1`,
+  `SELECT merged_into_place_id FROM sot.places WHERE place_id = $1`,
   [id]
 );
 
@@ -281,7 +281,7 @@ async function main() {
     let personId = null;
     if (email || phone) {
       const personResult = await client.query(`
-        SELECT trapper.find_or_create_person($1, $2, $3, $4, NULL, $5) AS person_id
+        SELECT sot.find_or_create_person($1, $2, $3, $4, NULL, $5) AS person_id
       `, [email, phone, firstName, lastName, SOURCE_SYSTEM]);
       personId = personResult.rows[0]?.person_id;
     }
@@ -290,7 +290,7 @@ async function main() {
     let placeId = null;
     if (address) {
       const placeResult = await client.query(`
-        SELECT trapper.find_or_create_place_deduped($1, $2, $3, $4, $5) AS place_id
+        SELECT sot.find_or_create_place_deduped($1, $2, $3, $4, $5) AS place_id
       `, [address, displayName, lat, lng, SOURCE_SYSTEM]);
       placeId = placeResult.rows[0]?.place_id;
     }
@@ -298,7 +298,7 @@ async function main() {
     // 3. Create relationships if both exist
     if (personId && placeId) {
       await client.query(`
-        INSERT INTO trapper.person_place_relationships (
+        INSERT INTO sot.person_place (
           person_id, place_id, role, confidence, source_system
         ) VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (person_id, place_id, role) DO NOTHING
@@ -320,7 +320,7 @@ async function main() {
 ### Template
 
 ```sql
--- MIG_NNN: Description
+-- MIG_XXXX: Description
 --
 -- Problem: What issue this fixes
 --
@@ -328,31 +328,31 @@ async function main() {
 
 \echo ''
 \echo '=============================================='
-\echo 'MIG_NNN: Description'
+\echo 'MIG_XXXX: Description'
 \echo '=============================================='
 \echo ''
 
 -- Use centralized functions for entity creation
 -- Example: Creating a new processing function
 
-CREATE OR REPLACE FUNCTION trapper.process_something()
+CREATE OR REPLACE FUNCTION sot.process_something()
 RETURNS void AS $$
 DECLARE
     v_person_id UUID;
     v_place_id UUID;
 BEGIN
     -- CORRECT: Use centralized function
-    v_person_id := trapper.find_or_create_person(
+    v_person_id := sot.find_or_create_person(
         p_email, p_phone, p_first_name, p_last_name, NULL, 'airtable'
     );
 
     -- WRONG: Direct INSERT
-    -- INSERT INTO trapper.sot_people (...) VALUES (...);
+    -- INSERT INTO sot.people (...) VALUES (...);
 END;
 $$ LANGUAGE plpgsql;
 
 \echo ''
-\echo '=== MIG_NNN Complete ==='
+\echo '=== MIG_XXXX Complete ==='
 \echo ''
 ```
 
@@ -368,8 +368,8 @@ When reviewing ingest code, verify:
 - [ ] Uses correct `source_system` value ('airtable', 'clinichq', 'web_intake')
 - [ ] Passes raw phone (not pre-normalized)
 - [ ] Handles merged entities in API responses
-- [ ] Creates relationships via proper tables (person_place_relationships, etc.)
-- [ ] NO direct INSERT into sot_people, places, or sot_cats
+- [ ] Creates relationships via proper tables (`sot.person_place`, etc.)
+- [ ] NO direct INSERT into sot.people, sot.places, or sot.cats
 
 ---
 
@@ -377,9 +377,9 @@ When reviewing ingest code, verify:
 
 | Do This | Don't Do This |
 |---------|---------------|
-| `find_or_create_person()` | Direct INSERT into sot_people |
+| `find_or_create_person()` | Direct INSERT into sot.people |
 | `find_or_create_place_deduped()` | Custom address matching logic |
-| `find_or_create_cat_by_microchip()` | Direct INSERT into sot_cats |
+| `find_or_create_cat_by_microchip()` | Direct INSERT into sot.cats |
 | `source_system = 'airtable'` | `source_system = 'airtable_staff'` |
 | Pass raw phone to SQL functions | Pre-normalize phone in JS |
 | Check `merged_into_place_id` | Return 404 for merged entities |

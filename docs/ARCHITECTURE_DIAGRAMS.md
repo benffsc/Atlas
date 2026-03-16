@@ -119,7 +119,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │                                    ▼                                         │
 │  LAYER 2: IDENTITY RESOLUTION                                                │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │  person_identifiers      cat_identifiers       geocode_cache           │ │
+│  │  sot.person_identifiers  sot.cat_identifiers    geocode_cache           │ │
 │  │  • email (normalized)    • microchip           • Google Place ID       │ │
 │  │  • phone (10-digit)      • clinichq_id         • formatted_address     │ │
 │  │                          • shelterluv_id                                │ │
@@ -130,7 +130,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │                                    ▼                                         │
 │  LAYER 3: SOURCE OF TRUTH (Canonical)                                        │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │  sot_people    sot_cats    places    sot_requests    sot_appointments  │ │
+│  │  sot.people  sot.cats  sot.places  ops.requests  ops.appointments     │ │
 │  │                                                                         │ │
 │  │  • Deduplicated entities with merge tracking                            │ │
 │  │  • merged_into_* column points to canonical record                      │ │
@@ -153,7 +153,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │ PUBLIC                                                                               │
 │ INTAKE                  ┌─────────────────────────────────────────────────────────┐ │
 │                         │                                                         │ │
-│  ┌──────────┐          │   web_intake_submissions                                 │ │
+│  ┌──────────┐          │   ops.web_intake_submissions                             │ │
 │  │ JotForm  │──────────┼─▶ • Contact info (name, email, phone)                    │ │
 │  │   OR     │          │   • Cat location (address, city, zip)                    │ │
 │  │ Website  │          │   • Cat details (count, fixed status, kittens)           │ │
@@ -220,7 +220,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │ SOURCE OF                                                                            │
 │ TRUTH                   ┌─────────────────────────────────────────────────────────┐ │
-│                         │                     sot_people                          │ │
+│                         │                     sot.people                          │ │
 │                         │   person_id │ display_name │ merged_into │ source       │ │
 │                         │   ──────────┼──────────────┼─────────────┼──────────    │ │
 │                         │   uuid-123  │ Sarah Jones  │ NULL        │ web_intake   │ │
@@ -233,12 +233,12 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │                         ┌─────────────────────────────────────────────────────────┐ │
 │                         │                   RELATIONSHIPS                         │ │
 │                         │                                                         │ │
-│                         │   person_place_relationships   person_cat_relationships │ │
+│                         │   sot.person_place             sot.person_cat           │ │
 │                         │   ├─ requester                 ├─ owner                 │ │
 │                         │   ├─ property_owner            ├─ caretaker             │ │
 │                         │   └─ feeder                    └─ brought_by            │ │
 │                         │                                                         │ │
-│                         │   cat_place_relationships      request_trapper_assign.  │ │
+│                         │   sot.cat_place                request_trapper_assign.  │ │
 │                         │   ├─ resident                  ├─ is_primary: true      │ │
 │                         │   ├─ trapped_at                ├─ assigned_at           │ │
 │                         │   └─ appointment_site          └─ unassigned_at         │ │
@@ -261,7 +261,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │                                    │  • Marks synced in Airtable                     │ │
 │                                    ▼                                                 │
 │                         ┌─────────────────────────────────────────────────────────┐ │
-│                         │   web_intake_submissions (with intake_source='airtable')│ │
+│                         │   ops.web_intake_submissions (intake_source='airtable') │ │
 │                         └─────────────────────────────────────────────────────────┘ │
 │                                                                                      │
 └─────────────────────────────────────────────────────────────────────────────────────┘
@@ -289,19 +289,19 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │                         │   Processing Pipeline                                   │ │
 │                         │                                                         │ │
 │                         │   1. find_or_create_cat_by_microchip()                  │ │
-│                         │      └─▶ sot_cats (with altered_status)                 │ │
+│                         │      └─▶ sot.cats (with altered_status)                 │ │
 │                         │                                                         │ │
 │                         │   2. Create cat_procedures                              │ │
 │                         │      └─▶ spay/neuter based on service_type + sex        │ │
 │                         │                                                         │ │
-│                         │   3. Create sot_appointments                            │ │
+│                         │   3. Create ops.appointments                            │ │
 │                         │      └─▶ Links cat, person, place, date                 │ │
 │                         │                                                         │ │
 │                         │   4. link_appointment_cats_to_places()                  │ │
-│                         │      └─▶ cat_place_relationships (appointment_site)     │ │
+│                         │      └─▶ sot.cat_place (appointment_site)               │ │
 │                         │                                                         │ │
 │                         │   5. link_appointments_to_trappers()                    │ │
-│                         │      └─▶ sot_appointments.trapper_person_id             │ │
+│                         │      └─▶ ops.appointments.trapper_person_id             │ │
 │                         └─────────────────────────────────────────────────────────┘ │
 │                                                                                      │
 └─────────────────────────────────────────────────────────────────────────────────────┘
@@ -310,7 +310,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │ REQUEST                                                                              │
 │ WORKFLOW                ┌─────────────────────────────────────────────────────────┐ │
-│                         │                    sot_requests                         │ │
+│                         │                    ops.requests                         │ │
 │                         │                                                         │ │
 │                         │   [NEW] ─▶ [TRIAGED] ─▶ [SCHEDULED] ─▶ [IN_PROGRESS]   │ │
 │                         │     │         │              │              │           │ │
@@ -361,8 +361,8 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │                         │                                                         │ │
 │                         │   MATCHING (within window):                             │ │
 │                         │   • request_cat_links (explicit)                        │ │
-│                         │   • cat_place_relationships (same place)                │ │
-│                         │   • person_cat_relationships (requester knows cat)      │ │
+│                         │   • sot.cat_place (same place)                          │ │
+│                         │   • sot.person_cat (requester knows cat)                │ │
 │                         │                                                         │ │
 │                         │   OUTPUT: cats_caught, cats_altered, alteration_rate    │ │
 │                         └─────────────────────────────────────────────────────────┘ │
@@ -407,7 +407,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 └─────────────────────────────────────────────────────────────────────────────────────┘
 
                               ┌──────────────────┐
-                              │    sot_people    │
+                              │    sot.people    │
                               │                  │
                               │  person_id (PK)  │
                               │  display_name    │
@@ -420,7 +420,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
            │                           │                           │
            ▼                           ▼                           ▼
 ┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
-│person_identifiers│       │  person_roles    │       │person_place_rel. │
+│sot.person_idents │       │  sot.person_roles│       │sot.person_place  │
 │                  │       │                  │       │                  │
 │ id_type (email/  │       │ role (trapper,   │       │ role (requester, │
 │   phone)         │       │   foster, staff) │       │   feeder,        │
@@ -431,7 +431,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
                                                                │
                                                                ▼
 ┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
-│    sot_cats      │◄─────▶│cat_place_relat.  │◄─────▶│     places       │
+│    sot.cats      │◄─────▶│sot.cat_place     │◄─────▶│   sot.places     │
 │                  │       │                  │       │                  │
 │  cat_id (PK)     │       │ type (resident,  │       │  place_id (PK)   │
 │  display_name    │       │   trapped_at,    │       │  display_name    │
@@ -443,7 +443,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
          │                                                      │
          ▼                                                      ▼
 ┌──────────────────┐                              ┌──────────────────┐
-│ cat_identifiers  │                              │   sot_requests   │
+│sot.cat_identfrs  │                              │   ops.requests   │
 │                  │                              │                  │
 │ id_type (micro-  │                              │  request_id (PK) │
 │   chip, etc.)    │                              │  status          │
@@ -464,7 +464,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 
 
                     ┌──────────────────────────────────────────┐
-                    │        web_intake_submissions            │
+                    │      ops.web_intake_submissions          │
                     │                                          │
                     │  submission_id (PK)                      │
                     │  contact: first_name, email, phone       │
@@ -472,9 +472,9 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
                     │  triage: score, category, reasons        │
                     │  status: new → ... → complete            │
                     │                                          │
-                    │  matched_person_id ─────────────────────▶│ sot_people
+                    │  matched_person_id ─────────────────────▶│ sot.people
                     │  matched_place_id  ─────────────────────▶│ places
-                    │  created_request_id ────────────────────▶│ sot_requests
+                    │  created_request_id ────────────────────▶│ ops.requests
                     └──────────────────────────────────────────┘
 ```
 
@@ -488,7 +488,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────┐      ┌─────────────────────┐                      │
-│  │    sot_people       │      │     sot_cats        │                      │
+│  │    sot.people       │      │     sot.cats        │                      │
 │  ├─────────────────────┤      ├─────────────────────┤                      │
 │  │ person_id (PK)      │      │ cat_id (PK)         │                      │
 │  │ display_name        │      │ display_name        │                      │
@@ -498,7 +498,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │  └─────────────────────┘      └─────────────────────┘                      │
 │                                                                             │
 │  ┌─────────────────────┐      ┌─────────────────────┐                      │
-│  │      places         │      │    sot_requests     │                      │
+│  │    sot.places       │      │    ops.requests     │                      │
 │  ├─────────────────────┤      ├─────────────────────┤                      │
 │  │ place_id (PK)       │      │ request_id (PK)     │                      │
 │  │ display_name        │      │ status              │                      │
@@ -513,7 +513,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────────┐  ┌─────────────────────────┐                  │
-│  │person_cat_relationships │  │person_place_relationships│                  │
+│  │sot.person_cat           │  │sot.person_place          │                  │
 │  ├─────────────────────────┤  ├─────────────────────────┤                  │
 │  │ person_id (FK)          │  │ person_id (FK)          │                  │
 │  │ cat_id (FK)             │  │ place_id (FK)           │                  │
@@ -522,7 +522,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 │  └─────────────────────────┘  └─────────────────────────┘                  │
 │                                                                             │
 │  ┌─────────────────────────┐  ┌─────────────────────────┐                  │
-│  │ cat_place_relationships │  │request_trapper_assign.  │                  │
+│  │ sot.cat_place           │  │request_trapper_assign.  │                  │
 │  ├─────────────────────────┤  ├─────────────────────────┤                  │
 │  │ cat_id (FK)             │  │ request_id (FK)         │                  │
 │  │ place_id (FK)           │  │ trapper_person_id (FK)  │                  │
@@ -535,7 +535,7 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────────┐  ┌─────────────────────────┐                  │
-│  │   person_identifiers    │  │    cat_identifiers      │                  │
+│  │  sot.person_identifiers │  │   sot.cat_identifiers   │                  │
 │  ├─────────────────────────┤  ├─────────────────────────┤                  │
 │  │ person_id (FK)          │  │ cat_id (FK)             │                  │
 │  │ id_type (email/phone)   │  │ id_type (microchip)     │                  │
@@ -581,9 +581,9 @@ Atlas is a TNR (Trap-Neuter-Return) management system for Forgotten Felines of S
 
 | Function | Purpose | Never Do Instead |
 |----------|---------|------------------|
-| `find_or_create_person()` | Create/match person by email/phone | Direct INSERT into sot_people |
-| `find_or_create_place_deduped()` | Create/match place with geocoding | Direct INSERT into places |
-| `find_or_create_cat_by_microchip()` | Create/match cat by microchip | Direct INSERT into sot_cats |
+| `find_or_create_person()` | Create/match person by email/phone | Direct INSERT into sot.people |
+| `find_or_create_place_deduped()` | Create/match place with geocoding | Direct INSERT into sot.places |
+| `find_or_create_cat_by_microchip()` | Create/match cat by microchip | Direct INSERT into sot.cats |
 | `merge_people()` | Merge duplicate people | UPDATE merged_into directly |
 | `merge_places()` | Merge duplicate places | UPDATE merged_into directly |
 | `merge_cats()` | Merge duplicate cats | UPDATE merged_into directly |
@@ -704,9 +704,9 @@ Atlas/
 
 ## Known Issues / Technical Debt
 
-1. **Polymorphic FK ambiguity**: `sot_requests` has both `place_id` AND `primary_place_id`
-2. **Legacy columns**: `sot_requests.assigned_to` (text) alongside `request_trapper_assignments` table
-3. **Orphaned status fields**: `web_intake_submissions` has multiple overlapping status columns
+1. **Polymorphic FK ambiguity**: `ops.requests` has both `place_id` AND `primary_place_id`
+2. **Legacy columns**: `ops.requests.assigned_to` (text) alongside `request_trapper_assignments` table
+3. **Orphaned status fields**: `ops.web_intake_submissions` has multiple overlapping status columns
 4. **Manual Airtable sync**: Custom fields require clicking "Sync to Airtable" button
 5. **Geocoding async**: No webhook/notification when geocoding completes
 

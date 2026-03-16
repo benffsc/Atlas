@@ -162,14 +162,14 @@ Atlas Database Smoke Test
 
 4. Schemas
 ──────────────────────────────────────────────────
-  ✓ Schema: trapper
+  ✓ Schema: sot, ops, source, ref
 
 5. Required Tables
 ──────────────────────────────────────────────────
-  ✓ trapper.staged_records (0 rows)
-  ✓ trapper.appointment_requests (0 rows)
-  ✓ trapper.clinichq_upcoming_appointments (0 rows)
-  ✓ trapper.data_issues (0 rows)
+  ✓ ops.staged_records (0 rows)
+  ✓ ops.appointment_requests (0 rows)
+  ✓ source.clinichq_upcoming_appointments (0 rows)
+  ✓ ops.data_issues (0 rows)
 
 6. Idempotency Constraints
 ──────────────────────────────────────────────────

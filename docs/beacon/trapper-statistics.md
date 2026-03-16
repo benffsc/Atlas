@@ -44,7 +44,7 @@ clinichq_visits.client_phone matches person_identifiers.id_value_norm (phone)
 | FeLV encounter rate | `clinichq_visits.felv_fiv_result` |
 | Site visits | `trapper_site_visits` table |
 | First visit success rate | `trapper_site_visits` where `visit_type='assessment'` |
-| Assignments | `sot_requests.assigned_trapper_id` |
+| Assignments | `ops.requests.assigned_trapper_id` |
 | Manual catches | `trapper_manual_catches` table |
 
 ---
@@ -82,8 +82,8 @@ Tracks cats caught by trappers outside of formal requests.
 | Column | Type | Description |
 |--------|------|-------------|
 | `catch_id` | UUID | Primary key |
-| `trapper_person_id` | UUID | FK to sot_people |
-| `cat_id` | UUID | FK to sot_cats (optional) |
+| `trapper_person_id` | UUID | FK to sot.people |
+| `cat_id` | UUID | FK to sot.cats (optional) |
 | `microchip` | TEXT | Microchip if cat not yet in system |
 | `catch_date` | DATE | When caught |
 | `catch_location` | TEXT | Where caught (optional) |
@@ -130,7 +130,7 @@ Organization-wide trapper statistics.
 Adds a cat to a trapper's manual catch counter.
 
 ```sql
-trapper.add_trapper_catch(
+sot.add_trapper_catch(
   p_trapper_person_id UUID,
   p_microchip TEXT DEFAULT NULL,
   p_cat_id UUID DEFAULT NULL,
@@ -144,7 +144,7 @@ trapper.add_trapper_catch(
 **Behavior:**
 - Validates person is an active trapper
 - Requires either microchip or cat_id
-- Auto-links to sot_cats if microchip found
+- Auto-links to sot.cats if microchip found
 - Returns the new catch_id
 
 ### Function: `get_trapper_info()`
@@ -152,7 +152,7 @@ trapper.add_trapper_catch(
 Checks if a person is a trapper and returns their type.
 
 ```sql
-trapper.get_trapper_info(p_person_id UUID)
+sot.get_trapper_info(p_person_id UUID)
 RETURNS TABLE (
   is_trapper BOOLEAN,
   trapper_type TEXT,

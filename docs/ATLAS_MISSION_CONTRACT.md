@@ -83,7 +83,7 @@ Automated data extraction using Claude AI to populate Beacon ecological data:
 ### MIG_305: Preserve Original Cat Locations - APPLIED
 
 Fixed issue where place merging caused cat counts to consolidate:
-- Added `original_place_id` to `cat_place_relationships`
+- Added `original_place_id` to `sot.cat_place`
 - Ecology views now use original location for cat counts
 - Prevents "101 Fisher Lane has 100 cats" when those cats were actually at other addresses
 
@@ -292,7 +292,7 @@ All parameters are configurable via `/admin/ecology-config` with scientific defa
 | Seasonal breeding patterns | ✅ READY | `v_seasonal_breeding_patterns` (MIG_291) |
 | Mother-kitten relationships | ✅ READY | `cat_birth_events.mother_cat_id`, `litter_id` |
 | Vortex model parameters | ✅ READY | `vortex_parameters` (MIG_288) |
-| Immigration tracking | ✅ READY | `arrival_type` on cat_place_relationships (MIG_306) |
+| Immigration tracking | ✅ READY | `arrival_type` on sot.cat_place (MIG_306) |
 
 ---
 
@@ -385,13 +385,13 @@ All request creation must go through this function:
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│               SOURCE OF TRUTH LAYER (sot_*)                  │
+│               SOURCE OF TRUTH LAYER (sot.* / ops.*)          │
 ├─────────────────────────────────────────────────────────────┤
-│  sot_people - All persons (requesters, trappers, owners)     │
-│  sot_cats - All cats with unique identifiers                 │
-│  sot_requests - All service requests                         │
-│  sot_appointments - All clinic visits                        │
-│  places - All geographic locations                           │
+│  sot.people - All persons (requesters, trappers, owners)     │
+│  sot.cats - All cats with unique identifiers                 │
+│  ops.requests - All service requests                         │
+│  ops.appointments - All clinic visits                        │
+│  sot.places - All geographic locations                       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -421,7 +421,7 @@ Use **exactly** these values for `source_system`:
 
 ### Colony Size Estimation (READY)
 
-**Table:** `trapper.place_colony_estimates`
+**Table:** `ops.place_colony_estimates`
 
 Multiple data sources feed colony estimates with weighted confidence:
 
@@ -461,7 +461,7 @@ Provides:
 
 ### Cat Movement Tracking (READY)
 
-**Table:** `trapper.cat_movement_events`
+**Table:** `ops.cat_movement_events`
 
 | Column | Purpose |
 |--------|---------|
@@ -477,7 +477,7 @@ Provides:
 
 ### Multi-Parcel Site Aggregation (READY)
 
-**Table:** `trapper.place_place_edges`
+**Table:** `sot.place_place_edges`
 
 Links related addresses (e.g., dairy farms with multiple parcels):
 - `same_colony_site` - Single colony spanning addresses
@@ -501,7 +501,7 @@ Rolling attribution windows for TNR counting:
 
 ### ✅ Gap 1: Kitten Birth Tracking - IMPLEMENTED (MIG_289)
 
-**Table:** `trapper.cat_birth_events`
+**Table:** `ops.cat_birth_events`
 
 Tracks kitten births with:
 - `litter_id` - Groups siblings
@@ -514,7 +514,7 @@ Tracks kitten births with:
 
 ### ✅ Gap 2: Mortality Tracking - IMPLEMENTED (MIG_290)
 
-**Table:** `trapper.cat_mortality_events`
+**Table:** `ops.cat_mortality_events`
 
 Tracks cat deaths with:
 - `death_date`, `death_cause` - When and why
@@ -525,7 +525,7 @@ Tracks cat deaths with:
 
 ### ✅ Gap 3: Seasonal Breeding Patterns - IMPLEMENTED (MIG_291)
 
-**View:** `trapper.v_seasonal_breeding_patterns`
+**View:** `ops.v_seasonal_breeding_patterns`
 
 Analyzes from appointment data:
 - Monthly kitten counts and pregnancy rates
@@ -537,7 +537,7 @@ Analyzes from appointment data:
 ### ✅ Gap 4: Colony Immigration vs Local Births - COMPLETE (MIG_306)
 
 **Implemented:**
-- `arrival_type` enum on `cat_place_relationships`: born_locally, likely_local_birth, immigrated, relocated, adopted_in, unknown
+- `arrival_type` enum on `sot.cat_place`: born_locally, likely_local_birth, immigrated, relocated, adopted_in, unknown
 - `arrival_date` and `age_at_arrival_months` columns
 - `infer_cat_arrival_type()` function for automatic classification
 - `v_place_immigration_stats` view for per-place analysis
@@ -576,7 +576,7 @@ Based on what's been completed and what remains, here is the current priority:
 ### ✅ COMPLETED: Immigration Tracking (MIG_306)
 
 **Implemented:**
-- `arrival_type` enum on cat_place_relationships
+- `arrival_type` enum on sot.cat_place
 - `infer_cat_arrival_type()` function
 - `v_place_immigration_stats` view
 
@@ -663,7 +663,7 @@ Before any new Atlas feature goes live, verify against this checklist:
 │  Intake Forms    → place_colony_estimates (intake_form)     │
 │  Project 75      → place_colony_estimates (post_clinic)     │
 │  Trappers        → place_colony_estimates (site_visit)      │
-│  ClinicHQ        → sot_cats + sot_appointments              │
+│  ClinicHQ        → sot.cats + ops.appointments              │
 │  Observations    → place_colony_estimates (trapper_visit)   │
 │  Notes Parsing   → place_colony_estimates (notes_parse)     │
 │  Historical KML  → place_colony_estimates (legacy_mymaps)   │

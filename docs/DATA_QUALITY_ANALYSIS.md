@@ -16,10 +16,10 @@ Investigation of data quality findings revealed several systemic issues with the
 ## Issue 1: People Without Email/Phone Identifiers
 
 ### Original Analysis
-~15,000 people appeared to have `primary_email`/`primary_phone` but no `person_identifiers` record.
+~15,000 people appeared to have `primary_email`/`primary_phone` but no `sot.person_identifiers` record.
 
 ### Actual Root Cause (Discovered via MIG_466)
-These are **duplicate person records**, not missing identifiers. The emails/phones ARE indexed in `person_identifiers`, but linked to a different person_id (the "canonical" version).
+These are **duplicate person records**, not missing identifiers. The emails/phones ARE indexed in `sot.person_identifiers`, but linked to a different person_id (the "canonical" version).
 
 **Breakdown:**
 | Category | Count | Description |
@@ -59,7 +59,7 @@ The fix is NOT to backfill identifiers (which conflicts with UNIQUE constraint),
 | petlink | pets | 8,280 | 0 | 100% |
 
 **Remaining unprocessed records:**
-- ClinicHQ appointment_info (589): No matching appointment in sot_appointments
+- ClinicHQ appointment_info (589): No matching appointment in ops.appointments
 - ClinicHQ cat_info (5,020): No microchip in source data
 
 ---
@@ -161,7 +161,7 @@ SELECT
   COUNT(*) FILTER (WHERE is_processed) as processed,
   COUNT(*) FILTER (WHERE NOT is_processed) as unprocessed,
   ROUND(100.0 * COUNT(*) FILTER (WHERE is_processed) / NULLIF(COUNT(*), 0), 1) as pct
-FROM trapper.staged_records
+FROM ops.staged_records
 GROUP BY source_system, source_table
 ORDER BY source_system, source_table;
 ```
@@ -169,7 +169,7 @@ ORDER BY source_system, source_table;
 ### Check duplicate queue
 ```sql
 SELECT COUNT(*) as pending_duplicates
-FROM trapper.potential_person_duplicates
+FROM ops.potential_person_duplicates
 WHERE resolved_at IS NULL;
 ```
 
@@ -177,24 +177,24 @@ WHERE resolved_at IS NULL;
 ```sql
 WITH missing AS (
   SELECT p.person_id, p.display_name, LOWER(TRIM(p.primary_email)) as email_norm
-  FROM trapper.sot_people p
+  FROM sot.people p
   WHERE p.primary_email IS NOT NULL
     AND p.merged_into_person_id IS NULL
     AND NOT EXISTS (
-      SELECT 1 FROM trapper.person_identifiers pi
+      SELECT 1 FROM sot.person_identifiers pi
       WHERE pi.person_id = p.person_id AND pi.id_type = 'email'
     )
 )
 SELECT
   CASE
-    WHEN trapper.name_similarity(m.display_name, p2.display_name) >= 0.8 THEN 'duplicate'
-    WHEN trapper.name_similarity(m.display_name, p2.display_name) >= 0.5 THEN 'possible'
+    WHEN sot.name_similarity(m.display_name, p2.display_name) >= 0.8 THEN 'duplicate'
+    WHEN sot.name_similarity(m.display_name, p2.display_name) >= 0.5 THEN 'possible'
     ELSE 'different_people'
   END as category,
   COUNT(*) as count
 FROM missing m
-JOIN trapper.person_identifiers pi ON pi.id_value_norm = m.email_norm AND pi.id_type = 'email'
-JOIN trapper.sot_people p2 ON p2.person_id = pi.person_id
+JOIN sot.person_identifiers pi ON pi.id_value_norm = m.email_norm AND pi.id_type = 'email'
+JOIN sot.people p2 ON p2.person_id = pi.person_id
 GROUP BY 1;
 ```
 

@@ -168,11 +168,11 @@ SELECT levenshtein('kitten', 'sitting');
 **People Deduplication**:
 | Technique | Implementation | Status |
 |-----------|----------------|--------|
-| Exact phone match | `person_identifiers.id_value_norm` | ✅ Active |
-| Exact email match | `person_identifiers.id_value_norm` | ✅ Active |
+| Exact phone match | `sot.person_identifiers.id_value_norm` | ✅ Active |
+| Exact email match | `sot.person_identifiers.id_value_norm` | ✅ Active |
 | Trigram similarity | `similarity(display_name, ...)` | ✅ Active |
 | Soundex matching | `SOUNDEX(first_name) = SOUNDEX(...)` | ✅ Active |
-| Shared address context | `person_place_relationships` join | ✅ Active |
+| Shared address context | `sot.person_place` join | ✅ Active |
 
 **Functions**:
 - `find_similar_people(name, phone?, email?, threshold)` - Returns matches with scores
@@ -182,7 +182,7 @@ SELECT levenshtein('kitten', 'sitting');
 **Places Deduplication**:
 | Technique | Implementation | Status |
 |-----------|----------------|--------|
-| Google Place ID | `sot_addresses.google_place_id` | ✅ Active |
+| Google Place ID | `sot.addresses.google_place_id` | ✅ Active |
 | Normalized address | `places.normalized_address` | ✅ Active |
 | Coordinate proximity | Haversine distance | ✅ Active |
 | Exact duplicate merge | `merge_places()` function | ✅ Active |
@@ -215,7 +215,7 @@ Better than Levenshtein for names where errors occur at the end.
 
 ```sql
 -- Add to MIG_233 or new migration
-CREATE OR REPLACE FUNCTION trapper.jaro_winkler(s1 TEXT, s2 TEXT)
+CREATE OR REPLACE FUNCTION sot.jaro_winkler(s1 TEXT, s2 TEXT)
 RETURNS FLOAT AS $$
   -- PostgreSQL doesn't have native Jaro-Winkler, but fuzzystrmatch has similar
   SELECT CASE
@@ -231,18 +231,18 @@ Common names should contribute less to match confidence.
 
 ```sql
 -- Create name frequency table
-CREATE TABLE trapper.name_frequencies (
+CREATE TABLE ref.name_frequencies (
   name_part TEXT PRIMARY KEY,
   frequency INT,
   weight FLOAT GENERATED ALWAYS AS (1.0 / LOG(frequency + 1)) STORED
 );
 
 -- Populate from existing data
-INSERT INTO trapper.name_frequencies (name_part, frequency)
+INSERT INTO ref.name_frequencies (name_part, frequency)
 SELECT
   LOWER(SPLIT_PART(display_name, ' ', 2)) AS last_name,
   COUNT(*)
-FROM trapper.sot_people
+FROM sot.people
 WHERE display_name IS NOT NULL
 GROUP BY 1
 HAVING COUNT(*) > 1;
@@ -252,8 +252,8 @@ SELECT
   p.person_id,
   p.display_name,
   similarity(p.display_name, 'John Smith') * COALESCE(nf.weight, 1.0) AS weighted_score
-FROM trapper.sot_people p
-LEFT JOIN trapper.name_frequencies nf
+FROM sot.people p
+LEFT JOIN ref.name_frequencies nf
   ON nf.name_part = LOWER(SPLIT_PART(p.display_name, ' ', 2));
 ```
 
@@ -277,7 +277,7 @@ SELECT dmetaphone('Catherine'), dmetaphone('Katherine');
 
 **Option B: Enhanced SQL Normalization**
 ```sql
-CREATE OR REPLACE FUNCTION trapper.normalize_address_enhanced(addr TEXT)
+CREATE OR REPLACE FUNCTION sot.normalize_address_enhanced(addr TEXT)
 RETURNS TEXT AS $$
   SELECT LOWER(TRIM(
     REGEXP_REPLACE(
@@ -307,7 +307,7 @@ $$ LANGUAGE SQL IMMUTABLE;
 ┌─────────────────────────────────────────────────────────────┐
 │                     PostgreSQL (Atlas)                       │
 ├─────────────────────────────────────────────────────────────┤
-│  sot_people, sot_addresses, person_identifiers              │
+│  sot.people, sot.addresses, sot.person_identifiers              │
 └───────────────────────────┬─────────────────────────────────┘
                             │ Export CSV/Parquet
                             ▼
@@ -392,7 +392,7 @@ SELECT
   COUNT(*) FILTER (WHERE shares_identifier) AS confirmed_dupes,
   COUNT(*) FILTER (WHERE shares_place) AS likely_dupes,
   COUNT(*) FILTER (WHERE NOT shares_identifier AND NOT shares_place) AS uncertain
-FROM trapper.v_potential_duplicate_people;
+FROM ops.v_potential_duplicate_people;
 
 -- False positive rate (requires manual review sample)
 -- Sample 50 suggested duplicates, manually verify, track accuracy

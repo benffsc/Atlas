@@ -159,7 +159,7 @@ Accept flexible input but normalize in Atlas:
 - `707.555.1234` → `+17075551234`
 - `7075551234` → `+17075551234`
 
-Don't reject on format - Atlas normalizes via `trapper.norm_phone_us()`.
+Don't reject on format - Atlas normalizes via `sot.norm_phone_us()`.
 
 ### Email
 

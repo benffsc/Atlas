@@ -7,13 +7,13 @@ Links canonical cats to canonical places using owner address signals.
 ### Signal Path
 
 ```
-sot_cats
-    ↓ person_cat_relationships (owner link)
-sot_people
-    ↓ person_place_relationships (address link)
-places
+sot.cats
+    ↓ sot.person_cat (owner link)
+sot.people
+    ↓ sot.person_place (address link)
+sot.places
     ↓
-cat_place_relationships (derived)
+sot.cat_place (derived)
 ```
 
 ### Link Types
@@ -42,25 +42,25 @@ Or manually:
 
 ```sql
 -- Link cats to places
-SELECT * FROM trapper.link_cats_to_places();
+SELECT * FROM sot.link_cats_to_places();
 
 -- Update place activity flags
-SELECT trapper.update_place_cat_activity_flags();
+SELECT sot.update_place_cat_activity_flags();
 
 -- Check results
-SELECT * FROM trapper.v_cat_place_stats;
+SELECT * FROM ops.v_cat_place_stats;
 ```
 
 ### Query Views
 
 ```sql
 -- Best place per cat
-SELECT * FROM trapper.v_cat_primary_place
+SELECT * FROM ops.v_cat_primary_place
 WHERE place_id IS NOT NULL
 LIMIT 20;
 
 -- Places with cats
-SELECT * FROM trapper.v_places_with_cat_activity
+SELECT * FROM ops.v_places_with_cat_activity
 ORDER BY total_cats DESC
 LIMIT 20;
 ```
@@ -76,10 +76,10 @@ psql "$DATABASE_URL" -f sql/queries/QRY_025__cats_missing_place.sql
 ## Data Model
 
 ```
-cat_place_relationships
+sot.cat_place
   ├── cat_place_id (PK)
-  ├── cat_id (FK → sot_cats)
-  ├── place_id (FK → places)
+  ├── cat_id (FK → sot.cats)
+  ├── place_id (FK → sot.places)
   ├── relationship_type (home, appointment_site, trapped_at)
   ├── confidence (high, medium, low)
   ├── source_system, source_table
@@ -95,7 +95,7 @@ cat_place_relationships
 
 ## What's Implemented
 
-1. **Owner address linking** - Cats linked to places via owner's person_place_relationships
+1. **Owner address linking** - Cats linked to places via owner's sot.person_place
 2. **Evidence storage** - Each link stores the method and person_id used
 3. **Confidence tracking** - High confidence for direct owner-address links
 4. **Activity flags** - Places marked with `has_cat_activity = TRUE`
@@ -144,9 +144,9 @@ To improve coverage:
 
 ### No cats linked
 
-Check person_place_relationships:
+Check sot.person_place:
 ```sql
-SELECT COUNT(*) FROM trapper.person_place_relationships;
+SELECT COUNT(*) FROM sot.person_place;
 -- If 0, run address geocoding pipeline first
 ```
 
@@ -155,11 +155,11 @@ SELECT COUNT(*) FROM trapper.person_place_relationships;
 Owner's address hasn't been geocoded:
 ```sql
 SELECT COUNT(DISTINCT pcr.person_id) AS owners_without_places
-FROM trapper.person_cat_relationships pcr
+FROM sot.person_cat pcr
 WHERE pcr.relationship_type = 'owner'
   AND NOT EXISTS (
-    SELECT 1 FROM trapper.person_place_relationships ppr
-    WHERE ppr.person_id = trapper.canonical_person_id(pcr.person_id)
+    SELECT 1 FROM sot.person_place ppr
+    WHERE ppr.person_id = sot.canonical_person_id(pcr.person_id)
   );
 ```
 
@@ -167,6 +167,6 @@ WHERE pcr.relationship_type = 'owner'
 
 ```sql
 -- Safe to re-run - uses ON CONFLICT
-SELECT * FROM trapper.link_cats_to_places();
-SELECT trapper.update_place_cat_activity_flags();
+SELECT * FROM sot.link_cats_to_places();
+SELECT sot.update_place_cat_activity_flags();
 ```

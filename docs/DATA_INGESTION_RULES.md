@@ -29,16 +29,16 @@ The goal is: "If we've touched it, it's in Atlas."
 - Logs all decisions in `data_changes`
 
 ### Layer 3: Source of Truth (SoT)
-- `sot_people` - canonical person records
-- `sot_cats` - canonical cat records
-- `sot_requests` - all service requests
-- `places` - all addresses/locations
+- `sot.people` - canonical person records
+- `sot.cats` - canonical cat records
+- `ops.requests` - all service requests
+- `sot.places` - all addresses/locations
 
 ---
 
 ## Rules for Each Entity Type
 
-### People (`sot_people`)
+### People (`sot.people`)
 
 **ALWAYS add to SoT if:**
 - Has valid email OR phone number
@@ -46,8 +46,8 @@ The goal is: "If we've touched it, it's in Atlas."
 - Is not an internal/program account
 
 **Identity matching priority:**
-1. Email (exact match via `person_identifiers`)
-2. Phone (last 10 digits via `person_identifiers`)
+1. Email (exact match via `sot.person_identifiers`)
+2. Phone (last 10 digits via `sot.person_identifiers`)
 3. Never match by name alone (too many false positives)
 
 **Required fields:**
@@ -60,7 +60,7 @@ The goal is: "If we've touched it, it's in Atlas."
 
 **Use this function:**
 ```sql
-SELECT trapper.find_or_create_person(
+SELECT sot.find_or_create_person(
   p_email,      -- email address
   p_phone,      -- phone number
   p_first_name, -- first name (for display_name)
@@ -70,7 +70,7 @@ SELECT trapper.find_or_create_person(
 );
 ```
 
-### Cats (`sot_cats`)
+### Cats (`sot.cats`)
 
 **ALWAYS add to SoT if:**
 - Has a microchip number
@@ -85,14 +85,14 @@ SELECT trapper.find_or_create_person(
 
 **Use this function:**
 ```sql
-SELECT trapper.find_or_create_cat_by_microchip(
+SELECT sot.find_or_create_cat_by_microchip(
   p_microchip,
   p_name,
   p_source_system
 );
 ```
 
-### Places (`places`)
+### Places (`sot.places`)
 
 **ALWAYS add to SoT if:**
 - Has a parseable street address
@@ -123,23 +123,23 @@ The geocoding queue (`/api/places/geocode-queue`) automatically merges duplicate
 1. When a place is geocoded, Google returns the canonical `formatted_address`
 2. The `record_geocoding_result()` function updates `normalized_address` with this canonical address
 3. If another place already has this exact `normalized_address`, automatic merge occurs:
-   - All `person_place_relationships` transferred (duplicate links deleted first)
-   - All `cat_place_relationships` transferred
-   - All `sot_requests` updated to point to canonical place
+   - All `sot.person_place` transferred (duplicate links deleted first)
+   - All `sot.cat_place` transferred
+   - All `ops.requests` updated to point to canonical place
    - Source place marked with `merged_into_place_id` and `merge_reason`
 
 **Monitor merges:**
 ```sql
 -- Check places merged via geocoding
 SELECT place_id, formatted_address, merged_into_place_id, merge_reason, merged_at
-FROM trapper.places
+FROM sot.places
 WHERE merged_into_place_id IS NOT NULL
 ORDER BY merged_at DESC;
 ```
 
 **Use this function:**
 ```sql
-SELECT trapper.find_or_create_place_deduped(
+SELECT sot.find_or_create_place_deduped(
   p_formatted_address,  -- address text
   p_display_name,       -- optional display name
   p_lat,                -- optional latitude (skips geocode queue if provided)
@@ -152,7 +152,7 @@ SELECT trapper.find_or_create_place_deduped(
 - Same building, different units = separate records with `parent_place_id`
 - Exact duplicates merged via `merged_into_place_id`
 
-### Requests (`sot_requests`)
+### Requests (`ops.requests`)
 
 **ALWAYS create for:**
 - Any service request (TNR, wellness, kitten intake)
@@ -182,7 +182,7 @@ RETURNING (xmax = 0) AS was_inserted;
 
 ### Staged Records Pattern
 ```sql
-INSERT INTO trapper.staged_records (
+INSERT INTO ops.staged_records (
   source_system, source_table, source_row_id, row_hash, payload
 ) VALUES ($1, $2, $3, $4, $5::jsonb)
 ON CONFLICT (source_system, source_table, row_hash)
@@ -196,13 +196,13 @@ await stageRecord(sourceSystem, sourceTable, recordId, payload);
 
 // 2. Find or create person using DB function
 const personId = await db.query(
-  'SELECT trapper.find_or_create_person($1, $2, $3, $4, $5, $6)',
+  'SELECT sot.find_or_create_person($1, $2, $3, $4, $5, $6)',
   [email, phone, firstName, lastName, address, sourceSystem]
 );
 
 // 3. Add role/relationship
 await db.query(
-  'INSERT INTO person_roles (...) ON CONFLICT DO UPDATE ...'
+  'INSERT INTO sot.person_roles (...) ON CONFLICT DO UPDATE ...'
 );
 ```
 
@@ -226,7 +226,7 @@ During ingest, always use canonical lookups:
 
 ```sql
 -- Find cat by microchip, respecting merges
-SELECT trapper.find_canonical_cat_by_microchip('981020012345678');
+SELECT sot.find_canonical_cat_by_microchip('981020012345678');
 
 -- If the microchip belongs to a merged cat, returns the CANONICAL cat_id
 -- Not the merged-away cat_id
@@ -235,13 +235,13 @@ SELECT trapper.find_canonical_cat_by_microchip('981020012345678');
 **Ingest code pattern:**
 ```sql
 -- Use get_canonical_cat_id when linking
-INSERT INTO trapper.sot_appointments (cat_id, ...)
+INSERT INTO ops.appointments (cat_id, ...)
 SELECT
-  trapper.get_canonical_cat_id(c.cat_id),  -- NOT c.cat_id directly
+  sot.get_canonical_cat_id(c.cat_id),  -- NOT c.cat_id directly
   ...
-FROM staged_records sr
-JOIN cat_identifiers ci ON ...
-JOIN sot_cats c ON c.cat_id = ci.cat_id
+FROM ops.staged_records sr
+JOIN sot.cat_identifiers ci ON ...
+JOIN sot.cats c ON c.cat_id = ci.cat_id
 ```
 
 ### Canonical Resolution Functions
@@ -261,13 +261,13 @@ Use these views to exclude merged entities from user-facing queries:
 
 ```sql
 -- Only shows cats that are NOT merged into another
-SELECT * FROM trapper.v_canonical_cats;
+SELECT * FROM ops.v_canonical_cats;
 
 -- Only shows people that are NOT merged into another
-SELECT * FROM trapper.v_canonical_people;
+SELECT * FROM ops.v_canonical_people;
 
 -- Only shows places that are NOT merged into another
-SELECT * FROM trapper.v_canonical_places;
+SELECT * FROM ops.v_canonical_places;
 ```
 
 ### Merge Audit Trail
@@ -275,7 +275,7 @@ SELECT * FROM trapper.v_canonical_places;
 All merges are logged for debugging and compliance:
 
 ```sql
-SELECT * FROM trapper.entity_merge_history
+SELECT * FROM ops.entity_merge_history
 WHERE entity_type = 'cat'
 ORDER BY merged_at DESC;
 ```
@@ -347,9 +347,9 @@ All intake submissions (legacy and new) are stored in a single table with unifie
 **Key fields:**
 - `submission_id` - UUID primary key
 - `is_legacy` - TRUE for Airtable imports, FALSE for new web intake
-- `matched_person_id` - Links to `sot_people` if matched
-- `place_id` / `matched_place_id` - Links to `places`
-- `created_request_id` - Links to `sot_requests` if converted
+- `matched_person_id` - Links to `sot.people` if matched
+- `place_id` / `matched_place_id` - Links to `sot.places`
+- `created_request_id` - Links to `ops.requests` if converted
 
 **Cat Ownership Types (`ownership_status`):**
 - `unknown_stray` - Stray cat (no apparent owner)
@@ -388,12 +388,12 @@ All intake submissions (legacy and new) are stored in a single table with unifie
 When importing, use database functions to link:
 ```sql
 -- After creating person, link to submission
-UPDATE trapper.web_intake_submissions
+UPDATE ops.web_intake_submissions
 SET matched_person_id = (person_id)
 WHERE submission_id = $1;
 
 -- After creating/matching place, link to submission
-UPDATE trapper.web_intake_submissions
+UPDATE ops.web_intake_submissions
 SET place_id = (place_id)
 WHERE submission_id = $1;
 ```
@@ -412,7 +412,7 @@ These endpoints return submissions with source badges (Legacy/Web Intake) and st
 
 ### All changes must be logged:
 ```sql
-INSERT INTO trapper.data_changes (
+INSERT INTO ops.data_changes (
   entity_type,   -- 'person', 'cat', 'request', etc.
   entity_key,    -- UUID as text
   field_name,    -- what changed
@@ -424,7 +424,7 @@ INSERT INTO trapper.data_changes (
 
 ### Ingest runs tracked in:
 ```sql
-INSERT INTO trapper.ingest_runs (
+INSERT INTO ops.ingest_runs (
   source_system, source_table, source_file_path,
   row_count, rows_inserted, rows_linked, run_status
 );
@@ -449,10 +449,10 @@ INSERT INTO trapper.ingest_runs (
 
 | Entity | Match By | Add If | Table |
 |--------|----------|--------|-------|
-| Person | Email, Phone | Has email OR phone | `sot_people` |
-| Cat | Microchip | Has microchip | `sot_cats` |
-| Place | Address, Coords | Has street address | `places` |
-| Request | Source ID | Any service request | `sot_requests` |
+| Person | Email, Phone | Has email OR phone | `sot.people` |
+| Cat | Microchip | Has microchip | `sot.cats` |
+| Place | Address, Coords | Has street address | `sot.places` |
+| Request | Source ID | Any service request | `ops.requests` |
 
 ---
 
@@ -502,7 +502,7 @@ The system uses **rolling attribution windows** to determine which cats belong t
 ### ClinicHQ Integration
 
 When importing clinic visits:
-- Match by `client_email` or `client_phone` to `person_identifiers`
+- Match by `client_email` or `client_phone` to `sot.person_identifiers`
 - Clinic visit `visit_date` determines if within attribution window
 - Procedure dates (`is_spay`/`is_neuter`) determine alteration counts
 
@@ -539,13 +539,13 @@ To add a new colony data source:
 
 1. **Add to `colony_source_confidence`** with appropriate confidence:
    ```sql
-   INSERT INTO trapper.colony_source_confidence (source_type, base_confidence, description)
+   INSERT INTO ops.colony_source_confidence (source_type, base_confidence, description)
    VALUES ('new_source', 0.65, 'Description of new source');
    ```
 
 2. **Insert estimates into `place_colony_estimates`**:
    ```sql
-   INSERT INTO trapper.place_colony_estimates (
+   INSERT INTO ops.place_colony_estimates (
      place_id, total_cats, adult_count, kitten_count,
      altered_count, unaltered_count,
      source_type, observation_date, is_firsthand,
@@ -604,7 +604,7 @@ Project 75 surveys are submitted after clinic visits and provide high-confidence
    - Requires ≥60% string similarity OR <30m distance
 
 5. **Person Lookup (Fallback)**
-   - Finds requester by email/phone via `person_identifiers`
+   - Finds requester by email/phone via `sot.person_identifiers`
    - Links to their most recent request's place
 
 6. **Raw Text Match (Last Resort)**
@@ -703,7 +703,7 @@ When ingesting colony data from any source:
 ### Example Insert
 
 ```sql
-INSERT INTO trapper.place_colony_estimates (
+INSERT INTO ops.place_colony_estimates (
   place_id,
   total_cats,
   peak_count,
@@ -784,7 +784,7 @@ For ecology-grade estimation, ask:
    └────┬────┘                        └─────┬─────┘                      └──────┬──────┘
         │                                   │                                   │
    cat_procedures                   place_colony_estimates              places.colony_override_*
-   + cat_place_relationships               ▲
+   + sot.cat_place                         ▲
                                            │
         ┌──────────────────────────────────┬────────────────────────────┬──────────────────┐
         │                                  │                            │                  │
@@ -803,7 +803,7 @@ For ecology-grade estimation, ask:
    - Run: `node scripts/ingest/airtable_project75_sync.mjs`
 
 2. **Trapping Requests** (60% confidence)
-   - Airtable → `sot_requests` → Trigger `trg_request_colony_estimate` → `place_colony_estimates`
+   - Airtable → `ops.requests` → Trigger `trg_request_colony_estimate` → `place_colony_estimates`
    - Fields: estimated_cat_count → total_cats
    - Automatic via trigger on insert/update
 
@@ -813,7 +813,7 @@ For ecology-grade estimation, ask:
    - Run: `node scripts/ingest/geocode_intake_addresses.mjs`
 
 4. **Clinic Data** (100% ground truth)
-   - ClinicHQ → `sot_appointments` → `cat_procedures` + `cat_place_relationships`
+   - ClinicHQ → `ops.appointments` → `cat_procedures` + `sot.cat_place`
    - Fields: is_spay, is_neuter → a_known (verified altered count)
    - Automatic via ingest pipeline
 
@@ -844,7 +844,7 @@ Staff can override computed estimates when they have confirmed information:
 
 ```sql
 -- Set override
-SELECT * FROM trapper.set_colony_override(
+SELECT * FROM ops.set_colony_override(
     'place-uuid',
     15,                    -- confirmed total cats
     15,                    -- confirmed altered
@@ -853,7 +853,7 @@ SELECT * FROM trapper.set_colony_override(
 );
 
 -- Clear override (revert to computed)
-SELECT trapper.clear_colony_override(
+SELECT ops.clear_colony_override(
     'place-uuid',
     'New survey data available',
     'staff@ffsc.org'
@@ -867,7 +867,7 @@ All overrides are tracked in `colony_override_history` for audit.
 Run periodically to catch any gaps in linkages:
 
 ```sql
-SELECT * FROM trapper.resync_all_linkages();
+SELECT * FROM sot.resync_all_linkages();
 ```
 
 Returns counts of:
@@ -903,7 +903,7 @@ Returns potential matches ranked by confidence.
 
 **Example:**
 ```sql
-SELECT * FROM trapper.find_similar_people(
+SELECT * FROM sot.find_similar_people(
   'Viviana Patino',    -- name to search
   '707-975-1628',      -- phone (optional)
   NULL,                -- email (optional)
@@ -955,7 +955,7 @@ The system detects potential family members with the same last name:
 
 ```sql
 -- View all potential duplicates in the system
-SELECT * FROM trapper.v_potential_duplicate_people;
+SELECT * FROM ops.v_potential_duplicate_people;
 ```
 
 Returns pairs of people who may be duplicates based on:
@@ -973,7 +973,7 @@ Names are automatically normalized to Title Case on insert/update to prevent ALL
 
 ### Automatic Trigger
 
-A trigger on `sot_people` and `sot_cats` normalizes names:
+A trigger on `sot.people` and `sot.cats` normalizes names:
 - `BIBIANA PATINO GARCIA` → `Bibiana Patino Garcia`
 - `john smith` → `John Smith`
 
@@ -985,12 +985,12 @@ Only triggered when:
 
 ```sql
 -- Normalize a single name
-SELECT trapper.normalize_display_name('JOHN SMITH');
+SELECT sot.normalize_display_name('JOHN SMITH');
 -- Returns: 'John Smith'
 
 -- Fix all caps names in existing data
-UPDATE trapper.sot_people
-SET display_name = trapper.normalize_display_name(display_name)
+UPDATE sot.people
+SET display_name = sot.normalize_display_name(display_name)
 WHERE display_name = UPPER(display_name)
   AND LENGTH(display_name) > 3;
 ```
@@ -1057,10 +1057,10 @@ Places without coordinates are automatically queued for geocoding:
 
 ```sql
 -- View queue stats
-SELECT * FROM trapper.v_geocoding_stats;
+SELECT * FROM ops.v_geocoding_stats;
 
 -- View failed geocodes (need manual review)
-SELECT * FROM trapper.v_geocoding_failures;
+SELECT * FROM ops.v_geocoding_failures;
 ```
 
 ### Admin UI Controls
@@ -1091,7 +1091,7 @@ When a place is geocoded:
 ```sql
 -- Check places merged via geocoding
 SELECT place_id, formatted_address, merged_into_place_id, merge_reason, merged_at
-FROM trapper.places
+FROM sot.places
 WHERE merge_reason = 'geocode_canonical_match'
 ORDER BY merged_at DESC;
 ```

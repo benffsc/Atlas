@@ -20,7 +20,7 @@ Colony size estimation is essential for:
 
 ### Tier 1: Verified Altered (A_known) - Ground Truth
 
-**Source**: Clinic procedures linked to places via `cat_place_relationships`
+**Source**: Clinic procedures linked to places via `sot.cat_place`
 
 **Confidence**: 100% (this is what we've actually done)
 

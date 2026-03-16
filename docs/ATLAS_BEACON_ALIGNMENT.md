@@ -289,7 +289,7 @@ Atlas has a comprehensive intake system that is actively used daily by Jami:
 - Detail page with: medical history, place history, person links, test results, alteration status
 - Print view
 - Identity: microchip primary, `clinichq_animal_id` fallback, recheck detection (15-digit pattern)
-- Linked to places via `cat_place_relationships`
+- Linked to places via `sot.cat_place`
 - Linked to requests via attribution windows (6mo before, during, 3mo after)
 - **No create flow in UI** (cats created via ingest pipeline or API only)
 

@@ -49,7 +49,7 @@ All database queries use parameterized statements:
 ```typescript
 // Good - parameterized query
 const result = await client.query(
-  'SELECT * FROM trapper.sot_people WHERE person_id = $1',
+  'SELECT * FROM sot.people WHERE person_id = $1',
   [personId]
 );
 
@@ -159,7 +159,7 @@ All data changes are logged:
 
 ```sql
 -- Entity edits logged to:
-trapper.entity_edits (
+ops.entity_edits (
   edit_id, entity_type, entity_id,
   edit_type, field_name, old_value, new_value,
   reason, edited_by, edited_by_name,
@@ -167,7 +167,7 @@ trapper.entity_edits (
 );
 
 -- Raw records preserved in:
-trapper.staged_records (immutable)
+ops.staged_records (immutable)
 ```
 
 ### Application Logging

@@ -22,7 +22,7 @@ Atlas uses Claude AI to extract structured attributes from unstructured text (me
 The scripts check `entity_attributes` table to skip already-processed records:
 ```sql
 AND NOT EXISTS (
-  SELECT 1 FROM trapper.entity_attributes ea
+  SELECT 1 FROM ops.entity_attributes ea
   WHERE ea.source_system = 'clinichq'
     AND ea.source_record_id = appointment_id::TEXT
 )
@@ -50,8 +50,8 @@ If Claude API returns an error, the record is skipped and logged but processing 
 
 | Script | Source Table | Entity Types | Notes |
 |--------|--------------|--------------|-------|
-| `extract_clinic_attributes.mjs` | sot_appointments | cat, place | Medical notes from clinic |
-| `extract_request_attributes.mjs` | sot_requests | request, place, person | Internal/public notes |
+| `extract_clinic_attributes.mjs` | ops.appointments | cat, place | Medical notes from clinic |
+| `extract_request_attributes.mjs` | ops.requests | request, place, person | Internal/public notes |
 | `extract_intake_attributes.mjs` | web_intake_submissions | place, request, person | Situation descriptions |
 | `extract_observation_attributes.mjs` | site_observations | place | Field observations |
 
@@ -84,15 +84,15 @@ The `/api/cron/ai-extract` endpoint processes 50 records daily at 4 AM PT from t
 ```sql
 -- By source system
 SELECT source_system, COUNT(*)
-FROM trapper.entity_attributes
+FROM ops.entity_attributes
 WHERE superseded_at IS NULL
 GROUP BY source_system;
 
 -- Unprocessed clinic appointments
-SELECT COUNT(*) FROM trapper.sot_appointments a
+SELECT COUNT(*) FROM ops.appointments a
 WHERE a.medical_notes IS NOT NULL AND a.medical_notes != ''
   AND NOT EXISTS (
-    SELECT 1 FROM trapper.entity_attributes ea
+    SELECT 1 FROM ops.entity_attributes ea
     WHERE ea.source_system = 'clinichq'
       AND ea.source_record_id = a.appointment_id::TEXT
   );
@@ -100,14 +100,14 @@ WHERE a.medical_notes IS NOT NULL AND a.medical_notes != ''
 
 ### Check extraction jobs
 ```sql
-SELECT * FROM trapper.attribute_extraction_jobs
+SELECT * FROM ops.attribute_extraction_jobs
 ORDER BY started_at DESC LIMIT 10;
 ```
 
 ### Check extraction queue (for cron)
 ```sql
 SELECT source_table, COUNT(*)
-FROM trapper.extraction_queue
+FROM ops.extraction_queue
 WHERE completed_at IS NULL
 GROUP BY source_table;
 ```

@@ -19,9 +19,9 @@ Tracks data quality investigations, findings, and resulting test coverage. Each 
 ### Investigation Findings
 
 **Data Flow:**
-1. Map pin role badges come from `person_roles` table (NOT `person_place_relationships`)
+1. Map pin role badges come from `person_roles` table (NOT `sot.person_place`)
 2. The `v_map_atlas_pins` view (MIG_822) builds a `people` JSONB array for each place
-3. For each person at a place, it runs: `SELECT ARRAY_AGG(DISTINCT pr.role) FROM trapper.person_roles pr WHERE pr.person_id = per.person_id AND pr.role_status = 'active'`
+3. For each person at a place, it runs: `SELECT ARRAY_AGG(DISTINCT pr.role) FROM sot.person_roles pr WHERE pr.person_id = per.person_id AND pr.role_status = 'active'`
 4. These roles render as colored badges in the map popup (`AtlasMap.tsx:1288-1323`)
 
 **Root Cause — Three vulnerability pathways identified:**
@@ -48,15 +48,15 @@ Run these queries to confirm the root cause for Holiday Duncan:
 ```sql
 -- 1. Find Holiday Duncan's person_id
 SELECT person_id, display_name, data_source, source_system, created_at
-FROM trapper.sot_people
+FROM sot.people
 WHERE display_name ILIKE '%Holiday%Duncan%'
   AND merged_into_person_id IS NULL;
 
 -- 2. Check her roles and their source
 SELECT pr.role, pr.trapper_type, pr.role_status, pr.source_system,
        pr.source_record_id, pr.started_at, pr.created_at, pr.notes
-FROM trapper.person_roles pr
-JOIN trapper.sot_people p ON p.person_id = pr.person_id
+FROM sot.person_roles pr
+JOIN sot.people p ON p.person_id = pr.person_id
 WHERE p.display_name ILIKE '%Holiday%Duncan%'
   AND p.merged_into_person_id IS NULL
 ORDER BY pr.created_at;
@@ -64,25 +64,25 @@ ORDER BY pr.created_at;
 -- 3. Check Data Engine matching decisions
 SELECT decision_type, score, incoming_email, incoming_phone,
        incoming_name, source_system, created_at
-FROM trapper.data_engine_match_decisions
+FROM ops.data_engine_match_decisions
 WHERE incoming_name ILIKE '%Holiday%Duncan%'
    OR resulting_person_id IN (
-     SELECT person_id FROM trapper.sot_people
+     SELECT person_id FROM sot.people
      WHERE display_name ILIKE '%Holiday%Duncan%'
        AND merged_into_person_id IS NULL
    )
 ORDER BY created_at;
 
--- 4. Check person_identifiers (what contact info exists)
+-- 4. Check sot.person_identifiers (what contact info exists)
 SELECT pi.id_type, pi.id_value_norm, pi.source_system, pi.created_at
-FROM trapper.person_identifiers pi
-JOIN trapper.sot_people p ON p.person_id = pi.person_id
+FROM sot.person_identifiers pi
+JOIN sot.people p ON p.person_id = pi.person_id
 WHERE p.display_name ILIKE '%Holiday%Duncan%'
   AND p.merged_into_person_id IS NULL;
 
--- 5. Check Wildhaven Campgrounds in sot_people
+-- 5. Check Wildhaven Campgrounds in sot.people
 SELECT person_id, display_name, data_source, source_system
-FROM trapper.sot_people
+FROM sot.people
 WHERE display_name ILIKE '%Wildhaven%'
   AND merged_into_person_id IS NULL;
 
@@ -90,13 +90,13 @@ WHERE display_name ILIKE '%Wildhaven%'
 SELECT p.display_name, p.person_id,
        array_agg(pr.role ORDER BY pr.role) AS roles,
        array_agg(DISTINCT pr.source_system) AS sources
-FROM trapper.person_roles pr
-JOIN trapper.sot_people p ON p.person_id = pr.person_id
+FROM sot.person_roles pr
+JOIN sot.people p ON p.person_id = pr.person_id
 WHERE p.merged_into_person_id IS NULL
   AND pr.role_status = 'active'
   AND pr.role IN ('foster', 'trapper')
   AND NOT EXISTS (
-    SELECT 1 FROM trapper.person_roles pr2
+    SELECT 1 FROM sot.person_roles pr2
     WHERE pr2.person_id = pr.person_id
       AND pr2.role = 'volunteer'
       AND pr2.role_status = 'active'
@@ -228,7 +228,7 @@ ORDER BY p.display_name;
 
 **Root Cause:** `process_shelterluv_animal()` (MIG_469, updated MIG_621) uses `display_name ILIKE '%' || v_hold_for || '%'` — pure substring match violating "never match by name alone" rule. ShelterLuv provides `Foster Person Email` field but it was not being used.
 
-**Secondary processor:** MIG_511 (`process_shelterluv_foster_relationships()`) already uses email-first matching correctly, but only creates person_cat_relationships — does NOT assign person_roles.
+**Secondary processor:** MIG_511 (`process_shelterluv_foster_relationships()`) already uses email-first matching correctly, but only creates sot.person_cat — does NOT assign person_roles.
 
 ### Fixes Applied
 
@@ -378,21 +378,21 @@ ORDER BY p.display_name;
 
 ```sql
 -- Verify no stale references remain
-SELECT 'cat_place → merged' AS check, COUNT(*) FROM trapper.cat_place_relationships cpr
-JOIN trapper.places p ON p.place_id = cpr.place_id WHERE p.merged_into_place_id IS NOT NULL
+SELECT 'cat_place → merged' AS check, COUNT(*) FROM sot.cat_place cpr
+JOIN sot.places p ON p.place_id = cpr.place_id WHERE p.merged_into_place_id IS NOT NULL
 UNION ALL
-SELECT 'person_place → merged', COUNT(*) FROM trapper.person_place_relationships ppr
-JOIN trapper.places p ON p.place_id = ppr.place_id WHERE p.merged_into_place_id IS NOT NULL
+SELECT 'person_place → merged', COUNT(*) FROM sot.person_place ppr
+JOIN sot.places p ON p.place_id = ppr.place_id WHERE p.merged_into_place_id IS NOT NULL
 UNION ALL
-SELECT 'appointments → merged', COUNT(*) FROM trapper.sot_appointments a
-JOIN trapper.sot_people sp ON sp.person_id = a.person_id WHERE sp.merged_into_person_id IS NOT NULL;
+SELECT 'appointments → merged', COUNT(*) FROM ops.appointments a
+JOIN sot.people sp ON sp.person_id = a.person_id WHERE sp.merged_into_person_id IS NOT NULL;
 
 -- Verify identity graph stats
-SELECT * FROM trapper.v_identity_graph_stats;
+SELECT * FROM ops.v_identity_graph_stats;
 
 -- Verify F-S configuration
 SELECT field_name, m_probability, u_probability, agreement_weight, disagreement_weight
-FROM trapper.fellegi_sunter_parameters WHERE is_active ORDER BY ABS(agreement_weight) DESC;
+FROM ops.fellegi_sunter_parameters WHERE is_active ORDER BY ABS(agreement_weight) DESC;
 ```
 
 ### Fixes Applied
@@ -429,20 +429,20 @@ FROM trapper.fellegi_sunter_parameters WHERE is_active ORDER BY ABS(agreement_we
 ```sql
 -- 1. All stale references should be 0
 SELECT 'Stale refs' AS metric, SUM(count) FROM (
-  SELECT COUNT(*) FROM trapper.cat_place_relationships cpr
-  JOIN trapper.places p ON p.place_id = cpr.place_id WHERE p.merged_into_place_id IS NOT NULL
-  UNION ALL SELECT COUNT(*) FROM trapper.person_place_relationships ppr
-  JOIN trapper.places p ON p.place_id = ppr.place_id WHERE p.merged_into_place_id IS NOT NULL
+  SELECT COUNT(*) FROM sot.cat_place cpr
+  JOIN sot.places p ON p.place_id = cpr.place_id WHERE p.merged_into_place_id IS NOT NULL
+  UNION ALL SELECT COUNT(*) FROM sot.person_place ppr
+  JOIN sot.places p ON p.place_id = ppr.place_id WHERE p.merged_into_place_id IS NOT NULL
 ) x;
 
 -- 2. Identity graph should have edges
-SELECT COUNT(*) AS identity_edges FROM trapper.identity_edges;
+SELECT COUNT(*) AS identity_edges FROM ops.identity_edges;
 
 -- 3. F-S parameters should be active
-SELECT COUNT(*) AS fs_params FROM trapper.fellegi_sunter_parameters WHERE is_active;
+SELECT COUNT(*) AS fs_params FROM ops.fellegi_sunter_parameters WHERE is_active;
 
 -- 4. F-S thresholds should exist
-SELECT COUNT(*) AS fs_thresholds FROM trapper.fellegi_sunter_thresholds WHERE is_active;
+SELECT COUNT(*) AS fs_thresholds FROM ops.fellegi_sunter_thresholds WHERE is_active;
 ```
 
 ### Final Verification Results (2026-02-08)

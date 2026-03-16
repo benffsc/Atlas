@@ -41,7 +41,7 @@ V1 had `MIG_909__extract_places_from_owner_names.sql` which extracted places fro
 ```sql
 -- V1 Logic (from MIG_909):
 IF v_classification = 'address' THEN
-  SELECT trapper.find_or_create_place_deduped(
+  SELECT sot.find_or_create_place_deduped(
     p_formatted_address := v_stripped_name,  -- "Old Stony Pt Rd"
     p_display_name := NULL,
     p_lat := NULL,
@@ -49,7 +49,7 @@ IF v_classification = 'address' THEN
     p_source_system := 'clinichq'
   ) INTO v_place_id;
 
-  UPDATE trapper.clinic_owner_accounts
+  UPDATE ops.clinic_owner_accounts
   SET linked_place_id = v_place_id
   WHERE account_id = v_account_id;
 END IF;

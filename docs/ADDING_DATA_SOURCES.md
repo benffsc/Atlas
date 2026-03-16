@@ -6,9 +6,9 @@ This guide explains how to integrate a new external data source into Atlas while
 
 Atlas uses a three-layer data model for external data sources:
 
-1. **Raw Layer** (`staged_records`) - Immutable audit trail of all incoming data
+1. **Raw Layer** (`ops.staged_records`) - Immutable audit trail of all incoming data
 2. **Identity Resolution Layer** - Matching via email/phone/microchip using normalized identifiers
-3. **Source of Truth Layer** (`sot_*` tables) - Canonical entities with the best data from all sources
+3. **Source of Truth Layer** (`sot.*` tables) - Canonical entities with the best data from all sources
 
 When adding a new data source, you need to integrate with all three layers.
 
@@ -34,7 +34,7 @@ First, register the new source's confidence levels for identity matching.
 \echo '=============================================='
 
 -- Define how much we trust this source's identifiers for matching
-INSERT INTO trapper.source_identity_confidence (
+INSERT INTO ops.source_identity_confidence (
   source_system,
   email_confidence,    -- How reliable are emails from this source? (0-1)
   phone_confidence,    -- How reliable are phone numbers? (0-1)
@@ -50,7 +50,7 @@ INSERT INTO trapper.source_identity_confidence (
   'medium'             -- Data quality tier
 );
 
-COMMENT ON TABLE trapper.source_identity_confidence IS
+COMMENT ON TABLE ops.source_identity_confidence IS
   'newsource: [Description of the source and why these confidence levels]';
 ```
 
@@ -69,7 +69,7 @@ When the same field exists in multiple sources, define which source "wins":
 -- File: sql/schema/sot/MIG_XXX__add_newsource_survivorship.sql
 
 -- For each field that newsource provides, define priority
-INSERT INTO trapper.survivorship_priority (entity_type, field_name, priority_order)
+INSERT INTO ops.survivorship_priority (entity_type, field_name, priority_order)
 VALUES
   -- For cats, microchip from ClinicHQ is most authoritative
   ('cat', 'microchip', ARRAY['clinichq', 'petlink', 'newsource', 'shelterluv', 'airtable']),
@@ -92,7 +92,7 @@ Each source gets its own extension table to store source-specific fields that do
 \echo '=============================================='
 
 -- Extension table for cats from this source
-CREATE TABLE IF NOT EXISTS trapper.newsource_cat_ext (
+CREATE TABLE IF NOT EXISTS source.newsource_cat_ext (
   -- Primary key from source system
   newsource_id TEXT PRIMARY KEY,
 
@@ -115,12 +115,12 @@ CREATE TABLE IF NOT EXISTS trapper.newsource_cat_ext (
     LOWER(TRIM(owner_email))
   ) STORED,
   phone_norm TEXT GENERATED ALWAYS AS (
-    trapper.norm_phone_us(owner_phone)
+    sot.norm_phone_us(owner_phone)
   ) STORED,
 
   -- Atlas linking (filled by processor)
-  matched_cat_id UUID REFERENCES trapper.sot_cats(cat_id),
-  matched_owner_id UUID REFERENCES trapper.sot_people(person_id),
+  matched_cat_id UUID REFERENCES sot.cats(cat_id),
+  matched_owner_id UUID REFERENCES sot.people(person_id),
   match_confidence NUMERIC,
   match_method TEXT,  -- 'microchip', 'email', 'phone', 'manual', etc.
 
@@ -139,11 +139,11 @@ CREATE TABLE IF NOT EXISTS trapper.newsource_cat_ext (
 );
 
 -- Index for efficient matching
-CREATE INDEX IF NOT EXISTS idx_newsource_cat_microchip ON trapper.newsource_cat_ext(microchip_norm)
+CREATE INDEX IF NOT EXISTS idx_newsource_cat_microchip ON source.newsource_cat_ext(microchip_norm)
   WHERE microchip_norm IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_newsource_cat_email ON trapper.newsource_cat_ext(email_norm)
+CREATE INDEX IF NOT EXISTS idx_newsource_cat_email ON source.newsource_cat_ext(email_norm)
   WHERE email_norm IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_newsource_cat_status ON trapper.newsource_cat_ext(sync_status);
+CREATE INDEX IF NOT EXISTS idx_newsource_cat_status ON source.newsource_cat_ext(sync_status);
 
 -- Create similar extension tables for people, places, appointments as needed
 ```
@@ -155,7 +155,7 @@ Register a processor function that the data engine will call:
 ```sql
 -- File: sql/schema/sot/MIG_XXX__newsource_processor.sql
 
-INSERT INTO trapper.data_engine_processors (
+INSERT INTO ops.data_engine_processors (
   processor_name,
   source_system,
   source_table,
@@ -181,7 +181,7 @@ The processor function handles identity resolution and entity creation:
 ```sql
 -- File: sql/schema/sot/MIG_XXX__newsource_processor_function.sql
 
-CREATE OR REPLACE FUNCTION trapper.process_newsource_cat(p_staged_record_id UUID)
+CREATE OR REPLACE FUNCTION ops.process_newsource_cat(p_staged_record_id UUID)
 RETURNS JSONB AS $$
 DECLARE
   v_record RECORD;
@@ -191,7 +191,7 @@ DECLARE
 BEGIN
   -- Get the staged record
   SELECT * INTO v_record
-  FROM trapper.staged_records
+  FROM ops.staged_records
   WHERE staged_record_id = p_staged_record_id;
 
   IF NOT FOUND THEN
@@ -207,7 +207,7 @@ BEGIN
 
     -- ALWAYS use centralized function - NEVER inline INSERT
     SELECT person_id INTO v_owner_id
-    FROM trapper.find_or_create_person(
+    FROM sot.find_or_create_person(
       p_email := NULLIF(TRIM(v_record.raw_data->>'owner_email'), ''),
       p_phone := NULLIF(TRIM(v_record.raw_data->>'owner_phone'), ''),
       p_first_name := NULLIF(TRIM(v_record.raw_data->>'owner_first_name'), ''),
@@ -220,7 +220,7 @@ BEGIN
   -- 2. Find or create the cat
   -- ALWAYS use centralized function - NEVER inline INSERT
   SELECT cat_id INTO v_cat_id
-  FROM trapper.find_or_create_cat_by_microchip(
+  FROM sot.find_or_create_cat_by_microchip(
     p_microchip := NULLIF(TRIM(v_record.raw_data->>'microchip'), ''),
     p_name := NULLIF(TRIM(v_record.raw_data->>'animal_name'), ''),
     p_sex := NULLIF(TRIM(v_record.raw_data->>'sex'), ''),
@@ -232,7 +232,7 @@ BEGIN
 
   -- 3. Link cat to owner if both exist
   IF v_cat_id IS NOT NULL AND v_owner_id IS NOT NULL THEN
-    INSERT INTO trapper.person_cat_relationships (
+    INSERT INTO sot.person_cat (
       person_id, cat_id, relationship_type, source_system, source_record_id
     ) VALUES (
       v_owner_id, v_cat_id, 'owner', 'newsource', v_record.raw_data->>'newsource_id'
@@ -240,7 +240,7 @@ BEGIN
   END IF;
 
   -- 4. Update extension table with matched IDs
-  UPDATE trapper.newsource_cat_ext
+  UPDATE source.newsource_cat_ext
   SET
     matched_cat_id = v_cat_id,
     matched_owner_id = v_owner_id,
@@ -255,7 +255,7 @@ BEGIN
   WHERE newsource_id = v_record.raw_data->>'newsource_id';
 
   -- 5. Update staged record status
-  UPDATE trapper.staged_records
+  UPDATE ops.staged_records
   SET
     processing_status = 'processed',
     processed_at = NOW(),
@@ -271,7 +271,7 @@ BEGIN
 
 EXCEPTION WHEN OTHERS THEN
   -- Log error and continue
-  UPDATE trapper.staged_records
+  UPDATE ops.staged_records
   SET
     processing_status = 'error',
     error_message = SQLERRM
@@ -431,23 +431,23 @@ Add the new source to Tippy's comprehensive lookup tools:
 -- File: sql/schema/sot/MIG_XXX__update_tippy_lookups.sql
 
 -- Update comprehensive_cat_lookup to include newsource
-CREATE OR REPLACE FUNCTION trapper.comprehensive_cat_lookup(p_cat_id UUID)
+CREATE OR REPLACE FUNCTION sot.comprehensive_cat_lookup(p_cat_id UUID)
 RETURNS JSONB AS $$
 DECLARE
   v_result JSONB;
 BEGIN
   SELECT jsonb_build_object(
     'cat', row_to_json(c),
-    'identifiers', (SELECT jsonb_agg(row_to_json(i)) FROM trapper.cat_identifiers i WHERE i.cat_id = p_cat_id),
-    'appointments', (SELECT jsonb_agg(row_to_json(a)) FROM trapper.sot_appointments a WHERE a.cat_id = p_cat_id),
-    'relationships', (SELECT jsonb_agg(row_to_json(r)) FROM trapper.person_cat_relationships r WHERE r.cat_id = p_cat_id),
-    'places', (SELECT jsonb_agg(row_to_json(p)) FROM trapper.cat_place_relationships p WHERE p.cat_id = p_cat_id),
+    'identifiers', (SELECT jsonb_agg(row_to_json(i)) FROM sot.cat_identifiers i WHERE i.cat_id = p_cat_id),
+    'appointments', (SELECT jsonb_agg(row_to_json(a)) FROM ops.appointments a WHERE a.cat_id = p_cat_id),
+    'relationships', (SELECT jsonb_agg(row_to_json(r)) FROM sot.person_cat r WHERE r.cat_id = p_cat_id),
+    'places', (SELECT jsonb_agg(row_to_json(p)) FROM sot.cat_place p WHERE p.cat_id = p_cat_id),
     -- Add newsource extension data
-    'newsource_data', (SELECT row_to_json(n) FROM trapper.newsource_cat_ext n WHERE n.matched_cat_id = p_cat_id),
+    'newsource_data', (SELECT row_to_json(n) FROM source.newsource_cat_ext n WHERE n.matched_cat_id = p_cat_id),
     -- Add shelterluv extension data
-    'shelterluv_data', (SELECT row_to_json(s) FROM trapper.shelterluv_cat_ext s WHERE s.matched_cat_id = p_cat_id)
+    'shelterluv_data', (SELECT row_to_json(s) FROM source.shelterluv_cat_ext s WHERE s.matched_cat_id = p_cat_id)
   ) INTO v_result
-  FROM trapper.sot_cats c
+  FROM sot.cats c
   WHERE c.cat_id = p_cat_id;
 
   RETURN v_result;
@@ -565,7 +565,7 @@ When adding a new data source, ensure you have:
 
 ## Common Mistakes to Avoid
 
-1. **Direct INSERTs into sot_* tables** - Always use `find_or_create_*` functions
+1. **Direct INSERTs into sot.* tables** - Always use `find_or_create_*` functions
 2. **Custom source_system values** - Use approved values only
 3. **Missing normalized columns** - Always create `*_norm` columns for matching
 4. **Forgetting extension table indexes** - Index all columns used for matching
@@ -579,16 +579,16 @@ When adding a new data source, ensure you have:
 Check that normalized columns are populated:
 ```sql
 SELECT newsource_id, email_norm, phone_norm, microchip_norm
-FROM trapper.newsource_cat_ext
+FROM source.newsource_cat_ext
 WHERE sync_status = 'pending';
 ```
 
 ### Processor Errors
 
-Check staged_records for errors:
+Check ops.staged_records for errors:
 ```sql
 SELECT source_record_id, error_message
-FROM trapper.staged_records
+FROM ops.staged_records
 WHERE source_system = 'newsource'
   AND processing_status = 'error';
 ```

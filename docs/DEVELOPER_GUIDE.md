@@ -68,7 +68,7 @@ The app runs at `http://localhost:3000`
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     LAYER 1: RAW STAGING                        │
-│  trapper.staged_records                                         │
+│  ops.staged_records                                             │
 │  - Immutable audit trail                                        │
 │  - Exact data as received from source                           │
 │  - Keyed by (source_system, source_table, row_hash)             │
@@ -86,7 +86,7 @@ The app runs at `http://localhost:3000`
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │              LAYER 3: SOURCE OF TRUTH (SoT)                     │
-│  sot_people  │  sot_cats  │  places  │  sot_requests            │
+│  sot.people  │  sot.cats  │  places  │  ops.requests             │
 │  - Canonical, deduplicated records                              │
 │  - Full relationship graphs                                      │
 │  - All historical data preserved                                 │
@@ -154,26 +154,26 @@ Atlas/
 
 | Table | Purpose | Primary Key | Identity Match |
 |-------|---------|-------------|----------------|
-| `sot_people` | All people | `person_id` (UUID) | Email, Phone |
-| `sot_cats` | All cats | `cat_id` (UUID) | Microchip |
-| `places` | All locations | `place_id` (UUID) | Address, Coords |
-| `sot_requests` | Service requests | `request_id` (UUID) | Source ID |
+| `sot.people` | All people | `person_id` (UUID) | Email, Phone |
+| `sot.cats` | All cats | `cat_id` (UUID) | Microchip |
+| `sot.places` | All locations | `place_id` (UUID) | Address, Coords |
+| `ops.requests` | Service requests | `request_id` (UUID) | Source ID |
 
 ### Relationship Tables
 
 | Table | Links | Purpose |
 |-------|-------|---------|
-| `person_cat_relationships` | Person ↔ Cat | Ownership, brought_by |
-| `person_place_relationships` | Person ↔ Place | Residence, requester |
-| `cat_place_relationships` | Cat ↔ Place | Residence, trapped_at |
-| `person_identifiers` | Person → Identifiers | Email, phone, external IDs |
-| `cat_identifiers` | Cat → Identifiers | Microchip numbers |
+| `sot.person_cat` | Person ↔ Cat | Ownership, brought_by |
+| `sot.person_place` | Person ↔ Place | Residence, requester |
+| `sot.cat_place` | Cat ↔ Place | Residence, trapped_at |
+| `sot.person_identifiers` | Person → Identifiers | Email, phone, external IDs |
+| `sot.cat_identifiers` | Cat → Identifiers | Microchip numbers |
 
 ### Identity Resolution
 
 ```sql
 -- Find or create a person by email/phone
-SELECT trapper.find_or_create_person(
+SELECT sot.find_or_create_person(
   'email@example.com',  -- email
   '5551234567',         -- phone
   'John',               -- first name
@@ -183,7 +183,7 @@ SELECT trapper.find_or_create_person(
 ) AS person_id;
 
 -- Find or create a cat by microchip
-SELECT trapper.find_or_create_cat_by_microchip(
+SELECT sot.find_or_create_cat_by_microchip(
   '985121012345678',    -- microchip
   'Whiskers',           -- name
   'clinichq'            -- source
@@ -281,7 +281,7 @@ node clinichq_cat_info_xlsx.mjs
 ### Adding New Data Sources
 
 1. Create script in `scripts/ingest/{source}_{table}_sync.mjs`
-2. Stage raw records in `staged_records` table
+2. Stage raw records in `ops.staged_records` table
 3. Use `find_or_create_*` functions for identity resolution
 4. Add relationships to link tables
 5. Update `DATA_INGESTION_RULES.md`
@@ -304,7 +304,7 @@ Admins can add custom questions to the intake form without code changes.
 5. Click "Sync to Airtable" to push to Airtable table
 6. Add the same question to Jotform and map it
 
-**Database Table:** `trapper.intake_custom_fields`
+**Database Table:** `ops.intake_custom_fields`
 
 **Supported Field Types:**
 - `text` - Single line text
@@ -390,9 +390,9 @@ The "Sync to Airtable" button uses the Airtable Metadata API to create fields in
 ### Audit Trail
 
 All changes logged in:
-- `trapper.entity_edits` - Field-level edit history
-- `trapper.data_changes` - Ingest-time changes
-- `trapper.staged_records` - Raw input preservation
+- `ops.entity_edits` - Field-level edit history
+- `ops.data_changes` - Ingest-time changes
+- `ops.staged_records` - Raw input preservation
 
 ---
 
@@ -420,10 +420,10 @@ All changes logged in:
 
 | Function | Purpose |
 |----------|---------|
-| `trapper.find_or_create_person()` | Identity resolution for people |
-| `trapper.find_or_create_cat_by_microchip()` | Identity resolution for cats |
-| `trapper.log_field_edit()` | Audit logging for edits |
-| `trapper.universal_search()` | Cross-entity search |
+| `sot.find_or_create_person()` | Identity resolution for people |
+| `sot.find_or_create_cat_by_microchip()` | Identity resolution for cats |
+| `sot.log_field_edit()` | Audit logging for edits |
+| `sot.search_unified()` | Cross-entity search |
 
 ---
 
@@ -432,7 +432,7 @@ All changes logged in:
 ### Common Issues
 
 **"Person not found" when they should exist**
-- Check `person_identifiers` for their email/phone
+- Check `sot.person_identifiers` for their email/phone
 - Phone might be in blacklist (`identity_phone_blacklist`)
 - Name might be in exclusions (`identity_name_exclusions`)
 
@@ -455,28 +455,83 @@ All changes logged in:
 
 ```sql
 -- Find person by any identifier
-SELECT * FROM trapper.sot_people p
-JOIN trapper.person_identifiers pi ON pi.person_id = p.person_id
+SELECT * FROM sot.people p
+JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
 WHERE pi.id_value_norm LIKE '%5551234%';
 
 -- Check staged records for a source
-SELECT * FROM trapper.staged_records
+SELECT * FROM ops.staged_records
 WHERE source_system = 'airtable'
 ORDER BY created_at DESC
 LIMIT 10;
 
 -- View recent edits
-SELECT * FROM trapper.entity_edits
+SELECT * FROM ops.entity_edits
 ORDER BY created_at DESC
 LIMIT 20;
 
 -- Check for duplicate people
 SELECT display_name, COUNT(*)
-FROM trapper.sot_people
+FROM sot.people
 WHERE merged_into_person_id IS NULL
 GROUP BY display_name
 HAVING COUNT(*) > 1;
 ```
+
+---
+
+## Active Flow Call Graphs
+
+### Flow 1: Phone Intake (POST /api/intake)
+
+```
+INSERT INTO ops.web_intake_submissions
+  → trg_auto_triage_intake → ops.compute_intake_triage()
+  → trg_intake_create_person → sot.find_or_create_person()
+  → trg_intake_link_place → sot.link_intake_submission_to_place()
+  → trg_check_intake_duplicate → ops.check_intake_duplicate()
+  → trg_intake_colony_estimate → INSERT ops.place_colony_estimates
+  → trg_queue_intake_extraction → INSERT ops.extraction_queue
+```
+
+Required POST body: `first_name`, `last_name`, (`email` OR `phone`), `cats_address`
+
+### Flow 2: Intake Queue (GET /api/intake/queue)
+
+Reads from `ops.v_intake_triage_queue` view over `ops.web_intake_submissions`.
+
+### Flow 3: Request Lifecycle (GET/PATCH /api/requests/[id])
+
+- GET: Joins `ops.requests` + `sot.places` + `sot.people` + `ops.v_place_colony_status` + `ops.request_status_history` + `ops.request_trapper_assignments`
+- PATCH triggers:
+  - `trg_log_request_status` → `ops.request_status_history`
+  - `trg_set_resolved_at` → sets `resolved_at` on completion/cancellation
+  - `trg_request_activity` → updates activity timestamps
+  - `trg_assign_colony_context_on_request` → auto-tags place as colony_site
+  - `trg_request_colony_estimate` → creates colony estimate from request data
+
+### Flow 4: Journal (GET/POST /api/journal)
+
+- INSERT into `ops.journal_entries` → `trg_journal_entry_history_log` → `ops.journal_entry_history`
+- Optionally updates `ops.web_intake_submissions` for contact tracking
+
+### Flow 5: Auth (GET /api/auth/me)
+
+Reads `sot.staff` + `sot.staff_sessions`. Session-based authentication.
+
+---
+
+## Common Column Name Gotchas
+
+| What You Expect | What It Actually Is |
+|----------------|-------------------|
+| `sot.people.first_name` | `sot.people.display_name` (single field) |
+| `sot.cats.name` | `sot.cats.display_name` |
+| `sot.cats.source_system` | `sot.cats.data_source` (enum type, cast `::text` in UNIONs) |
+| `ops.requests.formatted_address` | `ops.requests.place_id` → JOIN `sot.places` for address |
+| `ops.processing_jobs.error_message` | `ops.processing_jobs.last_error` |
+| `ops.processing_jobs.attempts` | `ops.processing_jobs.attempt_count` |
+| `sot.person_identifiers.id_value` | `sot.person_identifiers.id_value_raw` (+ `id_value_norm` for normalized) |
 
 ---
 

@@ -7,23 +7,23 @@ In ClinicHQ, "clients" can be:
 2. **Sites/businesses**: "Cal Eggs FFSC", "Chevron Todd Rd"
 3. **Addresses as names**: "323 Anteeo Way Anteeo Way"
 
-These all get imported as `sot_people` which causes confusion:
+These all get imported as `sot.people` which causes confusion:
 - Staff search for "Cal Eggs" expecting a site, find a "person"
 - Duplicate accounts when same site gets different names
 - No way to show "Corrine Hodges lives at Cal Eggs property"
 
 ## Current State
 
-- 40+ "FFSC" entries in sot_people are sites, not people
+- 40+ "FFSC" entries in sot.people are sites, not people
 - Names ending in addresses or business patterns are likely sites
 - No way to link multiple people to the same site
 
 ## Proposed Solution
 
-### 1. Add `entity_type` to sot_people
+### 1. Add `entity_type` to sot.people
 
 ```sql
-ALTER TABLE trapper.sot_people
+ALTER TABLE sot.people
 ADD COLUMN entity_type TEXT DEFAULT 'person'
 CHECK (entity_type IN ('person', 'business', 'site', 'unknown'));
 ```
@@ -33,9 +33,9 @@ This allows marking records as sites vs people without restructuring.
 ### 2. Create site_aliases table
 
 ```sql
-CREATE TABLE trapper.site_aliases (
+CREATE TABLE sot.site_aliases (
     alias_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    place_id UUID REFERENCES trapper.places(place_id),
+    place_id UUID REFERENCES sot.places(place_id),
     alias_name TEXT NOT NULL,
     alias_type TEXT DEFAULT 'name', -- 'name', 'account_name', 'historical'
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -50,7 +50,7 @@ This allows "Cal Eggs" place to have aliases:
 
 ### 3. Link people to sites
 
-The existing `person_place_relationships` already supports this with roles:
+The existing `sot.person_place` already supports this with roles:
 - Corrine Hodges → Cal Eggs Place (role: 'resident')
 - FFSC Contact → Cal Eggs Place (role: 'contact')
 

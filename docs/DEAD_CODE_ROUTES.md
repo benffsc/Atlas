@@ -173,6 +173,6 @@ Some routes can be fixed by updating queries to use existing views:
 
 | Current Query | Fix |
 |---------------|-----|
-| `trapper.potential_person_duplicates` | Use `sot.v_person_dedup_candidates` |
-| `trapper.mv_beacon_clusters` | Use `ops.v_beacon_cluster_summary` |
-| `trapper.mv_place_context_summary` | Use `sot.v_place_context_summary` |
+| `sot.potential_person_duplicates` | Use `sot.v_person_dedup_candidates` |
+| `ops.mv_beacon_clusters` | Use `ops.v_beacon_cluster_summary` |
+| `sot.mv_place_context_summary` | Use `sot.v_place_context_summary` |

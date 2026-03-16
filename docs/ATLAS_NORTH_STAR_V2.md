@@ -10,11 +10,8 @@
 
 **Same repo, same database, different schemas.** No separate repository needed.
 
-- **Feature flag:** `SCHEMA_VERSION=v1` or `v2` in `.env`
-- **Migrations:** V2 starts at `MIG_1000` (existing MIG_001-999 untouched)
-- **Rollback:** Set `SCHEMA_VERSION=v1`, disable dual-write triggers
-
-See `ARCHITECTURE_OVERHAUL_PLAN.md` Part 7b for full details.
+- **V2 is deployed and active.** V1 `trapper` schema retained only for staff auth tables (`trapper.staff`, `trapper.staff_sessions`).
+- **Migrations:** V2 migrations use 4-digit numbering (`MIG_2000+`) in `sql/schema/v2/`.
 
 ---
 
@@ -24,7 +21,7 @@ See `ARCHITECTURE_OVERHAUL_PLAN.md` Part 7b for full details.
 ┌───────────────────────────────────────────────────────────────────────────┐
 │  LAYER 1: SOURCE (schema: source.*)                                       │
 │  Raw ingested data • Append-only • Full provenance • Lowest processing    │
-│  Tables: ingest_batches, clinichq_records, shelterluv_records, etc.       │
+│  Tables: clinichq_raw, shelterluv_raw, volunteerhub_raw, airtable_raw    │
 ├───────────────────────────────────────────────────────────────────────────┤
 │                     ↓ DATA ENGINE (Identity Resolution)                   │
 ├───────────────────────────────────────────────────────────────────────────┤
@@ -38,8 +35,8 @@ See `ARCHITECTURE_OVERHAUL_PLAN.md` Part 7b for full details.
 │  Canonical entities • Single Source of Truth • Stable handles • Deduped   │
 │  Entities: people, cats, places, addresses + relationship tables          │
 ├───────────────────────────────────────────────────────────────────────────┤
-│  LAYER 3b: BEACON (schema: beacon.*)                                      │
-│  Analytics & ecological data • Colony estimates • Observations            │
+│  ANALYTICS: Beacon views live in ops.* (no separate beacon schema)        │
+│  Colony estimates, population models, ecological data                      │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -49,14 +46,11 @@ See `ARCHITECTURE_OVERHAUL_PLAN.md` Part 7b for full details.
 
 | Schema | Purpose | Layer | Examples |
 |--------|---------|-------|----------|
-| `source` | Raw ingested data | 1 | `staged_records`, `clinichq_records` |
-| `ops` | Operational workflows | 2 | `requests`, `clinic_appointments`, `volunteers` |
-| `sot` | Canonical entities | 3 | `people`, `cats`, `places`, `addresses` |
-| `beacon` | Analytics/Beacon | 3b | `colony_estimates`, `mortality_events` |
-| `atlas` | Data Engine functions | Support | `data_engine_*`, `find_or_create_*` |
-| `quarantine` | Failed validation | Support | `failed_records` |
-| `reference` | Config/lookups | Support | `disease_types`, `relationship_types` |
-| `audit` | Audit trails | Support | `entity_edits`, `merge_history` |
+| `source` | Raw ingested data (append-only JSONB) | 1 | `clinichq_raw`, `shelterluv_raw`, `volunteerhub_raw`, `airtable_raw` |
+| `ops` | Operational workflows + views + config | 2 | `requests`, `appointments`, `file_uploads`, `app_config`, `entity_edits` |
+| `sot` | Canonical entities + core functions | 3 | `people`, `cats`, `places`, `addresses`, `person_place`, `cat_place`, `find_or_create_*()` |
+| `ref` | Reference/lookup data | Support | `common_first_names`, `occupation_surnames`, `business_service_words` |
+| `trapper` | V1 compat (staff auth only) | Legacy | `staff`, `staff_sessions` |
 
 ---
 
@@ -194,16 +188,18 @@ Each external system is authoritative for specific data. Query the RIGHT source.
 
 | Entity | Function | Schema |
 |--------|----------|--------|
-| Person | `find_or_create_person(email, phone, first, last, addr, source)` | `atlas` |
-| Place | `find_or_create_place_deduped(address, name, lat, lng, source)` | `atlas` |
-| Cat | `find_or_create_cat_by_microchip(chip, name, sex, breed, ...)` | `atlas` |
-| Request | `find_or_create_request(source, record_id, created_at, ...)` | `atlas` |
-| Cat→Place | `link_cat_to_place(cat_id, place_id, type, evidence, source)` | `atlas` |
-| Person→Cat | `link_person_to_cat(person_id, cat_id, type, evidence, source)` | `atlas` |
+| Person | `find_or_create_person(email, phone, first, last, addr, source)` | `sot` |
+| Place | `find_or_create_place_deduped(address, name, lat, lng, source)` | `sot` |
+| Cat (microchip) | `find_or_create_cat_by_microchip(chip, name, sex, breed, ...)` | `sot` |
+| Cat (no microchip) | `find_or_create_cat_by_clinichq_id(animal_id, name, sex, ...)` | `sot` |
+| Request | `find_or_create_request(source, record_id, created_at, ...)` | `ops` |
+| Cat→Place | `link_cat_to_place(cat_id, place_id, type, evidence, source)` | `sot` |
+| Person→Cat | `link_person_to_cat(person_id, cat_id, type, evidence, source)` | `sot` |
 
-**DO NOT write direct INSERTs to these tables:**
+**DO NOT write direct INSERTs to these tables — use the functions above:**
 - `sot.people`, `sot.cats`, `sot.places`, `sot.addresses`
 - `sot.person_cat`, `sot.cat_place`, `sot.person_place`
+- `ops.requests` (use `ops.find_or_create_request()`)
 
 ---
 
@@ -228,7 +224,7 @@ AND pi.confidence >= 0.5
 
 ### Soft Blacklist
 
-`atlas.soft_blacklist` contains identifiers that should NOT auto-match:
+`sot.soft_blacklist` contains identifiers that should NOT auto-match:
 - Org emails (info@forgottenfelines.com, marinferals@yahoo.com)
 - FFSC phone numbers
 - Known shared household phones
@@ -284,8 +280,8 @@ These workflows MUST continue working during and after migration:
 ```
 User submits form
     → ops.intake_submissions
-    → atlas.find_or_create_person() (if email/phone)
-    → atlas.find_or_create_place_deduped()
+    → sot.find_or_create_person() (if email/phone)
+    → sot.find_or_create_place_deduped()
     → ops.requests
     → ops.request_assignments (when assigned)
 ```
@@ -295,7 +291,7 @@ User submits form
 ```
 CSV upload
     → source.ingest_batches + source.staged_records
-    → atlas.process_clinichq_*()
+    → ops.process_clinichq_*()
     → sot.cats (via find_or_create_cat_by_microchip)
     → sot.places (via find_or_create_place_deduped)
     → ops.clinic_appointments
@@ -305,11 +301,10 @@ CSV upload
 ### 3. Atlas Map
 
 ```
-beacon.v_map_pins
+ops.v_map_atlas_pins
     → sot.places (for location)
     → ops.requests (for request markers)
-    → beacon.observations (for colony data)
-    → beacon.colony_estimates (for population)
+    → Colony data from sot.place_colony_estimates
 ```
 
 ---
@@ -318,15 +313,10 @@ beacon.v_map_pins
 
 Records that fail validation go to quarantine, NOT deleted:
 
-```sql
-quarantine.failed_records:
-  - source_schema, source_table, source_record_id
-  - original_payload (JSONB)
-  - failure_reason, failure_details
-  - classification ('org_as_person', 'address_as_person', etc.)
-  - quarantined_at, reviewed_at, reviewed_by
-  - resolution ('merged', 'corrected', 'kept_as_historical')
-```
+**Note:** A dedicated quarantine schema was planned but not implemented. Failed records are currently handled by:
+- `should_be_person()` → routes non-people to `ops.clinic_accounts`
+- `sot.match_decisions` → logs identity resolution decisions for review
+- `ops.entity_linking_skipped` → tracks entities that couldn't be linked with reasons
 
 **Quarantine Triggers:**
 - `should_be_person()` returns FALSE but has identifier
@@ -355,10 +345,9 @@ COALESCE(NULLIF(payload->>'Owner Phone', ''), payload->>'Owner Cell Phone')
 | **Views** | Read operations, map display, reports |
 
 **All map/display queries should use views:**
-- `beacon.v_map_pins` — Map visualization
-- `sot.v_people_search` — People search
-- `sot.v_cats_search` — Cat search
-- `ops.v_requests_list` — Request list
+- `ops.v_map_atlas_pins` — Map visualization (two-tier pin system)
+- `ops.v_request_list` — Request list with status/priority
+- `ops.v_beacon_summary` — Beacon analytics data
 
 ---
 
@@ -372,6 +361,16 @@ Before any schema migration:
 - [ ] Active workflows tested
 - [ ] Quarantine queue populated (not silently dropped)
 - [ ] Rollback plan documented
+
+---
+
+## Data Zones
+
+| Zone | Tables | Hygiene Rule |
+|------|--------|-------------|
+| **ACTIVE** | `ops.web_intake_submissions`, `ops.requests`, `ops.journal_entries`, `ops.request_trapper_assignments`, `sot.places`, `sot.people`, `sot.cats`, `sot.staff`, `sot.staff_sessions`, `ops.communication_logs` | Do not touch without Safety Gate |
+| **SEMI-ACTIVE** | `ops.place_contexts/*`, `ref.known_organizations`, `ops.extraction_queue/*`, `ops.tippy_*`, `ops.data_engine_*` | Soft-archive only, test before changing |
+| **HISTORICAL** | `ops.staged_records`, `ops.processing_jobs`, `ops.entity_edits`, `ops.place_colony_estimates`, `ops.cat_birth_events`, `ops.cat_mortality_events`, all `ops.v_beacon_*` views | Can clean more aggressively, but `ops.staged_records` is append-only (INV-1) |
 
 ---
 
@@ -394,6 +393,7 @@ Before any schema migration:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.1 | 2026-03-16 | Fix schema refs (atlas→sot/ops), remove non-existent schemas (quarantine/audit/beacon), update views/docs |
 | 2.0 | 2026-02-11 | 3-layer architecture, schema-based organization |
 | 1.0 | 2026-01-25 | Original North Star (7-layer system) |
 
@@ -412,11 +412,9 @@ Before any schema migration:
 | **Volume** | VOL_001-005 (duplicate burst, spike, missing fields) | ALERT |
 | **Quality** | QUAL_001-005 (confidence drift, source conflict) | ALERT |
 
-**Tables:** `atlas.pattern_definitions`, `audit.pattern_alerts`
+**Note:** Pattern detection was planned but not fully implemented as dedicated tables. Edge cases are currently tracked in `docs/DATA_GAP_RISKS.md` and monitored via `ops.check_entity_linking_health()`.
 
-**Run:** After each ingest batch + daily scan of all data
-
-See `DATA_PATTERN_DETECTION.md` for full catalog.
+See `DATA_PATTERN_DETECTION.md` for the planned detection catalog.
 
 ---
 
@@ -428,7 +426,7 @@ See `DATA_PATTERN_DETECTION.md` for full catalog.
 source.* (raw) → [Transformation Registry] → sot.* (clean)
 ```
 
-If you have the source data + soft_blacklist + transformation functions, you can always recreate the cleaned output. See `DATA_CLEANING_REGISTRY.md` for the complete transformation catalog.
+If you have the source data + soft_blacklist + transformation functions, you can always recreate the cleaned output. See `CENTRALIZED_FUNCTIONS.md` for function details and `INGEST_GUIDELINES.md` for the pipeline patterns.
 
 **Key transformation order:**
 1. Normalization (stateless)
@@ -445,11 +443,9 @@ If you have the source data + soft_blacklist + transformation functions, you can
 
 | Document | Purpose |
 |----------|---------|
-| `ARCHITECTURE_OVERHAUL_PLAN.md` | Full migration plan |
-| `DATA_CLEANING_REGISTRY.md` | **Reusable transformation catalog** |
-| `DATA_PATTERN_DETECTION.md` | **Auto-detect edge cases** |
-| `CENTRALIZED_FUNCTIONS.md` | Function signatures |
+| `CENTRALIZED_FUNCTIONS.md` | Function signatures with examples |
+| `CORE_FUNCTIONS.md` | Quick reference for all centralized DB functions |
 | `DATA_GAPS.md` | Active data quality issues |
 | `DATA_GAP_RISKS.md` | Edge cases & unusual scenarios |
-| `V2_CLEANUP_CHECKLIST.md` | **Repo cleanup tasks** |
+| `INGEST_GUIDELINES.md` | Data ingestion rules and templates |
 | `CLAUDE.md` | Development rules (detailed) |

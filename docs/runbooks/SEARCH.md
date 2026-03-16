@@ -10,10 +10,10 @@ The search system has four core functions:
 
 | Function | Purpose |
 |----------|---------|
-| `trapper.search_unified()` | Main search with ranking and match reasons |
-| `trapper.search_suggestions()` | Fast typeahead (top 8 results) |
-| `trapper.search_unified_counts()` | Facet counts by entity type |
-| `trapper.search_deep()` | Search raw/staged data (clinichq_hist_*) |
+| `ops.search_unified()` | Main search with ranking and match reasons |
+| `ops.search_suggestions()` | Fast typeahead (top 8 results) |
+| `ops.search_unified_counts()` | Facet counts by entity type |
+| `ops.search_deep()` | Search raw/staged data (clinichq_hist_*) |
 
 ---
 
@@ -138,32 +138,32 @@ Results are classified by match strength:
 ### Basic Search
 ```sql
 SELECT entity_type, display_name, match_strength, score
-FROM trapper.search_unified('fluffy', NULL, 10, 0)
+FROM ops.search_unified('fluffy', NULL, 10, 0)
 ORDER BY score DESC;
 ```
 
 ### Filter by Type
 ```sql
 SELECT display_name, match_reason, score
-FROM trapper.search_unified('smith', 'person', 25, 0);
+FROM ops.search_unified('smith', 'person', 25, 0);
 ```
 
 ### Typeahead Suggestions
 ```sql
 SELECT entity_type, display_name, subtitle
-FROM trapper.search_suggestions('whi', 8);
+FROM ops.search_suggestions('whi', 8);
 ```
 
 ### Counts by Type
 ```sql
 SELECT entity_type, count, strong_count, medium_count, weak_count
-FROM trapper.search_unified_counts('cat', NULL);
+FROM ops.search_unified_counts('cat', NULL);
 ```
 
 ### Deep Search (Raw Data)
 ```sql
 SELECT source_table, match_field, match_value, score
-FROM trapper.search_deep('tiger', 10);
+FROM ops.search_deep('tiger', 10);
 ```
 
 ### See More Examples
@@ -177,10 +177,10 @@ psql "$DATABASE_URL" -f sql/queries/QRY_034__search_examples.sql
 
 | View | Used By |
 |------|---------|
-| `trapper.v_person_detail` | `/api/people/[id]` (with validity flag) |
-| `trapper.v_place_detail_v2` | `/api/places/[id]` |
-| `trapper.v_person_list_v2` | `/api/people` (listing, filtered) |
-| `trapper.v_place_list` | `/api/places` (listing) |
+| `ops.v_person_detail` | `/api/people/[id]` (with validity flag) |
+| `ops.v_place_detail_v2` | `/api/places/[id]` |
+| `ops.v_person_list_v2` | `/api/people` (listing, filtered) |
+| `ops.v_place_list` | `/api/places` (listing) |
 
 ### People Quality Filtering (ATLAS_023)
 
@@ -192,17 +192,17 @@ The v2 views filter people to only show valid names:
 
 Check if a name is valid:
 ```sql
-SELECT trapper.is_valid_person_name('John Smith');  -- true
-SELECT trapper.is_valid_person_name('John');        -- false (single token)
-SELECT trapper.is_valid_person_name('<img src=...>'); -- false (HTML)
+SELECT sot.is_valid_person_name('John Smith');  -- true
+SELECT sot.is_valid_person_name('John');        -- false (single token)
+SELECT sot.is_valid_person_name('<img src=...>'); -- false (HTML)
 ```
 
 See filtered vs unfiltered counts:
 ```sql
 SELECT
     COUNT(*) AS total,
-    COUNT(*) FILTER (WHERE trapper.is_valid_person_name(display_name)) AS valid
-FROM trapper.sot_people
+    COUNT(*) FILTER (WHERE sot.is_valid_person_name(display_name)) AS valid
+FROM sot.people
 WHERE merged_into_person_id IS NULL;
 ```
 
@@ -219,9 +219,9 @@ WHERE merged_into_person_id IS NULL;
 
 2. Check data exists:
    ```sql
-   SELECT COUNT(*) FROM trapper.sot_cats;
-   SELECT COUNT(*) FROM trapper.sot_people;
-   SELECT COUNT(*) FROM trapper.places;
+   SELECT COUNT(*) FROM sot.cats;
+   SELECT COUNT(*) FROM sot.people;
+   SELECT COUNT(*) FROM sot.places;
    ```
 
 3. Check indexes exist:

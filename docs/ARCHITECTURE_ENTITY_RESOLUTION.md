@@ -40,7 +40,7 @@ Every canonical entity is derived from **observations** (signals) extracted from
 
 ## Entity Types
 
-### People (`sot_people`)
+### People (`sot.people`)
 
 **Canonicalization Strategy:**
 ```
@@ -72,7 +72,7 @@ When Susan Smith submits appointment request with phone 555-1234, then calls in 
 | Fuzzy name ≥0.75 + same last token | MEDIUM | Review queue |
 | Fuzzy name only | LOW | Deep search only |
 
-### Places (`places` + `sot_addresses`)
+### Places (`sot.places` + `sot.addresses`)
 
 **Canonicalization Strategy:**
 ```
@@ -93,14 +93,14 @@ Address → Place (1:1 mapping with type classification)
 **Important Distinction:**
 | Concept | Definition | Example |
 |---------|------------|---------|
-| **Address** (`sot_addresses`) | A geocoded physical location | "123 Main St, Unit 4, Austin TX" |
-| **Place** (`places`) | A meaningful location with type | "The Smith Residence" or "PetSmart #1234" |
+| **Address** (`sot.addresses`) | A geocoded physical location | "123 Main St, Unit 4, Austin TX" |
+| **Place** (`sot.places`) | A meaningful location with type | "The Smith Residence" or "PetSmart #1234" |
 
 **Place Significance:**
 - **Primary Places**: Businesses, colonies, shelters, clinics - places you would call or visit intentionally
 - **Incidental Places**: Residential addresses from form submissions - auto-generated when geocoding
 
-### Cats (`sot_cats`)
+### Cats (`sot.cats`)
 
 **Canonicalization Strategy:**
 ```
@@ -197,9 +197,9 @@ INSERT INTO entity_match_config VALUES
 ┌─────────────────────────────────────────────────────────────────┐
 │                    RELATIONSHIP LAYER                           │
 ├─────────────────────────────────────────────────────────────────┤
-│  person_cat_relationships  (owner, fosterer, adopter, etc.)    │
-│  person_place_relationships (resident, works_at, manages)      │
-│  cat_place_relationships (seen_at, trapped_at, colony_member)  │
+│  sot.person_cat  (owner, fosterer, adopter, etc.)              │
+│  sot.person_place (resident, works_at, manages)                │
+│  sot.cat_place (seen_at, trapped_at, colony_member)            │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -282,13 +282,13 @@ This flow ensures **data is clean at entry** rather than requiring post-hoc clea
 
 | Table | Purpose | Canonical Key |
 |-------|---------|---------------|
-| `sot_people` | Canonical people | UUID (phone/email for dedupe) |
-| `person_identifiers` | Strong identifiers | UNIQUE(type, normalized_value) |
+| `sot.people` | Canonical people | UUID (phone/email for dedupe) |
+| `sot.person_identifiers` | Strong identifiers | UNIQUE(type, normalized_value) |
 | `person_aliases` | Name variations | Links to person |
-| `sot_addresses` | Geocoded addresses | google_place_id + unit |
-| `places` | Meaningful locations | 1:1 with sot_address |
-| `sot_cats` | Canonical cats | UUID (microchip for dedupe) |
-| `cat_identifiers` | Cat identifiers | UNIQUE(type, value) |
+| `sot.addresses` | Geocoded addresses | google_place_id + unit |
+| `sot.places` | Meaningful locations | 1:1 with sot.addresses |
+| `sot.cats` | Canonical cats | UUID (microchip for dedupe) |
+| `sot.cat_identifiers` | Cat identifiers | UNIQUE(type, value) |
 | `source_canonical_config` | Source enablement | Per source_system/table |
 
 ---

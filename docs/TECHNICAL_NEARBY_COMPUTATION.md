@@ -24,7 +24,7 @@ Both are computed **on-the-fly** per request, not pre-cached.
 **Location:** `sql/schema/sot/MIG_188__request_map_preview.sql` (lines 48-89)
 
 ```sql
-CREATE OR REPLACE FUNCTION trapper.nearby_requests(
+CREATE OR REPLACE FUNCTION sot.nearby_requests(
     p_latitude DECIMAL,
     p_longitude DECIMAL,
     p_radius_degrees DECIMAL DEFAULT 0.07,  -- ~5 miles
@@ -61,7 +61,7 @@ SELECT
         ELSE 'large'
     END as marker_size,
     SQRT(POWER(r.latitude - p_latitude, 2) + POWER(r.longitude - p_longitude, 2)) as distance_approx
-FROM trapper.sot_requests r
+FROM ops.requests r
 WHERE r.latitude IS NOT NULL
     AND r.longitude IS NOT NULL
     -- Bounding box filter (fast index scan)
@@ -124,7 +124,7 @@ SELECT
         p.location::geography,
         ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
     )::INT as distance_meters
-FROM trapper.places p
+FROM sot.places p
 WHERE p.location IS NOT NULL
     AND ST_DWithin(
         p.location::geography,
@@ -212,27 +212,27 @@ If performance becomes an issue at scale:
 CREATE MATERIALIZED VIEW v_request_nearby_counts AS
 SELECT
     r.request_id,
-    (SELECT COUNT(*) FROM trapper.nearby_requests(r.latitude, r.longitude, 0.07, r.request_id)) as nearby_count
-FROM trapper.sot_requests r
+    (SELECT COUNT(*) FROM sot.nearby_requests(r.latitude, r.longitude, 0.07, r.request_id)) as nearby_count
+FROM ops.requests r
 WHERE r.latitude IS NOT NULL;
 ```
 
 2. **Geohashing** - Add geohash column for faster grouping
 ```sql
-ALTER TABLE sot_requests ADD COLUMN geohash TEXT
+ALTER TABLE ops.requests ADD COLUMN geohash TEXT
     GENERATED ALWAYS AS (ST_GeoHash(ST_SetSRID(ST_MakePoint(longitude, latitude), 4326), 6)) STORED;
-CREATE INDEX idx_requests_geohash ON sot_requests(geohash);
+CREATE INDEX idx_requests_geohash ON ops.requests(geohash);
 ```
 
 3. **PostGIS for Both** - Migrate to full PostGIS for consistency
 ```sql
 -- Add geography column
-ALTER TABLE sot_requests ADD COLUMN location GEOGRAPHY(POINT, 4326);
-UPDATE sot_requests SET location = ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography;
-CREATE INDEX idx_requests_location ON sot_requests USING GIST(location);
+ALTER TABLE ops.requests ADD COLUMN location GEOGRAPHY(POINT, 4326);
+UPDATE ops.requests SET location = ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography;
+CREATE INDEX idx_requests_location ON ops.requests USING GIST(location);
 
 -- Use ST_DWithin with meters
-SELECT * FROM sot_requests
+SELECT * FROM ops.requests
 WHERE ST_DWithin(location, ST_MakePoint(-122.8, 38.4)::geography, 8000);  -- 8km
 ```
 
@@ -240,7 +240,7 @@ WHERE ST_DWithin(location, ST_MakePoint(-122.8, 38.4)::geography, 8000);  -- 8km
 
 ## 5. Database Schema Reference
 
-### sot_requests (relevant columns)
+### ops.requests (relevant columns)
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -276,7 +276,7 @@ WHERE ST_DWithin(location, ST_MakePoint(-122.8, 38.4)::geography, 8000);  -- 8km
 
 To change the nearby radius, modify:
 
-1. **SQL Function** - `trapper.nearby_requests()` default parameter
+1. **SQL Function** - `sot.nearby_requests()` default parameter
 2. **API Calls** - Where `nearby_requests(lat, lng, 0.07, id)` is called
 3. **View** - `v_requests_with_map` line 121
 

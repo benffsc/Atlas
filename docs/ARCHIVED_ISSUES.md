@@ -55,7 +55,7 @@
 ### FFS-32: ATLAS_012-013: Canonical cats and place linking
 - **Labels:** Entity Linking, Data Quality, Feature
 - **Commits:** `d17ec47`, `3aa8d1d`
-- **Summary:** Created `sot.cats` with microchip-based dedup, `cat_place_relationships`, and cat-to-owner linking via appointments.
+- **Summary:** Created `sot.cats` with microchip-based dedup, `sot.cat_place`, and cat-to-owner linking via appointments.
 
 ### FFS-33: ATLAS_014-015: Address pipeline and place taxonomy
 - **Labels:** Map, Data Quality, Feature

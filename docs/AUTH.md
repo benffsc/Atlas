@@ -276,7 +276,7 @@ function MyComponent() {
 ### Change Auth Roles
 - Direct database update (no UI yet):
 ```sql
-UPDATE trapper.staff
+UPDATE sot.staff
 SET auth_role = 'admin'
 WHERE email = 'someone@forgottenfelines.com';
 ```
@@ -305,7 +305,7 @@ psql $DATABASE_URL -f sql/schema/sot/MIG_453__auth_enforcement.sql
 
 ### "Password not set"
 - Admin needs to set default passwords via `/admin/auth`
-- Or direct SQL: `SELECT * FROM trapper.set_default_passwords('password')`
+- Or direct SQL: `SELECT * FROM sot.set_default_passwords('password')`
 
 ### Sessions not working
 - Ensure `staff_sessions` table exists (run MIG_400)

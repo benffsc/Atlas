@@ -60,7 +60,7 @@ The markercluster CJS/ESM bug (`n.markerClusterGroup is not a function`) exposed
 
 The `search_unified` function was completely broken at the database level - `RETURNS TABLE` declared `score NUMERIC` but the function returned an integer from a CASE expression. This was a latent bug from MIG_792 that was never caught because the search was only used from the map (which filtered results client-side). The fix was a simple cast: `rr.score::NUMERIC`.
 
-**Recommendation:** Add a CI-level check that runs `SELECT * FROM trapper.search_unified('test', 5)` after migration application to catch return-type mismatches.
+**Recommendation:** Add a CI-level check that runs `SELECT * FROM sot.search_unified('test', 5)` after migration application to catch return-type mismatches.
 
 ---
 
@@ -285,7 +285,7 @@ Dense grid with stats, request list, intake list, quick actions, and my-items wi
 
 ### Core Concept: Profiles as Bridges
 
-The fundamental insight is that Atlas has siloed SoT tables (`sot_people`, `places`, `sot_cats`, `sot_requests`) but users should experience them as **interconnected profiles**. The UI masks the relational complexity into what feels like a unified record.
+The fundamental insight is that Atlas has siloed SoT tables (`sot.people`, `sot.places`, `sot.cats`, `ops.requests`) but users should experience them as **interconnected profiles**. The UI masks the relational complexity into what feels like a unified record.
 
 ```
 People ←→ Places ←→ Cats
@@ -378,16 +378,16 @@ ASSOCIATED ADDRESSES (historical)
 
 **Key UX details:**
 
-1. **Current Address** is the `primary_address` from `person_place_relationships`. Clicking the address navigates to that place's profile.
+1. **Current Address** is the `primary_address` from `sot.person_place`. Clicking the address navigates to that place's profile.
 
 2. **"Change" address** opens an address autocomplete. Under the hood, this:
    - Calls `find_or_create_place_deduped()` for the new address
-   - Updates `person_place_relationships` to set the new primary
+   - Updates `sot.person_place` to set the new primary
    - Old address becomes "historical" in Associated Addresses
    - The person record itself is NOT modified (places are separate entities)
    - This is a **relink**, not an edit. See [Address Management UX](#10-address-management-ux).
 
-3. **Associated Addresses** shows all places this person is linked to (via `person_place_relationships`), with their role (requester, owner, resident) and a link to the place profile.
+3. **Associated Addresses** shows all places this person is linked to (via `sot.person_place`), with their role (requester, owner, resident) and a link to the place profile.
 
 4. **Legacy records without address** - display "No address on file" with an "Add address" button. No error state. Legacy/ingested records are expected to lack addresses.
 
@@ -589,7 +589,7 @@ ORGANIZATION INFO
 └──────────────────────────────────────────────┘
 ```
 
-This emerges naturally from the place_contexts system (context_type = 'partner_org') and person_place_relationships. No new tables needed.
+This emerges naturally from the place_contexts system (context_type = 'partner_org') and sot.person_place. No new tables needed.
 
 ---
 
@@ -747,7 +747,7 @@ REQUEST PHOTOS
 When a user "changes" someone's address, the UI should feel like an inline edit, but the system actually:
 
 1. Resolves the new address to a place via `find_or_create_place_deduped()`
-2. Updates `person_place_relationships` to point to the new place
+2. Updates `sot.person_place` to point to the new place
 3. Sets the old relationship as `ended_at = NOW()`
 4. Preserves the old place as a historical association
 
@@ -766,8 +766,8 @@ User clicks [Change ✎] next to address
   → Confirmation: "Move John Smith from 123 Main St to 456 Oak Ave?"
   → [Confirm] → API call:
     1. find_or_create_place_deduped('456 Oak Ave...')
-    2. UPDATE person_place_relationships SET ended_at = NOW() WHERE person_id = X AND is_primary
-    3. INSERT person_place_relationships (person_id, place_id, role, is_primary, source_system='atlas_ui')
+    2. UPDATE sot.person_place SET ended_at = NOW() WHERE person_id = X AND is_primary
+    3. INSERT sot.person_place (person_id, place_id, role, is_primary, source_system='atlas_ui')
   → UI updates instantly
   → Old address appears in "Associated Addresses" section
 ```
@@ -813,10 +813,10 @@ Every address in Atlas should have come from an interaction (intake form, clinic
 ```sql
 -- View: v_orphan_places
 SELECT p.place_id, p.formatted_address, p.place_kind, p.created_at, p.source_system
-FROM trapper.places p
-LEFT JOIN trapper.person_place_relationships ppr ON ppr.place_id = p.place_id
-LEFT JOIN trapper.cat_place_relationships cpr ON cpr.place_id = p.place_id
-LEFT JOIN trapper.sot_requests r ON r.place_id = p.place_id
+FROM sot.places p
+LEFT JOIN sot.person_place ppr ON ppr.place_id = p.place_id
+LEFT JOIN sot.cat_place cpr ON cpr.place_id = p.place_id
+LEFT JOIN ops.requests r ON r.place_id = p.place_id
 WHERE p.merged_into_place_id IS NULL
   AND ppr.place_id IS NULL
   AND cpr.place_id IS NULL
@@ -833,7 +833,7 @@ These orphan places should appear in an admin review queue. Staff can:
 If a place can't be safely classified from its attached records (e.g., "Elsie Allen High School" booked as a ClinicHQ address), add it to the AI extraction queue:
 
 ```sql
-INSERT INTO trapper.extraction_queue (entity_type, entity_id, extraction_type, priority, context)
+INSERT INTO ops.extraction_queue (entity_type, entity_id, extraction_type, priority, context)
 VALUES ('place', place_id, 'classify_place_type', 5,
   jsonb_build_object('address', address, 'linked_records', record_summary));
 ```
@@ -1170,7 +1170,7 @@ All entity profile pages use `ProfileLayout` with tabbed navigation:
 - New: `admin/duplicate-places/page.tsx`
 - New: `admin/orphan-places/page.tsx`
 
-**Risk:** Medium-High - place merges affect person_place_relationships, cat_place_relationships, sot_requests. Must use surgical merge procedure with backup + entity_edits audit trail.
+**Risk:** Medium-High - place merges affect sot.person_place, sot.cat_place, ops.requests. Must use surgical merge procedure with backup + entity_edits audit trail.
 
 **See:** `TASK_LEDGER.md` DH_E category for full task cards.
 

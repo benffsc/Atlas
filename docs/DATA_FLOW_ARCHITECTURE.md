@@ -13,7 +13,7 @@ This document describes how data flows through Atlas from external sources to Be
        ↓        ↓          ↓            ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │  STAGING LAYER                                                  │
-│  staged_records (immutable staging with row_hash deduplication) │
+│  ops.staged_records (immutable staging, row_hash deduplication) │
 └──────────────────────────┬──────────────────────────────────────┘
                            │
                            ↓
@@ -28,7 +28,7 @@ This document describes how data flows through Atlas from external sources to Be
          ↓                 ↓                 ↓
     ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌────────────┐
     │ PEOPLE  │      │  CATS   │      │ PLACES  │      │APPOINTMENTS│
-    │sot_people│     │sot_cats │      │ places  │      │sot_appts   │
+    │sot.people│     │sot.cats │      │sot.place│      │ops.appts   │
     └────┬────┘      └────┬────┘      └────┬────┘      └─────┬──────┘
          │                │                │                  │
          └────────────────┴────────────────┴──────────────────┘
@@ -37,7 +37,7 @@ This document describes how data flows through Atlas from external sources to Be
          ↓                 ↓                 ↓
     ┌─────────┐      ┌─────────┐      ┌────────────┐
     │REQUESTS │      │ INTAKE  │      │CAT HISTORY │
-    │sot_reqs │      │web_intake│     │cat_place_* │
+    │ops.reqs │      │web_intake│     │cat_place_* │
     └────┬────┘      └────┬────┘      └─────┬──────┘
          │                │                  │
          └────────────────┴──────────────────┘
@@ -129,11 +129,11 @@ This document describes how data flows through Atlas from external sources to Be
 
 ## Layer 2: Staging
 
-All external data flows through the `staged_records` table before processing.
+All external data flows through the `ops.staged_records` table before processing.
 
 ```sql
 -- Staging table structure
-trapper.staged_records (
+ops.staged_records (
   record_id       UUID,
   source_system   TEXT,      -- 'clinichq', 'airtable', 'shelterluv', etc.
   source_table    TEXT,      -- specific table/entity type
@@ -183,16 +183,16 @@ When creating/matching people, the Data Engine scores candidates using:
 
 ```sql
 -- Person creation (goes through Data Engine)
-trapper.find_or_create_person(email, phone, first, last, addr, source)
+sot.find_or_create_person(email, phone, first, last, addr, source)
 
 -- Place creation (with deduplication)
-trapper.find_or_create_place_deduped(address, name, lat, lng, source)
+sot.find_or_create_place_deduped(address, name, lat, lng, source)
 
 -- Cat creation (microchip-based)
-trapper.find_or_create_cat_by_microchip(chip, name, sex, breed, ...)
+sot.find_or_create_cat_by_microchip(chip, name, sex, breed, ...)
 
 -- Request creation (with attribution windows)
-trapper.find_or_create_request(source, record_id, source_created_at, ...)
+ops.find_or_create_request(source, record_id, source_created_at, ...)
 ```
 
 See [CENTRALIZED_FUNCTIONS.md](./CENTRALIZED_FUNCTIONS.md) for detailed documentation.
@@ -201,7 +201,7 @@ See [CENTRALIZED_FUNCTIONS.md](./CENTRALIZED_FUNCTIONS.md) for detailed document
 
 ## Layer 4: Source of Truth (SOT) Tables
 
-### sot_people
+### sot.people
 All people who have interacted with FFSC.
 
 **Key Fields:**
@@ -212,11 +212,11 @@ All people who have interacted with FFSC.
 - `merged_into_person_id` - For merged duplicates
 
 **Related Tables:**
-- `person_identifiers` - Email/phone for identity matching
-- `person_roles` - trapper, volunteer, staff, etc.
-- `person_place_relationships` - Links to addresses
+- `sot.person_identifiers` - Email/phone for identity matching
+- `sot.person_roles` - trapper, volunteer, staff, etc.
+- `sot.person_place` - Links to addresses
 
-### sot_cats
+### sot.cats
 All cats with microchips seen at FFSC clinic.
 
 **Key Fields:**
@@ -226,11 +226,11 @@ All cats with microchips seen at FFSC clinic.
 - `merged_into_cat_id` - For merged duplicates
 
 **Related Tables:**
-- `cat_identifiers` - Microchip numbers
-- `cat_place_relationships` - Links to locations
+- `sot.cat_identifiers` - Microchip numbers
+- `sot.cat_place` - Links to locations
 - `cat_procedures` - Medical procedures
 
-### places
+### sot.places
 All physical locations in the system.
 
 **Key Fields:**
@@ -244,7 +244,7 @@ All physical locations in the system.
 - `place_contexts` - Context tags (colony_site, foster_home, etc.)
 - `place_colony_estimates` - Population estimates
 
-### sot_appointments
+### ops.appointments
 Clinic appointments (ground truth from ClinicHQ).
 
 **Key Fields:**
@@ -258,15 +258,15 @@ Clinic appointments (ground truth from ClinicHQ).
 
 ## Layer 5: Derived/Operational Tables
 
-### sot_requests
+### ops.requests
 Service requests derived from People + Places.
 
 **Creation Flows:**
-1. **Native UI Creation:** `/api/requests` POST → `raw_intake_request` → `promote_intake_request()` → `find_or_create_person()` + `find_or_create_place_deduped()` → `sot_requests`
+1. **Native UI Creation:** `/api/requests` POST → `raw_intake_request` → `promote_intake_request()` → `find_or_create_person()` + `find_or_create_place_deduped()` → `ops.requests`
 
 2. **Intake Conversion:** `/api/intake/convert` POST → `convert_intake_to_request()` → Same flow as above
 
-3. **Airtable Sync:** `airtable_*_sync.mjs` → `staged_records` → `find_or_create_request()` → `sot_requests`
+3. **Airtable Sync:** `airtable_*_sync.mjs` → `ops.staged_records` → `find_or_create_request()` → `ops.requests`
 
 **Key Fields:**
 - `request_id` - UUID primary key
@@ -275,12 +275,12 @@ Service requests derived from People + Places.
 - `status` - new, triaged, scheduled, completed, etc.
 - `source_created_at` - For attribution windows
 
-### web_intake_submissions
+### ops.web_intake_submissions
 Raw web form submissions before conversion to requests.
 
 **Flow:**
 ```
-Public Form → web_intake_submissions → (triage) → convert_intake_to_request() → sot_requests
+Public Form → ops.web_intake_submissions → (triage) → convert_intake_to_request() → ops.requests
 ```
 
 ---
@@ -348,7 +348,7 @@ place_colony_estimates (
 All data processing uses a centralized job queue:
 
 ```sql
-trapper.processing_jobs (
+ops.processing_jobs (
   job_id          UUID,
   source_system   TEXT,
   source_table    TEXT,
@@ -364,7 +364,7 @@ trapper.processing_jobs (
 ### Processing Flow
 
 ```
-1. CLI/API stages data → staged_records
+1. CLI/API stages data → ops.staged_records
 2. enqueue_processing() → processing_jobs
 3. process_next_job() claims job (FOR UPDATE SKIP LOCKED)
 4. Routes to appropriate processor:
@@ -382,13 +382,13 @@ trapper.processing_jobs (
 
 ```sql
 -- Check processing status
-SELECT * FROM trapper.v_processing_dashboard;
+SELECT * FROM ops.v_processing_dashboard;
 
 -- Queue a backfill job
-SELECT trapper.enqueue_processing('clinichq', 'owner_info', 'backfill', NULL, 10);
+SELECT ops.enqueue_processing('clinichq', 'owner_info', 'backfill', NULL, 10);
 
 -- Process next job
-SELECT * FROM trapper.process_next_job(500);
+SELECT * FROM ops.process_next_job(500);
 ```
 
 ---
@@ -405,7 +405,7 @@ flowchart TD
     end
 
     subgraph Staging["Staging Layer"]
-        SR[(staged_records)]
+        SR[(ops.staged_records)]
     end
 
     subgraph DataEngine["Data Engine"]
@@ -413,14 +413,14 @@ flowchart TD
     end
 
     subgraph SOT["Source of Truth"]
-        People[(sot_people)]
-        Cats[(sot_cats)]
-        Places[(places)]
-        Appts[(sot_appointments)]
+        People[(sot.people)]
+        Cats[(sot.cats)]
+        Places[(sot.places)]
+        Appts[(ops.appointments)]
     end
 
     subgraph Derived["Derived/Operational"]
-        Requests[(sot_requests)]
+        Requests[(ops.requests)]
         Intake[(web_intake)]
     end
 
@@ -468,8 +468,8 @@ All entity creation must go through centralized functions:
 - `find_or_create_request()`
 
 ### 4. Audit Everything
-- `staged_records` preserves raw data
-- `entity_edits` logs changes
+- `ops.staged_records` preserves raw data
+- `ops.entity_edits` logs changes
 - `data_engine_match_decisions` records identity decisions
 - `intake_audit_log` tracks request promotions
 

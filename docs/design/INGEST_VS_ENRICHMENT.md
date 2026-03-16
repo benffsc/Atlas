@@ -30,7 +30,7 @@ These are Atlas-only additions that don't exist in source:
 
 ```sql
 -- When re-ingesting, use UPSERT that preserves enrichments:
-INSERT INTO sot_people (person_id, display_name, data_source, ...)
+INSERT INTO sot.people (person_id, display_name, data_source, ...)
 VALUES (...)
 ON CONFLICT (person_id) DO UPDATE SET
     display_name = EXCLUDED.display_name,  -- Source field: overwrite
@@ -55,21 +55,21 @@ When ClinicHQ renames "Cal Eggs FFSC" to "Cal Eggs Farm":
 ### 3. Column Classification Table
 
 ```sql
-CREATE TABLE IF NOT EXISTS trapper.field_classifications (
+CREATE TABLE IF NOT EXISTS ops.field_classifications (
     table_name TEXT,
     column_name TEXT,
     classification TEXT CHECK (classification IN ('source', 'enrichment', 'computed')),
     PRIMARY KEY (table_name, column_name)
 );
 
-INSERT INTO trapper.field_classifications VALUES
-    ('sot_people', 'display_name', 'source'),
-    ('sot_people', 'data_source', 'source'),
-    ('sot_people', 'entity_type', 'enrichment'),
-    ('sot_people', 'verified_at', 'enrichment'),
-    ('sot_cats', 'display_name', 'source'),
-    ('sot_cats', 'sex', 'source'),
-    ('sot_cats', 'quality_tier', 'enrichment'),
+INSERT INTO ops.field_classifications VALUES
+    ('sot.people', 'display_name', 'source'),
+    ('sot.people', 'data_source', 'source'),
+    ('sot.people', 'entity_type', 'enrichment'),
+    ('sot.people', 'verified_at', 'enrichment'),
+    ('sot.cats', 'display_name', 'source'),
+    ('sot.cats', 'sex', 'source'),
+    ('sot.cats', 'quality_tier', 'enrichment'),
     -- etc.
 ;
 ```

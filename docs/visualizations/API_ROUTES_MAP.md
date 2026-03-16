@@ -68,7 +68,7 @@ graph LR
 | `/api/cats/[id]/media` | GET | `src/app/api/cats/[id]/media/route.ts` | `sot.cat_media` | - |
 | `/api/cats/[id]/birth` | GET/POST | `src/app/api/cats/[id]/birth/route.ts` | `sot.cat_birth_records` | - |
 | `/api/cats/[id]/mortality` | GET/POST | `src/app/api/cats/[id]/mortality/route.ts` | `sot.cat_mortality_records` | - |
-| `/api/cats/[id]/movements` | GET | `src/app/api/cats/[id]/movements/route.ts` | `sot.cat_place_relationships` | - |
+| `/api/cats/[id]/movements` | GET | `src/app/api/cats/[id]/movements/route.ts` | `sot.cat_place` | - |
 | `/api/cats/[id]/reunification` | GET | `src/app/api/cats/[id]/reunification/route.ts` | `sot.cat_reunification_records` | - |
 
 ### People `/api/people`
@@ -102,8 +102,8 @@ graph LR
 | `/api/people/[id]` | GET | `src/app/api/people/[id]/route.ts` | `sot.v_person_detail` | `VPersonDetailRow` |
 | `/api/people/[id]` | PATCH | `src/app/api/people/[id]/route.ts` | `sot.people` | - |
 | `/api/people/[id]/summary` | GET | `src/app/api/people/[id]/summary/route.ts` | Multiple tables | - |
-| `/api/people/[id]/cats` | GET | `src/app/api/people/[id]/cats/route.ts` | `sot.person_cat_relationships` | - |
-| `/api/people/[id]/places` | GET | `src/app/api/people/[id]/places/route.ts` | `sot.person_place_relationships` | - |
+| `/api/people/[id]/cats` | GET | `src/app/api/people/[id]/cats/route.ts` | `sot.person_cat` | - |
+| `/api/people/[id]/places` | GET | `src/app/api/people/[id]/places/route.ts` | `sot.person_place` | - |
 | `/api/people/[id]/roles` | GET/POST | `src/app/api/people/[id]/roles/route.ts` | `ops.person_roles` | - |
 | `/api/people/[id]/trapper-stats` | GET | `src/app/api/people/[id]/trapper-stats/route.ts` | `ops.appointments` | `ops.person_had_role_on_date()` |
 | `/api/people/[id]/trapper-cats` | GET | `src/app/api/people/[id]/trapper-cats/route.ts` | `ops.appointments` | - |
@@ -140,7 +140,7 @@ graph LR
 | `/api/places/[id]` | GET | `src/app/api/places/[id]/route.ts` | `sot.v_place_detail_v2` | - |
 | `/api/places/[id]` | PATCH | `src/app/api/places/[id]/route.ts` | `sot.places` | - |
 | `/api/places/[id]/summary` | GET | `src/app/api/places/[id]/summary/route.ts` | Multiple | - |
-| `/api/places/[id]/people` | GET | `src/app/api/places/[id]/people/route.ts` | `sot.person_place_relationships` | - |
+| `/api/places/[id]/people` | GET | `src/app/api/places/[id]/people/route.ts` | `sot.person_place` | - |
 | `/api/places/[id]/disease-status` | GET | `src/app/api/places/[id]/disease-status/route.ts` | `ops.v_place_disease_status` | `should_compute_disease_for_place()` |
 | `/api/places/[id]/colony-estimates` | GET | `src/app/api/places/[id]/colony-estimates/route.ts` | `ops.colony_estimates` | - |
 | `/api/places/[id]/edges` | GET | `src/app/api/places/[id]/edges/route.ts` | `sot.place_edges` | `get_place_family()` |
@@ -176,16 +176,16 @@ graph LR
 |-------|--------|------|------------|---------------|
 | `/api/requests` | GET | `src/app/api/requests/route.ts` | `ops.v_request_list` | `VRequestListRow` |
 | `/api/requests/[id]` | GET | `src/app/api/requests/[id]/route.ts` | `ops.v_request_detail` | `VRequestDetailRow` |
-| `/api/requests/[id]` | PATCH | `src/app/api/requests/[id]/route.ts` | `sot.requests` | - |
+| `/api/requests/[id]` | PATCH | `src/app/api/requests/[id]/route.ts` | `ops.requests` | - |
 | `/api/requests/[id]/cats` | GET | `src/app/api/requests/[id]/cats/route.ts` | `ops.request_cat_attributions` | - |
 | `/api/requests/[id]/trappers` | GET/POST | `src/app/api/requests/[id]/trappers/route.ts` | `ops.request_trapper_assignments` | - |
-| `/api/requests/[id]/archive` | POST | `src/app/api/requests/[id]/archive/route.ts` | `sot.requests` | - |
+| `/api/requests/[id]/archive` | POST | `src/app/api/requests/[id]/archive/route.ts` | `ops.requests` | - |
 | `/api/requests/[id]/nearby` | GET | `src/app/api/requests/[id]/nearby/route.ts` | `sot.places` | `get_place_family()` |
 | `/api/requests/[id]/alteration-stats` | GET | `src/app/api/requests/[id]/alteration-stats/route.ts` | `ops.v_request_alteration_stats` | - |
 | `/api/requests/[id]/handoff` | POST | `src/app/api/requests/[id]/handoff/route.ts` | `ops.request_trapper_assignments` | - |
 | `/api/requests/check-duplicates` | GET | `src/app/api/requests/check-duplicates/route.ts` | `ops.v_request_duplicates` | - |
 | `/api/requests/counts` | GET | `src/app/api/requests/counts/route.ts` | `ops.v_request_counts` | - |
-| `/api/requests/search` | GET | `src/app/api/requests/search/route.ts` | `sot.requests` | - |
+| `/api/requests/search` | GET | `src/app/api/requests/search/route.ts` | `ops.requests` | - |
 | `/api/requests/legacy` | GET | `src/app/api/requests/legacy/route.ts` | `source.airtable_requests` | - |
 
 ### Appointments `/api/appointments`
@@ -289,7 +289,7 @@ graph LR
     SearchFn --> Cats[sot.cats]
     SearchFn --> People[sot.people]
     SearchFn --> Places[sot.places]
-    SearchFn --> Requests[sot.requests]
+    SearchFn --> Requests[ops.requests]
 ```
 
 **Query Parameters:**

@@ -35,12 +35,12 @@ graph TB
         CATS[sot.cats<br/>Canonical cats]
         PEOPLE[sot.people<br/>Canonical people]
         PLACES[sot.places<br/>Canonical places]
-        REQUESTS[sot.requests<br/>TNR requests]
+        REQUESTS[ops.requests<br/>TNR requests]
         ADDRESSES[sot.addresses<br/>Normalized addresses]
         IDENTIFIERS[sot.person_identifiers<br/>Email/phone]
-        CAT_PLACE[sot.cat_place_relationships<br/>Where cats live]
-        PERSON_PLACE[sot.person_place_relationships<br/>Where people live]
-        PERSON_CAT[sot.person_cat_relationships<br/>Cat ownership]
+        CAT_PLACE[sot.cat_place<br/>Where cats live]
+        PERSON_PLACE[sot.person_place<br/>Where people live]
+        PERSON_CAT[sot.person_cat<br/>Cat ownership]
         TRAPPERS[sot.trapper_profiles<br/>Trapper info]
     end
 

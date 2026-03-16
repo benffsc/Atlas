@@ -98,13 +98,13 @@ This document tracks all known data quality gaps in Atlas. Each gap represents a
 ```sql
 -- Frances Batey has Bettina's email
 SELECT person_id, display_name, id_value_norm
-FROM sot_people p
-JOIN person_identifiers pi ON pi.person_id = p.person_id
+FROM sot.people p
+JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
 WHERE p.person_id = 'd8ad9ef4-07ac-44c3-8528-1a1a404ca4fa';
 -- Result: bmkirby@yahoo.com (Bettina M Kirby's email)
 
 -- 26 Bettina Kirby duplicates all merged
-SELECT COUNT(*) FROM sot_people WHERE display_name = 'Bettina Kirby';
+SELECT COUNT(*) FROM sot.people WHERE display_name = 'Bettina Kirby';
 -- Result: 26 (all merged into Frances?)
 ```
 
@@ -127,7 +127,7 @@ SELECT COUNT(*) FROM sot_people WHERE display_name = 'Bettina Kirby';
 
 **Example:** 8250 Petaluma Hill Road, Penngrove - marked as clinic but is a private residence.
 
-**Root Cause:** MIG_464 infers "clinic" context from places with 5+ spay/neuter appointments. But `sot_appointments.place_id` is the OWNER's address, not the clinic location.
+**Root Cause:** MIG_464 infers "clinic" context from places with 5+ spay/neuter appointments. But `ops.appointments.place_id` is the OWNER's address, not the clinic location.
 
 **Proposed Fix:**
 1. Update clinic inference to only use actual clinic addresses (845 Todd Road)
@@ -140,7 +140,7 @@ SELECT COUNT(*) FROM sot_people WHERE display_name = 'Bettina Kirby';
 
 **Status:** WONT FIX (by design — Data Engine rejects no-identifier cases)
 
-**Problem:** 999 people have no email or phone in `person_identifiers`.
+**Problem:** 999 people have no email or phone in `sot.person_identifiers`.
 
 **Impact:** These records cannot be matched on future encounters, will create duplicates.
 
@@ -266,7 +266,7 @@ SELECT COUNT(*) FROM sot_people WHERE display_name = 'Bettina Kirby';
 ```sql
 -- Foster IDs and names in Animal Name field
 SELECT payload->>'Animal Name' as animal_name
-FROM trapper.staged_records
+FROM ops.staged_records
 WHERE source_system = 'clinichq'
   AND source_table = 'appointment_info'
   AND payload->>'Animal Name' ~ '#[0-9]+'
@@ -286,7 +286,7 @@ LIMIT 5;
 **Potential Matching Strategies:**
 
 1. **Foster Parent Linking:**
-   - Extract last name from parentheses: `(Canepa)` → search sot_people for "Canepa"
+   - Extract last name from parentheses: `(Canepa)` → search sot.people for "Canepa"
    - Match to person with foster role in person_roles
    - Create person_cat_relationship with role='foster'
 
@@ -309,7 +309,7 @@ LIMIT 5;
 - This builds the foster relationship even without microchip data
 
 **Fix Applied (MIG_560-570):**
-1. Added `appointment_source_category` column to sot_appointments
+1. Added `appointment_source_category` column to ops.appointments
 2. Created `classify_appointment_source()` function with detection for:
    - `foster_program`: ownership_type = 'Foster' or "Forgotten Felines Foster" owner
    - `county_scas`: Owner like "A439019 SCAS"
@@ -515,8 +515,8 @@ This score is a weighted average giving higher importance to entity linking (cri
 ```sql
 -- Confirmed: 1 appointment with hyphenated SCAS ID miscategorized
 SELECT cv.client_first_name, cv.client_last_name, a.appointment_source_category
-FROM trapper.clinichq_visits cv
-JOIN trapper.sot_appointments a ON a.appointment_number = cv.appointment_number
+FROM ops.clinichq_visits cv
+JOIN ops.appointments a ON a.appointment_number = cv.appointment_number
 WHERE cv.client_first_name LIKE 'A-%' AND UPPER(cv.client_last_name) = 'SCAS';
 -- Result: A-416620 | SCAS | other_internal
 ```
@@ -548,7 +548,7 @@ WHERE cv.client_first_name LIKE 'A-%' AND UPPER(cv.client_last_name) = 'SCAS';
 **Proposed Enhancement:**
 ```sql
 -- Add computed quarter column to statistics views
-ALTER VIEW trapper.v_foster_program_stats AS
+ALTER VIEW ops.v_foster_program_stats AS
 SELECT
   ...,
   EXTRACT(QUARTER FROM appointment_date)::INT as quarter,
@@ -557,14 +557,14 @@ SELECT
 
 Or create dedicated quarterly views:
 ```sql
-CREATE VIEW trapper.v_foster_program_quarterly AS
+CREATE VIEW ops.v_foster_program_quarterly AS
 SELECT
   year,
   quarter,
   SUM(unique_cats) as total_cats,
   SUM(alterations) as total_alterations,
   ...
-FROM trapper.v_foster_program_stats
+FROM ops.v_foster_program_stats
 GROUP BY year, quarter;
 ```
 
@@ -582,8 +582,8 @@ GROUP BY year, quarter;
 ```sql
 -- Check for hyphenated ALL CAPS names
 SELECT cv.client_first_name, cv.client_last_name, a.appointment_source_category
-FROM trapper.clinichq_visits cv
-JOIN trapper.sot_appointments a ON a.appointment_number = cv.appointment_number
+FROM ops.clinichq_visits cv
+JOIN ops.appointments a ON a.appointment_number = cv.appointment_number
 WHERE cv.client_first_name = UPPER(cv.client_first_name)
   AND cv.client_last_name = UPPER(cv.client_last_name)
   AND LENGTH(cv.client_first_name) > 1
@@ -635,9 +635,9 @@ WHERE cv.client_first_name = UPPER(cv.client_first_name)
 **Evidence:**
 ```sql
 -- 1,722 appointments had NULL client_name despite owner_info existing
-SELECT COUNT(*) FROM trapper.sot_appointments
+SELECT COUNT(*) FROM ops.appointments
 WHERE client_name IS NULL AND appointment_number IN (
-  SELECT payload->>'Number' FROM trapper.staged_records
+  SELECT payload->>'Number' FROM ops.staged_records
   WHERE source_table = 'owner_info'
 );
 ```
@@ -666,7 +666,7 @@ WHERE client_name IS NULL AND appointment_number IN (
 ```sql
 -- 30+ appointments with real person emails were unlinked
 -- while org email appointments were processed (and rejected) first
-SELECT owner_email, COUNT(*) FROM trapper.sot_appointments
+SELECT owner_email, COUNT(*) FROM ops.appointments
 WHERE person_id IS NULL AND owner_email IS NOT NULL
   AND owner_email NOT LIKE '%forgottenfelines%'
 GROUP BY owner_email;
@@ -726,7 +726,7 @@ WHERE first_name ILIKE '%rebooking%' OR last_name ILIKE '%placeholder%'
 -- Result: 5 pseudo-profiles with 2,683 total cats
 
 -- Entity linking propagated cats to placeholder's address
-SELECT COUNT(*) FROM sot.cat_place_relationships
+SELECT COUNT(*) FROM sot.cat_place
 WHERE place_id IN (
   SELECT place_id FROM sot.person_place
   WHERE person_id = 'a12eaac7-edfe-48c1-88c6-53576be12afb'  -- Rebooking placeholder
@@ -767,7 +767,7 @@ SELECT * FROM ops.v_suspicious_people;
 **Related Invariants:**
 - INV-25: ClinicHQ Pseudo-Profiles Are NOT People
 - INV-29: Data Engine Rejects No-Identifier Cases
-- CLAUDE.md: sot_people contains ONLY real people
+- CLAUDE.md: sot.people contains ONLY real people
 
 ---
 
@@ -785,7 +785,7 @@ SELECT * FROM ops.v_suspicious_people;
 **Evidence:**
 ```sql
 -- V1: 13,933 places have geocoded locations
-SELECT COUNT(*) FROM trapper.places WHERE location IS NOT NULL;
+SELECT COUNT(*) FROM sot.places WHERE location IS NOT NULL;
 -- Result: 13,933
 
 -- V2: 0 places have geocoded locations
@@ -1438,7 +1438,7 @@ CHECK (confidence IN ('high', 'medium', 'low') OR confidence IS NULL);
 
 **Discovered:** 2026-02-21
 
-**Problem:** Confidence filter (`>= 0.5`) for `person_identifiers` is duplicated in 50+ places across views and routes. PetLink emails are fabricated and have low confidence (0.1-0.2). Per INV-19/INV-21, all queries must filter these out.
+**Problem:** Confidence filter (`>= 0.5`) for `sot.person_identifiers` is duplicated in 50+ places across views and routes. PetLink emails are fabricated and have low confidence (0.1-0.2). Per INV-19/INV-21, all queries must filter these out.
 
 **Current State:**
 - Filter duplicated as inline `AND confidence >= 0.5` in:

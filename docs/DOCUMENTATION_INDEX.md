@@ -169,7 +169,7 @@ These patterns caused bugs. Preserved in CLAUDE.md "Don't Do" section:
 2. **Cell Phone before Owner Phone** - Cell phones are shared in households
 3. **PetLink emails without confidence filter** - Staff fabricates emails
 4. **Direct INSERTs to entity tables** - Always use `find_or_create_*`
-5. **Linking cats to ALL person_place_relationships** - Use LIMIT 1
+5. **Linking cats to ALL sot.person_place rows** - Use LIMIT 1
 6. **TS/SQL parity drift** - Upload route must mirror SQL processor
 7. **Org emails as personal identifiers** - Soft-blacklist shared emails
 8. **Disease computed at clinics** - Filter by `should_compute_disease_for_place()`

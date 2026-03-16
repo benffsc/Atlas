@@ -6,7 +6,7 @@ Formalizes the relationship between canonical addresses and places.
 
 ### Address Registry = Canonical Truth
 
-The `sot_addresses` table is the single source of truth for real-world locations:
+The `sot.addresses` table is the single source of truth for real-world locations:
 - Every address is **geocoded** via Google Geocoding API
 - Addresses have **structured components** (street_number, route, locality, etc.)
 - Addresses have **lat/lng coordinates** for mapping
@@ -36,16 +36,16 @@ A `place` is a business-domain entity anchored to a canonical address:
 ## Data Model
 
 ```
-sot_addresses (canonical geocoded addresses)
+sot.addresses (canonical geocoded addresses)
     │
     │ 1:1 (address-backed)
     ▼
-places (taggable location entities)
+sot.places (taggable location entities)
     │
     │ 1:N
     ▼
-person_place_relationships (who lives/works where)
-cat_place_relationships (cats at locations)
+sot.person_place (who lives/works where)
+sot.cat_place (cats at locations)
 ```
 
 ### place_kind Taxonomy
@@ -73,7 +73,7 @@ cat_place_relationships (cats at locations)
 ### Ensure All Addresses Have Places
 
 ```sql
-SELECT * FROM trapper.ensure_address_backed_places();
+SELECT * FROM sot.ensure_address_backed_places();
 ```
 
 Returns:
@@ -84,10 +84,10 @@ Returns:
 
 ```sql
 -- For all sources
-SELECT trapper.derive_person_place_relationships(NULL);
+SELECT sot.derive_person_place(NULL);
 
 -- For specific source
-SELECT trapper.derive_person_place_relationships('owner_info');
+SELECT sot.derive_person_place('owner_info');
 ```
 
 This function:
@@ -99,10 +99,10 @@ This function:
 
 ```sql
 -- All address-backed places with details
-SELECT * FROM trapper.v_places_address_backed LIMIT 20;
+SELECT * FROM ops.v_places_address_backed LIMIT 20;
 
 -- Place kind summary
-SELECT * FROM trapper.v_place_kind_summary;
+SELECT * FROM ops.v_place_kind_summary;
 ```
 
 ### SQL Files
@@ -153,7 +153,7 @@ When we need to group apartment units:
 Check if addresses are canonical:
 ```sql
 SELECT geocode_status, COUNT(*)
-FROM trapper.sot_addresses
+FROM sot.addresses
 GROUP BY geocode_status;
 -- Only 'success' addresses get places
 ```
@@ -163,15 +163,15 @@ GROUP BY geocode_status;
 Verify person-place relationships exist:
 ```sql
 SELECT source_table, COUNT(*)
-FROM trapper.person_place_relationships
+FROM sot.person_place
 GROUP BY source_table;
 ```
 
 Run the full pipeline:
 ```sql
-SELECT * FROM trapper.ensure_address_backed_places();
-SELECT trapper.derive_person_place_relationships(NULL);
-SELECT * FROM trapper.link_cats_to_places();
+SELECT * FROM sot.ensure_address_backed_places();
+SELECT sot.derive_person_place(NULL);
+SELECT * FROM sot.link_cats_to_places();
 ```
 
 ### Duplicate Places
@@ -179,7 +179,7 @@ SELECT * FROM trapper.link_cats_to_places();
 The UNIQUE constraint prevents duplicates:
 ```sql
 -- This will fail if place already exists
-INSERT INTO trapper.places (sot_address_id, ...) VALUES (...);
+INSERT INTO sot.places (sot_address_id, ...) VALUES (...);
 -- ERROR: duplicate key value violates unique constraint
 ```
 

@@ -53,30 +53,30 @@ Atlas/
 - `CHK_NNN__short_snake_case.sql` — Sanity check queries
 
 ### Schema Prefixes
-All database objects live in the `trapper` schema:
-- `trapper.addresses` — Canonical addresses (SoT)
-- `trapper.airtable_appointment_requests` — Raw Airtable ingest
-- `trapper.v_intake_unified_feed` — View for UI
+Database objects are organized across schemas:
+- `sot.addresses` — Canonical addresses (SoT)
+- `source.airtable_appointment_requests` — Raw Airtable ingest
+- `ops.v_intake_unified_feed` — View for UI
 
 ## Key Concepts
 
 ### SoT (Source of Truth)
 Canonical, deduplicated entities. Created by normalizing raw data + human review.
-- `trapper.addresses` — Geocode-validated addresses
-- `trapper.places` — Locations with context (may be approximate)
-- `trapper.people` — Deduplicated contacts
-- `trapper.canonical_cats` — Identified cats (future)
+- `sot.addresses` — Geocode-validated addresses
+- `sot.places` — Locations with context (may be approximate)
+- `sot.people` — Deduplicated contacts
+- `sot.cats` — Identified cats
 
 ### Raw
 Staging tables for ingested data. Preserves original source format.
-- `trapper.airtable_*` — Airtable exports
-- `trapper.clinichq_*` — ClinicHQ exports
-- `trapper.forms_*` — Form submissions
+- `source.airtable_*` — Airtable exports
+- `source.clinichq_*` — ClinicHQ exports
+- `ops.forms_*` — Form submissions
 
 ### Review
 Queues for human triage. Surfaced in UI for cleanup.
-- `trapper.data_issues` — Flagged problems with severity
-- `trapper.geocode_review_queue` — Addresses needing manual geocoding
+- `ops.data_issues` — Flagged problems with severity
+- `ops.geocode_review_queue` — Addresses needing manual geocoding
 
 ## Data Flow
 

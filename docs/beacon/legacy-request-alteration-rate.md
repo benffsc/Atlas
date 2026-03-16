@@ -25,7 +25,7 @@ Cats are linked to requests using a multi-tier matching system with confidence s
 | `explicit_link` | 100% | Cat explicitly linked via `request_cat_links` table |
 | `place_and_requester` | 95% | Cat at same place AND linked to requester |
 | `place_match` | 85% | Cat has appointment history at request's place |
-| `requester_match` | 80% | Cat linked to requester via `person_cat_relationships` |
+| `requester_match` | 80% | Cat linked to requester via `sot.person_cat` |
 | `booking_person_match` | 70% | Booking person's email/phone matches requester |
 
 ---
@@ -307,7 +307,7 @@ All upgrade operations are logged to `entity_edits`:
 
 ### Manual Testing
 
-1. Find a legacy request: `SELECT * FROM sot_requests WHERE source_system = 'airtable' LIMIT 5`
+1. Find a legacy request: `SELECT * FROM ops.requests WHERE source_system = 'airtable' LIMIT 5`
 2. Check alteration stats: `GET /api/requests/{id}/alteration-stats`
 3. Test upgrade flow via UI or: `POST /api/requests/{id}/upgrade`
 4. Verify new request created and old archived

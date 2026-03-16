@@ -8,9 +8,9 @@ The canonical Cats layer provides a unified view of cats across data sources, wi
 
 | Table | Purpose |
 |-------|---------|
-| `trapper.sot_cats` | Source of Truth for cat records |
-| `trapper.cat_identifiers` | Unique identifiers (animal ID, microchip) |
-| `trapper.person_cat_relationships` | Links cats to owners |
+| `sot.cats` | Source of Truth for cat records |
+| `sot.cat_identifiers` | Unique identifiers (animal ID, microchip) |
+| `sot.person_cat` | Links cats to owners |
 
 ### Supported Identifiers
 
@@ -32,32 +32,32 @@ The canonical Cats layer provides a unified view of cats across data sources, wi
 Cats are upserted from ClinicHQ staged records via:
 
 ```sql
-SELECT * FROM trapper.upsert_cats_from_clinichq();
+SELECT * FROM sot.upsert_cats_from_clinichq();
 ```
 
 Or via the wrapper:
 
 ```sql
-SELECT * FROM trapper.upsert_cats_from_observations('cat_info');
+SELECT * FROM sot.upsert_cats_from_observations('cat_info');
 ```
 
 The function:
 1. Reads `cat_info` staged records
-2. Creates `sot_cats` entry if animal ID not seen
-3. Adds `cat_identifiers` for animal ID and microchip
+2. Creates `sot.cats` entry if animal ID not seen
+3. Adds `sot.cat_identifiers` for animal ID and microchip
 4. Fills in cat details (name, sex, breed, etc.)
 
 ### Owner Linking
 
 Owner relationships are created when:
-1. Cat exists in `sot_cats` (has animal ID)
+1. Cat exists in `sot.cats` (has animal ID)
 2. `owner_info` record exists for that animal ID
-3. Owner's email or phone matches an existing `sot_people` record
+3. Owner's email or phone matches an existing `sot.people` record
 
 ```
-owner_info.Owner Email → person_identifiers.email → sot_people
+owner_info.Owner Email → sot.person_identifiers.email → sot.people
          ↓
-person_cat_relationships (relationship_type = 'owner')
+sot.person_cat (relationship_type = 'owner')
 ```
 
 If no matching person is found, the cat is created without an owner link.
@@ -74,10 +74,10 @@ If no matching person is found, the cat is created without an owner link.
 
 ```sql
 -- Upsert cats from ClinicHQ
-SELECT * FROM trapper.upsert_cats_from_clinichq();
+SELECT * FROM sot.upsert_cats_from_clinichq();
 
 -- Check results
-SELECT * FROM trapper.v_cats_stats;
+SELECT * FROM ops.v_cats_stats;
 ```
 
 ### Queries
@@ -101,7 +101,7 @@ Atlas supports manual merging of duplicate cat records with full stability acros
 
 ```sql
 -- Merge source cat INTO target cat (target becomes canonical)
-SELECT trapper.merge_cats(
+SELECT sot.merge_cats(
     'source_cat_uuid',
     'target_cat_uuid',
     'duplicate',     -- reason
@@ -109,13 +109,13 @@ SELECT trapper.merge_cats(
 );
 
 -- Undo a merge if needed
-SELECT trapper.undo_cat_merge('merged_cat_uuid');
+SELECT sot.undo_cat_merge('merged_cat_uuid');
 
 -- Get canonical cat_id (follows merge chain)
-SELECT trapper.get_canonical_cat_id('any_cat_uuid');
+SELECT sot.get_canonical_cat_id('any_cat_uuid');
 
 -- Find canonical cat by microchip
-SELECT trapper.find_canonical_cat_by_microchip('981020012345678');
+SELECT sot.find_canonical_cat_by_microchip('981020012345678');
 ```
 
 ### Canonical View
@@ -123,7 +123,7 @@ SELECT trapper.find_canonical_cat_by_microchip('981020012345678');
 Use `v_canonical_cats` to exclude merged cats from UI queries:
 
 ```sql
-SELECT * FROM trapper.v_canonical_cats WHERE ...;
+SELECT * FROM ops.v_canonical_cats WHERE ...;
 ```
 
 ### Merge Stability
@@ -156,7 +156,7 @@ Merges survive re-imports because:
 ## Data Model
 
 ```
-sot_cats
+sot.cats
   ├── cat_id (PK)
   ├── display_name
   ├── sex
@@ -166,17 +166,17 @@ sot_cats
   ├── primary_color
   └── timestamps
 
-cat_identifiers
+sot.cat_identifiers
   ├── cat_identifier_id (PK)
-  ├── cat_id (FK → sot_cats)
+  ├── cat_id (FK → sot.cats)
   ├── id_type (clinichq_animal_id, microchip, ...)
   ├── id_value
   └── source_system, source_table
 
-person_cat_relationships
+sot.person_cat
   ├── person_cat_id (PK)
-  ├── person_id (FK → sot_people)
-  ├── cat_id (FK → sot_cats)
+  ├── person_id (FK → sot.people)
+  ├── cat_id (FK → sot.cats)
   ├── relationship_type (owner, caretaker)
   ├── confidence (high, medium, low)
   └── source_system, source_table

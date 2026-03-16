@@ -10,7 +10,7 @@ erDiagram
     %% CORE ENTITIES - sot schema
     %% ============================================================
 
-    sot_people {
+    sot.people {
         uuid person_id PK
         text display_name
         text account_type "resident|colony_caretaker|community_trapper|rescue_operator|organization"
@@ -24,7 +24,7 @@ erDiagram
         timestamptz updated_at
     }
 
-    sot_cats {
+    sot.cats {
         uuid cat_id PK
         text display_name
         text sex "male|female|unknown"
@@ -41,7 +41,7 @@ erDiagram
         timestamptz updated_at
     }
 
-    sot_places {
+    sot.places {
         uuid place_id PK
         text display_name
         text formatted_address
@@ -57,7 +57,7 @@ erDiagram
         timestamptz created_at
     }
 
-    sot_addresses {
+    sot.addresses {
         uuid address_id PK
         text formatted_address
         text street_number
@@ -72,11 +72,11 @@ erDiagram
         timestamptz created_at
     }
 
-    sot_requests ||--o| sot_places : "place_id"
-    sot_requests ||--o| sot_people : "requester_person_id"
-    sot_requests ||--o| sot_people : "assigned_to"
+    ops.requests ||--o| sot.places : "place_id"
+    ops.requests ||--o| sot.people : "requester_person_id"
+    ops.requests ||--o| sot.people : "assigned_to"
 
-    sot_requests {
+    ops.requests {
         uuid request_id PK
         text status "new|triaged|scheduled|in_progress|completed|cancelled|on_hold"
         text priority "urgent|high|normal|low"
@@ -99,7 +99,7 @@ erDiagram
     %% RELATIONSHIP TABLES - Junction tables
     %% ============================================================
 
-    sot_person_cat_relationships {
+    sot.person_cat {
         uuid person_cat_id PK
         uuid person_id FK
         uuid cat_id FK
@@ -111,7 +111,7 @@ erDiagram
         text source_system
     }
 
-    sot_cat_place_relationships {
+    sot.cat_place {
         uuid cat_place_id PK
         uuid cat_id FK
         uuid place_id FK
@@ -123,7 +123,7 @@ erDiagram
         text source_system
     }
 
-    sot_person_place_relationships {
+    sot.person_place {
         uuid person_place_id PK
         uuid person_id FK
         uuid place_id FK
@@ -138,7 +138,7 @@ erDiagram
     %% IDENTITY LAYER
     %% ============================================================
 
-    sot_person_identifiers {
+    sot.person_identifiers {
         uuid identifier_id PK
         uuid person_id FK
         text identifier_type "email|phone|volunteerhub_id|clinichq_client_id"
@@ -149,13 +149,13 @@ erDiagram
         timestamptz created_at
     }
 
-    sot_households {
+    sot.households {
         uuid household_id PK
         text name
         timestamptz created_at
     }
 
-    sot_household_members {
+    sot.household_members {
         uuid member_id PK
         uuid household_id FK
         uuid person_id FK
@@ -167,20 +167,20 @@ erDiagram
     %% RELATIONSHIPS
     %% ============================================================
 
-    sot_people ||--o{ sot_person_identifiers : "has"
-    sot_people ||--o{ sot_person_cat_relationships : "owns/cares for"
-    sot_people ||--o{ sot_person_place_relationships : "lives at/manages"
-    sot_people ||--o| sot_addresses : "primary_address_id"
+    sot.people ||--o{ sot.person_identifiers : "has"
+    sot.people ||--o{ sot.person_cat : "owns/cares for"
+    sot.people ||--o{ sot.person_place : "lives at/manages"
+    sot.people ||--o| sot.addresses : "primary_address_id"
 
-    sot_cats ||--o{ sot_person_cat_relationships : "owned by"
-    sot_cats ||--o{ sot_cat_place_relationships : "lives at"
+    sot.cats ||--o{ sot.person_cat : "owned by"
+    sot.cats ||--o{ sot.cat_place : "lives at"
 
-    sot_places ||--o{ sot_cat_place_relationships : "contains"
-    sot_places ||--o{ sot_person_place_relationships : "occupied by"
-    sot_places ||--o| sot_addresses : "sot_address_id"
+    sot.places ||--o{ sot.cat_place : "contains"
+    sot.places ||--o{ sot.person_place : "occupied by"
+    sot.places ||--o| sot.addresses : "sot_address_id"
 
-    sot_household_members ||--o| sot_households : "belongs to"
-    sot_household_members ||--o| sot_people : "is"
+    sot.household_members ||--o| sot.households : "belongs to"
+    sot.household_members ||--o| sot.people : "is"
 ```
 
 ## Operational Layer (OPS Schema)
@@ -191,7 +191,7 @@ erDiagram
     %% APPOINTMENTS & CLINIC DATA
     %% ============================================================
 
-    ops_appointments {
+    ops.appointments {
         uuid appointment_id PK
         uuid cat_id FK
         uuid person_id FK "Resolved identity (may differ from booker)"
@@ -206,7 +206,7 @@ erDiagram
         timestamptz created_at
     }
 
-    ops_clinic_accounts {
+    ops.clinic_accounts {
         uuid account_id PK
         text original_name "Preserved exactly as in ClinicHQ"
         text name_classification "person|organization|site_name|address"
@@ -217,7 +217,7 @@ erDiagram
         timestamptz created_at
     }
 
-    ops_file_uploads {
+    ops.file_uploads {
         uuid upload_id PK
         uuid batch_id
         text file_type "appointment_info|cat_info|owner_info"
@@ -228,7 +228,7 @@ erDiagram
         timestamptz created_at
     }
 
-    ops_cat_test_results {
+    ops.cat_test_results {
         uuid test_id PK
         uuid cat_id FK
         uuid appointment_id FK
@@ -245,7 +245,7 @@ erDiagram
     %% TRAPPER MANAGEMENT
     %% ============================================================
 
-    sot_trapper_profiles {
+    sot.trapper_profiles {
         uuid trapper_id PK
         uuid person_id FK
         text trapper_type "ffsc_staff|ffsc_volunteer|community_trapper"
@@ -257,7 +257,7 @@ erDiagram
         timestamptz created_at
     }
 
-    sot_trapper_service_places {
+    sot.trapper_service_places {
         uuid service_id PK
         uuid trapper_id FK
         uuid place_id FK
@@ -266,7 +266,7 @@ erDiagram
         timestamptz ended_at
     }
 
-    ops_trapper_contracts {
+    ops.trapper_contracts {
         uuid contract_id PK
         uuid person_id FK
         date signed_date
@@ -280,7 +280,7 @@ erDiagram
     %% ENTITY LINKING MONITORING
     %% ============================================================
 
-    ops_entity_linking_runs {
+    ops.entity_linking_runs {
         uuid run_id PK
         timestamptz started_at
         timestamptz completed_at
@@ -292,7 +292,7 @@ erDiagram
         text status "success|partial|failed"
     }
 
-    ops_entity_linking_skipped {
+    ops.entity_linking_skipped {
         uuid skip_id PK
         uuid run_id FK
         text entity_type "cat|place|person"
@@ -306,31 +306,31 @@ erDiagram
     %% RELATIONSHIPS
     %% ============================================================
 
-    ops_appointments ||--o| sot_cats : "cat_id"
-    ops_appointments ||--o| sot_people : "person_id"
-    ops_appointments ||--o| ops_clinic_accounts : "owner_account_id"
-    ops_appointments ||--o| sot_places : "inferred_place_id"
+    ops.appointments ||--o| sot.cats : "cat_id"
+    ops.appointments ||--o| sot.people : "person_id"
+    ops.appointments ||--o| ops.clinic_accounts : "owner_account_id"
+    ops.appointments ||--o| sot.places : "inferred_place_id"
 
-    ops_clinic_accounts ||--o| sot_people : "resolved_person_id"
+    ops.clinic_accounts ||--o| sot.people : "resolved_person_id"
 
-    ops_cat_test_results ||--o| sot_cats : "cat_id"
-    ops_cat_test_results ||--o| ops_appointments : "appointment_id"
+    ops.cat_test_results ||--o| sot.cats : "cat_id"
+    ops.cat_test_results ||--o| ops.appointments : "appointment_id"
 
-    sot_trapper_profiles ||--o| sot_people : "person_id"
-    sot_trapper_profiles ||--o| sot_places : "rescue_place_id"
-    sot_trapper_service_places ||--o| sot_trapper_profiles : "trapper_id"
-    sot_trapper_service_places ||--o| sot_places : "place_id"
+    sot.trapper_profiles ||--o| sot.people : "person_id"
+    sot.trapper_profiles ||--o| sot.places : "rescue_place_id"
+    sot.trapper_service_places ||--o| sot.trapper_profiles : "trapper_id"
+    sot.trapper_service_places ||--o| sot.places : "place_id"
 
-    ops_trapper_contracts ||--o| sot_people : "person_id"
+    ops.trapper_contracts ||--o| sot.people : "person_id"
 
-    ops_entity_linking_skipped ||--o| ops_entity_linking_runs : "run_id"
+    ops.entity_linking_skipped ||--o| ops.entity_linking_runs : "run_id"
 ```
 
 ## Source Layer (Staging)
 
 ```mermaid
 erDiagram
-    source_staged_records {
+    source.staged_records {
         uuid staged_record_id PK
         text source_system "clinichq|shelterluv|volunteerhub|airtable"
         text record_type "appointment|animal|person|request"
@@ -342,7 +342,7 @@ erDiagram
         timestamptz created_at
     }
 
-    source_clinichq_raw {
+    source.clinichq_raw {
         uuid raw_id PK
         uuid batch_id FK
         text file_type
@@ -351,7 +351,7 @@ erDiagram
         timestamptz created_at
     }
 
-    source_clinichq_raw ||--o| ops_file_uploads : "batch_id"
+    source.clinichq_raw ||--o| ops.file_uploads : "batch_id"
 ```
 
 ## Key Invariants
@@ -360,6 +360,6 @@ erDiagram
 |------|-------------|
 | **Merge chains** | `merged_into_*_id` - never hard delete |
 | **Confidence filter** | `person_identifiers.confidence >= 0.5` for PetLink |
-| **Address required** | `sot_places.sot_address_id` MUST be set (MIG_2562) |
+| **Address required** | `sot.places.sot_address_id` MUST be set (MIG_2562) |
 | **Place is anchor** | Cat location via `inferred_place_id`, NOT person->place |
 | **Single write path** | Use `find_or_create_*` functions only |

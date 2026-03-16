@@ -4,21 +4,21 @@ Extracts ClinicHQ owner addresses into the geocoding pipeline to dramatically in
 
 ## Problem
 
-ATLAS_013 linked cats to places via owner → person_place_relationships, but only achieved ~100 cat-place links because most owner addresses hadn't been geocoded. This pipeline geocodes owner addresses to create the missing person_place_relationships.
+ATLAS_013 linked cats to places via owner → sot.person_place, but only achieved ~100 cat-place links because most owner addresses hadn't been geocoded. This pipeline geocodes owner addresses to create the missing sot.person_place.
 
 ## Signal Path
 
 ```
-staged_records (owner_info)
+ops.staged_records (owner_info)
     ↓ v_clinichq_owner_latest (deduped by animal number)
     ↓ v_clinichq_owner_address_candidates (pending geocoding)
     ↓ geocode_owner_addresses.mjs (Google Geocoding API)
-sot_addresses
+sot.addresses
     ↓ staged_record_address_link
-    ↓ derive_person_place_relationships('owner_info')
-person_place_relationships
+    ↓ derive_person_place('owner_info')
+sot.person_place
     ↓ link_cats_to_places()
-cat_place_relationships
+sot.cat_place
 ```
 
 ## Usage
@@ -40,17 +40,17 @@ With options:
 
 ```sql
 -- Check candidates
-SELECT COUNT(*) FROM trapper.v_clinichq_owner_address_candidates;
+SELECT COUNT(*) FROM ops.v_clinichq_owner_address_candidates;
 
 -- After geocoding, link addresses to staged records
-SELECT * FROM trapper.link_owner_addresses_to_staged_records();
+SELECT * FROM sot.link_owner_addresses_to_staged_records();
 
 -- Derive person-place relationships
-SELECT trapper.derive_person_place_relationships('owner_info');
+SELECT sot.derive_person_place('owner_info');
 
 -- Relink cats to places
-SELECT * FROM trapper.link_cats_to_places();
-SELECT trapper.update_place_cat_activity_flags();
+SELECT * FROM sot.link_cats_to_places();
+SELECT sot.update_place_cat_activity_flags();
 ```
 
 ### Query Files
@@ -69,7 +69,7 @@ Deduplicated owner records (one per animal number, most recent).
 
 | Column | Description |
 |--------|-------------|
-| staged_record_id | FK to staged_records |
+| staged_record_id | FK to ops.staged_records |
 | animal_number | ClinicHQ animal identifier |
 | owner_first_name | Owner's first name |
 | owner_last_name | Owner's last name |
@@ -97,7 +97,7 @@ Pipeline progress statistics:
 
 ### link_owner_addresses_to_staged_records()
 
-Links ClinicHQ owner records to existing sot_addresses by fuzzy matching.
+Links ClinicHQ owner records to existing sot.addresses by fuzzy matching.
 
 Returns:
 - records_linked: Number of staged_record_address_link rows created
@@ -136,13 +136,13 @@ export GEOCODE_LIMIT=500
 ## Expected Results
 
 With ~8,500 owner addresses:
-- After geocoding 500: ~400 new person_place_relationships
+- After geocoding 500: ~400 new sot.person_place
 - After geocoding all: ~6,000+ cat-place relationships (70%+ coverage)
 
 Coverage depends on:
 - Address quality (parseable by Google)
 - Duplicate addresses (shared by multiple owners)
-- Owner-cat linkage (person_cat_relationships must exist)
+- Owner-cat linkage (sot.person_cat must exist)
 
 ## Troubleshooting
 
@@ -150,7 +150,7 @@ Coverage depends on:
 
 Check if addresses exist:
 ```sql
-SELECT COUNT(*) FROM trapper.v_clinichq_owner_latest
+SELECT COUNT(*) FROM ops.v_clinichq_owner_latest
 WHERE owner_address IS NOT NULL AND TRIM(owner_address) <> '';
 ```
 
@@ -159,24 +159,24 @@ WHERE owner_address IS NOT NULL AND TRIM(owner_address) <> '';
 Check review queue:
 ```sql
 SELECT review_reason, COUNT(*)
-FROM trapper.address_review_queue arq
-JOIN trapper.staged_records sr ON sr.id = arq.staged_record_id
+FROM ops.address_review_queue arq
+JOIN ops.staged_records sr ON sr.id = arq.staged_record_id
 WHERE sr.source_table = 'owner_info'
 GROUP BY review_reason;
 ```
 
 ### Cats not linking after geocoding
 
-Verify person_place_relationships created:
+Verify sot.person_place created:
 ```sql
-SELECT COUNT(*) FROM trapper.person_place_relationships
+SELECT COUNT(*) FROM sot.person_place
 WHERE source_table = 'owner_info';
 ```
 
 Verify owner-cat relationships exist:
 ```sql
 SELECT COUNT(DISTINCT cat_id)
-FROM trapper.person_cat_relationships
+FROM sot.person_cat
 WHERE relationship_type = 'owner';
 ```
 

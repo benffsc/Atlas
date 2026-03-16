@@ -109,7 +109,7 @@ SELECT
   COUNT(*) AS row_count,
   MIN(created_at) AS earliest,
   MAX(created_at) AS latest
-FROM trapper.staged_records
+FROM ops.staged_records
 GROUP BY source_system, source_table
 ORDER BY source_table;
 ```
@@ -123,7 +123,7 @@ SELECT
   source_table,
   row_hash,
   COUNT(*) AS occurrences
-FROM trapper.staged_records
+FROM ops.staged_records
 GROUP BY source_system, source_table, row_hash
 HAVING COUNT(*) > 1;
 ```
@@ -136,7 +136,7 @@ SELECT
   COUNT(*) AS total,
   COUNT(*) FILTER (WHERE source_row_id IS NULL) AS missing_record_id,
   ROUND(100.0 * COUNT(*) FILTER (WHERE source_row_id IS NULL) / COUNT(*), 1) AS null_pct
-FROM trapper.staged_records
+FROM ops.staged_records
 WHERE source_table = 'trapping_requests';
 ```
 
@@ -147,7 +147,7 @@ psql "$DATABASE_URL" -c "
 SELECT source_table, COUNT(*) AS rows,
        COUNT(source_row_id) AS with_id,
        COUNT(*) - COUNT(source_row_id) AS missing_id
-FROM trapper.staged_records
+FROM ops.staged_records
 GROUP BY source_table;
 "
 ```
@@ -235,7 +235,7 @@ After first ingest:
 1. Review payload in staged_records:
    ```sql
    SELECT id, source_row_id, payload->>'Name' AS name, payload->>'Address' AS address
-   FROM trapper.staged_records
+   FROM ops.staged_records
    WHERE source_table = 'trapping_requests'
    LIMIT 10;
    ```

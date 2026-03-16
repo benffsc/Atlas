@@ -10,8 +10,8 @@ Atlas uses a multi-stage entity resolution system to coalesce messy data inputs 
 
 | Concept | Definition | Example |
 |---------|------------|---------|
-| **Address** (`sot_addresses`) | A geocoded physical location with Google Place ID | "123 Main St, Unit 4, Santa Rosa, CA 95401" |
-| **Place** (`places`) | A meaningful location with type and significance | "FFSC Clinic" or "Main St Colony" |
+| **Address** (`sot.addresses`) | A geocoded physical location with Google Place ID | "123 Main St, Unit 4, Santa Rosa, CA 95401" |
+| **Place** (`sot.places`) | A meaningful location with type and significance | "FFSC Clinic" or "Main St Colony" |
 
 **Key points:**
 - Every place is backed by an address (1:1 relationship)
@@ -28,13 +28,13 @@ Places are marked significant based on:
 
 ```sql
 -- Mark a place as significant manually
-UPDATE trapper.places
+UPDATE sot.places
 SET is_significant = TRUE,
     significance_reason = 'Known colony site'
 WHERE place_id = '<uuid>';
 
 -- View places that might need to be marked significant
-SELECT * FROM trapper.v_place_significance_candidates LIMIT 20;
+SELECT * FROM ops.v_place_significance_candidates LIMIT 20;
 ```
 
 ## Match Thresholds
@@ -44,11 +44,11 @@ All thresholds are configurable via `entity_match_config`:
 ```sql
 -- View current configuration
 SELECT entity_type, config_key, config_value, description
-FROM trapper.entity_match_config
+FROM ops.entity_match_config
 ORDER BY entity_type, config_key;
 
 -- Adjust a threshold
-UPDATE trapper.entity_match_config
+UPDATE ops.entity_match_config
 SET config_value = 0.90
 WHERE entity_type = 'person' AND config_key = 'auto_merge_threshold';
 ```
@@ -86,23 +86,23 @@ WHERE entity_type = 'person' AND config_key = 'auto_merge_threshold';
 
 ```sql
 -- Generate person match candidates
-SELECT trapper.generate_match_candidates('person');
+SELECT sot.generate_match_candidates('person');
 
 -- Generate cat match candidates
-SELECT trapper.generate_match_candidates('cat');
+SELECT sot.generate_match_candidates('cat');
 
 -- With custom minimum score
-SELECT trapper.generate_match_candidates('person', 0.6);
+SELECT sot.generate_match_candidates('person', 0.6);
 ```
 
 ### Entity-Specific Functions
 
 ```sql
 -- Person: Uses phonetic matching (metaphone) + context
-SELECT * FROM trapper.generate_phonetic_match_candidates(0.5);
+SELECT * FROM sot.generate_phonetic_match_candidates(0.5);
 
 -- Cat: Uses physical attributes + context
-SELECT * FROM trapper.generate_cat_match_candidates(0.4);
+SELECT * FROM sot.generate_cat_match_candidates(0.4);
 ```
 
 ## Review Workflow
@@ -111,32 +111,32 @@ SELECT * FROM trapper.generate_cat_match_candidates(0.4);
 
 ```sql
 -- Unified queue (all entity types)
-SELECT * FROM trapper.v_match_review_queue LIMIT 20;
+SELECT * FROM ops.v_match_review_queue LIMIT 20;
 
 -- Queue summary
-SELECT * FROM trapper.v_review_queue_summary;
+SELECT * FROM ops.v_review_queue_summary;
 
 -- Person-specific review (with full scoring breakdown)
-SELECT * FROM trapper.v_person_match_review LIMIT 20;
+SELECT * FROM ops.v_person_match_review LIMIT 20;
 
 -- Cat-specific review
-SELECT * FROM trapper.v_cat_match_review LIMIT 20;
+SELECT * FROM ops.v_cat_match_review LIMIT 20;
 ```
 
 ### Accept/Reject Matches
 
 ```sql
 -- Accept a person match (triggers merge)
-SELECT trapper.accept_match_candidate('person', '<candidate_id>');
+SELECT sot.accept_match_candidate('person', '<candidate_id>');
 
 -- Reject a person match (blocks future auto-match)
-SELECT trapper.reject_match_candidate('person', '<candidate_id>', 'reviewer', 'Different people');
+SELECT sot.reject_match_candidate('person', '<candidate_id>', 'reviewer', 'Different people');
 
 -- Accept a cat match (marks for manual merge - no auto-merge)
-SELECT trapper.accept_match_candidate('cat', '<candidate_id>');
+SELECT sot.accept_match_candidate('cat', '<candidate_id>');
 
 -- Reject a cat match
-SELECT trapper.reject_match_candidate('cat', '<candidate_id>', 'reviewer', 'Different cats - different owners');
+SELECT sot.reject_match_candidate('cat', '<candidate_id>', 'reviewer', 'Different cats - different owners');
 ```
 
 ## Understanding Match Scores
@@ -145,7 +145,7 @@ SELECT trapper.reject_match_candidate('cat', '<candidate_id>', 'reviewer', 'Diff
 
 ```sql
 -- Get detailed score breakdown for a candidate
-SELECT trapper.score_person_match_candidate(
+SELECT sot.score_person_match_candidate(
     '<person_id_1>',
     '<person_id_2>'
 );
@@ -189,10 +189,10 @@ Atlas uses **double metaphone** for phonetic matching, which handles:
 
 ```sql
 -- Test phonetic similarity between names
-SELECT trapper.phonetic_name_similarity('Susan Smith', 'Susana Smyth');
+SELECT sot.phonetic_name_similarity('Susan Smith', 'Susana Smyth');
 
 -- Get phonetic encoding
-SELECT * FROM trapper.encode_name_phonetic('Susan Smith');
+SELECT * FROM sot.encode_name_phonetic('Susan Smith');
 -- Returns: first_token='susan', last_token='smith',
 --          metaphone_first='SSN', metaphone_last='SM0'
 ```
@@ -226,14 +226,14 @@ Cat matching is **review-queue only** by default. No automatic merges.
 
 Atlas provides functions for manually merging duplicate entities. Merges are:
 - **Stable across re-imports**: Merged entities stay merged
-- **Audited**: All merges logged to `entity_merge_history`
+- **Audited**: All merges logged to `ops.entity_merge_history`
 - **Reversible**: Use `undo_*_merge()` functions if needed
 
 ### Merging Cats
 
 ```sql
 -- Merge source cat INTO target cat (target becomes canonical)
-SELECT trapper.merge_cats(
+SELECT sot.merge_cats(
     'source_cat_uuid',    -- Cat to merge away
     'target_cat_uuid',    -- Cat to keep (canonical)
     'duplicate',          -- Reason
@@ -256,9 +256,9 @@ SELECT trapper.merge_cats(
 **What gets transferred:**
 - `cat_identifiers` (microchips, etc.)
 - `cat_procedures` (spay/neuter records)
-- `sot_appointments`
-- `cat_place_relationships`
-- `person_cat_relationships`
+- `ops.appointments`
+- `sot.cat_place`
+- `sot.person_cat`
 - `request_cat_links`
 
 **Target cat enrichment:**
@@ -269,7 +269,7 @@ SELECT trapper.merge_cats(
 
 ```sql
 -- Merge source place INTO target place
-SELECT trapper.merge_places(
+SELECT sot.merge_places(
     'source_place_uuid',
     'target_place_uuid'
 );
@@ -280,20 +280,20 @@ SELECT trapper.merge_places(
 ```sql
 -- People use the existing auto-merge infrastructure
 -- Manual merge via accept_match_candidate
-SELECT trapper.accept_match_candidate('person', '<candidate_id>');
+SELECT sot.accept_match_candidate('person', '<candidate_id>');
 ```
 
 ### Undoing Merges
 
 ```sql
 -- Undo a cat merge (relationships stay with target)
-SELECT trapper.undo_cat_merge('merged_cat_uuid');
+SELECT sot.undo_cat_merge('merged_cat_uuid');
 
 -- Undo a place merge
-SELECT trapper.undo_place_merge('merged_place_uuid');
+SELECT sot.undo_place_merge('merged_place_uuid');
 
 -- Undo a person merge
-SELECT trapper.undo_person_merge('merged_person_uuid');
+SELECT sot.undo_person_merge('merged_person_uuid');
 ```
 
 **Note:** Undo removes the merge marker but does NOT move relationships back. Manual cleanup may be needed.
@@ -304,16 +304,16 @@ When working with potentially merged entities, use these functions:
 
 ```sql
 -- Get canonical cat_id (follows merge chain)
-SELECT trapper.get_canonical_cat_id('cat_uuid');
+SELECT sot.get_canonical_cat_id('cat_uuid');
 
 -- Get canonical person_id
-SELECT trapper.get_canonical_person_id('person_uuid');
+SELECT sot.get_canonical_person_id('person_uuid');
 
 -- Get canonical place_id
-SELECT trapper.get_canonical_place_id('place_uuid');
+SELECT sot.get_canonical_place_id('place_uuid');
 
 -- Find canonical cat by microchip (respects merges)
-SELECT trapper.find_canonical_cat_by_microchip('981020012345678');
+SELECT sot.find_canonical_cat_by_microchip('981020012345678');
 ```
 
 ### Views for UI (Exclude Merged)
@@ -322,13 +322,13 @@ Use these views in UI queries to exclude merged entities:
 
 ```sql
 -- Canonical cats only
-SELECT * FROM trapper.v_canonical_cats;
+SELECT * FROM ops.v_canonical_cats;
 
 -- Canonical people only
-SELECT * FROM trapper.v_canonical_people;
+SELECT * FROM ops.v_canonical_people;
 
 -- Canonical places only
-SELECT * FROM trapper.v_canonical_places;
+SELECT * FROM ops.v_canonical_places;
 ```
 
 ### Merge History
@@ -338,7 +338,7 @@ All merges are logged for audit:
 ```sql
 -- View recent merges
 SELECT entity_type, source_atlas_id, target_atlas_id, merge_reason, merged_by, merged_at
-FROM trapper.entity_merge_history
+FROM ops.entity_merge_history
 ORDER BY merged_at DESC
 LIMIT 20;
 ```
@@ -365,29 +365,29 @@ set -a && source .env && set +a
 
 ```sql
 -- Preview what would happen
-SELECT trapper.populate_clinichq_people(TRUE, TRUE);
+SELECT ops.populate_clinichq_people(TRUE, TRUE);
 
 -- Actually populate
-SELECT trapper.populate_clinichq_people();
+SELECT ops.populate_clinichq_people();
 
 -- Or step-by-step:
 -- 1. Repair stuck runs
-SELECT * FROM trapper.repair_stuck_ingest_runs('clinichq', 30, FALSE);
+SELECT * FROM ops.repair_stuck_ingest_runs('clinichq', 30, FALSE);
 
 -- 2. Check for completed run
-SELECT trapper.get_latest_completed_run('clinichq', 'owner_info');
+SELECT ops.get_latest_completed_run('clinichq', 'owner_info');
 
 -- 3. Populate observations
-SELECT trapper.populate_observations_for_latest_run('owner_info');
+SELECT ops.populate_observations_for_latest_run('owner_info');
 
 -- 4. Create canonical people
-SELECT * FROM trapper.upsert_people_from_observations('owner_info');
+SELECT * FROM sot.upsert_people_from_observations('owner_info');
 
 -- 5. Populate aliases
-SELECT trapper.populate_aliases_from_name_signals('owner_info');
+SELECT sot.populate_aliases_from_name_signals('owner_info');
 
 -- 6. Update display names
-SELECT trapper.update_all_person_display_names();
+SELECT sot.update_all_person_display_names();
 ```
 
 ### Expected Counts
@@ -401,11 +401,11 @@ After a full ClinicHQ ingest:
 ```sql
 -- Verify counts
 SELECT
-    (SELECT COUNT(*) FROM trapper.staged_records
+    (SELECT COUNT(*) FROM ops.staged_records
      WHERE source_system = 'clinichq' AND source_table = 'owner_info') AS staged,
-    (SELECT COUNT(*) FROM trapper.observations
+    (SELECT COUNT(*) FROM ops.observations
      WHERE source_system = 'clinichq') AS observations,
-    (SELECT COUNT(DISTINCT person_id) FROM trapper.person_aliases
+    (SELECT COUNT(DISTINCT person_id) FROM sot.person_aliases
      WHERE source_system = 'clinichq') AS people;
 ```
 
@@ -432,22 +432,22 @@ set -a && source .env && set +a
 ```sql
 -- Step-by-step:
 -- 1. Repair stuck runs
-SELECT * FROM trapper.repair_stuck_ingest_runs('volunteerhub', 30, FALSE);
+SELECT * FROM ops.repair_stuck_ingest_runs('volunteerhub', 30, FALSE);
 
 -- 2. Check for completed run
-SELECT trapper.get_latest_completed_run('volunteerhub', 'users');
+SELECT ops.get_latest_completed_run('volunteerhub', 'users');
 
 -- 3. Populate observations (uses v2 extraction with name combining)
-SELECT trapper.populate_observations_for_latest_run('users');
+SELECT ops.populate_observations_for_latest_run('users');
 
 -- 4. Create canonical people
-SELECT * FROM trapper.upsert_people_from_observations('users');
+SELECT * FROM sot.upsert_people_from_observations('users');
 
 -- 5. Populate aliases
-SELECT trapper.populate_aliases_from_name_signals('users');
+SELECT sot.populate_aliases_from_name_signals('users');
 
 -- 6. Update display names
-SELECT trapper.update_all_person_display_names();
+SELECT sot.update_all_person_display_names();
 ```
 
 ### Name Field Handling
@@ -468,11 +468,11 @@ After a full VolunteerHub ingest:
 ```sql
 -- Verify counts
 SELECT
-    (SELECT COUNT(*) FROM trapper.staged_records
+    (SELECT COUNT(*) FROM ops.staged_records
      WHERE source_system = 'volunteerhub' AND source_table = 'users') AS staged,
-    (SELECT COUNT(*) FROM trapper.observations
+    (SELECT COUNT(*) FROM ops.observations
      WHERE source_system = 'volunteerhub') AS observations,
-    (SELECT COUNT(DISTINCT person_id) FROM trapper.person_aliases
+    (SELECT COUNT(DISTINCT person_id) FROM sot.person_aliases
      WHERE source_system = 'volunteerhub') AS people;
 ```
 
@@ -484,10 +484,10 @@ Ingest runs can get stuck in "running" state due to script crashes or timeouts.
 
 ```sql
 -- View all stuck runs (running > 30 minutes)
-SELECT * FROM trapper.v_stuck_ingest_runs;
+SELECT * FROM ops.v_stuck_ingest_runs;
 
 -- Check specific source
-SELECT * FROM trapper.v_stuck_ingest_runs
+SELECT * FROM ops.v_stuck_ingest_runs
 WHERE source_system = 'clinichq';
 ```
 
@@ -495,13 +495,13 @@ WHERE source_system = 'clinichq';
 
 ```sql
 -- Preview repairs (safe - no changes)
-SELECT * FROM trapper.repair_stuck_ingest_runs('clinichq', 30, TRUE);
+SELECT * FROM ops.repair_stuck_ingest_runs('clinichq', 30, TRUE);
 
 -- Actually repair (use with caution)
-SELECT * FROM trapper.repair_stuck_ingest_runs('clinichq', 30, FALSE);
+SELECT * FROM ops.repair_stuck_ingest_runs('clinichq', 30, FALSE);
 
 -- Repair all sources
-SELECT * FROM trapper.repair_stuck_ingest_runs(NULL, 30, FALSE);
+SELECT * FROM ops.repair_stuck_ingest_runs(NULL, 30, FALSE);
 ```
 
 ### Repair Logic
@@ -515,13 +515,13 @@ The repair function uses evidence-based decisions:
 | No data processed | Mark `failed` | Nothing happened |
 | Unclear state | Mark `failed` | Conservative fallback |
 
-All repairs are recorded in `trapper.ingest_run_repairs` for audit:
+All repairs are recorded in `ops.ingest_run_repairs` for audit:
 
 ```sql
 -- View repair history
 SELECT repair_id, source_system, source_table,
        old_status, new_status, repair_reason, repaired_at
-FROM trapper.ingest_run_repairs
+FROM ops.ingest_run_repairs
 ORDER BY repaired_at DESC;
 ```
 
@@ -533,7 +533,7 @@ Atlas uses double metaphone for phonetic name matching. The implementation is po
 
 ```sql
 -- Check backend status
-SELECT trapper.phonetic_backend_status();
+SELECT sot.phonetic_backend_status();
 
 -- Returns:
 -- {
@@ -549,30 +549,30 @@ SELECT trapper.phonetic_backend_status();
 
 ```sql
 -- Direct metaphone encoding
-SELECT trapper.dmetaphone('Smith');    -- SM0
-SELECT trapper.dmetaphone('Smyth');    -- SM0 (same!)
+SELECT sot.dmetaphone('Smith');    -- SM0
+SELECT sot.dmetaphone('Smyth');    -- SM0 (same!)
 
 -- Soundex similarity (0-4, 4 = identical)
-SELECT trapper.difference('Smith', 'Smyth');  -- 4
+SELECT sot.difference('Smith', 'Smyth');  -- 4
 
 -- Full name similarity with breakdown
-SELECT trapper.phonetic_name_similarity('Susan Smith', 'Susana Smyth');
+SELECT sot.phonetic_name_similarity('Susan Smith', 'Susana Smyth');
 ```
 
 ### Graceful Degradation
 
 If fuzzystrmatch extension is not installed, phonetic matching degrades gracefully:
 
-- `trapper.dmetaphone()` returns NULL
-- `trapper.difference()` returns 0
+- `sot.dmetaphone()` returns NULL
+- `sot.difference()` returns 0
 - Name matching still works using trigram similarity only
 - Lower accuracy but no errors
 
 ```sql
 -- Test degradation behavior
 SELECT
-    trapper.phonetic_backend_status()->>'available' AS phonetics_available,
-    trapper.phonetic_name_similarity('John Smith', 'Jon Smyth')->>'phonetics_enabled' AS phonetics_in_matching;
+    sot.phonetic_backend_status()->>'available' AS phonetics_available,
+    sot.phonetic_name_similarity('John Smith', 'Jon Smyth')->>'phonetics_enabled' AS phonetics_in_matching;
 ```
 
 ### Installing Phonetic Support
@@ -587,21 +587,21 @@ SELECT * FROM pg_available_extensions WHERE name = 'fuzzystrmatch';
 CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
 
 -- Verify
-SELECT trapper.phonetic_backend_status();
+SELECT sot.phonetic_backend_status();
 ```
 
 ## Statistics and Monitoring
 
 ```sql
 -- Overall entity resolution stats
-SELECT * FROM trapper.v_entity_resolution_stats;
+SELECT * FROM ops.v_entity_resolution_stats;
 
 -- Address quality by precision level
-SELECT * FROM trapper.v_address_quality;
+SELECT * FROM ops.v_address_quality;
 
 -- Place significance distribution
 SELECT is_significant, COUNT(*), AVG(activity_score)
-FROM trapper.places
+FROM sot.places
 GROUP BY is_significant;
 ```
 
@@ -625,16 +625,16 @@ GROUP BY is_significant;
 
 ```sql
 -- Check if pair was blocked
-SELECT trapper.is_pair_blocked('<person_1>', '<person_2>');
+SELECT sot.is_pair_blocked('<person_1>', '<person_2>');
 
 -- Check for conflicting identifiers
-SELECT trapper.have_conflicting_identifiers('<person_1>', '<person_2>');
+SELECT sot.have_conflicting_identifiers('<person_1>', '<person_2>');
 
 -- Check shared address context
-SELECT trapper.have_shared_address_context('<person_1>', '<person_2>');
+SELECT sot.have_shared_address_context('<person_1>', '<person_2>');
 
 -- Get full score breakdown
-SELECT trapper.score_person_match_candidate('<person_1>', '<person_2>');
+SELECT sot.score_person_match_candidate('<person_1>', '<person_2>');
 ```
 
 ### "Why is this cat a separate entry?"
@@ -642,11 +642,11 @@ SELECT trapper.score_person_match_candidate('<person_1>', '<person_2>');
 ```sql
 -- Check if both have microchips
 SELECT cat_id, id_type, id_value
-FROM trapper.cat_identifiers
+FROM sot.cat_identifiers
 WHERE cat_id IN ('<cat_1>', '<cat_2>');
 
 -- Score the potential match
-SELECT trapper.score_cat_match_candidate('<cat_1>', '<cat_2>');
+SELECT sot.score_cat_match_candidate('<cat_1>', '<cat_2>');
 ```
 
 ### "This place should be significant"
@@ -654,14 +654,14 @@ SELECT trapper.score_cat_match_candidate('<cat_1>', '<cat_2>');
 ```sql
 -- Check current status
 SELECT place_id, display_name, is_significant, significance_reason, activity_score
-FROM trapper.places
+FROM sot.places
 WHERE place_id = '<place_id>';
 
 -- See inference result
-SELECT * FROM trapper.infer_place_significance('<place_id>');
+SELECT * FROM sot.infer_place_significance('<place_id>');
 
 -- Mark it significant
-UPDATE trapper.places
+UPDATE sot.places
 SET is_significant = TRUE,
     significance_reason = 'Known colony site - manual override'
 WHERE place_id = '<place_id>';

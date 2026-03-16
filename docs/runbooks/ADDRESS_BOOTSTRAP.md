@@ -6,18 +6,18 @@ How to geocode addresses from staged trapping requests into the canonical addres
 
 ## Overview
 
-This pipeline transforms raw address text from `staged_records` into canonical `sot_addresses`:
+This pipeline transforms raw address text from `ops.staged_records` into canonical `sot.addresses`:
 
 ```
-staged_records (trapping_requests)
+ops.staged_records (trapping_requests)
         ↓
-v_candidate_addresses_from_trapping_requests (extract & filter)
+ops.v_candidate_addresses_from_trapping_requests (extract & filter)
         ↓
 geocode_candidates.mjs (normalize, cache, geocode)
         ↓
     ┌───┴───┐
     ↓       ↓
-sot_addresses   address_review_queue
+sot.addresses   address_review_queue
 (canonical)     (needs human review)
 ```
 
@@ -26,7 +26,7 @@ sot_addresses   address_review_queue
 ## Prerequisites
 
 1. Database bootstrapped with MIG_001
-2. Data ingested into `staged_records` (see [FIRST_INGEST.md](FIRST_INGEST.md))
+2. Data ingested into `ops.staged_records` (see [FIRST_INGEST.md](FIRST_INGEST.md))
 3. Google Cloud project with Geocoding API enabled
 
 ### Setting Up Google Geocoding API
@@ -74,7 +74,7 @@ Sample output:
  Cats Address    |             25 | 16.7%     |
 ```
 
-The candidate view (`v_candidate_addresses_from_trapping_requests`) is pre-configured to handle common field names. If your fields differ, update the view.
+The candidate view (`ops.v_candidate_addresses_from_trapping_requests`) is pre-configured to handle common field names. If your fields differ, update the view.
 
 ---
 
@@ -83,10 +83,10 @@ The candidate view (`v_candidate_addresses_from_trapping_requests`) is pre-confi
 ```bash
 psql "$DATABASE_URL" -c "
 SELECT
-  (SELECT COUNT(*) FROM trapper.staged_records WHERE source_table = 'trapping_requests') AS staged,
-  (SELECT COUNT(*) FROM trapper.v_candidate_addresses_from_trapping_requests) AS pending_candidates,
-  (SELECT COUNT(*) FROM trapper.sot_addresses) AS geocoded,
-  (SELECT COUNT(*) FROM trapper.address_review_queue WHERE NOT is_resolved) AS in_review;
+  (SELECT COUNT(*) FROM ops.staged_records WHERE source_table = 'trapping_requests') AS staged,
+  (SELECT COUNT(*) FROM ops.v_candidate_addresses_from_trapping_requests) AS pending_candidates,
+  (SELECT COUNT(*) FROM sot.addresses) AS geocoded,
+  (SELECT COUNT(*) FROM ops.address_review_queue WHERE NOT is_resolved) AS in_review;
 "
 ```
 
@@ -121,7 +121,7 @@ Processing...
   Processing: 123 Main St, Santa Rosa, CA 95401...
     Normalized: 123 main st santa rosa ca 95401...
     API call: ok 123 Main St, Santa Rosa, CA 95401...
-    Created: sot_address a1b2c3d4... (confidence: 1.0)
+    Created: sot.address a1b2c3d4... (confidence: 1.0)
   ...
 
 Summary
@@ -142,7 +142,7 @@ Estimated cost: $0.13 (25 API calls @ $5/1000)
 ### Pipeline Stats
 
 ```bash
-psql "$DATABASE_URL" -c "SELECT * FROM trapper.v_geocode_pipeline_stats;"
+psql "$DATABASE_URL" -c "SELECT * FROM ops.v_geocode_pipeline_stats;"
 ```
 
 ### Check SoT Addresses
@@ -157,7 +157,7 @@ SELECT
   postal_code,
   geocode_status,
   confidence_score
-FROM trapper.sot_addresses
+FROM sot.addresses
 ORDER BY created_at DESC
 LIMIT 10;
 "
@@ -170,7 +170,7 @@ psql "$DATABASE_URL" -c "
 SELECT
   reason,
   COUNT(*) AS count
-FROM trapper.address_review_queue
+FROM ops.address_review_queue
 WHERE NOT is_resolved
 GROUP BY reason
 ORDER BY count DESC;
@@ -185,7 +185,7 @@ SELECT
   formatted_address,
   unit_raw,
   unit_normalized
-FROM trapper.sot_addresses
+FROM sot.addresses
 WHERE unit_raw IS NOT NULL
 ORDER BY created_at DESC
 LIMIT 10;
@@ -200,7 +200,7 @@ LIMIT 10;
 
 ```bash
 # Check how many remain
-psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM trapper.v_candidate_addresses_from_trapping_requests;"
+psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM ops.v_candidate_addresses_from_trapping_requests;"
 
 # Process in batches of 100
 node scripts/normalize/geocode_candidates.mjs --limit 100
@@ -240,7 +240,7 @@ SELECT
   reason,
   suggested_formatted,
   source_row_id
-FROM trapper.address_review_queue
+FROM ops.address_review_queue
 WHERE NOT is_resolved
 ORDER BY created_at
 LIMIT 20;
@@ -252,7 +252,7 @@ LIMIT 20;
 1. **Accept suggested geocode:**
    ```sql
    -- Create SoT address from suggestion, then resolve
-   UPDATE trapper.address_review_queue
+   UPDATE ops.address_review_queue
    SET is_resolved = TRUE,
        resolution = 'accepted',
        resolved_at = NOW(),
@@ -263,11 +263,11 @@ LIMIT 20;
 2. **Manual entry:**
    ```sql
    -- Insert manually geocoded address
-   INSERT INTO trapper.sot_addresses (formatted_address, lat, lng, geocode_status)
+   INSERT INTO sot.addresses (formatted_address, lat, lng, geocode_status)
    VALUES ('123 Fixed St, Santa Rosa, CA 95401', 38.4404, -122.7141, 'manual_override');
 
    -- Then resolve
-   UPDATE trapper.address_review_queue
+   UPDATE ops.address_review_queue
    SET is_resolved = TRUE,
        resolution = 'manual_entry',
        resolved_at = NOW()
@@ -276,7 +276,7 @@ LIMIT 20;
 
 3. **Reject (invalid/garbage):**
    ```sql
-   UPDATE trapper.address_review_queue
+   UPDATE ops.address_review_queue
    SET is_resolved = TRUE,
        resolution = 'rejected',
        resolved_at = NOW(),
@@ -291,7 +291,7 @@ LIMIT 20;
 ### 1. Row Counts
 
 ```sql
-SELECT * FROM trapper.v_geocode_pipeline_stats;
+SELECT * FROM ops.v_geocode_pipeline_stats;
 ```
 
 ### 2. Check for Duplicates
@@ -302,7 +302,7 @@ SELECT
   formatted_address,
   unit_normalized,
   COUNT(*) AS occurrences
-FROM trapper.sot_addresses
+FROM sot.addresses
 GROUP BY formatted_address, unit_normalized
 HAVING COUNT(*) > 1;
 ```
@@ -315,7 +315,7 @@ SELECT
   COUNT(lat) AS with_lat,
   COUNT(unit_raw) AS with_unit,
   ROUND(100.0 * COUNT(lat) / NULLIF(COUNT(*), 0), 1) AS geocoded_pct
-FROM trapper.sot_addresses;
+FROM sot.addresses;
 ```
 
 ### 4. Geocode Status Distribution
@@ -325,7 +325,7 @@ SELECT
   geocode_status,
   COUNT(*) AS count,
   ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct
-FROM trapper.sot_addresses
+FROM sot.addresses
 GROUP BY geocode_status
 ORDER BY count DESC;
 ```
@@ -337,7 +337,7 @@ ORDER BY count DESC;
 SELECT
   COUNT(*) AS total,
   COUNT(*) FILTER (WHERE is_processed) AS processed
-FROM trapper.staged_records
+FROM ops.staged_records
 WHERE source_table = 'trapping_requests';
 ```
 
@@ -360,7 +360,7 @@ psql "$DATABASE_URL" -c "
 SELECT
   geocode_status,
   COUNT(*) AS cached_entries
-FROM trapper.geocode_cache
+FROM ops.geocode_cache
 GROUP BY geocode_status;
 "
 ```

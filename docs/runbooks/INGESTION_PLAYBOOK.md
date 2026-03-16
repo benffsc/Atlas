@@ -67,11 +67,11 @@ After ingestion, preview the data:
 ```bash
 # Appointment requests (most recent first)
 source .env && psql "$DATABASE_URL" -P pager=off -c \
-    "SELECT id, submitted_at, requester_name, cats_address, submission_status FROM trapper.v_appointment_requests_feed LIMIT 10;"
+    "SELECT id, submitted_at, requester_name, cats_address, submission_status FROM ops.v_appointment_requests_feed LIMIT 10;"
 
 # Upcoming appointments (soonest first)
 source .env && psql "$DATABASE_URL" -P pager=off -c \
-    "SELECT id, appt_date, client_full_name, client_address, animal_name FROM trapper.v_upcoming_appointments_feed LIMIT 10;"
+    "SELECT id, appt_date, client_full_name, client_address, animal_name FROM ops.v_upcoming_appointments_feed LIMIT 10;"
 ```
 
 ## Idempotency

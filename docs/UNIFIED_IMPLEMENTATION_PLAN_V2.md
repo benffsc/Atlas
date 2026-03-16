@@ -373,10 +373,10 @@ Optional enhancement - migrations already created.
 ```sql
 -- scripts/cleanup-test-data.sql
 DELETE FROM web_intake_submissions WHERE is_test = true;
-DELETE FROM sot_requests WHERE source_system = 'e2e_test';
-DELETE FROM sot_people WHERE email LIKE 'e2e-%@test.example.com';
-DELETE FROM sot_places WHERE display_name LIKE 'e2e-test-%';
-DELETE FROM sot_cats WHERE cat_name LIKE 'e2e-test-%';
+DELETE FROM ops.requests WHERE source_system = 'e2e_test';
+DELETE FROM sot.people WHERE email LIKE 'e2e-%@test.example.com';
+DELETE FROM sot.places WHERE display_name LIKE 'e2e-test-%';
+DELETE FROM sot.cats WHERE cat_name LIKE 'e2e-test-%';
 ```
 
 ### 18.2 Add afterAll Hooks to Tests
@@ -384,7 +384,7 @@ Ensure test cleanup runs after test completion.
 
 ### 18.3 Verify Cleanup
 ```sql
-SELECT COUNT(*) FROM sot_people WHERE email LIKE 'e2e-%';
+SELECT COUNT(*) FROM sot.people WHERE email LIKE 'e2e-%';
 -- Should be 0
 ```
 

@@ -41,14 +41,14 @@ Atlas follows a three-layer data architecture:
 ┌─────────────────────────────────────────────────────────┐
 │  Layer 2: IDENTITY RESOLUTION                          │
 │  - Matching via email/phone normalization              │
-│  - person_identifiers table for canonical lookup       │
+│  - sot.person_identifiers table for canonical lookup       │
 │  - Probabilistic matching with confidence scores       │
 └─────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────┐
 │  Layer 3: SOURCE OF TRUTH (sot_*)                      │
-│  - sot_people, sot_cats, sot_requests, places          │
+│  - sot.people, sot.cats, ops.requests, sot.places      │
 │  - Canonical records with verified data                │
 │  - Entity_edits table tracks all changes               │
 └─────────────────────────────────────────────────────────┘
@@ -62,11 +62,11 @@ Atlas follows a three-layer data architecture:
 
 | Table | Purpose | Primary Key |
 |-------|---------|-------------|
-| `sot_people` | All known individuals | `person_id` (UUID) |
-| `sot_cats` | All cats with microchips | `cat_id` (UUID) |
-| `sot_requests` | TNR service requests | `request_id` (UUID) |
-| `places` | All geolocated addresses | `place_id` (UUID) |
-| `person_identifiers` | Email/phone lookup | `identifier_id` |
+| `sot.people` | All known individuals | `person_id` (UUID) |
+| `sot.cats` | All cats with microchips | `cat_id` (UUID) |
+| `ops.requests` | TNR service requests | `request_id` (UUID) |
+| `sot.places` | All geolocated addresses | `place_id` (UUID) |
+| `sot.person_identifiers` | Email/phone lookup | `identifier_id` |
 | `place_colony_estimates` | Population observations | `estimate_id` |
 
 ### Data Sources
@@ -132,10 +132,10 @@ FROM (
         COUNT(DISTINCT c.cat_id) AS M,  -- Altered cats linked to place
         obs.total_cats_observed AS C,
         obs.eartip_count_observed AS R
-    FROM places p
+    FROM sot.places p
     JOIN observations obs ON obs.place_id = p.place_id
-    LEFT JOIN cat_place_relationships cpr ON cpr.place_id = p.place_id
-    LEFT JOIN sot_cats c ON c.cat_id = cpr.cat_id
+    LEFT JOIN sot.cat_place cpr ON cpr.place_id = p.place_id
+    LEFT JOIN sot.cats c ON c.cat_id = cpr.cat_id
         AND c.altered_status IN ('spayed', 'neutered')
     GROUP BY p.place_id, obs.total_cats_observed, obs.eartip_count_observed
 ) data;
@@ -257,7 +257,7 @@ People are matched using normalized identifiers:
 LOWER(TRIM(email))
 
 -- Phone normalization (US)
-SELECT trapper.norm_phone_us('+1 (707) 555-1234');
+SELECT sot.norm_phone_us('+1 (707) 555-1234');
 -- Returns: 7075551234
 ```
 
@@ -272,7 +272,7 @@ Addresses are geocoded and deduplicated:
 
 ```sql
 -- Geographic deduplication
-SELECT * FROM trapper.find_or_create_place_deduped(
+SELECT * FROM sot.find_or_create_place_deduped(
     p_address := '123 Main St, Santa Rosa, CA',
     p_source_system := 'web_intake'
 );
@@ -289,7 +289,7 @@ Cats are primarily identified by microchip:
 
 ```sql
 -- Microchip-based lookup
-SELECT * FROM trapper.find_or_create_cat_by_microchip(
+SELECT * FROM sot.find_or_create_cat_by_microchip(
     p_microchip := '985141234567890',
     p_name := 'Whiskers',
     p_sex := 'female',
@@ -330,7 +330,7 @@ All changes to canonical records are logged:
 
 ```sql
 -- entity_edits table
-INSERT INTO trapper.entity_edits (
+INSERT INTO ops.entity_edits (
     entity_type,      -- 'person', 'place', 'cat', 'request'
     entity_id,
     field_name,

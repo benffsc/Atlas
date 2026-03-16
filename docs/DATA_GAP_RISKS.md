@@ -245,7 +245,7 @@ Hector Sorrano and Esbeida Campos are a couple living at 1311 Corby Ave. Hector 
 - **3276 Dutton Ave (work):** 2 appointments with no contact info (separate colony)
 - **Person-place links:** Hector has `owner` role at BOTH addresses
 - **Result:** 13 cats from Corby incorrectly have `home` relationship at Dutton
-- **Evidence:** `cat_place_relationships` with `source_system = 'atlas'` and `relationship_type = 'home'` at Dutton
+- **Evidence:** `sot.cat_place` with `source_system = 'atlas'` and `relationship_type = 'home'` at Dutton
 
 **Risk:**
 1. **Location pollution:** Beacon shows 13+ cats at a commercial address that only has ~1 actual cat
@@ -254,16 +254,16 @@ Hector Sorrano and Esbeida Campos are a couple living at 1311 Corby Ave. Hector 
 4. **Data trust:** Undermines confidence in Atlas cat counts per location
 
 **Handling:**
-1. **Fix the pollution:** Delete `cat_place_relationships` at Dutton that came from person-based linking (not appointment-based)
+1. **Fix the pollution:** Delete `sot.cat_place` at Dutton that came from person-based linking (not appointment-based)
 2. **Preserve legit records:** Keep the 1 appointment-based cat relationship at Dutton (source_system = 'clinichq')
 3. **Person-place review:** Consider changing Hector's role at Dutton from `owner` to `works_at` or similar
 4. **Future prevention:** `link_cats_to_places()` should not propagate `home` relationships to places typed as `commercial`
 
 **System Considerations:**
 - This is a **predictable pattern** when: (a) household shares phone, (b) one member has work/other address relationship
-- The `link_cats_to_places()` function lacks place-type awareness - it propagates to ALL person_place_relationships
+- The `link_cats_to_places()` function lacks place-type awareness - it propagates to ALL sot.person_place
 - Commercial/work addresses should NOT receive `home` relationship propagation
-- Consider adding `relationship_context` (home, work, colony_site) to person_place_relationships
+- Consider adding `relationship_context` (home, work, colony_site) to sot.person_place
 - The `inferred_place_id` from appointments is GROUND TRUTH - person-based propagation is supplementary
 
 **Related:** RISK_003 (shared identifiers), RISK_004 (multi-location), MIG_889 (cat-place linking), INV-26 (LIMIT 1 fix)

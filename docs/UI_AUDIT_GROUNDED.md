@@ -197,7 +197,7 @@ DELETE FROM sot.people WHERE display_name = 'Rebooking placeholder';
 ALTER TABLE ops.requests ADD COLUMN IF NOT EXISTS property_type TEXT;
 
 -- Update promotion function to copy property_type
--- (modify trapper.promote_intake_request)
+-- (modify ops.promote_intake_request)
 ```
 
 #### MIG_2372: Investigate and blacklist 217 Healdsburg Ave

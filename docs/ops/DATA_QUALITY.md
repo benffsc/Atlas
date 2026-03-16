@@ -15,7 +15,7 @@ Without safeguards, these create "mega-persons" with thousands of incorrectly li
 
 ### Identity Phone Blacklist
 
-**Table:** `trapper.identity_phone_blacklist`
+**Table:** `sot.identity_phone_blacklist`
 
 Phones shared by 5+ distinct client names are blacklisted from identity linking:
 
@@ -25,11 +25,11 @@ Phones shared by 5+ distinct client names are blacklisted from identity linking:
 | 707-350-4401 | 27 | Shared voicemail |
 | ... | ... | ... |
 
-**Function:** `trapper.is_phone_blacklisted(phone)` - returns TRUE if phone should be excluded
+**Function:** `sot.is_phone_blacklisted(phone)` - returns TRUE if phone should be excluded
 
 ### Identity Name Exclusions
 
-**Table:** `trapper.identity_name_exclusions`
+**Table:** `sot.identity_name_exclusions`
 
 Patterns that indicate non-person records:
 
@@ -41,11 +41,11 @@ Patterns that indicate non-person records:
 | regex | ^[0-9]+\s | first | Address used as name |
 | ... | ... | ... | ... |
 
-**Function:** `trapper.is_person_name(first, last)` - returns TRUE if likely a real person
+**Function:** `sot.is_person_name(first, last)` - returns TRUE if likely a real person
 
 ### Place Exclusions
 
-**Table:** `trapper.place_exclusion_patterns`
+**Table:** `sot.place_exclusion_patterns`
 
 Patterns for non-place records:
 
@@ -56,7 +56,7 @@ Patterns for non-place records:
 | regex | ^[a-z]+ [a-z]+$ | Person name, not address |
 | ... | ... | ... |
 
-**Function:** `trapper.is_valid_place(name)` - returns TRUE if likely a real place
+**Function:** `sot.is_valid_place(name)` - returns TRUE if likely a real place
 
 ## Migrations
 
@@ -81,9 +81,9 @@ After cleanup (MIG_158):
 ## Backup & Recovery
 
 All migrations create backup tables:
-- `trapper.backup_sot_people_mig157`
-- `trapper.backup_person_identifiers_mig157`
-- `trapper.backup_places_mig158`
+- `trapper.backup_sot_people_mig157` (V1 backup table)
+- `trapper.backup_person_identifiers_mig157` (V1 backup table)
+- `trapper.backup_places_mig158` (V1 backup table)
 
 If incorrect exclusions are discovered, data can be recovered from backups.
 
@@ -91,19 +91,19 @@ If incorrect exclusions are discovered, data can be recovered from backups.
 
 ### Add a phone to blacklist:
 ```sql
-INSERT INTO trapper.identity_phone_blacklist (phone_norm, reason, distinct_client_count)
+INSERT INTO sot.identity_phone_blacklist (phone_norm, reason, distinct_client_count)
 VALUES ('7075551234', 'New shared line identified', 10);
 ```
 
 ### Add a name pattern:
 ```sql
-INSERT INTO trapper.identity_name_exclusions (pattern_type, pattern_value, field, reason)
+INSERT INTO sot.identity_name_exclusions (pattern_type, pattern_value, field, reason)
 VALUES ('contains', 'new_program', 'both', 'New FFSC program');
 ```
 
 ### Add a place pattern:
 ```sql
-INSERT INTO trapper.place_exclusion_patterns (pattern_type, pattern_value, reason)
+INSERT INTO sot.place_exclusion_patterns (pattern_type, pattern_value, reason)
 VALUES ('contains', 'test_location', 'Test data');
 ```
 

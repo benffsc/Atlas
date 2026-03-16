@@ -56,7 +56,7 @@
 
 ```sql
 -- Cats link to places via appointments
-cat_place_relationships (cat_id, place_id, relationship_type='appointment_site')
+sot.cat_place (cat_id, place_id, relationship_type='appointment_site')
 ```
 
 The cat came from this place. This is derived from:
@@ -67,7 +67,7 @@ The cat came from this place. This is derived from:
 
 ```sql
 -- Appointments link to cats via microchip
-sot_appointments (cat_id, appointment_date, place_id)
+ops.appointments (cat_id, appointment_date, place_id)
 ```
 
 Every cat that visits the clinic has a microchip. This is ground truth.
@@ -76,7 +76,7 @@ Every cat that visits the clinic has a microchip. This is ground truth.
 
 ```sql
 -- Appointments link to places via owner address
-sot_appointments (place_id, inferred_place_id)
+ops.appointments (place_id, inferred_place_id)
 ```
 
 The place is created from the owner address, even if we don't know who the owner is.
@@ -85,7 +85,7 @@ The place is created from the owner address, even if we don't know who the owner
 
 ```sql
 -- ONLY when email or phone is provided
-sot_appointments (person_id)  -- NULL if no confident identity
+ops.appointments (person_id)  -- NULL if no confident identity
 ```
 
 **Rules:**
@@ -134,7 +134,7 @@ cat = find_or_create_cat(microchip)
 appointment.cat_id = cat.id
 
 # Link cat to place (from appointment)
-cat_place_relationships.insert(cat_id, place_id)
+sot.cat_place.insert(cat_id, place_id)
 ```
 
 ## Cleanup (MIG_570)
@@ -158,7 +158,7 @@ SELECT
     COUNT(*) FILTER (WHERE place_id IS NOT NULL) as has_place,
     COUNT(*) FILTER (WHERE person_id IS NOT NULL) as has_person,
     COUNT(*) FILTER (WHERE place_id IS NULL AND person_id IS NULL) as orphaned
-FROM trapper.sot_appointments
+FROM ops.appointments
 WHERE cat_id IS NOT NULL;
 ```
 
@@ -166,17 +166,17 @@ WHERE cat_id IS NOT NULL;
 
 ```sql
 SELECT COUNT(DISTINCT cat_id) as cats_with_places
-FROM trapper.cat_place_relationships;
+FROM sot.cat_place;
 ```
 
 ### Check for orphan people (should be 0 active)
 
 ```sql
 SELECT COUNT(*) as orphan_people
-FROM trapper.sot_people
+FROM sot.people
 WHERE merged_into_person_id IS NULL
   AND data_quality != 'orphan_no_identifiers'
-  AND NOT EXISTS (SELECT 1 FROM trapper.person_identifiers WHERE person_id = sot_people.person_id);
+  AND NOT EXISTS (SELECT 1 FROM sot.person_identifiers WHERE person_id = people.person_id);
 ```
 
 ## Summary

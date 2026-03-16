@@ -95,9 +95,9 @@ Staff → Cockpit → Airtable API → Airtable
 
 | Process | Schedule | Source | Target |
 |---------|----------|--------|--------|
-| Trapping Requests | Hourly | Airtable | `trapper.requests` |
-| Appointment Requests | Hourly | Airtable | `trapper.appointment_requests` |
-| ClinicHQ Appointments | Daily | XLSX Export | `trapper.clinichq_*` |
+| Trapping Requests | Hourly | Airtable | `ops.requests` |
+| Appointment Requests | Hourly | Airtable | `ops.appointment_requests` |
+| ClinicHQ Appointments | Daily | XLSX Export | `source.clinichq_*` |
 
 **Ingest Scripts**:
 - `ingest_airtable_trapping_requests.py`
@@ -206,11 +206,11 @@ AIRTABLE_SCHEMA_WRITE_ENABLED=false
 **Tables synced**:
 | Airtable Table | Postgres Table |
 |----------------|----------------|
-| Trapping Requests | `trapper.requests` |
-| Appointment Requests | `trapper.appointment_requests` |
-| Clients | `trapper.people` |
-| Places | `trapper.places` |
-| Address Registry | `trapper.addresses` |
+| Trapping Requests | `ops.requests` |
+| Appointment Requests | `ops.appointment_requests` |
+| Clients | `sot.people` |
+| Places | `sot.places` |
+| Address Registry | `sot.addresses` |
 
 ---
 
