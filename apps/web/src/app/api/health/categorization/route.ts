@@ -50,18 +50,18 @@ export async function GET() {
     `);
 
     // Check for SCAS pattern misses (hyphenated IDs like A-416620)
+    // ops.appointments has owner_first_name/owner_last_name (MIG_2802), not client_first_name
     const scasPatternMisses = await queryRows<PatternMiss>(`
       SELECT
         a.appointment_id::text,
-        cv.client_first_name,
-        cv.client_last_name,
+        a.owner_first_name AS client_first_name,
+        a.owner_last_name AS client_last_name,
         a.appointment_source_category as current_category,
         'county_scas' as suggested_category,
         'hyphenated_scas_id' as pattern_type
       FROM ops.appointments a
-      JOIN source.clinichq_visits cv ON cv.appointment_number = a.appointment_number
-      WHERE UPPER(TRIM(cv.client_last_name)) = 'SCAS'
-        AND TRIM(cv.client_first_name) ~ '^[AS]-[0-9]+$'
+      WHERE UPPER(TRIM(a.owner_last_name)) = 'SCAS'
+        AND TRIM(a.owner_first_name) ~ '^[AS]-[0-9]+$'
         AND a.appointment_source_category <> 'county_scas'
       LIMIT 20
     `);
@@ -70,24 +70,23 @@ export async function GET() {
     const lmfmPatternMisses = await queryRows<PatternMiss>(`
       SELECT
         a.appointment_id::text,
-        cv.client_first_name,
-        cv.client_last_name,
+        a.owner_first_name AS client_first_name,
+        a.owner_last_name AS client_last_name,
         a.appointment_source_category as current_category,
         'lmfm' as suggested_category,
         'all_caps_hyphenated' as pattern_type
       FROM ops.appointments a
-      JOIN source.clinichq_visits cv ON cv.appointment_number = a.appointment_number
       WHERE a.appointment_source_category <> 'lmfm'
-        AND cv.client_first_name ~ '^[A-Z-]+$'
-        AND cv.client_last_name ~ '^[A-Z-]+$'
-        AND LENGTH(cv.client_first_name) > 2
-        AND LENGTH(cv.client_last_name) > 2
-        AND cv.client_first_name ~ '-'
-        AND UPPER(cv.client_last_name) <> 'SCAS'
+        AND a.owner_first_name ~ '^[A-Z-]+$'
+        AND a.owner_last_name ~ '^[A-Z-]+$'
+        AND LENGTH(a.owner_first_name) > 2
+        AND LENGTH(a.owner_last_name) > 2
+        AND a.owner_first_name ~ '-'
+        AND UPPER(a.owner_last_name) <> 'SCAS'
       LIMIT 20
     `);
 
-    // Check classification function status
+    // Check classification function status (trapper schema dropped in V2; check ops schema)
     const functionStatus = await queryRows<ClassificationFunctionStatus>(`
       SELECT
         proname as function_name,
@@ -95,8 +94,8 @@ export async function GET() {
         NULL as last_updated
       FROM pg_proc p
       JOIN pg_namespace n ON p.pronamespace = n.oid
-      WHERE n.nspname = 'trapper'
-        AND proname IN ('is_scas_appointment', 'is_lmfm_appointment', 'is_foster_program_appointment')
+      WHERE n.nspname = 'ops'
+        AND proname IN ('classify_ffsc_booking')
     `);
 
     // Get recent classifications (appointments classified in last 24h via trigger)

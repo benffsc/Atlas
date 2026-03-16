@@ -16,6 +16,18 @@ import { navigateTo, waitForLoaded, findRealEntity } from './ui-test-helpers';
  * ALL TESTS ARE READ-ONLY - no data modifications.
  */
 
+/**
+ * Unwrap API responses that may be wrapped in apiSuccess format.
+ * Handles both `{ success: true, data: { ... } }` and direct `{ ... }`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function unwrapResponse(json: any): any {
+  if (json?.success === true && json?.data && typeof json.data === 'object') {
+    return json.data;
+  }
+  return json;
+}
+
 test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
   test.setTimeout(60000);
 
@@ -28,10 +40,10 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
         console.log(`/api/people returned ${peopleRes.status()} - passing (endpoint may not be available)`);
         return;
       }
-      const peopleData = await peopleRes.json();
+      const peopleData = unwrapResponse(await peopleRes.json());
 
       // API may return { people: [] } or just []
-      const people = peopleData.data?.people || peopleData.people || peopleData;
+      const people = peopleData.people || peopleData;
       if (!Array.isArray(people) || !people.length) {
         console.log('No people found in database - passing (empty is valid)');
         return;
@@ -45,7 +57,7 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
         return;
       }
 
-      const addressData = await addressRes.json();
+      const addressData = unwrapResponse(await addressRes.json());
       // API may return { addresses: [] } or just []
       const addresses = addressData.addresses || addressData;
       expect(Array.isArray(addresses)).toBe(true);
@@ -61,14 +73,14 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
 
     test('person detail includes associated_places with V2 structure', async ({ request }) => {
       const peopleRes = await request.get('/api/people?limit=10');
-      const peopleData = await peopleRes.json();
+      const peopleData = unwrapResponse(await peopleRes.json());
 
       let testedWithPlaces = 0;
       for (const person of peopleData.people || []) {
         const detailRes = await request.get(`/api/people/${person.person_id}`);
         if (!detailRes.ok()) continue;
 
-        const detail = await detailRes.json();
+        const detail = unwrapResponse(await detailRes.json());
         if (detail.associated_places?.length > 0) {
           testedWithPlaces++;
           const place = detail.associated_places[0];
@@ -84,14 +96,14 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
 
     test('places/[id]/people API returns valid person-place data', async ({ request }) => {
       const placesRes = await request.get('/api/places?limit=10');
-      const placesData = await placesRes.json();
+      const placesData = unwrapResponse(await placesRes.json());
 
       let testedWithPeople = 0;
       for (const place of placesData.places || []) {
         const peopleRes = await request.get(`/api/places/${place.place_id}/people`);
         if (!peopleRes.ok()) continue;
 
-        const peopleData = await peopleRes.json();
+        const peopleData = unwrapResponse(await peopleRes.json());
         if (peopleData.people?.length > 0) {
           testedWithPeople++;
           const person = peopleData.people[0];
@@ -115,7 +127,7 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
         return;
       }
 
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       // API may return { people: [], results: [] } or { results: [] }
       const people = data.people || data.results || data;
       expect(Array.isArray(people)).toBe(true);
@@ -129,13 +141,13 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
 
     test('person google-map-context uses V2 relationship_type', async ({ request }) => {
       const peopleRes = await request.get('/api/people?limit=5');
-      const peopleData = await peopleRes.json();
+      const peopleData = unwrapResponse(await peopleRes.json());
 
       for (const person of peopleData.people || []) {
         const contextRes = await request.get(`/api/people/${person.person_id}/google-map-context`);
         if (!contextRes.ok()) continue;
 
-        const data = await contextRes.json();
+        const data = unwrapResponse(await contextRes.json());
         // If context data exists, verify V2 structure
         if (data.place_relationship) {
           expect(data.place_relationship).toHaveProperty('relationship_type');
@@ -148,14 +160,14 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
   test.describe('Person-Cat Relationships (sot.person_cat)', () => {
     test('person cats API returns valid cat relationships', async ({ request }) => {
       const peopleRes = await request.get('/api/people?limit=10');
-      const peopleData = await peopleRes.json();
+      const peopleData = unwrapResponse(await peopleRes.json());
 
       let testedWithCats = 0;
       for (const person of peopleData.people || []) {
         const catsRes = await request.get(`/api/people/${person.person_id}/cats`);
         if (!catsRes.ok()) continue;
 
-        const catsData = await catsRes.json();
+        const catsData = unwrapResponse(await catsRes.json());
         if (catsData.cats?.length > 0) {
           testedWithCats++;
           const cat = catsData.cats[0];
@@ -174,13 +186,13 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
 
     test('person roles API uses V2 person_cat table', async ({ request }) => {
       const peopleRes = await request.get('/api/people?limit=5');
-      const peopleData = await peopleRes.json();
+      const peopleData = unwrapResponse(await peopleRes.json());
 
       for (const person of peopleData.people || []) {
         const rolesRes = await request.get(`/api/people/${person.person_id}/roles`);
         if (!rolesRes.ok()) continue;
 
-        const rolesData = await rolesRes.json();
+        const rolesData = unwrapResponse(await rolesRes.json());
         expect(rolesData).toHaveProperty('roles');
         // V2: cat_count should come from person_cat table
         if (rolesData.stats?.cat_count !== undefined) {
@@ -194,14 +206,14 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
   test.describe('Cat-Place Relationships (sot.cat_place)', () => {
     test('place cat-presence API uses V2 cat_place table', async ({ request }) => {
       const placesRes = await request.get('/api/places?limit=10');
-      const placesData = await placesRes.json();
+      const placesData = unwrapResponse(await placesRes.json());
 
       let testedWithCats = 0;
       for (const place of placesData.places || []) {
         const presenceRes = await request.get(`/api/places/${place.place_id}/cat-presence`);
         if (!presenceRes.ok()) continue;
 
-        const data = await presenceRes.json();
+        const data = unwrapResponse(await presenceRes.json());
         if (data.cats?.length > 0) {
           testedWithCats++;
           const cat = data.cats[0];
@@ -219,13 +231,13 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
 
     test('place population-events API uses V2 cat_place', async ({ request }) => {
       const placesRes = await request.get('/api/places?limit=5');
-      const placesData = await placesRes.json();
+      const placesData = unwrapResponse(await placesRes.json());
 
       for (const place of placesData.places || []) {
         const eventsRes = await request.get(`/api/places/${place.place_id}/population-events`);
         if (!eventsRes.ok()) continue;
 
-        const data = await eventsRes.json();
+        const data = unwrapResponse(await eventsRes.json());
         expect(data).toHaveProperty('events');
         expect(Array.isArray(data.events)).toBe(true);
         break;
@@ -234,13 +246,13 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
 
     test('place observations API uses V2 cat_place', async ({ request }) => {
       const placesRes = await request.get('/api/places?limit=5');
-      const placesData = await placesRes.json();
+      const placesData = unwrapResponse(await placesRes.json());
 
       for (const place of placesData.places || []) {
         const obsRes = await request.get(`/api/places/${place.place_id}/observations`);
         if (!obsRes.ok()) continue;
 
-        const data = await obsRes.json();
+        const data = unwrapResponse(await obsRes.json());
         expect(data).toHaveProperty('observations');
         expect(Array.isArray(data.observations)).toBe(true);
         break;
@@ -253,7 +265,7 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
       expect([200, 404]).toContain(res.status());
 
       if (res.ok()) {
-        const data = await res.json();
+        const data = unwrapResponse(await res.json());
         // API returns { isDuplicate, canAddUnit, normalizedAddress, existing_places? }
         expect(data).toHaveProperty('isDuplicate');
         expect(data).toHaveProperty('normalizedAddress');
@@ -264,7 +276,7 @@ test.describe('V2 Migration: Relationship Table APIs @data-quality', () => {
       const res = await request.get('/api/places/nearby?lat=38.5&lng=-122.8&radius=1000');
       expect(res.ok()).toBeTruthy();
 
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       // API returns { existing_places: [], existing_address: bool, address_id }
       const places = data.places || data.existing_places || [];
       expect(Array.isArray(places)).toBe(true);
@@ -279,7 +291,7 @@ test.describe('V2 Migration: Search and Map APIs', () => {
     const res = await request.get('/api/search?q=cat&limit=10');
     expect(res.ok()).toBeTruthy();
 
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
     expect(data).toHaveProperty('results');
     expect(Array.isArray(data.results)).toBe(true);
 
@@ -295,7 +307,7 @@ test.describe('V2 Migration: Search and Map APIs', () => {
     const res = await request.get('/api/search?q=cat&suggestions=true&limit=5');
     expect(res.ok()).toBeTruthy();
 
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
     expect(data).toHaveProperty('suggestions');
 
     // V2: Coordinates should be enriched from cat_place, person_place
@@ -313,7 +325,7 @@ test.describe('V2 Migration: Search and Map APIs', () => {
     const res = await request.get('/api/beacon/map-data?layers=atlas_pins&bounds=38,-123,39,-122');
     expect(res.ok()).toBeTruthy();
 
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
     // atlas_pins layer should exist
     if (data.atlas_pins) {
       expect(Array.isArray(data.atlas_pins)).toBe(true);
@@ -334,7 +346,7 @@ test.describe('V2 Migration: Search and Map APIs', () => {
     const res = await request.get('/api/beacon/map-data?layers=places');
     expect(res.ok()).toBeTruthy();
 
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
     if (data.places?.length > 0) {
       const place = data.places[0];
       expect(place).toHaveProperty('id');
@@ -346,13 +358,13 @@ test.describe('V2 Migration: Search and Map APIs', () => {
 
   test('request nearby API uses V2 relationship tables', async ({ request }) => {
     const requestsRes = await request.get('/api/requests?limit=5');
-    const requestsData = await requestsRes.json();
+    const requestsData = unwrapResponse(await requestsRes.json());
 
     for (const req of requestsData.requests || []) {
       const nearbyRes = await request.get(`/api/requests/${req.request_id}/nearby`);
       if (!nearbyRes.ok()) continue;
 
-      const data = await nearbyRes.json();
+      const data = unwrapResponse(await nearbyRes.json());
       // V2: nearby_cats uses cat_place, nearby_people uses person_place
       expect(data).toHaveProperty('nearby_places');
       expect(Array.isArray(data.nearby_places)).toBe(true);
@@ -370,7 +382,7 @@ test.describe('V2 Migration: Admin Tools', () => {
     expect([200, 401, 403]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       expect(data).toHaveProperty('candidates');
 
       // V2: Stats should come from sot.person_place and sot.person_cat
@@ -388,7 +400,7 @@ test.describe('V2 Migration: Admin Tools', () => {
     expect([200, 401, 403]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       expect(data).toHaveProperty('candidates');
 
       // V2: Stats should come from sot.cat_place and sot.person_place
@@ -407,7 +419,7 @@ test.describe('V2 Migration: Admin Tools', () => {
     expect([200, 401, 403, 500]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       expect(data).toHaveProperty('items');
     }
   });
@@ -417,7 +429,7 @@ test.describe('V2 Migration: Admin Tools', () => {
     expect([200, 401, 403, 500]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       // Should return forecast data without errors from V2 tables
       expect(data).toBeDefined();
     }
@@ -428,7 +440,7 @@ test.describe('V2 Migration: Admin Tools', () => {
     expect([200, 401, 403, 500]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       expect(data).toBeDefined();
     }
   });
@@ -443,7 +455,7 @@ test.describe('V2 Migration: Cron and Background Jobs', () => {
     expect([200, 500]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       expect(data).toHaveProperty('status');
       expect(['healthy', 'degraded', 'unhealthy']).toContain(data.status);
 
@@ -460,7 +472,7 @@ test.describe('V2 Migration: Cron and Background Jobs', () => {
     expect([200, 401]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       expect(data).toHaveProperty('metrics');
       // V2: cat_place_coverage_pct uses sot.cat_place
       expect(data.metrics).toHaveProperty('cat_place_coverage_pct');
@@ -539,14 +551,14 @@ test.describe('V2 Migration: Cross-Reference Integrity', () => {
   test('cat places match place cats (bidirectional V2 consistency)', async ({ request }) => {
     // Get a cat with places
     const catsRes = await request.get('/api/cats?limit=20');
-    const catsData = await catsRes.json();
+    const catsData = unwrapResponse(await catsRes.json());
 
     let verified = 0;
     for (const cat of catsData.cats || []) {
       const catDetailRes = await request.get(`/api/cats/${cat.cat_id}`);
       if (!catDetailRes.ok()) continue;
 
-      const catDetail = await catDetailRes.json();
+      const catDetail = unwrapResponse(await catDetailRes.json());
       if (!catDetail.places?.length) continue;
 
       const placeId = catDetail.places[0].place_id;
@@ -555,7 +567,7 @@ test.describe('V2 Migration: Cross-Reference Integrity', () => {
       const placeCatsRes = await request.get(`/api/places/${placeId}/cat-presence`);
       if (!placeCatsRes.ok()) continue;
 
-      const placeCatsData = await placeCatsRes.json();
+      const placeCatsData = unwrapResponse(await placeCatsRes.json());
       const catInPlace = placeCatsData.cats?.some(
         (c: { cat_id: string }) => c.cat_id === cat.cat_id
       );
@@ -572,14 +584,14 @@ test.describe('V2 Migration: Cross-Reference Integrity', () => {
   test('person places match place people (bidirectional V2 consistency)', async ({ request }) => {
     // Get a person with places
     const peopleRes = await request.get('/api/people?limit=20');
-    const peopleData = await peopleRes.json();
+    const peopleData = unwrapResponse(await peopleRes.json());
 
     let verified = 0;
     for (const person of peopleData.people || []) {
       const personDetailRes = await request.get(`/api/people/${person.person_id}`);
       if (!personDetailRes.ok()) continue;
 
-      const personDetail = await personDetailRes.json();
+      const personDetail = unwrapResponse(await personDetailRes.json());
       if (!personDetail.associated_places?.length) continue;
 
       const placeId = personDetail.associated_places[0].place_id;
@@ -588,7 +600,7 @@ test.describe('V2 Migration: Cross-Reference Integrity', () => {
       const placePeopleRes = await request.get(`/api/places/${placeId}/people`);
       if (!placePeopleRes.ok()) continue;
 
-      const placePeopleData = await placePeopleRes.json();
+      const placePeopleData = unwrapResponse(await placePeopleRes.json());
       const personInPlace = placePeopleData.people?.some(
         (p: { person_id: string }) => p.person_id === person.person_id
       );
@@ -619,7 +631,7 @@ test.describe('V2 Migration: Tippy Tools @real-api', () => {
     expect([200, 400, 401, 403, 404, 500]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       expect(data).toBeDefined();
     }
   });
@@ -641,7 +653,7 @@ test.describe('V2 Migration: Ingest Pipeline', () => {
     expect([200, 401, 403, 404]).toContain(res.status());
 
     if (res.ok()) {
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       // V2: Should include relationship data from V2 tables
       expect(data).toHaveProperty('entity');
     }
@@ -649,13 +661,13 @@ test.describe('V2 Migration: Ingest Pipeline', () => {
 
   test('colonies suggest-details uses V2 relationship tables', async ({ request }) => {
     const placesRes = await request.get('/api/places?limit=5');
-    const placesData = await placesRes.json();
+    const placesData = unwrapResponse(await placesRes.json());
 
     for (const place of placesData.places || []) {
       const res = await request.get(`/api/colonies/suggest-details?place_id=${place.place_id}`);
       if (!res.ok()) continue;
 
-      const data = await res.json();
+      const data = unwrapResponse(await res.json());
       // V2: Suggestions should use cat_place and person_place
       expect(data).toBeDefined();
       break;
@@ -670,7 +682,7 @@ test.describe('V2 Migration: Ingest Pipeline', () => {
       return;
     }
 
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
     if (data.entries?.length > 0) {
       const entryId = data.entries[0].entry_id;
       const nearbyRes = await request.get(`/api/google-map-entries/${entryId}/nearby-places`);

@@ -9,14 +9,10 @@ interface PersonCatRelationship {
   microchip: string | null;
   relationship_type: string;
   confidence: string;
-  context_notes: string | null;
-  effective_date: string | null;
-  appointment_id: string | null;
-  appointment_date: string | null;
-  appointment_number: string | null;
   source_system: string;
   data_source: string | null;
   created_at: string;
+  latest_appointment_date: string | null;
 }
 
 /**
@@ -44,36 +40,38 @@ export async function GET(
 
     const sql = `
       SELECT
-        pcr.cat_id,
+        pc.cat_id,
         c.display_name AS cat_name,
         ci.id_value AS microchip,
-        pcr.relationship_type,
+        pc.relationship_type,
         pc.confidence,
-        pc.context_notes,
-        pc.effective_date::TEXT,
-        pc.appointment_id,
-        a.appointment_date::TEXT,
-        a.appointment_number,
         pc.source_system,
         c.data_source,
-        pc.created_at::TEXT
-      -- V2: Uses sot.person_cat instead of sot.person_cat_relationships
+        pc.created_at::TEXT,
+        la.appointment_date::TEXT AS latest_appointment_date
       FROM sot.person_cat pc
-      JOIN sot.cats c ON c.cat_id = pc.cat_id
+      JOIN sot.cats c ON c.cat_id = pc.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
-      LEFT JOIN ops.appointments a ON a.appointment_id = pc.appointment_id
+      LEFT JOIN LATERAL (
+        SELECT a.appointment_date
+        FROM ops.appointments a
+        WHERE a.person_id = pc.person_id
+          AND a.cat_id = pc.cat_id
+        ORDER BY a.appointment_date DESC
+        LIMIT 1
+      ) la ON TRUE
       WHERE pc.person_id = $1
         ${relationshipClause}
       ORDER BY
         CASE pc.relationship_type
           WHEN 'owner' THEN 1
           WHEN 'adopter' THEN 2
-          WHEN 'fostering' THEN 3
+          WHEN 'foster' THEN 3
           WHEN 'caretaker' THEN 4
-          WHEN 'brought_in_by' THEN 5
+          WHEN 'trapper' THEN 5
           ELSE 6
         END,
-        pc.effective_date DESC NULLS LAST,
+        pc.created_at DESC NULLS LAST,
         c.display_name
     `;
 
@@ -88,9 +86,7 @@ export async function GET(
       relationships: {
         type: string;
         confidence: string;
-        context_notes: string | null;
-        effective_date: string | null;
-        appointment_date: string | null;
+        latest_appointment_date: string | null;
         source_system: string;
       }[];
     }>();
@@ -108,9 +104,7 @@ export async function GET(
       catMap.get(row.cat_id)!.relationships.push({
         type: row.relationship_type,
         confidence: row.confidence,
-        context_notes: row.context_notes,
-        effective_date: row.effective_date,
-        appointment_date: row.appointment_date,
+        latest_appointment_date: row.latest_appointment_date,
         source_system: row.source_system,
       });
     }

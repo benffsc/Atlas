@@ -27,8 +27,7 @@ export async function GET() {
 
         (SELECT COUNT(*)::int FROM sot.places
          WHERE merged_into_place_id IS NULL
-           AND latitude IS NOT NULL
-           AND longitude IS NOT NULL
+           AND location IS NOT NULL
         ) AS geocoded,
 
         (SELECT COUNT(*)::int FROM sot.places
@@ -40,7 +39,7 @@ export async function GET() {
           ELSE ROUND(100.0 *
             (SELECT COUNT(*) FROM sot.places
              WHERE merged_into_place_id IS NULL
-               AND latitude IS NOT NULL AND longitude IS NOT NULL) /
+               AND location IS NOT NULL) /
             (SELECT COUNT(*) FROM sot.places WHERE merged_into_place_id IS NULL)
           , 1)
         END AS geocode_rate

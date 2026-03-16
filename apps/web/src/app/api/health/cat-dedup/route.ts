@@ -59,23 +59,25 @@ export async function GET() {
       LIMIT 10
     `);
 
-    // Get recent merges
+    // Get recent merges from ops.cat_dedup_candidates (MIG_2835)
+    // Note: ops.cat_dedup_candidates has no resolved_at/resolved_by columns;
+    // it stores recommended_action and match_reason. Use created_at as proxy.
     const recentMerges = await queryRows<{
-      candidate_id: string;
-      resolved_at: string;
-      resolved_by: string;
-      resolution_notes: string;
+      id: string;
+      match_reason: string;
+      recommended_action: string;
+      created_at: string;
     }>(`
       SELECT
-        candidate_id::text,
-        resolved_at::text,
-        resolved_by,
-        resolution_notes
-      FROM sot.cat_dedup_candidates
-      WHERE resolution = 'merged'
-      ORDER BY resolved_at DESC
+        id::text,
+        match_reason,
+        recommended_action,
+        created_at::text
+      FROM ops.cat_dedup_candidates
+      WHERE recommended_action = 'auto_merge'
+      ORDER BY created_at DESC
       LIMIT 5
-    `);
+    `).catch(() => []);
 
     // Get duplicate cause breakdown
     const causeBreakdown = await queryRows<{
@@ -83,13 +85,12 @@ export async function GET() {
       count: number;
     }>(`
       SELECT
-        likely_cause,
+        match_reason AS likely_cause,
         COUNT(*) as count
-      FROM sot.cat_dedup_candidates
-      WHERE resolution = 'pending'
-      GROUP BY likely_cause
+      FROM ops.cat_dedup_candidates
+      GROUP BY match_reason
       ORDER BY count DESC
-    `);
+    `).catch(() => []);
 
     // Determine overall status
     const exactDuplicates = health?.exact_microchip_duplicates || 0;

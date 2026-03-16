@@ -71,10 +71,9 @@ export async function GET(
     const colony = await queryOne<ColonyDetail>(
       `SELECT
         colony_id,
-        colony_name,
-        status,
-        colony_notes as notes,
-        created_by,
+        name AS colony_name,
+        colony_status AS status,
+        description AS notes,
         created_at,
         updated_at,
         place_count,
@@ -180,7 +179,7 @@ export async function PATCH(
     let paramIndex = 1;
 
     if (colony_name !== undefined) {
-      updates.push(`colony_name = $${paramIndex++}`);
+      updates.push(`name = $${paramIndex++}`);
       values.push(colony_name?.trim() || null);
     }
 
@@ -189,12 +188,12 @@ export async function PATCH(
       if (!validStatuses.includes(status)) {
         return apiBadRequest(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
       }
-      updates.push(`status = $${paramIndex++}`);
+      updates.push(`colony_status = $${paramIndex++}`);
       values.push(status);
     }
 
     if (notes !== undefined) {
-      updates.push(`notes = $${paramIndex++}`);
+      updates.push(`description = $${paramIndex++}`);
       values.push(notes?.trim() || null);
     }
 

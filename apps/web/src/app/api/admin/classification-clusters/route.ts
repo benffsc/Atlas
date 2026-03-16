@@ -164,8 +164,8 @@ export async function POST(request: NextRequest) {
         const colonyName = body.colony_name || `Colony at ${centerData?.first_address?.split(",")[0] || "Unknown"}`;
         const newColony = await queryOne<{ colony_id: string }>(
           `INSERT INTO sot.colonies (
-            colony_name, center_lat, center_lng, status, created_by
-          ) VALUES ($1, $2, $3, 'active', $4)
+            name, center_lat, center_lng, colony_status, created_by_staff_id
+          ) VALUES ($1, $2, $3, 'active', $4::uuid)
           RETURNING colony_id`,
           [colonyName, centerData?.center_lat, centerData?.center_lng, reviewed_by || "staff"]
         );

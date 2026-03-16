@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     let paramIndex = 1;
 
     if (status) {
-      whereClause += ` AND status = $${paramIndex++}`;
+      whereClause += ` AND colony_status = $${paramIndex++}`;
       params.push(status);
     }
 
@@ -45,17 +45,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      whereClause += ` AND colony_name ILIKE $${paramIndex++}`;
+      whereClause += ` AND name ILIKE $${paramIndex++}`;
       params.push(`%${search}%`);
     }
 
     const colonies = await queryRows<Colony>(
       `SELECT
         colony_id,
-        colony_name,
-        status,
-        colony_notes as notes,
-        created_by,
+        name AS colony_name,
+        colony_status AS status,
+        description AS notes,
         created_at,
         updated_at,
         place_count,
@@ -71,7 +70,7 @@ export async function GET(request: NextRequest) {
         has_count_discrepancy
       FROM ops.v_colony_stats
       WHERE ${whereClause}
-      ORDER BY colony_name`,
+      ORDER BY name`,
       params
     );
 
@@ -83,7 +82,7 @@ export async function GET(request: NextRequest) {
     }>(
       `SELECT
         COUNT(*) as total,
-        COUNT(*) FILTER (WHERE status = 'active') as active,
+        COUNT(*) FILTER (WHERE colony_status = 'active') as active,
         COUNT(*) FILTER (WHERE has_count_discrepancy) as with_discrepancy
       FROM ops.v_colony_stats`
     );
@@ -115,8 +114,8 @@ export async function POST(request: NextRequest) {
     }
 
     const colony = await queryOne<{ colony_id: string }>(
-      `INSERT INTO sot.colonies (colony_name, status, notes, created_by)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO sot.colonies (name, colony_status, description, created_by_staff_id)
+       VALUES ($1, $2, $3, $4::uuid)
        RETURNING colony_id`,
       [colony_name.trim(), status, notes?.trim() || null, created_by.trim()]
     );

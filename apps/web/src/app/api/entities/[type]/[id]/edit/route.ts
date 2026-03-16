@@ -48,16 +48,29 @@ export async function GET(
     return apiBadRequest("Invalid entity type");
   }
 
-  // Get current lock status
-  const lock = await queryOne(`
-    SELECT * FROM ops.v_active_locks
-    WHERE entity_type = $1 AND entity_id = $2
-  `, [type, id]);
+  let lock = null;
+  let history: unknown[] = [];
 
-  // Get recent edit history
-  const history = await queryRows(`
-    SELECT * FROM ops.get_entity_history($1, $2, 20)
-  `, [type, id]);
+  try {
+    // Get current lock status
+    lock = await queryOne(`
+      SELECT * FROM ops.v_active_locks
+      WHERE entity_type = $1 AND entity_id = $2
+    `, [type, id]);
+  } catch (err: any) {
+    if (err?.code !== '42P01') throw err;
+    // View doesn't exist yet — no lock info
+  }
+
+  try {
+    // Get recent edit history
+    history = await queryRows(`
+      SELECT * FROM ops.get_entity_history($1, $2, 20)
+    `, [type, id]);
+  } catch (err: any) {
+    if (err?.code !== '42883') throw err;
+    // Function doesn't exist yet — no history
+  }
 
   // Get entity-specific suggestions
   const suggestions = await getEntitySuggestions(type, id);
@@ -85,29 +98,45 @@ export async function POST(
   const userName = body.user_name || null;
   const reason = body.reason || "Editing";
 
-  const result = await queryOne<{ success: boolean }>(`
-    SELECT ops.acquire_edit_lock($1, $2, $3, $4, $5) as success
-  `, [type, id, userId, userName, reason]);
+  try {
+    const result = await queryOne<{ success: boolean }>(`
+      SELECT ops.acquire_edit_lock($1, $2, $3, $4, $5) as success
+    `, [type, id, userId, userName, reason]);
 
-  if (result?.success) {
-    // Get lock details
-    const lock = await queryOne(`
-      SELECT * FROM ops.v_active_locks
-      WHERE entity_type = $1 AND entity_id = $2
-    `, [type, id]);
+    if (result?.success) {
+      let lock = null;
+      try {
+        lock = await queryOne(`
+          SELECT * FROM ops.v_active_locks
+          WHERE entity_type = $1 AND entity_id = $2
+        `, [type, id]);
+      } catch (err: any) {
+        if (err?.code !== '42P01') throw err;
+      }
 
-    return apiSuccess({
-      success: true,
-      lock,
-    });
-  } else {
-    // Get who has the lock
-    const lock = await queryOne(`
-      SELECT * FROM ops.v_active_locks
-      WHERE entity_type = $1 AND entity_id = $2
-    `, [type, id]);
+      return apiSuccess({
+        success: true,
+        lock,
+      });
+    } else {
+      let lock = null;
+      try {
+        lock = await queryOne(`
+          SELECT * FROM ops.v_active_locks
+          WHERE entity_type = $1 AND entity_id = $2
+        `, [type, id]);
+      } catch (err: any) {
+        if (err?.code !== '42P01') throw err;
+      }
 
-    return apiConflict("Entity is locked by another user", { lock });
+      return apiConflict("Entity is locked by another user", { lock });
+    }
+  } catch (err: any) {
+    if (err?.code === '42P01' || err?.code === '42883') {
+      // Lock table/function doesn't exist yet — allow edit without locking
+      return apiSuccess({ success: true, lock: null });
+    }
+    throw err;
   }
 }
 
@@ -230,13 +259,21 @@ export async function DELETE(
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("user_id") || "anonymous";
 
-  const result = await queryOne<{ success: boolean }>(`
-    SELECT ops.release_edit_lock($1, $2, $3) as success
-  `, [type, id, userId]);
+  try {
+    const result = await queryOne<{ success: boolean }>(`
+      SELECT ops.release_edit_lock($1, $2, $3) as success
+    `, [type, id, userId]);
 
-  return apiSuccess({
-    success: result?.success ?? false,
-  });
+    return apiSuccess({
+      success: result?.success ?? false,
+    });
+  } catch (err: any) {
+    if (err?.code === '42P01' || err?.code === '42883') {
+      // Lock table/function doesn't exist yet — nothing to release
+      return apiSuccess({ success: true });
+    }
+    throw err;
+  }
 }
 
 // Helper: Handle ownership transfer

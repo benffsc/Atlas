@@ -46,12 +46,12 @@ export async function GET() {
         ) AS orphan_cats,
 
         -- Identity coverage
-        (SELECT COUNT(*)::int FROM sot.people WHERE merged_into_person_id IS NULL AND canonical = TRUE) AS total_people,
+        (SELECT COUNT(*)::int FROM sot.people WHERE merged_into_person_id IS NULL) AS total_people,
         (SELECT COUNT(DISTINCT person_id)::int FROM sot.person_identifiers WHERE confidence >= 0.5) AS people_with_identifier,
         CASE
-          WHEN (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL AND canonical = TRUE) = 0 THEN 0
+          WHEN (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL) = 0 THEN 0
           ELSE ROUND(100.0 * (SELECT COUNT(DISTINCT person_id) FROM sot.person_identifiers WHERE confidence >= 0.5)
-            / (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL AND canonical = TRUE), 1)
+            / (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL), 1)
         END AS identity_coverage_pct,
 
         -- Clinic leakage (should be 0)

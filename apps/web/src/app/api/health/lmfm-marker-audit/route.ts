@@ -13,6 +13,7 @@ import { apiSuccess, apiServerError } from "@/lib/api-response";
  */
 export async function GET() {
   try {
+    // ops.appointments uses client_name (combined), owner_first_name, owner_last_name (MIG_2401, MIG_2802)
     const result = await queryOne<{
       lmfm_count: number;
       marker_without_category: number;
@@ -27,8 +28,7 @@ export async function GET() {
         -- Appointments with $LMFM in notes/name but NOT categorized as lmfm
         (SELECT COUNT(*)::int FROM ops.appointments
          WHERE (
-           client_first_name ILIKE '%$LMFM%'
-           OR client_last_name ILIKE '%$LMFM%'
+           client_name ILIKE '%$LMFM%'
            OR notes ILIKE '%$LMFM%'
          )
          AND (appointment_source_category IS NULL OR appointment_source_category != 'lmfm')
@@ -36,12 +36,12 @@ export async function GET() {
 
         -- Potential LMFM misses (ALL CAPS names not categorized)
         (SELECT COUNT(*)::int FROM ops.appointments
-         WHERE client_first_name = UPPER(client_first_name)
-           AND client_last_name = UPPER(client_last_name)
-           AND LENGTH(client_first_name) > 1
-           AND LENGTH(client_last_name) > 1
+         WHERE owner_first_name = UPPER(owner_first_name)
+           AND owner_last_name = UPPER(owner_last_name)
+           AND LENGTH(owner_first_name) > 1
+           AND LENGTH(owner_last_name) > 1
            AND (appointment_source_category IS NULL OR appointment_source_category != 'lmfm')
-           AND client_first_name !~ '^[0-9]'
+           AND owner_first_name !~ '^[0-9]'
         ) AS potential_misses
     `);
 

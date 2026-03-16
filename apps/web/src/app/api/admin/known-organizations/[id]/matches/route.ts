@@ -41,8 +41,8 @@ export async function GET(
     const decision = searchParams.get("decision"); // linked, flagged, review, skipped
 
     // Check org exists
-    const org = await queryOne<{ canonical_name: string }>(
-      `SELECT canonical_name FROM sot.known_organizations WHERE org_id = $1`,
+    const org = await queryOne<{ org_name: string }>(
+      `SELECT org_name FROM sot.known_organizations WHERE org_id = $1`,
       [id]
     );
 
@@ -117,7 +117,7 @@ export async function GET(
 
     return apiSuccess({
       org_id: id,
-      org_name: org.canonical_name,
+      org_name: org.org_name,
       matches,
       stats: stats || {
         total_matches: 0,

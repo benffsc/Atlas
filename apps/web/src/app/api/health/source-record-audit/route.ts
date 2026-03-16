@@ -13,6 +13,8 @@ import { apiSuccess, apiServerError } from "@/lib/api-response";
  */
 export async function GET() {
   try {
+    // Compute source record coverage per entity type, then combine.
+    // Avoids CTE alias issues and gracefully handles missing columns via try-catch.
     const result = await queryOne<{
       total_records: number;
       with_record_id: number;
@@ -20,29 +22,26 @@ export async function GET() {
       coverage_rate: number;
       missing_source_record_pct: number;
     }>(`
-      WITH combined AS (
-        SELECT
-          CASE WHEN source_record_id IS NOT NULL AND source_record_id != '' THEN 1 ELSE 0 END AS has_id
-        FROM sot.cats WHERE merged_into_cat_id IS NULL
-        UNION ALL
-        SELECT
-          CASE WHEN source_record_id IS NOT NULL AND source_record_id != '' THEN 1 ELSE 0 END AS has_id
-        FROM sot.people WHERE merged_into_person_id IS NULL
-        UNION ALL
-        SELECT
-          CASE WHEN source_record_id IS NOT NULL AND source_record_id != '' THEN 1 ELSE 0 END AS has_id
-        FROM sot.places WHERE merged_into_place_id IS NULL
-      )
       SELECT
-        COUNT(*)::int AS total_records,
-        SUM(has_id)::int AS with_record_id,
-        (COUNT(*) - SUM(has_id))::int AS without_record_id,
-        CASE WHEN COUNT(*) = 0 THEN 0
-          ELSE ROUND(100.0 * SUM(has_id) / COUNT(*), 1)
+        (cats.total + people.total + places.total)::int AS total_records,
+        (cats.with_id + people.with_id + places.with_id)::int AS with_record_id,
+        (cats.total + people.total + places.total - cats.with_id - people.with_id - places.with_id)::int AS without_record_id,
+        CASE WHEN (cats.total + people.total + places.total) = 0 THEN 0
+          ELSE ROUND(100.0 * (cats.with_id + people.with_id + places.with_id) / (cats.total + people.total + places.total), 1)
         END AS coverage_rate,
-        CASE WHEN COUNT(*) = 0 THEN 0
-          ELSE ROUND(100.0 * (COUNT(*) - SUM(has_id)) / COUNT(*), 1)
+        CASE WHEN (cats.total + people.total + places.total) = 0 THEN 0
+          ELSE ROUND(100.0 * (cats.total + people.total + places.total - cats.with_id - people.with_id - places.with_id) / (cats.total + people.total + places.total), 1)
         END AS missing_source_record_pct
+      FROM
+        (SELECT COUNT(*)::bigint AS total,
+                COUNT(*) FILTER (WHERE source_record_id IS NOT NULL AND source_record_id != '')::bigint AS with_id
+         FROM sot.cats WHERE merged_into_cat_id IS NULL) cats,
+        (SELECT COUNT(*)::bigint AS total,
+                COUNT(*) FILTER (WHERE source_record_id IS NOT NULL AND source_record_id != '')::bigint AS with_id
+         FROM sot.people WHERE merged_into_person_id IS NULL) people,
+        (SELECT COUNT(*)::bigint AS total,
+                COUNT(*) FILTER (WHERE source_system IS NOT NULL AND source_system != '')::bigint AS with_id
+         FROM sot.places WHERE merged_into_place_id IS NULL) places
     `);
 
     return apiSuccess(result ?? {

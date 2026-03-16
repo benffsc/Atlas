@@ -294,7 +294,7 @@ export async function GET(
           pp.verification_method,
           ppd.financial_commitment,
           COALESCE(ppd.is_primary_contact, FALSE) as is_primary_contact,
-          (SELECT COUNT(*) FROM sot.person_cat_relationships pcr WHERE pcr.person_id = pp.person_id)::int as cat_count,
+          (SELECT COUNT(*) FROM sot.person_cat pcr WHERE pcr.person_id = pp.person_id)::int as cat_count,
           pp.source_system,
           pp.created_at::text
         FROM sot.person_place pp

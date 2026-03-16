@@ -30,7 +30,7 @@ export async function GET(
       `SELECT
         rta.id AS assignment_id,
         rta.request_id,
-        COALESCE(r.formatted_address, r.address) AS request_address,
+        COALESCE(p.display_name, p.formatted_address) AS request_address,
         r.status AS request_status,
         rta.assignment_type,
         rta.status AS assignment_status,
@@ -45,6 +45,7 @@ export async function GET(
         ) AS cats_attributed
       FROM ops.request_trapper_assignments rta
       JOIN ops.requests r ON r.request_id = rta.request_id
+      LEFT JOIN sot.places p ON p.place_id = r.place_id
       WHERE rta.trapper_person_id = $1
       ORDER BY
         CASE rta.status WHEN 'active' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END,

@@ -21,21 +21,19 @@ export async function GET() {
     }>(`
       SELECT
         (SELECT COUNT(*)::int FROM sot.people
-         WHERE merged_into_person_id IS NULL AND canonical = TRUE
+         WHERE merged_into_person_id IS NULL
         ) AS total_unmerged_people,
 
         (SELECT COUNT(DISTINCT p.person_id)::int
          FROM sot.people p
          JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
          WHERE p.merged_into_person_id IS NULL
-           AND p.canonical = TRUE
            AND pi.confidence >= 0.5
            AND pi.id_type IN ('email', 'phone')
         ) AS with_contact,
 
         (SELECT COUNT(*)::int FROM sot.people p
          WHERE p.merged_into_person_id IS NULL
-           AND p.canonical = TRUE
            AND NOT EXISTS (
              SELECT 1 FROM sot.person_identifiers pi
              WHERE pi.person_id = p.person_id
@@ -45,17 +43,16 @@ export async function GET() {
         ) AS people_without_contact,
 
         CASE
-          WHEN (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL AND canonical = TRUE) = 0 THEN 0
+          WHEN (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL ) = 0 THEN 0
           ELSE ROUND(100.0 *
             (SELECT COUNT(DISTINCT p.person_id)
              FROM sot.people p
              JOIN sot.person_identifiers pi ON pi.person_id = p.person_id
              WHERE p.merged_into_person_id IS NULL
-               AND p.canonical = TRUE
                AND pi.confidence >= 0.5
                AND pi.id_type IN ('email', 'phone')
             ) /
-            (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL AND canonical = TRUE)
+            (SELECT COUNT(*) FROM sot.people WHERE merged_into_person_id IS NULL )
           , 1)
         END AS contact_rate
     `);

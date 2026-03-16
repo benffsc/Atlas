@@ -68,7 +68,11 @@ export async function POST(request: NextRequest) {
       success: true,
       verified_at: result.verified_at,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01') {
+      // Table doesn't exist yet
+      return apiError("Table not yet available", 501);
+    }
     console.error("Error verifying record:", error);
     return apiError("Failed to verify record", 500);
   }
@@ -107,7 +111,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     return apiSuccess({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01') {
+      // Table doesn't exist yet
+      return apiError("Table not yet available", 501);
+    }
     console.error("Error unverifying record:", error);
     return apiError("Failed to unverify record", 500);
   }
@@ -218,7 +226,11 @@ export async function GET(request: NextRequest) {
     );
 
     return apiSuccess({ unverified });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01') {
+      // Table doesn't exist yet — return empty results
+      return apiSuccess({ counts: [], unverified: [], records: [] });
+    }
     console.error("Error getting verification status:", error);
     return apiError("Failed to get verification status", 500);
   }

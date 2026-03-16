@@ -58,24 +58,38 @@ export async function GET(request: NextRequest) {
 
   try {
     // Get queue status
-    const dashboard = await queryRows<DashboardRow>(
-      "SELECT * FROM ops.v_processing_dashboard ORDER BY queued DESC"
-    );
+    let dashboard: DashboardRow[] = [];
+    try {
+      dashboard = await queryRows<DashboardRow>(
+        "SELECT * FROM ops.v_processing_dashboard ORDER BY queued DESC"
+      );
+    } catch (err: any) {
+      if (err?.code !== '42P01') throw err;
+      // View doesn't exist yet
+    }
 
     // Detect stuck jobs (no heartbeat for 30+ minutes)
-    const stuckJobs = await queryRows<StuckJob>(
-      "SELECT * FROM ops.detect_stuck_jobs(30)"
-    );
+    let stuckJobs: StuckJob[] = [];
+    try {
+      stuckJobs = await queryRows<StuckJob>(
+        "SELECT * FROM ops.detect_stuck_jobs(30)"
+      );
+    } catch (err: any) {
+      if (err?.code !== '42883' && err?.code !== '42P01') throw err;
+      // Function or table doesn't exist yet
+    }
 
     // Get recent failures
+    // ops.processing_jobs has job_type (not source_system/source_table)
+    // and error_message (not last_error), and no attempt_count column
     const recentFailures = await queryRows<RecentFailure>(`
       SELECT
-        job_id,
-        source_system,
-        source_table,
-        last_error,
-        completed_at,
-        attempt_count
+        job_id::text,
+        COALESCE(input_data->>'source_system', job_type) AS source_system,
+        COALESCE(input_data->>'source_table', '') AS source_table,
+        error_message AS last_error,
+        completed_at::text,
+        1 AS attempt_count
       FROM ops.processing_jobs
       WHERE status = 'failed'
         AND completed_at > NOW() - INTERVAL '24 hours'

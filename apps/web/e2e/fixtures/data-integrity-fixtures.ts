@@ -116,7 +116,7 @@ export const FIND_CATS_WITH_APPOINTMENTS = `
   FROM sot.cats c
   JOIN ops.appointments a ON c.cat_id = a.cat_id
   LEFT JOIN sot.places p ON a.inferred_place_id = p.place_id
-  LEFT JOIN sot.cat_place_relationships cpr ON c.cat_id = cpr.cat_id
+  LEFT JOIN sot.cat_place cpr ON c.cat_id = cpr.cat_id
   LEFT JOIN sot.places lp ON cpr.place_id = lp.place_id
   WHERE a.inferred_place_id IS NOT NULL
     AND c.merged_into_cat_id IS NULL
@@ -134,7 +134,7 @@ export const CHECK_CAT_PLACE_POLLUTION = `
     cpr.relationship_type,
     COUNT(*) as link_count
   FROM sot.cats c
-  JOIN sot.cat_place_relationships cpr ON c.cat_id = cpr.cat_id
+  JOIN sot.cat_place cpr ON c.cat_id = cpr.cat_id
   WHERE c.merged_into_cat_id IS NULL
   GROUP BY c.cat_id, c.display_name, cpr.relationship_type
   HAVING COUNT(*) > 5
@@ -153,9 +153,9 @@ export const CHECK_STAFF_ADDRESS_POLLUTION = `
     p.display_name as place_name,
     s.role
   FROM sot.cats c
-  JOIN sot.cat_place_relationships cpr ON c.cat_id = cpr.cat_id
+  JOIN sot.cat_place cpr ON c.cat_id = cpr.cat_id
   JOIN sot.places p ON cpr.place_id = p.place_id
-  JOIN sot.person_place_relationships ppr ON p.place_id = ppr.place_id
+  JOIN sot.person_place ppr ON p.place_id = ppr.place_id
   JOIN ops.staff s ON ppr.person_id = s.person_id
   WHERE c.merged_into_cat_id IS NULL
     AND s.is_active = TRUE

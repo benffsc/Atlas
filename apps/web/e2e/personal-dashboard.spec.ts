@@ -33,7 +33,7 @@ test.describe("Dashboard Home (/)", () => {
     const count = await statCards.count();
     if (count === 0) {
       // Fallback: look for numbers that look like stats
-      const pageText = await page.locator("main").textContent();
+      const pageText = await page.locator("main").first().textContent();
       const hasNumbers = /\d+/.test(pageText || "");
       expect(hasNumbers).toBeTruthy();
     }
@@ -42,8 +42,8 @@ test.describe("Dashboard Home (/)", () => {
   test("shows active requests section", async ({ page }) => {
     // Atlas 2.5: ActionPanel shows Active Requests
     const activeRequests = page.locator(
-      'text=/Active Requests/i, h2:has-text("Active"), h3:has-text("Active")'
-    );
+      ':is(h2, h3):has-text("Active")'
+    ).or(page.locator('text=/Active Requests/i'));
     const hasActive = await activeRequests
       .first()
       .isVisible({ timeout: 5000 })
@@ -94,8 +94,8 @@ test.describe("Full Personal Dashboard (/me)", () => {
 
   test("shows Reminders section", async ({ page }) => {
     const reminders = page.locator(
-      'h2:has-text("Reminder"), h3:has-text("Reminder"), text=/Reminders/i'
-    );
+      ':is(h2, h3):has-text("Reminder")'
+    ).or(page.locator('text=/Reminders/i'));
     await expect(reminders.first()).toBeVisible({ timeout: 5000 });
   });
 
@@ -124,8 +124,8 @@ test.describe("Full Personal Dashboard (/me)", () => {
 
   test("shows lookups section", async ({ page }) => {
     const lookupSection = page.locator(
-      'text=/Saved Lookups/i, h2:has-text("Lookup"), h3:has-text("Lookup")'
-    );
+      ':is(h2, h3):has-text("Lookup")'
+    ).or(page.locator('text=/Saved Lookups/i'));
     const emptyState = page.locator("text=/No saved lookups/i");
 
     const hasSection = await lookupSection

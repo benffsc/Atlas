@@ -22,30 +22,30 @@ export async function GET() {
       SELECT
         (SELECT COUNT(*)::int FROM sot.cats
          WHERE merged_into_cat_id IS NULL
-           AND microchip_id IS NOT NULL AND microchip_id != ''
+           AND microchip IS NOT NULL AND microchip != ''
         ) AS total_microchips,
 
         -- Valid: 9, 10, or 15 alphanumeric characters (standard formats)
         (SELECT COUNT(*)::int FROM sot.cats
          WHERE merged_into_cat_id IS NULL
-           AND microchip_id IS NOT NULL AND microchip_id != ''
-           AND microchip_id ~ '^[0-9A-Fa-f]{9,15}$'
+           AND microchip IS NOT NULL AND microchip != ''
+           AND microchip ~ '^[0-9A-Fa-f]{9,15}$'
         ) AS valid_format,
 
         (SELECT COUNT(*)::int FROM sot.cats
          WHERE merged_into_cat_id IS NULL
-           AND microchip_id IS NOT NULL AND microchip_id != ''
-           AND NOT (microchip_id ~ '^[0-9A-Fa-f]{9,15}$')
+           AND microchip IS NOT NULL AND microchip != ''
+           AND NOT (microchip ~ '^[0-9A-Fa-f]{9,15}$')
         ) AS invalid_format
     `);
 
     // Fetch a sample of invalid formats for investigation
-    const invalidSamples = await queryRows<{ microchip_id: string }>(`
-      SELECT DISTINCT microchip_id
+    const invalidSamples = await queryRows<{ microchip: string }>(`
+      SELECT DISTINCT microchip
       FROM sot.cats
       WHERE merged_into_cat_id IS NULL
-        AND microchip_id IS NOT NULL AND microchip_id != ''
-        AND NOT (microchip_id ~ '^[0-9A-Fa-f]{9,15}$')
+        AND microchip IS NOT NULL AND microchip != ''
+        AND NOT (microchip ~ '^[0-9A-Fa-f]{9,15}$')
       LIMIT 10
     `).catch(() => []);
 
@@ -53,7 +53,7 @@ export async function GET() {
       total_microchips: counts?.total_microchips ?? 0,
       valid_format: counts?.valid_format ?? 0,
       invalid_format: counts?.invalid_format ?? 0,
-      invalid_formats: invalidSamples.map((r) => r.microchip_id),
+      invalid_formats: invalidSamples.map((r) => r.microchip),
     });
   } catch (error) {
     console.error("Microchip validation error:", error);

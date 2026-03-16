@@ -16,7 +16,7 @@ import { apiSuccess, apiBadRequest, apiConflict, apiServerError } from "@/lib/ap
 
 interface KnownOrganization {
   org_id: string;
-  canonical_name: string;
+  org_name: string;
   short_name: string | null;
   org_type: string;
   city: string | null;
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     let sql = `
       SELECT
         org_id,
-        canonical_name,
+        org_name,
         short_name,
         org_type,
         city,
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       sql += ` AND (
-        canonical_name ILIKE $${paramIndex}
+        org_name ILIKE $${paramIndex}
         OR short_name ILIKE $${paramIndex}
         OR $${paramIndex + 1} = ANY(aliases)
       )`;
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
       paramIndex++;
     }
 
-    sql += ` ORDER BY canonical_name LIMIT $${paramIndex}`;
+    sql += ` ORDER BY org_name LIMIT $${paramIndex}`;
     params.push(limit);
 
     const organizations = await queryRows<KnownOrganization>(sql, params);
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
  *
  * Creates a new organization in the known_organizations registry.
  * Body: {
- *   canonical_name: string,     // Required: official name
+ *   org_name: string,     // Required: official name
  *   short_name?: string,        // Common abbreviation
  *   org_type?: string,          // Default: 'other'
  *   street_address?: string,
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
  */
 
 interface CreateOrgBody {
-  canonical_name: string;
+  org_name: string;
   short_name?: string;
   org_type?: string;
   street_address?: string;
@@ -113,15 +113,15 @@ export async function POST(request: NextRequest) {
   try {
     const body: CreateOrgBody = await request.json();
 
-    if (!body.canonical_name?.trim()) {
-      return apiBadRequest("canonical_name is required");
+    if (!body.org_name?.trim()) {
+      return apiBadRequest("org_name is required");
     }
 
     // Check for existing org with same name
     const existing = await queryOne<{ org_id: string }>(
       `SELECT org_id FROM sot.known_organizations
-       WHERE LOWER(canonical_name) = LOWER($1)`,
-      [body.canonical_name.trim()]
+       WHERE LOWER(org_name) = LOWER($1)`,
+      [body.org_name.trim()]
     );
 
     if (existing) {
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     // Create the organization
     const result = await queryOne<KnownOrganization>(
       `INSERT INTO sot.known_organizations (
-         canonical_name,
+         org_name,
          short_name,
          org_type,
          street_address,
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING
          org_id,
-         canonical_name,
+         org_name,
          short_name,
          org_type,
          city,
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
          canonical_place_id,
          is_active`,
       [
-        body.canonical_name.trim(),
+        body.org_name.trim(),
         body.short_name?.trim() || null,
         body.org_type || "other",
         body.street_address?.trim() || null,

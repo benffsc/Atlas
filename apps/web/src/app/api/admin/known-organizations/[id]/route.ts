@@ -4,7 +4,7 @@ import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/ap
 
 interface KnownOrganization {
   org_id: string;
-  canonical_name: string;
+  org_name: string;
   short_name: string | null;
   aliases: string[];
   org_type: string;
@@ -54,7 +54,7 @@ export async function GET(
           FROM sot.people sp
           WHERE sp.merged_into_person_id IS NULL
             AND (
-              LOWER(sp.display_name) ILIKE '%' || LOWER(ko.canonical_name) || '%'
+              LOWER(sp.display_name) ILIKE '%' || LOWER(ko.org_name) || '%'
               OR (ko.short_name IS NOT NULL AND LOWER(sp.display_name) ILIKE '%' || LOWER(ko.short_name) || '%')
             )
         ) AS matching_person_count
@@ -92,7 +92,7 @@ export async function PATCH(
 
     // Build dynamic update query
     const allowedFields = [
-      "canonical_name",
+      "org_name",
       "short_name",
       "aliases",
       "org_type",

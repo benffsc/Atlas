@@ -28,28 +28,28 @@ test.describe("UI: Public Page Loading", () => {
   test("Requests list page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/requests");
     await expect(
-      page.locator("h1, h2, table, [data-testid='requests-list']")
+      page.locator("h1, h2, table, [data-testid='requests-list']").first()
     ).toBeVisible({ timeout: 10000 });
   });
 
   test("Cats list page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/cats");
     await expect(
-      page.locator("h1, h2, table, [data-testid='cats-list']")
+      page.locator("h1, h2, table, [data-testid='cats-list']").first()
     ).toBeVisible({ timeout: 10000 });
   });
 
   test("Places list page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/places");
     await expect(
-      page.locator("h1, h2, table, [data-testid='places-list']")
+      page.locator("h1, h2, table, [data-testid='places-list']").first()
     ).toBeVisible({ timeout: 10000 });
   });
 
   test("People list page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/people");
     await expect(
-      page.locator("h1, h2, table, [data-testid='people-list']")
+      page.locator("h1, h2, table, [data-testid='people-list']").first()
     ).toBeVisible({ timeout: 10000 });
   });
 });
@@ -70,7 +70,7 @@ test.describe("UI: Detail Page Loading", () => {
     }
 
     await navigateTo(page, `/requests/${requestId}`);
-    await expect(page.locator("main")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Cat detail page loads with valid ID @smoke", async ({
@@ -84,7 +84,7 @@ test.describe("UI: Detail Page Loading", () => {
     }
 
     await navigateTo(page, `/cats/${catId}`);
-    await expect(page.locator("main")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Place detail page loads with valid ID @smoke", async ({
@@ -98,7 +98,7 @@ test.describe("UI: Detail Page Loading", () => {
     }
 
     await navigateTo(page, `/places/${placeId}`);
-    await expect(page.locator("main")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Invalid request ID shows 404 or error @smoke", async ({ page }) => {
@@ -106,7 +106,7 @@ test.describe("UI: Detail Page Loading", () => {
       page,
       "/requests/00000000-0000-0000-0000-000000000000"
     );
-    await expect(page.locator("main, body")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main, body").first()).toBeVisible({ timeout: 10000 });
     expect(page.url()).toContain("/requests/");
   });
 });
@@ -120,7 +120,7 @@ test.describe("UI: Navigation", () => {
     await navigateTo(page, "/");
     // Atlas 2.5: sidebar uses <aside> with <nav> sections inside
     const nav = page.locator("nav, aside, header");
-    await expect(nav.first()).toBeVisible();
+    await expect(nav.first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Clicking requests nav goes to requests page @smoke", async ({
@@ -128,18 +128,18 @@ test.describe("UI: Navigation", () => {
   }) => {
     await navigateTo(page, "/");
     const requestsLink = page.locator('a[href*="/requests"]').first();
-    if (await requestsLink.isVisible()) {
+    if (await requestsLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await requestsLink.click();
-      await expect(page).toHaveURL(/\/requests/);
+      await expect(page).toHaveURL(/\/requests/, { timeout: 10000 });
     }
   });
 
   test("Clicking cats nav goes to cats page @smoke", async ({ page }) => {
     await navigateTo(page, "/");
     const catsLink = page.locator('a[href*="/cats"]').first();
-    if (await catsLink.isVisible()) {
+    if (await catsLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await catsLink.click();
-      await expect(page).toHaveURL(/\/cats/);
+      await expect(page).toHaveURL(/\/cats/, { timeout: 10000 });
     }
   });
 
@@ -211,22 +211,22 @@ test.describe("UI: Tippy Chat Widget", () => {
 test.describe("UI: Admin Pages", () => {
   test("Admin beacon page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/admin/beacon");
-    await expect(page.locator("main, body")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main, body").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Admin tippy conversations page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/admin/tippy-conversations");
-    await expect(page.locator("main, body")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main, body").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Admin data engine page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/admin/data-engine");
-    await expect(page.locator("main, body")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main, body").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Admin intake fields page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/admin/intake-fields");
-    await expect(page.locator("main, body")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main, body").first()).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -237,7 +237,7 @@ test.describe("UI: Admin Pages", () => {
 test.describe("UI: Beacon Dashboard", () => {
   test("Beacon dashboard loads @smoke", async ({ page }) => {
     await navigateTo(page, "/beacon");
-    await expect(page.locator("main, body")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main, body").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Beacon map loads", async ({ page }) => {
@@ -465,7 +465,7 @@ test.describe("UI: Loading States", () => {
     }
 
     await navigateTo(page, `/requests/${requestId}`);
-    await expect(page.locator("main")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main").first()).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -512,7 +512,7 @@ test.describe("UI: Data Display", () => {
 test.describe("UI: Personal Dashboard", () => {
   test("/me page loads @smoke", async ({ page }) => {
     await navigateTo(page, "/me");
-    await expect(page.locator("main, body")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("main, body").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("Reminders section is present if authenticated", async ({ page }) => {

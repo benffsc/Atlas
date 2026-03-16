@@ -35,6 +35,18 @@ interface Cat {
   altered_status?: string;
 }
 
+/**
+ * Unwrap API responses that may be wrapped in apiSuccess format.
+ * Handles both `{ success: true, data: { ... } }` and direct `{ ... }`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function unwrapResponse(json: any): any {
+  if (json?.success === true && json?.data && typeof json.data === 'object') {
+    return json.data;
+  }
+  return json;
+}
+
 test.describe('V2 Appointment Detail API @data-quality', () => {
   test.setTimeout(60000);
 
@@ -47,8 +59,8 @@ test.describe('V2 Appointment Detail API @data-quality', () => {
       return;
     }
 
-    const appointmentsData = await appointmentsRes.json();
-    const appointments = appointmentsData.data?.appointments || appointmentsData.appointments || appointmentsData;
+    const appointmentsData = unwrapResponse(await appointmentsRes.json());
+    const appointments = appointmentsData.appointments || appointmentsData;
 
     if (!Array.isArray(appointments) || appointments.length === 0) {
       console.log('No appointments found in database - passing (empty is valid)');
@@ -64,7 +76,7 @@ test.describe('V2 Appointment Detail API @data-quality', () => {
 
       if (detailRes.ok()) {
         successCount++;
-        const detail = await detailRes.json();
+        const detail = unwrapResponse(await detailRes.json());
 
         // Verify essential fields exist (from MIG_2320 view update)
         expect(detail).toHaveProperty('appointment_id');
@@ -92,8 +104,8 @@ test.describe('V2 Appointment Detail API @data-quality', () => {
       return;
     }
 
-    const data = await appointmentsRes.json();
-    const appointments = data.data?.appointments || data.appointments || data;
+    const data = unwrapResponse(await appointmentsRes.json());
+    const appointments = data.appointments || data;
 
     if (!appointments?.length) {
       console.log('No appointments found - passing (empty is valid)');
@@ -105,7 +117,7 @@ test.describe('V2 Appointment Detail API @data-quality', () => {
       const detailRes = await request.get(`/api/appointments/${appt.appointment_id}`);
       if (!detailRes.ok()) continue;
 
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       // Verify MIG_2320 enriched columns exist (even if null)
       expect(detail).toHaveProperty('has_uri');
@@ -132,7 +144,7 @@ test.describe('V2 Appointment Detail API @data-quality', () => {
       return;
     }
 
-    const data = await appointmentsRes.json();
+    const data = unwrapResponse(await appointmentsRes.json());
     const appointments: Appointment[] = data.appointments || data;
 
     // Find appointments with is_spay or is_neuter = true
@@ -149,7 +161,7 @@ test.describe('V2 Appointment Detail API @data-quality', () => {
       const detailRes = await request.get(`/api/appointments/${appt.appointment_id}`);
       if (!detailRes.ok()) continue;
 
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       // If is_spay or is_neuter is true, category should be Spay/Neuter (or Other for backfilled)
       if (detail.is_spay || detail.is_neuter) {
@@ -172,8 +184,8 @@ test.describe('V2 Cat Medical Data', () => {
       return;
     }
 
-    const catsData = await catsRes.json();
-    const cats: Cat[] = catsData.data?.cats || catsData.cats || catsData;
+    const catsData = unwrapResponse(await catsRes.json());
+    const cats: Cat[] = catsData.cats || catsData;
 
     if (!cats?.length) {
       console.log('No cats found - passing (empty is valid)');
@@ -186,7 +198,7 @@ test.describe('V2 Cat Medical Data', () => {
       const detailRes = await request.get(`/api/cats/${cat.cat_id}`);
       if (!detailRes.ok()) continue;
 
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       // Check if cat has appointments
       if (detail.appointments?.length > 0) {
@@ -217,8 +229,8 @@ test.describe('V2 Cat Medical Data', () => {
       return;
     }
 
-    const catsData = await catsRes.json();
-    const cats: Cat[] = catsData.data?.cats || catsData.cats || catsData;
+    const catsData = unwrapResponse(await catsRes.json());
+    const cats: Cat[] = catsData.cats || catsData;
 
     let catsWithTestResults = 0;
 
@@ -226,7 +238,7 @@ test.describe('V2 Cat Medical Data', () => {
       const detailRes = await request.get(`/api/cats/${cat.cat_id}`);
       if (!detailRes.ok()) continue;
 
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       // Check for test results (from ops.cat_test_results)
       if (detail.test_results?.length > 0) {
@@ -258,8 +270,8 @@ test.describe('V2 Cat Medical Data', () => {
       return;
     }
 
-    const catsData = await catsRes.json();
-    const cats: Cat[] = catsData.data?.cats || catsData.cats || catsData;
+    const catsData = unwrapResponse(await catsRes.json());
+    const cats: Cat[] = catsData.cats || catsData;
 
     // Find cats with altered_status set
     const alteredCats = cats.filter(c =>
@@ -278,7 +290,7 @@ test.describe('V2 Cat Medical Data', () => {
       const detailRes = await request.get(`/api/cats/${cat.cat_id}`);
       if (!detailRes.ok()) continue;
 
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       // If cat is altered, check if any appointment shows the alteration
       const hasAlterationAppt = detail.appointments?.some(
@@ -312,13 +324,13 @@ test.describe('V2 Appointment Detail Modal', () => {
       return;
     }
 
-    const catsData = await catsRes.json();
+    const catsData = unwrapResponse(await catsRes.json());
 
-    for (const cat of catsData.data?.cats || catsData.cats || []) {
+    for (const cat of catsData.cats || []) {
       const detailRes = await request.get(`/api/cats/${cat.cat_id}`);
       if (!detailRes.ok()) continue;
 
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
       if (!detail.appointments?.length) continue;
 
       // Navigate to cat detail page
@@ -365,8 +377,8 @@ test.describe('V2 Appointment Detail Modal', () => {
       return;
     }
 
-    const data = await appointmentsRes.json();
-    const appointments: Appointment[] = data.data?.appointments || data.appointments || data;
+    const data = unwrapResponse(await appointmentsRes.json());
+    const appointments: Appointment[] = data.appointments || data;
 
     // Find a spay/neuter appointment with a cat
     const snAppt = appointments.find(a => (a.is_spay || a.is_neuter) && a.cat_id);
@@ -408,8 +420,8 @@ test.describe('V2 Boolean Flag Extraction', () => {
       return;
     }
 
-    const data = await appointmentsRes.json();
-    const appointments: Appointment[] = data.data?.appointments || data.appointments || data;
+    const data = unwrapResponse(await appointmentsRes.json());
+    const appointments: Appointment[] = data.appointments || data;
 
     let withSpay = 0;
     let withNeuter = 0;
@@ -440,8 +452,8 @@ test.describe('V2 Boolean Flag Extraction', () => {
       return;
     }
 
-    const data = await appointmentsRes.json();
-    const appointments = data.data?.appointments || data.appointments || data;
+    const data = unwrapResponse(await appointmentsRes.json());
+    const appointments = data.appointments || data;
 
     let withHealthFlags = 0;
     let withFelvFiv = 0;
@@ -451,7 +463,7 @@ test.describe('V2 Boolean Flag Extraction', () => {
       const detailRes = await request.get(`/api/appointments/${appt.appointment_id}`);
       if (!detailRes.ok()) continue;
 
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       // Check health flags
       if (detail.has_uri || detail.has_fleas || detail.has_dental_disease || detail.has_ticks) {
@@ -487,8 +499,8 @@ test.describe('V2 Disease Status Display', () => {
       return;
     }
 
-    const data = await placesRes.json();
-    const places = data.data?.places || data.places || data;
+    const data = unwrapResponse(await placesRes.json());
+    const places = data.places || data;
 
     let withDiseaseBadges = 0;
 
@@ -496,7 +508,7 @@ test.describe('V2 Disease Status Display', () => {
       const detailRes = await request.get(`/api/places/${place.place_id}/disease-status`);
       if (!detailRes.ok()) continue;
 
-      const diseaseData = await detailRes.json();
+      const diseaseData = unwrapResponse(await detailRes.json());
 
       if (diseaseData.statuses?.length > 0) {
         withDiseaseBadges++;
@@ -518,8 +530,8 @@ test.describe('V2 Disease Status Display', () => {
       return;
     }
 
-    const data = await placesRes.json();
-    const places = data.data?.places || data.places || data;
+    const data = unwrapResponse(await placesRes.json());
+    const places = data.places || data;
 
     for (const place of places.slice(0, 5)) {
       const detailRes = await request.get(`/api/places/${place.place_id}/map-details`);
@@ -528,7 +540,7 @@ test.describe('V2 Disease Status Display', () => {
         continue;
       }
 
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       // Should have disease_badges array (even if empty)
       expect(detail).toHaveProperty('disease_badges');

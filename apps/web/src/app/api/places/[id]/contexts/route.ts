@@ -75,11 +75,11 @@ export async function GET(
          -- Organization fields
          pc.organization_name,
          pc.known_org_id,
-         ko.canonical_name AS known_org_name,
+         ko.org_name AS known_org_name,
          ko.org_type AS known_org_type,
          -- Colony fields (if place is in a colony)
          cp.colony_id,
-         c.colony_name
+         c.name AS colony_name
        FROM sot.place_contexts pc
        JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
        LEFT JOIN sot.known_organizations ko ON ko.org_id = pc.known_org_id
@@ -208,10 +208,10 @@ export async function POST(
          pc.assigned_at,
          pc.organization_name,
          pc.known_org_id,
-         ko.canonical_name AS known_org_name,
+         ko.org_name AS known_org_name,
          ko.org_type AS known_org_type,
          cp.colony_id,
-         c.colony_name
+         c.name AS colony_name
        FROM sot.place_contexts pc
        JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
        LEFT JOIN sot.known_organizations ko ON ko.org_id = pc.known_org_id

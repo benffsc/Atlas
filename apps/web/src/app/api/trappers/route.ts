@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
+import { parsePagination } from "@/lib/api-validation";
 import { logFieldEdit } from "@/lib/audit";
 
 interface TrapperRow {
@@ -50,8 +51,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search"); // search by name
   const tierFilter = searchParams.get("tier"); // 1, 2, 3
   const sortBy = searchParams.get("sort") || "total_clinic_cats";
-  const limit = parseInt(searchParams.get("limit") || "50", 10);
-  const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const { limit, offset } = parsePagination(searchParams);
 
   try {
     // Build WHERE clause for filtering

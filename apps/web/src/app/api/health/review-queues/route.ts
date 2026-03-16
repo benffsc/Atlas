@@ -29,7 +29,7 @@ export async function GET() {
         -- People with first name only (no last name)
         (SELECT COUNT(*)::int FROM sot.people
          WHERE merged_into_person_id IS NULL
-           AND canonical = TRUE
+
            AND (last_name IS NULL OR last_name = '')
            AND first_name IS NOT NULL
            AND first_name != ''

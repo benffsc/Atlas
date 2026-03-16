@@ -70,7 +70,11 @@ export async function GET(request: NextRequest) {
     );
 
     return apiSuccess({ lookups });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01') {
+      // Table ops.staff_lookups doesn't exist yet
+      return apiSuccess({ lookups: [] });
+    }
     console.error("Error fetching lookups:", error);
     return apiServerError("Failed to fetch lookups");
   }

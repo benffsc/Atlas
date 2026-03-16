@@ -102,7 +102,11 @@ export async function GET(request: NextRequest) {
       messages,
       unread_count: unreadCount?.count || 0,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01') {
+      // Table ops.staff_messages doesn't exist yet
+      return apiSuccess({ messages: [], unread_count: 0 });
+    }
     console.error("Error fetching messages:", error);
     return apiServerError("Failed to fetch messages");
   }
@@ -226,7 +230,11 @@ export async function POST(request: NextRequest) {
       success: true,
       message_id: result.message_id,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01' || error?.code === '42883') {
+      // Table or function doesn't exist yet
+      return apiServerError("Messaging is not yet available");
+    }
     console.error("Error sending message:", error);
     return apiServerError("Failed to send message");
   }

@@ -9,26 +9,38 @@ import { test, expect } from '@playwright/test';
  * ALL TESTS ARE READ-ONLY - no data modifications.
  */
 
+/**
+ * Unwrap API responses that may be wrapped in apiSuccess format.
+ * Handles both `{ success: true, data: { ... } }` and direct `{ ... }`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function unwrapResponse(json: any): any {
+  if (json?.success === true && json?.data && typeof json.data === 'object') {
+    return json.data;
+  }
+  return json;
+}
+
 test.describe('MIG_555: Adopted Cats -> Place Links @data-quality', () => {
   test.setTimeout(60000);
 
   test('places API responds with valid structure', async ({ request }) => {
     const res = await request.get('/api/places?limit=5');
     expect(res.ok()).toBeTruthy();
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
     expect(data).toHaveProperty('places');
     expect(Array.isArray(data.places)).toBe(true);
   });
 
   test('place map-details with adopter_residence context shows cats', async ({ request }) => {
     const placesRes = await request.get('/api/places?limit=20');
-    const placesData = await placesRes.json();
+    const placesData = unwrapResponse(await placesRes.json());
 
     let adopter_places_checked = 0;
     for (const place of (placesData.places || []).slice(0, 10)) {
       const detailRes = await request.get(`/api/places/${place.place_id}/map-details`);
       if (!detailRes.ok()) continue;
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       const isAdopter = detail.contexts?.some(
         (c: { context_type: string }) => c.context_type === 'adopter_residence'
@@ -50,7 +62,7 @@ test.describe('MIG_557: Primary Address Backfill', () => {
   test('people with primary_address_id have valid address data', async ({ request }) => {
     // List API doesn't include primary_address_id, so check detail endpoints
     const res = await request.get('/api/people?limit=10');
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
 
     let withAddress = 0;
     let withValidAddress = 0;
@@ -58,7 +70,7 @@ test.describe('MIG_557: Primary Address Backfill', () => {
     for (const person of (data.people || [])) {
       const detailRes = await request.get(`/api/people/${person.person_id}`);
       if (!detailRes.ok()) continue;
-      const detail = await detailRes.json();
+      const detail = unwrapResponse(await detailRes.json());
 
       if (detail.primary_address_id) {
         withAddress++;
@@ -77,7 +89,7 @@ test.describe('MIG_557: Primary Address Backfill', () => {
 
   test('people without primary address have associated_places for fallback', async ({ request }) => {
     const res = await request.get('/api/people?limit=20');
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
 
     let checked = 0;
     let withFallback = 0;
@@ -86,7 +98,7 @@ test.describe('MIG_557: Primary Address Backfill', () => {
       if (!person.primary_address_id) {
         const detailRes = await request.get(`/api/people/${person.person_id}`);
         if (detailRes.ok()) {
-          const detail = await detailRes.json();
+          const detail = unwrapResponse(await detailRes.json());
           checked++;
           if (detail.associated_places?.length > 0) {
             withFallback++;
@@ -106,7 +118,7 @@ test.describe('MIG_556: Geocoding Queue', () => {
   test('places API still returns valid data after geocoding queue', async ({ request }) => {
     const res = await request.get('/api/places?limit=10');
     expect(res.ok()).toBeTruthy();
-    const data = await res.json();
+    const data = unwrapResponse(await res.json());
     expect(data.places.length).toBeGreaterThan(0);
 
     const place = data.places[0];

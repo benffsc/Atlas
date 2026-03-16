@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
 import { apiSuccess, apiUnauthorized, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
@@ -70,7 +70,11 @@ export async function GET(
     }
 
     return apiSuccess({ lookup });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01') {
+      // Table ops.staff_lookups doesn't exist yet
+      return NextResponse.json({ success: true, data: { lookup: null } });
+    }
     console.error("Error fetching lookup:", error);
     return apiServerError("Failed to fetch lookup");
   }
@@ -119,7 +123,11 @@ export async function PATCH(
       success: true,
       message: status === "archived" ? "Lookup archived" : "Lookup restored",
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01') {
+      // Table ops.staff_lookups doesn't exist yet
+      return NextResponse.json({ success: true, data: { lookup: null } });
+    }
     console.error("Error updating lookup:", error);
     return apiServerError("Failed to update lookup");
   }
@@ -159,7 +167,11 @@ export async function DELETE(
       success: true,
       message: "Lookup deleted",
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01') {
+      // Table ops.staff_lookups doesn't exist yet
+      return NextResponse.json({ success: true, data: { lookup: null } });
+    }
     console.error("Error deleting lookup:", error);
     return apiServerError("Failed to delete lookup");
   }

@@ -28,8 +28,8 @@ export async function POST(
     const dryRun = body.dry_run !== false; // Default to dry run for safety
 
     // First get the org
-    const org = await queryOne<{ canonical_name: string; short_name: string | null }>(
-      `SELECT canonical_name, short_name FROM sot.known_organizations WHERE org_id = $1`,
+    const org = await queryOne<{ org_name: string; short_name: string | null }>(
+      `SELECT org_name, short_name FROM sot.known_organizations WHERE org_id = $1`,
       [id]
     );
 
@@ -40,7 +40,7 @@ export async function POST(
     // Call the merge function
     const results = await queryRows<MergeResult>(
       `SELECT * FROM sot.merge_organization_duplicates($1, $2)`,
-      [org.canonical_name, dryRun]
+      [org.org_name, dryRun]
     );
 
     // If not dry run, also try to create/link a canonical person if none exists
@@ -48,11 +48,11 @@ export async function POST(
       // Refresh org data to get canonical_person_id
       const refreshedOrg = await queryOne<{
         canonical_person_id: string | null;
-        canonical_name: string;
+        org_name: string;
         phone: string | null;
         email: string | null;
       }>(
-        `SELECT canonical_person_id, canonical_name, phone, email
+        `SELECT canonical_person_id, org_name, phone, email
          FROM sot.known_organizations WHERE org_id = $1`,
         [id]
       );
@@ -63,14 +63,14 @@ export async function POST(
           `INSERT INTO ops.organization_match_log (
             org_id, matched_value, match_type, confidence, source_system, decision, person_id, notes
           ) VALUES ($1, $2, 'admin_merge', 1.0, 'admin_ui', 'linked', $3, 'Merged via admin UI')`,
-          [id, org.canonical_name, refreshedOrg.canonical_person_id]
+          [id, org.org_name, refreshedOrg.canonical_person_id]
         );
       }
     }
 
     return apiSuccess({
       dry_run: dryRun,
-      org_name: org.canonical_name,
+      org_name: org.org_name,
       results,
     });
   } catch (error) {
@@ -88,8 +88,8 @@ export async function GET(
 
   try {
     // Get the org
-    const org = await queryOne<{ canonical_name: string; canonical_person_id: string | null }>(
-      `SELECT canonical_name, canonical_person_id FROM sot.known_organizations WHERE org_id = $1`,
+    const org = await queryOne<{ org_name: string; canonical_person_id: string | null }>(
+      `SELECT org_name, canonical_person_id FROM sot.known_organizations WHERE org_id = $1`,
       [id]
     );
 
@@ -123,12 +123,12 @@ export async function GET(
         p.person_id = $2 DESC,  -- Canonical first
         p.created_at
       `,
-      [org.canonical_name, org.canonical_person_id]
+      [org.org_name, org.canonical_person_id]
     );
 
     return apiSuccess({
       org_id: id,
-      org_name: org.canonical_name,
+      org_name: org.org_name,
       canonical_person_id: org.canonical_person_id,
       duplicates,
       would_merge_count: duplicates.filter(d => !d.is_canonical).length,

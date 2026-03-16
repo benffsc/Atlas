@@ -19,6 +19,7 @@ import { apiSuccess, apiServerError } from "@/lib/api-response";
 export async function GET() {
   try {
     // SCAS pattern misses: appointments with SCAS-like client names not classified as county_scas
+    // ops.appointments uses owner_first_name/owner_last_name (MIG_2802), not client_first_name
     const scasPatternMisses = await queryRows<{
       appointment_id: string;
       client_first_name: string;
@@ -27,11 +28,11 @@ export async function GET() {
     }>(`
       SELECT
         a.appointment_id,
-        a.client_first_name,
-        a.client_last_name,
+        a.owner_first_name AS client_first_name,
+        a.owner_last_name AS client_last_name,
         a.appointment_source_category
       FROM ops.appointments a
-      WHERE (a.client_first_name ~ '^A-?[0-9]+' OR a.client_last_name ~ '^A-?[0-9]+')
+      WHERE (a.owner_first_name ~ '^A-?[0-9]+' OR a.owner_last_name ~ '^A-?[0-9]+')
         AND (a.appointment_source_category IS NULL OR a.appointment_source_category != 'county_scas')
       LIMIT 50
     `).catch(() => []);
@@ -45,17 +46,17 @@ export async function GET() {
     }>(`
       SELECT
         a.appointment_id,
-        a.client_first_name,
-        a.client_last_name,
+        a.owner_first_name AS client_first_name,
+        a.owner_last_name AS client_last_name,
         a.appointment_source_category
       FROM ops.appointments a
-      WHERE a.client_first_name = UPPER(a.client_first_name)
-        AND a.client_last_name = UPPER(a.client_last_name)
-        AND LENGTH(a.client_first_name) > 1
-        AND LENGTH(a.client_last_name) > 1
+      WHERE a.owner_first_name = UPPER(a.owner_first_name)
+        AND a.owner_last_name = UPPER(a.owner_last_name)
+        AND LENGTH(a.owner_first_name) > 1
+        AND LENGTH(a.owner_last_name) > 1
         AND (a.appointment_source_category IS NULL OR a.appointment_source_category != 'lmfm')
-        AND a.client_first_name !~ '^[0-9]'
-        AND a.client_first_name NOT ILIKE '%FORGOTTEN FELINES%'
+        AND a.owner_first_name !~ '^[0-9]'
+        AND a.owner_first_name NOT ILIKE '%FORGOTTEN FELINES%'
       LIMIT 50
     `).catch(() => []);
 

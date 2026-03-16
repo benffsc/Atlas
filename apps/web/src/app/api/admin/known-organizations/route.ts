@@ -4,7 +4,7 @@ import { apiSuccess, apiBadRequest, apiServerError, apiConflict } from "@/lib/ap
 
 interface KnownOrganization {
   org_id: string;
-  canonical_name: string;
+  org_name: string;
   short_name: string | null;
   aliases: string[];
   org_type: string;
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       `
       SELECT
         ko.org_id,
-        ko.canonical_name,
+        ko.org_name,
         ko.short_name,
         ko.aliases,
         ko.org_type,
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
           FROM sot.people sp
           WHERE sp.merged_into_person_id IS NULL
             AND (
-              LOWER(sp.display_name) ILIKE '%' || LOWER(ko.canonical_name) || '%'
+              LOWER(sp.display_name) ILIKE '%' || LOWER(ko.org_name) || '%'
               OR (ko.short_name IS NOT NULL AND LOWER(sp.display_name) ILIKE '%' || LOWER(ko.short_name) || '%')
             )
         ) AS matching_person_count
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN sot.people p ON p.person_id = ko.canonical_person_id
       LEFT JOIN ops.v_organization_match_stats ms ON ms.org_id = ko.org_id
       WHERE ${whereClause}
-      ORDER BY ko.match_priority, ko.canonical_name
+      ORDER BY ko.match_priority, ko.org_name
       `,
       params
     );
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      canonical_name,
+      org_name,
       short_name,
       aliases,
       org_type,
@@ -191,8 +191,8 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!canonical_name) {
-      return apiBadRequest("canonical_name is required");
+    if (!org_name) {
+      return apiBadRequest("org_name is required");
     }
 
     // Valid org types
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
     const finalNamePatterns = name_patterns && name_patterns.length > 0
       ? name_patterns
       : [
-          `%${canonical_name}%`,
+          `%${org_name}%`,
           ...(short_name ? [`%${short_name}%`] : []),
           ...(aliases || []).map((a: string) => `%${a}%`),
         ];
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
     const result = await queryOne<KnownOrganization>(
       `
       INSERT INTO sot.known_organizations (
-        canonical_name,
+        org_name,
         short_name,
         aliases,
         org_type,
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
       RETURNING *
       `,
       [
-        canonical_name,
+        org_name,
         short_name || null,
         aliases || [],
         org_type || "other",
@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
       const fullAddress = `${street_address}, ${city}, ${state || "CA"} ${zip || ""}`.trim();
       const placeResult = await queryOne<{ place_id: string }>(
         `SELECT sot.find_or_create_place_deduped($1, $2, $3, $4, 'atlas_enrichment') AS place_id`,
-        [fullAddress, canonical_name, lat || null, lng || null]
+        [fullAddress, org_name, lat || null, lng || null]
       );
 
       if (placeResult?.place_id) {

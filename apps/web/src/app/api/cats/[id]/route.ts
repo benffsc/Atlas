@@ -414,63 +414,64 @@ export async function GET(
       ORDER BY v.appointment_date DESC
     `;
 
-    // Fetch mortality event if cat is deceased
-    const mortalitySql = `
-      SELECT
-        mortality_event_id,
-        death_date::TEXT,
-        death_cause::TEXT,
-        death_age_category::TEXT,
-        mortality_timing,
-        mortality_cause_detail,
-        source_system,
-        notes,
-        created_at::TEXT
-      FROM sot.cat_mortality_events
-      WHERE cat_id = $1
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
+    // TODO: Requires sot.cat_mortality_events table (FFS-589)
+    // Cat mortality is tracked via sot.cats.is_deceased and sot.cats.deceased_at
+    // const mortalitySql = `
+    //   SELECT
+    //     mortality_event_id,
+    //     death_date::TEXT,
+    //     death_cause::TEXT,
+    //     death_age_category::TEXT,
+    //     mortality_timing,
+    //     mortality_cause_detail,
+    //     source_system,
+    //     notes,
+    //     created_at::TEXT
+    //   FROM sot.cat_mortality_events
+    //   WHERE cat_id = $1
+    //   ORDER BY created_at DESC
+    //   LIMIT 1
+    // `;
 
-    // Fetch birth event
-    const birthSql = `
-      SELECT
-        be.birth_event_id,
-        be.litter_id,
-        be.mother_cat_id,
-        mc.display_name AS mother_name,
-        be.birth_date::TEXT,
-        be.birth_date_precision::TEXT,
-        be.birth_year,
-        be.birth_month,
-        be.birth_season,
-        be.place_id,
-        p.display_name AS place_name,
-        be.kitten_count_in_litter,
-        be.survived_to_weaning,
-        be.litter_survived_count,
-        be.source_system,
-        be.notes,
-        be.created_at::TEXT
-      FROM sot.cat_birth_events be
-      LEFT JOIN sot.cats mc ON mc.cat_id = be.mother_cat_id
-      LEFT JOIN sot.places p ON p.place_id = be.place_id
-      WHERE be.cat_id = $1
-    `;
+    // TODO: Requires sot.cat_birth_events table (FFS-589)
+    // const birthSql = `
+    //   SELECT
+    //     be.birth_event_id,
+    //     be.litter_id,
+    //     be.mother_cat_id,
+    //     mc.display_name AS mother_name,
+    //     be.birth_date::TEXT,
+    //     be.birth_date_precision::TEXT,
+    //     be.birth_year,
+    //     be.birth_month,
+    //     be.birth_season,
+    //     be.place_id,
+    //     p.display_name AS place_name,
+    //     be.kitten_count_in_litter,
+    //     be.survived_to_weaning,
+    //     be.litter_survived_count,
+    //     be.source_system,
+    //     be.notes,
+    //     be.created_at::TEXT
+    //   FROM sot.cat_birth_events be
+    //   LEFT JOIN sot.cats mc ON mc.cat_id = be.mother_cat_id
+    //   LEFT JOIN sot.places p ON p.place_id = be.place_id
+    //   WHERE be.cat_id = $1
+    // `;
 
-    // Fetch sibling info if part of a litter
-    const siblingsSql = `
-      SELECT
-        c.cat_id,
-        c.display_name,
-        c.sex,
-        c.microchip
-      FROM sot.cat_birth_events be
-      JOIN sot.cat_birth_events be2 ON be2.litter_id = be.litter_id AND be2.cat_id != be.cat_id
-      JOIN sot.cats c ON c.cat_id = be2.cat_id
-      WHERE be.cat_id = $1
-      LIMIT 10
-    `;
+    // TODO: Requires sot.cat_birth_events table (FFS-589)
+    // const siblingsSql = `
+    //   SELECT
+    //     c.cat_id,
+    //     c.display_name,
+    //     c.sex,
+    //     c.microchip
+    //   FROM sot.cat_birth_events be
+    //   JOIN sot.cat_birth_events be2 ON be2.litter_id = be.litter_id AND be2.cat_id != be.cat_id
+    //   JOIN sot.cats c ON c.cat_id = be2.cat_id
+    //   WHERE be.cat_id = $1
+    //   LIMIT 10
+    // `;
 
     // Fetch enhanced stakeholder relationships (MIG_544)
     // V2: Uses sot.person_cat (not sot.person_cat_relationships)
@@ -503,29 +504,29 @@ export async function GET(
         pc.created_at DESC NULLS LAST
     `;
 
-    // Fetch movement timeline (MIG_546)
-    const movementsSql = `
-      SELECT
-        me.movement_id,
-        me.from_place_id,
-        fp.display_name AS from_place_name,
-        fp.formatted_address AS from_address,
-        me.to_place_id,
-        tp.display_name AS to_place_name,
-        tp.formatted_address AS to_address,
-        me.event_date::TEXT,
-        me.days_since_previous,
-        ROUND(me.distance_meters) AS distance_meters,
-        me.movement_type,
-        me.source_type,
-        me.notes
-      FROM sot.cat_movement_events me
-      LEFT JOIN sot.places fp ON fp.place_id = me.from_place_id
-      JOIN sot.places tp ON tp.place_id = me.to_place_id
-      WHERE me.cat_id = $1
-      ORDER BY me.event_date DESC
-      LIMIT 20
-    `;
+    // TODO: Requires sot.cat_movement_events table (FFS-589)
+    // const movementsSql = `
+    //   SELECT
+    //     me.movement_id,
+    //     me.from_place_id,
+    //     fp.display_name AS from_place_name,
+    //     fp.formatted_address AS from_address,
+    //     me.to_place_id,
+    //     tp.display_name AS to_place_name,
+    //     tp.formatted_address AS to_address,
+    //     me.event_date::TEXT,
+    //     me.days_since_previous,
+    //     ROUND(me.distance_meters) AS distance_meters,
+    //     me.movement_type,
+    //     me.source_type,
+    //     me.notes
+    //   FROM sot.cat_movement_events me
+    //   LEFT JOIN sot.places fp ON fp.place_id = me.from_place_id
+    //   JOIN sot.places tp ON tp.place_id = me.to_place_id
+    //   WHERE me.cat_id = $1
+    //   ORDER BY me.event_date DESC
+    //   LIMIT 20
+    // `;
 
     // Fetch primary origin place (from most recent appointment with place)
     const originPlaceSql = `
@@ -533,7 +534,7 @@ export async function GET(
         p.place_id,
         p.display_name,
         p.formatted_address,
-        a.inferred_place_source
+        NULL::TEXT AS inferred_source
       FROM ops.appointments a
       JOIN sot.places p ON p.place_id = COALESCE(a.inferred_place_id, a.place_id)
       WHERE a.cat_id = $1
@@ -595,49 +596,19 @@ export async function GET(
       }
     }
 
-    const [clinicHistory, vitals, conditions, tests, procedures, appointments, mortalityRows, birthRows, siblingRows, stakeholders, movements, originPlaceRows, enhancedClinicHistory, fieldSourcesRows] = await Promise.all([
+    // TODO: mortalityRows, birthRows, siblingRows, movements require tables that don't exist yet (FFS-589)
+    const mortalityRows: Array<Record<string, unknown>> = [];
+    const birthRows: Array<Record<string, unknown>> = [];
+    const siblingRows: Array<Record<string, unknown>> = [];
+    const movements: Array<Record<string, unknown>> = [];
+
+    const [clinicHistory, vitals, conditions, tests, procedures, appointments, stakeholders, originPlaceRows, enhancedClinicHistory, fieldSourcesRows] = await Promise.all([
       safeQueryRows<ClinicAppointment>(clinicHistorySql, [id]),
       safeQueryRows<CatVital>(vitalsSql, [id]),
       safeQueryRows<CatCondition>(conditionsSql, [id]),
       safeQueryRows<CatTestResult>(testsSql, [id]),
       safeQueryRows<CatProcedure>(proceduresSql, [id]),
       safeQueryRows<CatAppointmentSummary>(appointmentsSql, [id]),
-      safeQueryRows<{
-        mortality_event_id: string;
-        death_date: string | null;
-        death_cause: string;
-        death_age_category: string;
-        mortality_timing: string | null;
-        mortality_cause_detail: string | null;
-        source_system: string;
-        notes: string | null;
-        created_at: string;
-      }>(mortalitySql, [id]),
-      safeQueryRows<{
-        birth_event_id: string;
-        litter_id: string;
-        mother_cat_id: string | null;
-        mother_name: string | null;
-        birth_date: string | null;
-        birth_date_precision: string;
-        birth_year: number | null;
-        birth_month: number | null;
-        birth_season: string | null;
-        place_id: string | null;
-        place_name: string | null;
-        kitten_count_in_litter: number | null;
-        survived_to_weaning: boolean | null;
-        litter_survived_count: number | null;
-        source_system: string;
-        notes: string | null;
-        created_at: string;
-      }>(birthSql, [id]),
-      safeQueryRows<{
-        cat_id: string;
-        display_name: string;
-        sex: string | null;
-        microchip: string | null;
-      }>(siblingsSql, [id]),
       safeQueryRows<{
         person_id: string;
         person_name: string;
@@ -651,21 +622,6 @@ export async function GET(
         source_system: string;
         created_at: string;
       }>(stakeholdersSql, [id]),
-      safeQueryRows<{
-        movement_id: string;
-        from_place_id: string | null;
-        from_place_name: string | null;
-        from_address: string | null;
-        to_place_id: string;
-        to_place_name: string;
-        to_address: string;
-        event_date: string;
-        days_since_previous: number | null;
-        distance_meters: number | null;
-        movement_type: string;
-        source_type: string;
-        notes: string | null;
-      }>(movementsSql, [id]),
       safeQueryRows<OriginPlace>(originPlaceSql, [id]),
       safeQueryRows<EnhancedClinicAppointment>(enhancedClinicHistorySql, [id]),
       safeQueryRows<CatFieldSources>(fieldSourcesSql, [id]),

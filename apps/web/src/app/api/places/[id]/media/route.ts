@@ -11,8 +11,6 @@ interface MediaRow {
   cat_description: string | null;
   uploaded_by: string;
   uploaded_at: string;
-  is_hero: boolean;
-  display_order: number;
 }
 
 interface RouteParams {
@@ -34,15 +32,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         caption,
         cat_description,
         uploaded_by,
-        uploaded_at,
-        COALESCE(is_hero, FALSE) AS is_hero,
-        COALESCE(display_order, 0) AS display_order
+        uploaded_at
        FROM ops.request_media
        WHERE (place_id = $1
               OR (request_id IN (SELECT request_id FROM ops.requests WHERE place_id = $1)
                   AND place_id IS NULL))
-         AND NOT is_archived
-       ORDER BY is_hero DESC, display_order ASC, uploaded_at DESC`,
+         AND NOT COALESCE(is_archived, FALSE)
+       ORDER BY uploaded_at DESC`,
       [id]
     );
 

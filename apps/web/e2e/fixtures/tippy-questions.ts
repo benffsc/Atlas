@@ -47,7 +47,7 @@ export const PERSON_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
     category: "person",
     requiresSources: [
       "volunteerhub_volunteers",
-      "person_cat_relationships",
+      "person_cat",
       "shelterluv",
     ],
     expectedTools: ["query_volunteerhub_data", "comprehensive_person_lookup"],
@@ -93,7 +93,7 @@ export const PERSON_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
     requiresSources: [
       "sot_people",
       "volunteerhub_volunteers",
-      "person_cat_relationships",
+      "person_cat",
       "person_roles",
     ],
     expectedTools: ["comprehensive_person_lookup"],
@@ -106,7 +106,7 @@ export const PERSON_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
 
 // ============================================================================
 // CAT JOURNEY QUESTIONS
-// Require: sot_cats + sot_appointments + shelterluv + cat_place_relationships
+// Require: sot_cats + sot_appointments + shelterluv + cat_place
 // ============================================================================
 
 export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
@@ -118,8 +118,8 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
     requiresSources: [
       "sot_cats",
       "sot_appointments",
-      "cat_place_relationships",
-      "person_cat_relationships",
+      "cat_place",
+      "person_cat",
     ],
     expectedTools: ["comprehensive_cat_lookup", "query_cat_journey"],
     validateResponse: (r) =>
@@ -136,7 +136,7 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
     category: "cat",
     requiresSources: [
       "places",
-      "cat_place_relationships",
+      "cat_place",
       "sot_appointments",
     ],
     expectedTools: ["comprehensive_cat_lookup", "query_cats_at_place"],
@@ -155,7 +155,7 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
       "cat_identifiers",
       "sot_cats",
       "sot_appointments",
-      "person_cat_relationships",
+      "person_cat",
     ],
     expectedTools: ["comprehensive_cat_lookup", "lookup_cat_appointment"],
     validateResponse: (r) =>
@@ -167,7 +167,7 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
     id: "cat-owner-change",
     question: "Find cats that have had multiple different owners or caretakers",
     category: "cat",
-    requiresSources: ["person_cat_relationships", "sot_cats"],
+    requiresSources: ["person_cat", "sot_cats"],
     expectedTools: ["comprehensive_cat_lookup"],
     validateResponse: (r) =>
       r.toLowerCase().includes("owner") ||
@@ -242,7 +242,7 @@ export const PLACE_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
     requiresSources: [
       "sot_requests",
       "request_trapper_assignments",
-      "person_place_relationships",
+      "person_place",
     ],
     expectedTools: ["comprehensive_place_lookup"],
     validateResponse: (r) =>
@@ -259,7 +259,7 @@ export const PLACE_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
     requiresSources: [
       "places",
       "sot_requests",
-      "cat_place_relationships",
+      "cat_place",
       "sot_appointments",
     ],
     expectedTools: ["comprehensive_place_lookup"],
@@ -276,7 +276,7 @@ export const PLACE_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
     category: "place",
     requiresSources: [
       "places",
-      "cat_place_relationships",
+      "cat_place",
       "sot_appointments",
       "v_beacon_place_metrics",
     ],
@@ -416,7 +416,7 @@ export const BEACON_QUESTIONS: CrossSourceQuestion[] = [
       "At any managed colony, how many cats were born there vs immigrated?",
     category: "beacon",
     requiresSources: [
-      "cat_place_relationships",
+      "cat_place",
       "cat_birth_events",
       "v_beacon_place_metrics",
     ],

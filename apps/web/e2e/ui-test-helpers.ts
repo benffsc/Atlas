@@ -161,6 +161,98 @@ export async function mockWritesFor(page: Page, pattern: string) {
   });
 }
 
+// =============================================================================
+// WRITE CAPTURE (FFS-578)
+// =============================================================================
+
+export interface CapturedWrite {
+  method: string;
+  url: string;
+  body: Record<string, unknown> | null;
+  timestamp: number;
+}
+
+export interface WriteCapture {
+  requests: CapturedWrite[];
+  getByMethod(method: string): CapturedWrite[];
+  getByUrl(pattern: string): CapturedWrite[];
+  last(): CapturedWrite | undefined;
+  clear(): void;
+}
+
+/**
+ * Mock all writes AND capture request bodies for assertion.
+ * Use this instead of mockAllWrites() when you need to verify PATCH/POST payloads.
+ *
+ * @example
+ * const capture = await mockWritesWithCapture(page);
+ * // ... trigger a save action ...
+ * const patches = capture.getByMethod('PATCH');
+ * expect(patches).toHaveLength(1);
+ * expect(patches[0].body).toMatchObject({ status: 'working' });
+ */
+export async function mockWritesWithCapture(page: Page): Promise<WriteCapture> {
+  const captured: CapturedWrite[] = [];
+
+  const patterns = [
+    '**/api/requests/**',
+    '**/api/cats/**',
+    '**/api/places/**',
+    '**/api/people/**',
+    '**/api/journal/**',
+    '**/api/annotations/**',
+    '**/api/intake/**',
+    '**/api/trappers/**',
+    '**/api/fosters/**',
+    '**/api/staff/**',
+  ];
+
+  for (const pattern of patterns) {
+    await page.route(pattern, (route) => {
+      const method = route.request().method();
+      if (['PATCH', 'POST', 'DELETE', 'PUT'].includes(method)) {
+        let body: Record<string, unknown> | null = null;
+        try {
+          const postData = route.request().postData();
+          if (postData) body = JSON.parse(postData);
+        } catch {
+          // Non-JSON body, leave as null
+        }
+
+        captured.push({
+          method,
+          url: route.request().url(),
+          body,
+          timestamp: Date.now(),
+        });
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { id: 'mock-id' } }),
+        });
+      }
+      return route.continue();
+    });
+  }
+
+  return {
+    requests: captured,
+    getByMethod(method: string) {
+      return captured.filter(r => r.method === method);
+    },
+    getByUrl(pattern: string) {
+      return captured.filter(r => r.url.includes(pattern));
+    },
+    last() {
+      return captured[captured.length - 1];
+    },
+    clear() {
+      captured.length = 0;
+    },
+  };
+}
+
 /**
  * Mock writes for all common API endpoints.
  * IMPORTANT: Must be called BEFORE mockWritesFor login routes.

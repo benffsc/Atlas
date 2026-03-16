@@ -164,7 +164,35 @@ export async function GET() {
 
       recent_decisions: recentDecisions,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42P01' || error?.code === '42883') {
+      // View or function doesn't exist yet — return safe defaults
+      return apiSuccess({
+        status: "degraded" as const,
+        timestamp: new Date().toISOString(),
+        duration_ms: Date.now() - startTime,
+        summary: {
+          decisions_24h: 0,
+          auto_matches_24h: 0,
+          new_entities_24h: 0,
+          pending_reviews: 0,
+          avg_processing_ms: 0,
+        },
+        decision_breakdown: {
+          auto_match_pct: 0,
+          new_entity_pct: 0,
+          review_pending_pct: 0,
+          rejected_pct: 0,
+          household_member_pct: 0,
+        },
+        households: { total: 0, active_members: 0 },
+        queue: { queued: 0, processing: 0, failed: 0 },
+        soft_blacklist: { count: 0 },
+        matching_rules: [],
+        recent_decisions: [],
+        _note: "Some database objects are not yet created",
+      });
+    }
     console.error("Data Engine health check error:", error);
     return apiServerError(error instanceof Error ? error.message : "Unknown error");
   }

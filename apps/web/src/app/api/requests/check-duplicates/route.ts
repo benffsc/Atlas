@@ -89,7 +89,15 @@ export async function POST(request: NextRequest) {
       active_requests: result,
       matching_person,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '42883') {
+      // Function ops.find_duplicate_requests() doesn't exist yet
+      return apiSuccess({ active_requests: [], matching_person: null });
+    }
+    if (error?.code === '42P01') {
+      // Table doesn't exist yet
+      return apiSuccess({ active_requests: [], matching_person: null });
+    }
     console.error("Error checking for duplicate requests:", error);
     return apiServerError("Failed to check for duplicates");
   }

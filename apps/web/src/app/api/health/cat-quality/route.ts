@@ -28,14 +28,14 @@ export async function GET() {
 
         (SELECT COUNT(*)::int FROM sot.cats
          WHERE merged_into_cat_id IS NULL
-           AND microchip_id IS NOT NULL
-           AND microchip_id != ''
+           AND microchip IS NOT NULL
+           AND microchip != ''
         ) AS with_microchip,
 
         (SELECT COUNT(*)::int FROM sot.cats
          WHERE merged_into_cat_id IS NULL
-           AND microchip_id IS NOT NULL
-           AND microchip_id != ''
+           AND microchip IS NOT NULL
+           AND microchip != ''
         ) AS cats_with_microchip,
 
         (SELECT COUNT(*)::int FROM sot.cats
@@ -47,7 +47,7 @@ export async function GET() {
           ELSE ROUND(100.0 *
             (SELECT COUNT(*) FROM sot.cats
              WHERE merged_into_cat_id IS NULL
-               AND microchip_id IS NOT NULL AND microchip_id != '') /
+               AND microchip IS NOT NULL AND microchip != '') /
             (SELECT COUNT(*) FROM sot.cats WHERE merged_into_cat_id IS NULL)
           , 1)
         END AS microchip_rate

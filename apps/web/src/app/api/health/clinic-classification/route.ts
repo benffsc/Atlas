@@ -24,7 +24,7 @@ export async function GET() {
         -- Places with kind = 'clinic' or similar
         (SELECT COUNT(*)::int FROM sot.places
          WHERE merged_into_place_id IS NULL
-           AND kind = 'clinic'
+           AND place_kind = 'clinic'
         ) AS clinic_places,
 
         -- Active clinic contexts (cat_place links to known clinic addresses)
@@ -41,7 +41,7 @@ export async function GET() {
         -- Misclassified: non-clinic places incorrectly typed as clinic
         (SELECT COUNT(*)::int FROM sot.places
          WHERE merged_into_place_id IS NULL
-           AND kind = 'clinic'
+           AND place_kind = 'clinic'
            AND NOT (formatted_address ILIKE '%845 Todd%'
                     OR formatted_address ILIKE '%Empire Industrial%')
         ) AS misclassified,

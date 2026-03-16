@@ -35,25 +35,20 @@ export async function GET() {
         -- Missing microchip (cat exists but no chip - euthanasia, kittens, etc.)
         (SELECT COUNT(*)::int FROM sot.cats
          WHERE merged_into_cat_id IS NULL
-           AND (microchip_id IS NULL OR microchip_id = '')
+           AND (microchip IS NULL OR microchip = '')
         ) AS cats_without_microchip,
 
-        -- Appointments missing cat link where no microchip data available
+        -- Appointments missing cat link where no microchip data is available
+        -- (microchip lives on sot.cats, not ops.appointments; approximate by counting
+        -- appointments with no cat_id minus non-TNR services)
         (SELECT COUNT(*)::int FROM ops.appointments a
          WHERE a.cat_id IS NULL
-           AND EXISTS (
-             SELECT 1 FROM ops.appointments a2
-             WHERE a2.appointment_id = a.appointment_id
-               AND a2.microchip IS NULL
-           )
+           AND (a.appointment_source_category IS NULL
+                OR a.appointment_source_category IN ('regular', 'foster_program', 'county_scas', 'lmfm'))
         ) AS no_microchip,
 
-        -- Unexplained: has microchip data but still no cat link
-        (SELECT COUNT(*)::int FROM ops.appointments a
-         WHERE a.cat_id IS NULL
-           AND a.microchip IS NOT NULL
-           AND a.microchip != ''
-        ) AS unexplained,
+        -- Unexplained gap not computable without microchip on appointments table
+        0::int AS unexplained,
 
         -- Cats without place links
         (SELECT COUNT(*)::int FROM sot.cats c
