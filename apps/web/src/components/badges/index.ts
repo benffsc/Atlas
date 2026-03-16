@@ -10,7 +10,7 @@
 export { StatusBadge, PriorityBadge, PriorityDot } from './StatusBadge';
 
 // Trapper badges
-export { TrapperBadge, TrapperTypePill } from './TrapperBadge';
+export { TrapperBadge, TrapperTierBadge, TrapperTypePill } from './TrapperBadge';
 
 // Volunteer badges
 export { VolunteerBadge } from './VolunteerBadge';

@@ -24,6 +24,9 @@ interface TrapperRow {
   tier: string | null;
   has_signed_contract: boolean;
   availability_status: string;
+  contract_signed_date: string | null;
+  profile_created_at: string | null;
+  assigned_request_summaries: { request_id: string; address: string; status: string }[] | null;
 }
 
 interface AggregateStats {
@@ -90,6 +93,7 @@ export async function GET(request: NextRequest) {
       "unique_clinic_days",
       "avg_cats_per_day",
       "last_activity_date",
+      "tier_sort",
     ];
     const orderColumn = validSortColumns.includes(sortBy)
       ? sortBy
@@ -103,6 +107,17 @@ export async function GET(request: NextRequest) {
     // Try full stats view first, fallback to basic trapper list
     let trappers: TrapperRow[] = [];
     try {
+      // Build ORDER BY — tier_sort is a special computed sort
+      const orderByClause = orderColumn === "tier_sort"
+        ? `CASE WHEN s.role_status = 'active' THEN 0 ELSE 1 END,
+           CASE
+             WHEN vt.tier LIKE 'Tier 1%' THEN 1
+             WHEN vt.tier LIKE 'Tier 2%' THEN 2
+             ELSE 3
+           END ASC, s.total_cats_caught DESC NULLS LAST`
+        : `CASE WHEN s.role_status = 'active' THEN 0 ELSE 1 END,
+           s.${orderColumn} DESC NULLS LAST`;
+
       trappers = await queryRows<TrapperRow>(
         `SELECT
           s.person_id,
@@ -123,14 +138,15 @@ export async function GET(request: NextRequest) {
           s.phone,
           vt.tier,
           COALESCE(tp.has_signed_contract, FALSE) AS has_signed_contract,
-          COALESCE(s.availability_status, 'available') AS availability_status
+          COALESCE(s.availability_status, 'available') AS availability_status,
+          tp.contract_signed_date::text AS contract_signed_date,
+          s.profile_created_at::text AS profile_created_at,
+          s.assigned_request_summaries
         FROM ops.v_trapper_full_stats s
         LEFT JOIN sot.v_trapper_tiers vt ON vt.person_id = s.person_id
         LEFT JOIN sot.trapper_profiles tp ON tp.person_id = s.person_id
         ${whereClause}
-        ORDER BY
-          CASE WHEN s.role_status = 'active' THEN 0 ELSE 1 END,
-          s.${orderColumn} DESC NULLS LAST
+        ORDER BY ${orderByClause}
         LIMIT $1 OFFSET $2`,
         queryParams
       );
@@ -170,7 +186,10 @@ export async function GET(request: NextRequest) {
           sot.get_phone(p.person_id) AS phone,
           NULL::TEXT AS tier,
           FALSE AS has_signed_contract,
-          'available' AS availability_status
+          'available' AS availability_status,
+          NULL::TEXT AS contract_signed_date,
+          NULL::TEXT AS profile_created_at,
+          NULL::JSONB AS assigned_request_summaries
         FROM sot.people p
         JOIN sot.person_roles pr ON pr.person_id = p.person_id
         ${basicWhere}
@@ -180,6 +199,17 @@ export async function GET(request: NextRequest) {
         LIMIT $1 OFFSET $2`,
         queryParams
       );
+    }
+
+    // Parse JSONB assigned_request_summaries (pg returns as object or string)
+    for (const t of trappers) {
+      if (typeof t.assigned_request_summaries === "string") {
+        try {
+          t.assigned_request_summaries = JSON.parse(t.assigned_request_summaries);
+        } catch {
+          t.assigned_request_summaries = null;
+        }
+      }
     }
 
     // Get aggregate statistics (with fallback)

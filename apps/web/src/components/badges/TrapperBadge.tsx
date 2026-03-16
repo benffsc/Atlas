@@ -11,22 +11,22 @@ const trapperInfo: Record<
   { label: string; bg: string; title: string }
 > = {
   coordinator: {
-    label: "Trapping Coordinator",
-    bg: "#6f42c1",
+    label: "FFSC Official",
+    bg: "#198754",
     title: "FFSC Staff Coordinator",
   },
   head_trapper: {
-    label: "Head Trapper",
-    bg: "#0d6efd",
+    label: "FFSC Official",
+    bg: "#198754",
     title: "FFSC Head Trapper",
   },
   ffsc_trapper: {
-    label: "FFSC Trapper",
+    label: "FFSC Official",
     bg: "#198754",
     title: "FFSC Trained Volunteer (completed orientation)",
   },
   community_trapper: {
-    label: "Community Trapper",
+    label: "Community",
     bg: "#fd7e14",
     title: "Contract signer - limited scope, does not represent FFSC",
   },
@@ -60,6 +60,32 @@ export function TrapperBadge({ trapperType, size = "md", inactive = false }: Tra
       title={info.title + statusText}
     >
       {info.label}
+    </span>
+  );
+}
+
+// Tier-based badge using tier string from v_trapper_tiers
+export function TrapperTierBadge({ tier }: { tier: string | null }) {
+  if (!tier) return null;
+  const t = tier.startsWith("Tier 1")
+    ? { label: "FFSC Official", bg: "#198754" }
+    : tier.startsWith("Tier 2")
+    ? { label: "Community", bg: "#fd7e14" }
+    : { label: "Legacy", bg: "#6c757d" };
+
+  return (
+    <span
+      className="badge"
+      style={{
+        background: t.bg,
+        color: "#fff",
+        fontSize: "0.65rem",
+        padding: "0.15rem 0.4rem",
+        fontWeight: 500,
+      }}
+      title={tier}
+    >
+      {t.label}
     </span>
   );
 }

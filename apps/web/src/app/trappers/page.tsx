@@ -4,13 +4,19 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { TrapperBadge } from "@/components/badges/TrapperBadge";
+import { TrapperTierBadge } from "@/components/badges/TrapperBadge";
 import { formatPhone, formatRelativeTime, getActivityColor } from "@/lib/formatters";
 import { generateCsv, downloadCsv } from "@/lib/csv-export";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { TrapperPreviewContent } from "@/components/preview/TrapperPreviewContent";
 import { EditTrapperDrawer } from "@/components/trappers/EditTrapperDrawer";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
+
+interface AssignedRequest {
+  request_id: string;
+  address: string;
+  status: string;
+}
 
 interface Trapper {
   person_id: string;
@@ -32,6 +38,9 @@ interface Trapper {
   tier: string | null;
   has_signed_contract: boolean;
   availability_status: string;
+  contract_signed_date: string | null;
+  profile_created_at: string | null;
+  assigned_request_summaries: AssignedRequest[] | null;
 }
 
 interface AggregateStats {
@@ -324,6 +333,57 @@ function ActiveAssignmentsBadge({ count }: { count: number }) {
   );
 }
 
+const AVATAR_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0891b2", "#059669", "#4f46e5", "#be185d"];
+
+function AvatarInitials({ name, id, size = 40 }: { name: string; id: string; size?: number }) {
+  const hash = id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const bg = AVATAR_COLORS[hash % AVATAR_COLORS.length];
+  const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: bg, color: "#fff",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontWeight: 600, fontSize: size * 0.4,
+      flexShrink: 0,
+    }}>
+      {initials}
+    </div>
+  );
+}
+
+const NEW_THRESHOLD_DAYS = 14;
+
+function isNewTrapper(trapper: Trapper): boolean {
+  const refDate = trapper.contract_signed_date || trapper.profile_created_at;
+  if (!refDate) return false;
+  const daysSince = Math.floor((Date.now() - new Date(refDate).getTime()) / 86400000);
+  return daysSince <= NEW_THRESHOLD_DAYS;
+}
+
+function NewBadge() {
+  return (
+    <span style={{
+      fontSize: "0.6rem",
+      padding: "0.1rem 0.4rem",
+      borderRadius: "9999px",
+      background: "#dbeafe",
+      color: "#1d4ed8",
+      fontWeight: 600,
+    }}>
+      NEW
+    </span>
+  );
+}
+
+function getTierLabel(tier: string | null): string {
+  if (!tier) return "";
+  if (tier.startsWith("Tier 1")) return "FFSC Official";
+  if (tier.startsWith("Tier 2")) return "Community";
+  return "Legacy";
+}
+
 function TrapperCard({
   trapper,
   onClick,
@@ -338,6 +398,10 @@ function TrapperCard({
     Math.floor((Date.now() - new Date(trapper.last_activity_date).getTime()) / 86400000) > DORMANT_DAYS);
   const relTime = formatRelativeTime(trapper.last_activity_date);
   const actColor = getActivityColor(trapper.last_activity_date);
+  const isNew = isNewTrapper(trapper);
+  const assignments = trapper.assigned_request_summaries || [];
+  const shownAssignments = assignments.slice(0, 3);
+  const extraCount = assignments.length - 3;
 
   return (
     <div
@@ -355,58 +419,60 @@ function TrapperCard({
       onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "#0d6efd"; }}
       onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "var(--card-border, #e5e7eb)"; }}
     >
-      {/* Row 1: Name + Badge + Status */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
-        <a
-          href={`/trappers/${trapper.person_id}`}
-          style={{
-            fontWeight: 600,
-            fontSize: "0.95rem",
-            color: isInactive ? "#9ca3af" : "var(--foreground)",
-            textDecoration: "none",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {trapper.display_name}
-        </a>
-        <TrapperBadge trapperType={trapper.trapper_type} size="sm" inactive={isInactive} />
-        {isDormant && (
-          <span style={{
-            fontSize: "0.6rem",
-            padding: "0.1rem 0.3rem",
-            borderRadius: "3px",
-            background: "#fef3c7",
-            color: "#92400e",
-            fontWeight: 500,
-          }}>
-            DORMANT
-          </span>
-        )}
-        {!isInactive && trapper.availability_status !== "available" && (
-          <AvailabilityBadge status={trapper.availability_status} />
-        )}
-        {trapper.role_status !== "active" && (
-          <span
-            style={{
-              fontSize: "0.65rem",
-              padding: "0.1rem 0.35rem",
-              borderRadius: "4px",
-              background: "#fef3c7",
-              color: "#92400e",
-              fontWeight: 500,
-            }}
-          >
-            {trapper.role_status}
-          </span>
-        )}
+      {/* Row 1: Avatar + Name + Tier + Badges */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+        <AvatarInitials name={trapper.display_name} id={trapper.person_id} size={40} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+            <a
+              href={`/trappers/${trapper.person_id}`}
+              style={{
+                fontWeight: 600,
+                fontSize: "0.95rem",
+                color: isInactive ? "#9ca3af" : "var(--foreground)",
+                textDecoration: "none",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {trapper.display_name}
+            </a>
+            <TrapperTierBadge tier={trapper.tier} />
+            {isNew && <NewBadge />}
+            {isDormant && (
+              <span style={{
+                fontSize: "0.6rem",
+                padding: "0.1rem 0.3rem",
+                borderRadius: "3px",
+                background: "#fef3c7",
+                color: "#92400e",
+                fontWeight: 500,
+              }}>
+                DORMANT
+              </span>
+            )}
+            {!isInactive && trapper.availability_status !== "available" && (
+              <AvailabilityBadge status={trapper.availability_status} />
+            )}
+            {trapper.role_status !== "active" && (
+              <span style={{
+                fontSize: "0.65rem",
+                padding: "0.1rem 0.35rem",
+                borderRadius: "4px",
+                background: "#fef3c7",
+                color: "#92400e",
+                fontWeight: 500,
+              }}>
+                {trapper.role_status}
+              </span>
+            )}
+          </div>
+          <div style={{ marginTop: "0.15rem" }}>
+            <ContactInfo phone={trapper.phone} email={trapper.email} />
+          </div>
+        </div>
       </div>
 
-      {/* Row 2: Contact */}
-      <div style={{ marginBottom: "0.5rem" }}>
-        <ContactInfo phone={trapper.phone} email={trapper.email} />
-      </div>
-
-      {/* Row 3: Active assignments + Last activity */}
+      {/* Row 2: Active assignments + Last activity */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem" }}>
           <span style={{ color: "#666" }}>Active:</span>
@@ -419,8 +485,42 @@ function TrapperCard({
         )}
       </div>
 
+      {/* Row 3: Assigned request summaries */}
+      {shownAssignments.length > 0 && (
+        <div style={{ marginBottom: "0.35rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+          {shownAssignments.map((req) => {
+            const statusColor = req.status === "in_progress" ? "#2563eb"
+              : req.status === "scheduled" ? "#7c3aed"
+              : "#6b7280";
+            return (
+              <div key={req.request_id} style={{
+                display: "flex", alignItems: "center", gap: "0.35rem",
+                fontSize: "0.72rem", color: "#4b5563",
+                padding: "0.15rem 0.4rem",
+                background: "#f9fafb", borderRadius: "4px",
+              }}>
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {req.address.length > 40 ? req.address.slice(0, 38) + "..." : req.address}
+                </span>
+                <span style={{
+                  fontSize: "0.6rem", padding: "0.05rem 0.3rem", borderRadius: "9999px",
+                  background: statusColor + "18", color: statusColor, fontWeight: 500,
+                }}>
+                  {req.status.replace("_", " ")}
+                </span>
+              </div>
+            );
+          })}
+          {extraCount > 0 && (
+            <span style={{ fontSize: "0.7rem", color: "#9ca3af", paddingLeft: "0.4rem" }}>
+              +{extraCount} more
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Row 4: Stats */}
-      <div style={{ display: "flex", gap: "1rem", fontSize: "0.75rem", color: "#666" }}>
+      <div style={{ display: "flex", gap: "1rem", fontSize: "0.75rem", color: "#666", alignItems: "center" }}>
         <span>
           <strong style={{ color: trapper.total_cats_caught > 0 ? "#198754" : "#999" }}>
             {trapper.total_cats_caught}
@@ -428,20 +528,22 @@ function TrapperCard({
           caught
         </span>
         <span>{trapper.completed_assignments} completed</span>
+        {trapper.has_signed_contract && (
+          <span style={{ color: "#16a34a" }} title="Contract signed">{"\u2713"} Contract</span>
+        )}
       </div>
     </div>
   );
 }
 
 const FILTER_DEFAULTS = {
-  type: "all",
   tier: "all",
   availability: "all",
   active: "true",
   dormant: "false",
-  sort: "total_cats_caught",
+  sort: "tier_sort",
   search: "",
-  view: "table",
+  view: "cards",
   page: "0",
   selected: "",
 };
@@ -484,7 +586,6 @@ function TrappersPageInner() {
     setError(null);
 
     const params = new URLSearchParams();
-    if (filters.type !== "all") params.set("type", filters.type);
     if (filters.tier !== "all") params.set("tier", filters.tier);
     if (filters.active === "true") params.set("active", "true");
     params.set("sort", filters.sort);
@@ -513,7 +614,7 @@ function TrappersPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [filters.type, filters.tier, filters.active, filters.availability, filters.dormant, filters.sort, filters.search, page]);
+  }, [filters.tier, filters.active, filters.availability, filters.dormant, filters.sort, filters.search, page]);
 
   useEffect(() => {
     fetchTrappers();
@@ -631,7 +732,7 @@ function TrappersPageInner() {
       t.email,
       t.phone ? formatPhone(t.phone) : "",
       t.trapper_type,
-      t.tier || "",
+      getTierLabel(t.tier) || t.tier || "",
       t.role_status,
       t.availability_status,
       t.total_cats_caught,
@@ -801,110 +902,156 @@ function TrappersPageInner() {
         </>
       )}
 
-      {/* Filters + Search + View Toggle */}
+      {/* Filter Bar — Chip-based */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "0.5rem",
-          marginBottom: "1.5rem",
+          gap: "0.4rem",
+          marginBottom: "1rem",
           flexWrap: "wrap",
         }}
       >
-        <select
-          value={filters.type}
-          onChange={(e) => setFilters({ type: e.target.value, page: "0" })}
-        >
-          <option value="all">All Trappers</option>
-          <option value="ffsc">FFSC Trappers</option>
-          <option value="community">Community Trappers</option>
-        </select>
+        {/* Tier Chips */}
+        {([
+          { value: "all", label: "All", color: "#2563eb" },
+          { value: "1", label: "FFSC Official", color: "#198754" },
+          { value: "2", label: "Community", color: "#fd7e14" },
+          { value: "3", label: "Legacy", color: "#6c757d" },
+        ] as const).map((chip) => {
+          const active = filters.tier === chip.value;
+          return (
+            <button
+              key={chip.value}
+              onClick={() => setFilters({ tier: active && chip.value !== "all" ? "all" : chip.value, page: "0" })}
+              style={{
+                padding: "0.25rem 0.75rem",
+                borderRadius: "9999px",
+                fontSize: "0.8rem",
+                fontWeight: active ? 600 : 400,
+                border: `1px solid ${active ? chip.color : "#d1d5db"}`,
+                background: active ? chip.color : "transparent",
+                color: active ? "#fff" : "#374151",
+                cursor: "pointer",
+              }}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
 
-        <select
-          value={filters.tier}
-          onChange={(e) => setFilters({ tier: e.target.value, page: "0" })}
-        >
-          <option value="all">All Tiers</option>
-          <option value="1">Tier 1: FFSC</option>
-          <option value="2">Tier 2: Contract</option>
-          <option value="3">Tier 3: Informal</option>
-        </select>
+        <div style={{ borderLeft: "1px solid #d1d5db", height: "1.2rem", margin: "0 0.15rem" }} />
 
-        <select
-          value={filters.availability}
-          onChange={(e) => setFilters({ availability: e.target.value, page: "0" })}
-        >
-          <option value="all">All Availability</option>
-          <option value="available">Available</option>
-          <option value="busy">Busy</option>
-          <option value="on_leave">On Leave</option>
-        </select>
+        {/* Availability Chips */}
+        {([
+          { value: "all", label: "All Status" },
+          { value: "available", label: "Available" },
+          { value: "busy", label: "Busy" },
+          { value: "on_leave", label: "On Leave" },
+        ] as const).map((chip) => {
+          const active = filters.availability === chip.value;
+          const style = chip.value !== "all" ? AVAILABILITY_STYLES[chip.value] : undefined;
+          return (
+            <button
+              key={chip.value}
+              onClick={() => setFilters({ availability: active && chip.value !== "all" ? "all" : chip.value, page: "0" })}
+              style={{
+                padding: "0.25rem 0.75rem",
+                borderRadius: "9999px",
+                fontSize: "0.8rem",
+                fontWeight: active ? 600 : 400,
+                border: `1px solid ${active ? (style?.color || "#2563eb") : "#d1d5db"}`,
+                background: active ? (style?.bg || "#dbeafe") : "transparent",
+                color: active ? (style?.color || "#1d4ed8") : "#374151",
+                cursor: "pointer",
+              }}
+            >
+              {chip.label}
+            </button>
+          );
+        })}
 
-        <label style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.35rem",
-          fontSize: "0.8rem",
-          cursor: "pointer",
-          userSelect: "none",
-        }}>
-          <input
-            type="checkbox"
-            checked={filters.active === "true"}
-            onChange={(e) => setFilters({ active: e.target.checked ? "true" : "false", page: "0" })}
-          />
+        <div style={{ borderLeft: "1px solid #d1d5db", height: "1.2rem", margin: "0 0.15rem" }} />
+
+        {/* Toggle Chips: Active / Dormant */}
+        <button
+          onClick={() => setFilters({ active: filters.active === "true" ? "false" : "true", page: "0" })}
+          style={{
+            padding: "0.25rem 0.75rem",
+            borderRadius: "9999px",
+            fontSize: "0.8rem",
+            fontWeight: filters.active === "true" ? 600 : 400,
+            border: `1px solid ${filters.active === "true" ? "#2563eb" : "#d1d5db"}`,
+            background: filters.active === "true" ? "#dbeafe" : "transparent",
+            color: filters.active === "true" ? "#1d4ed8" : "#374151",
+            cursor: "pointer",
+          }}
+        >
           Active only
-        </label>
-
-        <label style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.35rem",
-          fontSize: "0.8rem",
-          cursor: "pointer",
-          userSelect: "none",
-          color: filters.dormant === "true" ? "#dc2626" : "inherit",
-        }}>
-          <input
-            type="checkbox"
-            checked={filters.dormant === "true"}
-            onChange={(e) => setFilters({ dormant: e.target.checked ? "true" : "false", page: "0" })}
-          />
-          Dormant (90d+)
-        </label>
-
-        <select
-          value={filters.sort}
-          onChange={(e) => setFilters({ sort: e.target.value, page: "0" })}
+        </button>
+        <button
+          onClick={() => setFilters({ dormant: filters.dormant === "true" ? "false" : "true", page: "0" })}
+          style={{
+            padding: "0.25rem 0.75rem",
+            borderRadius: "9999px",
+            fontSize: "0.8rem",
+            fontWeight: filters.dormant === "true" ? 600 : 400,
+            border: `1px solid ${filters.dormant === "true" ? "#dc2626" : "#d1d5db"}`,
+            background: filters.dormant === "true" ? "#fef2f2" : "transparent",
+            color: filters.dormant === "true" ? "#dc2626" : "#374151",
+            cursor: "pointer",
+          }}
         >
-          <option value="total_cats_caught">Sort by Total Caught</option>
-          <option value="total_clinic_cats">Sort by Direct Bookings</option>
-          <option value="active_assignments">Sort by Active Assignments</option>
-          <option value="completed_assignments">Sort by Completed</option>
-          <option value="avg_cats_per_day">Sort by Avg Cats/Day</option>
-          <option value="display_name">Sort by Name</option>
-          <option value="last_activity_date">Sort by Last Activity</option>
-        </select>
+          Dormant
+        </button>
 
+        <div style={{ borderLeft: "1px solid #d1d5db", height: "1.2rem", margin: "0 0.15rem" }} />
+
+        {/* Sort Dropdown (compact) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+          <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>Sort:</span>
+          <select
+            value={filters.sort}
+            onChange={(e) => setFilters({ sort: e.target.value, page: "0" })}
+            style={{
+              padding: "0.2rem 0.4rem",
+              fontSize: "0.8rem",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              background: "transparent",
+            }}
+          >
+            <option value="tier_sort">Tier</option>
+            <option value="total_cats_caught">Total Caught</option>
+            <option value="total_clinic_cats">Direct Bookings</option>
+            <option value="active_assignments">Active Assignments</option>
+            <option value="completed_assignments">Completed</option>
+            <option value="avg_cats_per_day">Avg Cats/Day</option>
+            <option value="display_name">Name</option>
+            <option value="last_activity_date">Last Activity</option>
+          </select>
+        </div>
+
+        {/* Search */}
         <input
           type="text"
           placeholder="Search by name..."
           value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
           style={{
-            padding: "0.35rem 0.75rem",
-            border: "1px solid #ddd",
-            borderRadius: "6px",
-            fontSize: "0.875rem",
-            minWidth: "180px",
+            padding: "0.3rem 0.75rem",
+            border: "1px solid #d1d5db",
+            borderRadius: "9999px",
+            fontSize: "0.8rem",
+            minWidth: "160px",
           }}
         />
 
         {/* View Toggle */}
         <div style={{ display: "flex", gap: "2px", marginLeft: "auto", flexShrink: 0 }}>
           {([
-            { key: "table", label: "Table" },
             { key: "cards", label: "Cards" },
+            { key: "table", label: "Table" },
           ] as const).map((v, i, arr) => (
             <button
               key={v.key}
@@ -1189,40 +1336,48 @@ function TrappersPageInner() {
                         />
                       </td>
                       <td>
-                        <a
-                          href={`/trappers/${trapper.person_id}`}
-                          style={{
-                            fontWeight: 500,
-                            color: isInactive ? "#9ca3af" : "var(--foreground)",
-                            textDecoration: "none",
-                          }}
-                          onClick={(e) => {
-                            if (!e.metaKey && !e.ctrlKey) {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              selectTrapper(trapper.person_id);
-                            }
-                          }}
-                        >
-                          {trapper.display_name}
-                        </a>
-                        {isDormant && (
-                          <span
-                            title={`No activity in ${DORMANT_DAYS}+ days`}
-                            style={{
-                              fontSize: "0.6rem",
-                              padding: "0.1rem 0.3rem",
-                              borderRadius: "3px",
-                              background: "#fef3c7",
-                              color: "#92400e",
-                              fontWeight: 500,
-                              marginLeft: "0.35rem",
-                              verticalAlign: "middle",
-                            }}
-                          >
-                            DORMANT
-                          </span>
-                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <AvatarInitials name={trapper.display_name} id={trapper.person_id} size={28} />
+                          <div>
+                            <a
+                              href={`/trappers/${trapper.person_id}`}
+                              style={{
+                                fontWeight: 500,
+                                color: isInactive ? "#9ca3af" : "var(--foreground)",
+                                textDecoration: "none",
+                              }}
+                              onClick={(e) => {
+                                if (!e.metaKey && !e.ctrlKey) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  selectTrapper(trapper.person_id);
+                                }
+                              }}
+                            >
+                              {trapper.display_name}
+                            </a>
+                            {isNewTrapper(trapper) && (
+                              <span style={{ marginLeft: "0.35rem", verticalAlign: "middle" }}><NewBadge /></span>
+                            )}
+                            {isDormant && (
+                              <span
+                                title={`No activity in ${DORMANT_DAYS}+ days`}
+                                style={{
+                                  fontSize: "0.6rem",
+                                  padding: "0.1rem 0.3rem",
+                                  borderRadius: "3px",
+                                  background: "#fef3c7",
+                                  color: "#92400e",
+                                  fontWeight: 500,
+                                  marginLeft: "0.35rem",
+                                  verticalAlign: "middle",
+                                }}
+                              >
+                                DORMANT
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td>
                         <ContactInfo phone={trapper.phone} email={trapper.email} />
@@ -1268,23 +1423,7 @@ function TrappersPageInner() {
                       </td>
                       <td>
                         {trapper.tier ? (
-                          <span style={{
-                            display: "inline-block",
-                            padding: "0.15rem 0.5rem",
-                            borderRadius: "9999px",
-                            fontSize: "0.7rem",
-                            fontWeight: 600,
-                            background: trapper.tier.startsWith("Tier 1") ? "#dcfce7"
-                              : trapper.tier.startsWith("Tier 2") ? "#fef3c7"
-                              : "#f3f4f6",
-                            color: trapper.tier.startsWith("Tier 1") ? "#166534"
-                              : trapper.tier.startsWith("Tier 2") ? "#92400e"
-                              : "#6b7280",
-                          }}>
-                            {trapper.tier.startsWith("Tier 1") ? "Tier 1"
-                              : trapper.tier.startsWith("Tier 2") ? "Tier 2"
-                              : "Tier 3"}
-                          </span>
+                          <TrapperTierBadge tier={trapper.tier} />
                         ) : (
                           <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>{"\u2014"}</span>
                         )}
