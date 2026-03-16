@@ -133,7 +133,7 @@ Cats are linked to requests based on appointment date relative to request lifecy
 **Cat-Place Linking** (MIG_889/892/2430-2435):
 - `link_cats_to_appointment_places()` — uses `inferred_place_id` ONLY (no fallback)
 - `link_cats_to_places()` — uses LIMIT 1 per person + staff exclusion
-- Never link to ALL person_place_relationships (causes pollution)
+- Never link to ALL `sot.person_place` rows (causes pollution)
 - **CRITICAL (MIG_2430):** NEVER use COALESCE fallback to clinic address. If `inferred_place_id IS NULL`, skip the cat and log to `ops.entity_linking_skipped`. Clinic fallback polluted data with cats incorrectly linked to 845 Todd/Empire Industrial.
 
 **Entity Linking Pipeline Monitoring** (MIG_2435):
@@ -182,7 +182,6 @@ Cats are linked to requests based on appointment date relative to request lifecy
 | Request | `ops.find_or_create_request(source, record_id, source_created_at, ...)` |
 | Cat→Place | `sot.link_cat_to_place(cat_id, place_id, rel_type, evidence_type, ...)` |
 | Person→Cat | `sot.link_person_to_cat(person_id, cat_id, rel_type, evidence_type, ...)` |
-| Coord Place | `sot.create_place_from_coordinates(lat, lng, display_name, source)` — 10m dedup |
 | Place merge | `sot.merge_place_into(loser_id, winner_id, reason, changed_by)` |
 
 **Place family**: `get_place_family(place_id)` returns UUID[] of parent, children, siblings, co-located. Never use arbitrary distance radius.
@@ -399,7 +398,7 @@ A trapper may ALSO run a rescue (e.g., Katie Moore runs "Cat Rescue of Cloverdal
 - **Cats without microchips:** Use `clinichq_animal_id` as primary identifier. The ingest pipeline (Step 1c) creates cats with `clinichq_animal_id` when microchip is missing. Euthanasia cases often never get microchipped - this is expected.
 - **Recheck visits:** Staff may enter microchip in Animal Name field. Pipeline Step 1b detects 15-digit patterns and matches to existing cats.
 - Don't create people without email/phone — Data Engine rejects no-identifier cases
-- Don't create cat_place_relationships by joining ALL person_place_relationships — Use LIMIT 1
+- Don't create `sot.cat_place` rows by joining ALL `sot.person_place` — Use LIMIT 1
 
 **Identity:**
 - Don't match people by name only — Email/phone required
@@ -416,6 +415,15 @@ A trapper may ALSO run a rescue (e.g., Katie Moore runs "Cat Rescue of Cloverdal
 **Map/UI:**
 - Don't use `AddressAutocomplete` for place input — Use `PlaceResolver`
 - Don't use `ST_DWithin` for cross-place aggregation — Use `get_place_family()`
+- Don't build custom split-view/preview panels — Use `ListDetailLayout` + `EntityPreviewPanel`
+- Don't build custom slide-over drawers — Use `ActionDrawer` from `@/components/shared`
+- Don't build custom dropdown menus for row actions — Use `RowActionMenu` from `@/components/shared`
+- Don't build custom hover popovers — Use `EntityPreview` from `@/components/search`
+- Don't hardcode back buttons on detail pages — Use `Breadcrumbs` + `useNavigationContext` with `?from=` param
+- Don't add inline toast state (`showToast`/`toastMessage`/`setTimeout`) — Use `useToast` from `@/components/feedback/Toast` (FFS-618 migrates remaining pages)
+- Don't copy dedup page structure from another dedup page — FFS-623 extracts `DedupPageFramework`
+- Don't build inline tab bars — Use existing `TabBar` from `@/components/ui/TabBar` (FFS-624 migrates remaining pages)
+- Don't add inline pagination — FFS-617 extracts `SharedPagination` with URL sync
 
 **API Routes:**
 - Don't parse pagination inline — Use `parsePagination()` from `@/lib/api-validation`
@@ -423,6 +431,58 @@ A trapper may ALSO run a rescue (e.g., Katie Moore runs "Cat Rescue of Cloverdal
 - Don't define `VALID_*` constants in routes — Import from `@/lib/enums`
 - Don't return `{ error: "message" }` directly — Use `apiError()` from `@/lib/api-response`
 - Don't query views without a contract interface — Add to `@/lib/types/view-contracts.ts`
+
+## UI Component Patterns (List-Detail Management UX)
+
+**FFS-602 built a reusable management UX toolkit. Use these components — don't rebuild them.**
+
+### List-Detail Split View
+
+For any entity list page that needs inline preview (trappers, fosters, people, requests):
+
+| Component | Purpose |
+|-----------|---------|
+| `@/components/layouts/ListDetailLayout` | Split-view wrapper (list + detail pane). Escape closes panel. Mobile-responsive. |
+| `@/components/preview/EntityPreviewPanel` | Generic preview panel (sticky header, stats grid, contact, sections). |
+| `@/components/preview/TrapperPreviewContent` | Maps `Trapper` interface → `EntityPreviewPanel`. No extra API call. |
+
+**To add a new entity:** Create `*PreviewContent.tsx` mapping entity data → `EntityPreviewPanel` props. Wire into `ListDetailLayout` on the list page. Use `useUrlFilters` with a `selected` key for URL-driven selection.
+
+### Drawers & Inline Actions
+
+| Component | Purpose |
+|-----------|---------|
+| `@/components/shared/ActionDrawer` | Right-side slide-over (sm/md/lg widths). Focus trap, Escape/backdrop close. |
+| `@/components/shared/RowActionMenu` | Three-dot kebab menu for table/card rows. Dropdown with dividers + danger variant. |
+| `@/components/trappers/EditTrapperDrawer` | Edit trapper type/status/availability via drawer. PATCHes `/api/trappers`. |
+
+### Navigation & Context
+
+| Component | Purpose |
+|-----------|---------|
+| `@/components/shared/Breadcrumbs` | Simple breadcrumb with "›" separators. |
+| `@/hooks/useNavigationContext` | Derives breadcrumbs from route + `?from=` URL param. |
+| `@/components/search/EntityPreview` | Hover popover for cross-entity links (300ms delay, portal-based). |
+| `@/hooks/useEntityDetail` | Fetches full entity detail for preview hover/modal/panel. |
+
+**Pattern:** Preview panel "Open Full Profile" links include `?from=trappers` (or fosters/people) so breadcrumbs on the detail page know the origin context.
+
+### Planned Shared Components (FFS-616 Epic)
+
+The following extractions are tracked in Linear epic FFS-616. **Do not create new inline implementations** of these patterns — use or wait for the shared version:
+
+| Issue | Component | Replaces |
+|-------|-----------|----------|
+| FFS-617 | `SharedPagination` — unified pagination with URL sync | 5+ inline pagination implementations |
+| FFS-618 | `useToast` hook + `ToastContainer` — **EXISTS** (`components/feedback/Toast.tsx`), needs adoption | 8+ pages with duplicated inline toast state |
+| FFS-619 | `StatCard` / `StatGrid` — consistent stat display | 6+ pages with inline stat cards |
+| FFS-620 | `ReasonSelectionForm` — reason + conditional notes | 4 modals with near-identical reason selection |
+| FFS-621 | `DataTable` — sortable, selectable, paginated table | Inconsistent table patterns across list pages |
+| FFS-622 | `ConfirmDialog` — standardized confirm/cancel | Multiple inline confirmation patterns |
+| FFS-623 | `DedupPageFramework` — shared dedup resolution UI | 5 dedup pages (~3,374 lines, 80% identical) |
+| FFS-624 | Migrate all inline tabs to `TabBar` component | 17+ pages with hand-rolled tab bars |
+| FFS-625 | `EmptyState` — **EXISTS** (`components/feedback/EmptyState.tsx`), needs adoption | Inconsistent empty states across pages |
+| FFS-626 | `FilterBar` — composable filter chips + search | Duplicated filter UI patterns |
 
 ## Phone Display (TypeScript)
 
@@ -457,10 +517,10 @@ SQL: `norm_phone_us()` for identity matching/storage.
 
 | Document | Purpose |
 |----------|---------|
-| `docs/ATLAS_NORTH_STAR.md` | System layers, invariants, failure modes |
+| `docs/ATLAS_NORTH_STAR_V2.md` | System layers, invariants, failure modes |
 | `docs/CENTRALIZED_FUNCTIONS.md` | Full function signatures |
 | `docs/INGEST_GUIDELINES.md` | Data ingestion rules |
 | `docs/DATA_FLOW_ARCHITECTURE.md` | Data pipeline from sources to Beacon |
 | `docs/CLINIC_DATA_STRUCTURE.md` | ClinicHQ data flow rules |
 | `docs/DATA_GAP_RISKS.md` | Edge cases & unusual scenarios |
-| `docs/CLAUDE_REFERENCE.md` | Detailed reference |
+| `docs/CORE_FUNCTIONS.md` | Quick reference for centralized DB functions |

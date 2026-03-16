@@ -1,115 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api-client";
-import { formatPhone, formatRelativeTime, formatDateLocal } from "@/lib/formatters";
-import { formatPlaceKind, formatRole } from "@/lib/display-labels";
+import { formatPhone, formatRelativeTime, formatDateLocal, getActivityColor } from "@/lib/formatters";
+import { formatPlaceKind, formatRole, formatStatus } from "@/lib/display-labels";
 import { CatHealthBadges, buildHealthFlags, PlaceRiskBadges, PersonStatusBadges } from "@/components/badges";
 
-// --- Shared interfaces ---
+// Re-export types and hook from canonical location for backwards compatibility
+export { useEntityDetail } from "@/hooks/useEntityDetail";
+export type { EntityType, EntityDetail, CatDetail, PersonDetail, PlaceDetail, RequestDetail } from "@/hooks/useEntityDetail";
 
-export interface CatDetail {
-  cat_id: string;
-  display_name: string;
-  sex: string | null;
-  altered_status: string | null;
-  breed: string | null;
-  primary_color: string | null;
-  identifiers: Array<{ id_type: string; id_value: string }>;
-  owners: Array<{ person_id: string; display_name: string; relationship_type: string }>;
-  places: Array<{ place_id: string; display_name: string }>;
-  last_appointment_date?: string | null;
-  first_appointment_date?: string | null;
-  total_appointments?: number;
-  tests?: Array<{ test_type?: string; disease_key?: string; disease_display_name?: string; result?: string; disease_badge_color?: string; short_code?: string }>;
-  // Health fields (FFS-427)
-  is_deceased?: boolean | null;
-  age_group?: string | null;
-  weight_lbs?: number | null;
-  vitals?: Array<{ weight_lbs?: number | null; is_pregnant?: boolean | null; is_lactating?: boolean | null }>;
-  conditions?: Array<{ condition_type: string; severity?: string | null; resolved_at?: string | null }>;
-}
-
-export interface PersonDetail {
-  person_id: string;
-  display_name: string;
-  identifiers: Array<{ id_type: string; id_value: string }>;
-  cats: Array<{ cat_id: string; display_name: string; relationship_type: string }>;
-  places: Array<{ place_id: string; display_name: string; role: string }>;
-  cat_count?: number;
-  place_count?: number;
-  last_appointment_date?: string | null;
-  entity_type?: string | null;
-  // Status fields (FFS-436)
-  do_not_contact?: boolean;
-  primary_role?: string | null;
-  trapper_type?: string | null;
-}
-
-export interface PlaceDetail {
-  place_id: string;
-  display_name: string;
-  formatted_address: string | null;
-  place_kind: string | null;
-  locality: string | null;
-  cats: Array<{ cat_id: string; display_name: string }>;
-  people: Array<{ person_id: string; display_name: string; role: string }>;
-  cat_count?: number;
-  person_count?: number;
-  last_appointment_date?: string | null;
-  active_request_count?: number;
-  // Risk fields (FFS-432)
-  watch_list?: boolean;
-  disease_badges?: Array<{ disease_key: string; short_code: string; color: string; status: string; positive_cat_count?: number }>;
-}
-
-export interface RequestDetail {
-  request_id: string;
-  status: string;
-  priority: string | null;
-  summary: string | null;
-  place_name: string | null;
-  requester_name: string | null;
-  estimated_cat_count: number | null;
-  total_cats_reported: number | null;
-  created_at: string;
-  resolved_at: string | null;
-}
-
-export type EntityType = "cat" | "person" | "place" | "request";
-export type EntityDetail = CatDetail | PersonDetail | PlaceDetail | RequestDetail;
-
-// Label formatting imported from @/lib/display-labels
-
-// --- Data fetching hook ---
-
-export function useEntityDetail(entityType: EntityType | null, entityId: string | null) {
-  const [detail, setDetail] = useState<EntityDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!entityType || !entityId) {
-      setDetail(null);
-      return;
-    }
-
-    setLoading(true);
-    setDetail(null);
-
-    const endpoint =
-      entityType === "cat" ? "cats" :
-      entityType === "person" ? "people" :
-      entityType === "place" ? "places" :
-      "requests";
-
-    fetchApi<EntityDetail>(`/api/${endpoint}/${entityId}`)
-      .then((data) => setDetail(data))
-      .catch(() => { /* best-effort preview */ })
-      .finally(() => setLoading(false));
-  }, [entityType, entityId]);
-
-  return { detail, loading };
-}
+import type { EntityType, EntityDetail, CatDetail, PersonDetail, PlaceDetail, RequestDetail } from "@/hooks/useEntityDetail";
 
 // --- Render component ---
 
@@ -143,9 +42,26 @@ export function EntityPreviewContent({ entityType, detail, loading }: EntityPrev
 // --- Individual renderers ---
 
 function CatPreview({ cat }: { cat: CatDetail }) {
+  const lastApptColor = getActivityColor(cat.last_appointment_date);
+
   return (
     <>
       <PreviewHeader icon="🐱" name={cat.display_name} />
+      {/* Deceased banner */}
+      {cat.is_deceased && (
+        <div style={{
+          padding: "0.25rem 0.5rem",
+          marginBottom: "0.5rem",
+          borderRadius: "4px",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          background: "var(--error-bg, #fef2f2)",
+          color: "var(--error-text, #dc2626)",
+          textAlign: "center",
+        }}>
+          Deceased
+        </div>
+      )}
       <div style={{ marginBottom: "0.5rem" }}>
         {cat.breed && <PreviewRow label="Breed" value={cat.breed} />}
         {cat.sex && (
@@ -154,6 +70,9 @@ function CatPreview({ cat }: { cat: CatDetail }) {
             value={`${cat.sex}${cat.altered_status ? ` (${cat.altered_status})` : ""}`}
           />
         )}
+        {cat.primary_color && <PreviewRow label="Color" value={cat.primary_color} />}
+        {cat.age_group && <PreviewRow label="Age" value={cat.age_group} />}
+        {cat.weight_lbs != null && <PreviewRow label="Weight" value={`${cat.weight_lbs} lbs`} />}
         {cat.identifiers?.length > 0 && (
           <PreviewRow
             label="Microchip"
@@ -188,9 +107,9 @@ function CatPreview({ cat }: { cat: CatDetail }) {
           ageGroup: cat.age_group,
           weightLbs: cat.weight_lbs ?? latestVital?.weight_lbs,
         });
-        return (flags.length > 0 || cat.is_deceased) ? (
+        return flags.length > 0 ? (
           <div style={{ marginBottom: "0.5rem" }}>
-            <CatHealthBadges healthFlags={flags} isDeceased={cat.is_deceased ?? false} maxInline={4} />
+            <CatHealthBadges healthFlags={flags} isDeceased={false} maxInline={4} />
           </div>
         ) : null;
       })()}
@@ -198,9 +117,13 @@ function CatPreview({ cat }: { cat: CatDetail }) {
         <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
           {cat.total_appointments ? `${cat.total_appointments} clinic visit${cat.total_appointments !== 1 ? "s" : ""}` : ""}
           {cat.last_appointment_date && (
-            <>{cat.total_appointments ? " \u00B7 " : ""}Last: {formatDateLocal(cat.last_appointment_date)}</>
+            <>{cat.total_appointments ? " \u00B7 " : ""}Last: <span style={{ color: lastApptColor || "var(--muted)" }}>{formatRelativeTime(cat.last_appointment_date)}</span></>
           )}
         </div>
+      )}
+      {/* Origin place */}
+      {cat.places?.length > 0 && cat.places[0].formatted_address && (
+        <PreviewRow label="Origin" value={cat.places[0].formatted_address} />
       )}
       {cat.owners?.length > 0 && (
         <PreviewSection title={`Related People (${cat.owners.length})`}>
@@ -250,6 +173,9 @@ function PersonPreview({ person }: { person: PersonDetail }) {
             )}
           </>
         )}
+        {person.primary_address && (
+          <PreviewRow label="Address" value={person.primary_address} />
+        )}
       </div>
       {/* Status badges */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.5rem" }}>
@@ -261,6 +187,9 @@ function PersonPreview({ person }: { person: PersonDetail }) {
           catCount={person.cat_count}
           size="sm"
         />
+        {person.is_verified && (
+          <PreviewPill label="Verified" color="var(--success-text)" bg="var(--success-bg)" />
+        )}
       </div>
       {activityParts.length > 0 && (
         <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
@@ -271,7 +200,7 @@ function PersonPreview({ person }: { person: PersonDetail }) {
         <PreviewSection title={`Related Cats (${person.cats.length})`}>
           {person.cats.slice(0, 4).map((c) => (
             <PreviewLink key={c.cat_id} badge={formatRole(c.relationship_type)}>
-              🐱 {c.display_name}
+              {c.display_name}
             </PreviewLink>
           ))}
           {person.cats.length > 4 && <PreviewMore count={person.cats.length - 4} />}
@@ -280,7 +209,7 @@ function PersonPreview({ person }: { person: PersonDetail }) {
       {person.places?.length > 0 && (
         <PreviewSection title={`Locations (${person.places.length})`}>
           {person.places.slice(0, 2).map((p) => (
-            <PreviewLink key={p.place_id}>📍 {p.display_name}</PreviewLink>
+            <PreviewLink key={p.place_id}>{p.display_name}</PreviewLink>
           ))}
         </PreviewSection>
       )}
@@ -295,7 +224,12 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
   if (catCount) activityParts.push(`${catCount} cats`);
   if (personCount) activityParts.push(`${personCount} people`);
   const rel = formatRelativeTime(place.last_appointment_date);
+  const actColor = getActivityColor(place.last_appointment_date);
   if (rel) activityParts.push(`Last: ${rel}`);
+
+  // Alteration stats
+  const alteredCount = place.total_altered_count ?? 0;
+  const colonySize = place.colony_size ?? 0;
 
   return (
     <>
@@ -303,7 +237,19 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
       <div style={{ marginBottom: "0.5rem" }}>
         {place.formatted_address && <PreviewRow value={place.formatted_address} />}
         {place.place_kind && <PreviewRow label="Type" value={formatPlaceKind(place.place_kind)} />}
+        {place.locality && <PreviewRow label="Locality" value={place.locality} />}
       </div>
+      {/* Alteration stats */}
+      {alteredCount > 0 && colonySize > 0 && (
+        <div style={{
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          marginBottom: "0.5rem",
+          color: alteredCount / colonySize >= 0.8 ? "var(--success-text)" : alteredCount / colonySize >= 0.5 ? "var(--warning-text)" : "var(--error-text, #dc2626)",
+        }}>
+          {alteredCount}/{colonySize} altered ({Math.round((alteredCount / colonySize) * 100)}%)
+        </div>
+      )}
       {/* Risk badges */}
       {(place.disease_badges?.length || place.watch_list || (place.active_request_count ?? 0) > 0) ? (
         <div style={{ marginBottom: "0.5rem" }}>
@@ -321,14 +267,14 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
         </div>
       ) : null}
       {activityParts.length > 0 && (
-        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+        <div style={{ fontSize: "0.75rem", color: actColor || "var(--muted)", marginBottom: "0.5rem" }}>
           {activityParts.join(" \u00B7 ")}
         </div>
       )}
       {place.cats?.length > 0 && (
         <PreviewSection title={`Related Cats (${place.cats.length})`}>
           {place.cats.slice(0, 4).map((c) => (
-            <PreviewLink key={c.cat_id}>🐱 {c.display_name}</PreviewLink>
+            <PreviewLink key={c.cat_id}>{c.display_name}</PreviewLink>
           ))}
           {place.cats.length > 4 && <PreviewMore count={place.cats.length - 4} />}
         </PreviewSection>
@@ -337,7 +283,7 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
         <PreviewSection title={`Related People (${place.people.length})`}>
           {place.people.slice(0, 3).map((p) => (
             <PreviewLink key={p.person_id} badge={formatRole(p.role)}>
-              👤 {p.display_name}
+              {p.display_name}
             </PreviewLink>
           ))}
           {place.people.length > 3 && <PreviewMore count={place.people.length - 3} />}
@@ -357,6 +303,17 @@ function RequestPreview({ request }: { request: RequestDetail }) {
     cancelled: "var(--status-cancelled)",
     on_hold: "var(--status-on-hold)",
   };
+
+  const priorityColor: Record<string, string> = {
+    high: "#dc2626",
+    medium: "#f59e0b",
+    low: "#6b7280",
+  };
+
+  // Days open calculation
+  const createdDate = new Date(request.created_at);
+  const endDate = request.resolved_at ? new Date(request.resolved_at) : new Date();
+  const daysOpen = Math.max(0, Math.floor((endDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)));
 
   return (
     <>
@@ -378,19 +335,34 @@ function RequestPreview({ request }: { request: RequestDetail }) {
           color: "#fff",
           background: statusColor[request.status] || "var(--muted)",
         }}>
-          {formatRole(request.status)}
+          {formatStatus(request.status)}
         </span>
+        {request.priority && (
+          <span style={{
+            padding: "0.125rem 0.5rem",
+            borderRadius: "4px",
+            fontSize: "0.7rem",
+            fontWeight: 600,
+            color: "#fff",
+            background: priorityColor[request.priority] || "var(--muted)",
+          }}>
+            {request.priority.charAt(0).toUpperCase() + request.priority.slice(1)}
+          </span>
+        )}
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
         {request.place_name && <PreviewRow label="Location" value={request.place_name} />}
+        {request.place_address && <PreviewRow label="Address" value={request.place_address} />}
         {request.requester_name && <PreviewRow label="Requester" value={request.requester_name} />}
+        {request.primary_trapper_name && <PreviewRow label="Trapper" value={request.primary_trapper_name} />}
         {request.estimated_cat_count != null && (
           <PreviewRow label="Cats Needing TNR" value={String(request.estimated_cat_count)} />
         )}
-        {request.total_cats_reported != null && (
-          <PreviewRow label="Total Cats" value={String(request.total_cats_reported)} />
+        {request.linked_cat_count != null && request.linked_cat_count > 0 && (
+          <PreviewRow label="Linked Cats" value={String(request.linked_cat_count)} />
         )}
         <PreviewRow label="Created" value={new Date(request.created_at).toLocaleDateString()} />
+        <PreviewRow label={request.resolved_at ? "Duration" : "Days Open"} value={`${daysOpen}d`} />
         {request.resolved_at && (
           <PreviewRow label="Resolved" value={new Date(request.resolved_at).toLocaleDateString()} />
         )}

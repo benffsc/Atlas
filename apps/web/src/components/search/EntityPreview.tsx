@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { EntityPreviewContent, useEntityDetail } from "./EntityPreviewContent";
-import type { EntityType } from "./EntityPreviewContent";
+import { EntityPreviewContent } from "./EntityPreviewContent";
+import { useEntityDetail } from "@/hooks/useEntityDetail";
+import type { EntityType } from "@/hooks/useEntityDetail";
 
 interface EntityPreviewProps {
   entityType: EntityType;

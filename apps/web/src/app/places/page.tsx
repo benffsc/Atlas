@@ -3,12 +3,16 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useEntityDetail } from "@/hooks/useEntityDetail";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 import { formatPlaceKind } from "@/lib/display-labels";
 import { formatRelativeTime } from "@/lib/formatters";
 import { PlaceRiskBadges } from "@/components/badges";
 import type { DiseaseFlag } from "@/components/badges/PlaceRiskBadges";
+import type { PlaceDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
+import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
+import { PlacePreviewContent } from "@/components/preview/PlacePreviewContent";
 
 interface Place {
   place_id: string;
@@ -45,8 +49,6 @@ const KIND_COLORS: Record<string, string> = {
   mobile_home_space: "#795548",
 };
 
-// formatPlaceKind imported from @/lib/display-labels
-
 const FILTER_DEFAULTS = {
   q: "",
   kind: "",
@@ -54,6 +56,7 @@ const FILTER_DEFAULTS = {
   disease_risk: "",
   watch_list: "",
   page: "0",
+  selected: "",
 };
 
 function PlacesPageContent() {
@@ -66,6 +69,12 @@ function PlacesPageContent() {
   const limit = 25;
 
   const page = parseInt(filters.page, 10) || 0;
+
+  // Panel preview
+  const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
+    filters.selected ? "place" : null,
+    filters.selected || null,
+  );
 
   const fetchPlaces = useCallback(async () => {
     setLoading(true);
@@ -104,10 +113,27 @@ function PlacesPageContent() {
     setFilter("page", "0");
   };
 
+  const handleRowClick = (placeId: string) => {
+    setFilter("selected", filters.selected === placeId ? "" : placeId);
+  };
+
   const totalPages = data ? Math.ceil(data.total / limit) : 0;
 
+  const panelContent = filters.selected && selectedDetail && !detailLoading ? (
+    <PlacePreviewContent
+      place={selectedDetail as PlaceDetail}
+      onClose={() => setFilter("selected", "")}
+    />
+  ) : filters.selected && detailLoading ? (
+    <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+  ) : null;
+
   return (
-    <div>
+    <ListDetailLayout
+      isDetailOpen={!!filters.selected}
+      detailPanel={panelContent}
+      onDetailClose={() => setFilter("selected", "")}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0 }}>Places</h1>
         <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -247,10 +273,17 @@ function PlacesPageContent() {
                 </thead>
                 <tbody>
                   {data.places.map((place) => (
-                    <tr key={place.place_id}>
+                    <tr
+                      key={place.place_id}
+                      style={{
+                        cursor: "pointer",
+                        background: filters.selected === place.place_id ? "var(--section-bg, #f9fafb)" : undefined,
+                      }}
+                      onClick={() => handleRowClick(place.place_id)}
+                    >
                       <td>
                         <EntityPreview entityType="place" entityId={place.place_id}>
-                          <a href={`/places/${place.place_id}`}>{place.display_name}</a>
+                          <a href={`/places/${place.place_id}`} onClick={(e) => e.stopPropagation()}>{place.display_name}</a>
                         </EntityPreview>
                         {(place.disease_flags?.length || place.watch_list) ? (
                           <div style={{ marginTop: "2px" }}>
@@ -316,7 +349,7 @@ function PlacesPageContent() {
           )}
         </>
       )}
-    </div>
+    </ListDetailLayout>
   );
 }
 

@@ -4,11 +4,15 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useEntityDetail } from "@/hooks/useEntityDetail";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
 import { PersonStatusBadges } from "@/components/badges";
+import type { PersonDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { CreatePersonModal } from "@/components/modals";
+import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
+import { PersonPreviewContent } from "@/components/preview/PersonPreviewContent";
 
 interface Person {
   person_id: string;
@@ -43,6 +47,7 @@ const FILTER_DEFAULTS = {
   q: "",
   deep: "",
   page: "0",
+  selected: "",
 };
 
 function PeoplePageContent() {
@@ -57,6 +62,12 @@ function PeoplePageContent() {
   const limit = 25;
 
   const page = parseInt(filters.page, 10) || 0;
+
+  // Panel preview
+  const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
+    filters.selected ? "person" : null,
+    filters.selected || null,
+  );
 
   const fetchPeople = useCallback(async () => {
     setLoading(true);
@@ -92,10 +103,27 @@ function PeoplePageContent() {
     setFilter("page", "0");
   };
 
+  const handleRowClick = (personId: string) => {
+    setFilter("selected", filters.selected === personId ? "" : personId);
+  };
+
   const totalPages = data ? Math.ceil(data.total / limit) : 0;
 
+  const panelContent = filters.selected && selectedDetail && !detailLoading ? (
+    <PersonPreviewContent
+      person={selectedDetail as PersonDetail}
+      onClose={() => setFilter("selected", "")}
+    />
+  ) : filters.selected && detailLoading ? (
+    <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+  ) : null;
+
   return (
-    <div>
+    <ListDetailLayout
+      isDetailOpen={!!filters.selected}
+      detailPanel={panelContent}
+      onDetailClose={() => setFilter("selected", "")}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0 }}>People</h1>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -236,11 +264,19 @@ function PeoplePageContent() {
                 </thead>
                 <tbody>
                   {data.people.map((person) => (
-                    <tr key={person.person_id} style={person.surface_quality === "Low" ? { opacity: 0.7 } : {}}>
+                    <tr
+                      key={person.person_id}
+                      style={{
+                        ...(person.surface_quality === "Low" ? { opacity: 0.7 } : {}),
+                        cursor: "pointer",
+                        background: filters.selected === person.person_id ? "var(--section-bg, #f9fafb)" : undefined,
+                      }}
+                      onClick={() => handleRowClick(person.person_id)}
+                    >
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                           <EntityPreview entityType="person" entityId={person.person_id}>
-                            <a href={`/people/${person.person_id}`}>{person.display_name}</a>
+                            <a href={`/people/${person.person_id}`} onClick={(e) => e.stopPropagation()}>{person.display_name}</a>
                           </EntityPreview>
                           <PersonStatusBadges
                             primaryRole={person.primary_role}
@@ -328,7 +364,7 @@ function PeoplePageContent() {
           )}
         </>
       )}
-    </div>
+    </ListDetailLayout>
   );
 }
 

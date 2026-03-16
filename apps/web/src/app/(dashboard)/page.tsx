@@ -10,7 +10,7 @@ import { KpiStrip, ActionPanel, DASHBOARD_LAYER_GROUPS, getDefaultEnabledLayers 
 import { usePermission } from "@/hooks/usePermission";
 import type { DashboardMapPin, MapLayer } from "@/components/dashboard";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
-import type { EntityType } from "@/components/search/EntityPreviewContent";
+import type { EntityType } from "@/hooks/useEntityDetail";
 
 const DashboardMap = dynamic(
   () => import("@/components/dashboard/DashboardMap").then(m => ({ default: m.DashboardMap })),

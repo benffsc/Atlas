@@ -1,8 +1,9 @@
 "use client";
 
 import { Modal } from "@/components/ui/Modal";
-import { EntityPreviewContent, useEntityDetail } from "./EntityPreviewContent";
-import type { EntityType } from "./EntityPreviewContent";
+import { EntityPreviewContent } from "./EntityPreviewContent";
+import { useEntityDetail } from "@/hooks/useEntityDetail";
+import type { EntityType } from "@/hooks/useEntityDetail";
 
 interface EntityPreviewModalProps {
   isOpen: boolean;

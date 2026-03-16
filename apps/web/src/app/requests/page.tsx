@@ -13,6 +13,11 @@ import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } fro
 import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
 import { useTriageFlags } from "@/hooks/useTriageFlags";
 import { SKELETON_LINE, SKELETON_BLOCK, FLEX_BETWEEN } from "./styles";
+import { useEntityDetail } from "@/hooks/useEntityDetail";
+import type { RequestDetail } from "@/hooks/useEntityDetail";
+import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
+import { RequestPreviewContent } from "@/components/preview/RequestPreviewContent";
+import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
 
 interface Request {
   request_id: string;
@@ -429,11 +434,12 @@ function RequestMapPreview({ requestId, latitude, longitude, address, cachedMapU
   );
 }
 
-function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
+function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onCardClick }: {
   request: Request;
   onTrapperAction?: (requestId: string, reason: string) => void;
   actionMenuId?: string | null;
   onToggleMenu?: (id: string | null) => void;
+  onCardClick?: (requestId: string) => void;
 }) {
   return (
     <div
@@ -444,10 +450,20 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu }: {
         // Don't navigate if clicking interactive elements (buttons, links, inputs)
         const target = e.target as HTMLElement;
         if (target.closest("button, a, input, select, [role=menu]")) return;
-        window.location.href = `/requests/${request.request_id}`;
+        if (onCardClick) {
+          onCardClick(request.request_id);
+        } else {
+          window.location.href = `/requests/${request.request_id}`;
+        }
       }}
       onKeyDown={(e) => {
-        if (e.key === "Enter") window.location.href = `/requests/${request.request_id}`;
+        if (e.key === "Enter") {
+          if (onCardClick) {
+            onCardClick(request.request_id);
+          } else {
+            window.location.href = `/requests/${request.request_id}`;
+          }
+        }
       }}
       style={{
         border: "1px solid var(--card-border)",
@@ -672,12 +688,14 @@ function StatusGroupedCards({
   actionMenuId,
   onToggleMenu,
   showCompleted = false,
+  onCardClick,
 }: {
   requests: Request[];
   onTrapperAction?: (requestId: string, reason: string) => void;
   actionMenuId?: string | null;
   onToggleMenu?: (id: string | null) => void;
   showCompleted?: boolean;
+  onCardClick?: (requestId: string) => void;
 }) {
   const [completedExpanded, setCompletedExpanded] = useState(showCompleted);
 
@@ -758,6 +776,7 @@ function StatusGroupedCards({
                   onTrapperAction={onTrapperAction}
                   actionMenuId={actionMenuId}
                   onToggleMenu={onToggleMenu}
+                  onCardClick={onCardClick}
                 />
               ))}
             </div>
@@ -829,6 +848,7 @@ function StatusGroupedCards({
                   onTrapperAction={onTrapperAction}
                   actionMenuId={actionMenuId}
                   onToggleMenu={onToggleMenu}
+                  onCardClick={onCardClick}
                 />
               ))}
             </div>
@@ -858,6 +878,7 @@ const FILTER_DEFAULTS = {
   sort: "status",
   view: "cards",
   showArchived: "false",
+  selected: "",
 };
 
 function RequestsPageContent() {
@@ -877,6 +898,16 @@ function RequestsPageContent() {
 
   // Request counts for segmented control (FFS-166)
   const { counts: requestCounts } = useRequestCounts();
+
+  // Panel preview (table/cards views)
+  const isKanban = filters.view === "kanban";
+  const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
+    filters.selected && !isKanban ? "request" : null,
+    filters.selected && !isKanban ? filters.selected : null,
+  );
+
+  // Kanban modal preview (opens modal instead of panel)
+  const [kanbanPreviewId, setKanbanPreviewId] = useState<string | null>(null);
 
   // Quick trapper action from badge popover on request cards
   const handleQuickTrapperAction = async (requestId: string, reason: string) => {
@@ -1021,8 +1052,29 @@ function RequestsPageContent() {
     fetchRequests();
   }, [filters.status, filters.trapper, filters.priority, filters.kittens, filters.q, filters.sort, filters.showArchived, refreshTrigger]);
 
+  const handleRowClick = (requestId: string) => {
+    if (isKanban) {
+      setKanbanPreviewId(requestId);
+    } else {
+      setFilter("selected", filters.selected === requestId ? "" : requestId);
+    }
+  };
+
+  const panelContent = filters.selected && !isKanban && selectedDetail && !detailLoading ? (
+    <RequestPreviewContent
+      request={selectedDetail as RequestDetail}
+      onClose={() => setFilter("selected", "")}
+    />
+  ) : filters.selected && !isKanban && detailLoading ? (
+    <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+  ) : null;
+
   return (
-    <div>
+    <ListDetailLayout
+      isDetailOpen={!!filters.selected && !isKanban}
+      detailPanel={panelContent}
+      onDetailClose={() => setFilter("selected", "")}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1>Requests</h1>
         <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -1341,6 +1393,7 @@ function RequestsPageContent() {
           actionMenuId={actionMenuId}
           onToggleMenu={setActionMenuId}
           showCompleted={filters.status === "completed"}
+          onCardClick={handleRowClick}
         />
       ) : filters.view === "kanban" ? (
         isMobile ? (
@@ -1397,10 +1450,12 @@ function RequestsPageContent() {
                 <tr
                   key={req.request_id}
                   style={{
-                    background: selectedIds.has(req.request_id) ? "#dbeafe" : undefined,
+                    background: filters.selected === req.request_id ? "var(--section-bg, #f9fafb)" : selectedIds.has(req.request_id) ? "#dbeafe" : undefined,
+                    cursor: "pointer",
                   }}
+                  onClick={() => handleRowClick(req.request_id)}
                 >
-                  <td style={{ textAlign: "center" }}>
+                  <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedIds.has(req.request_id)}
@@ -1511,7 +1566,15 @@ function RequestsPageContent() {
           onClick={() => setActionMenuId(null)}
         />
       )}
-    </div>
+
+      {/* Kanban view: modal preview instead of split panel */}
+      <EntityPreviewModal
+        isOpen={!!kanbanPreviewId}
+        onClose={() => setKanbanPreviewId(null)}
+        entityType="request"
+        entityId={kanbanPreviewId}
+      />
+    </ListDetailLayout>
   );
 }
 

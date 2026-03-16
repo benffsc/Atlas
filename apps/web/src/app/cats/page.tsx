@@ -4,10 +4,14 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useEntityDetail } from "@/hooks/useEntityDetail";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 import { CatHealthBadges } from "@/components/badges";
 import type { HealthFlag } from "@/components/badges/CatHealthBadges";
+import type { CatDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
+import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
+import { CatPreviewContent } from "@/components/preview/CatPreviewContent";
 
 interface Cat {
   cat_id: string;
@@ -53,6 +57,7 @@ const FILTER_DEFAULTS = {
   is_deceased: "",
   sort: "quality",
   page: "0",
+  selected: "",
 };
 
 function CatsPageContent() {
@@ -65,6 +70,12 @@ function CatsPageContent() {
   const limit = 25;
 
   const page = parseInt(filters.page, 10) || 0;
+
+  // Panel preview
+  const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
+    filters.selected ? "cat" : null,
+    filters.selected || null,
+  );
 
   const fetchCats = useCallback(async () => {
     setLoading(true);
@@ -108,10 +119,27 @@ function CatsPageContent() {
     setFilter("page", "0");
   };
 
+  const handleRowClick = (catId: string) => {
+    setFilter("selected", filters.selected === catId ? "" : catId);
+  };
+
   const totalPages = data ? Math.ceil(data.total / limit) : 0;
 
+  const panelContent = filters.selected && selectedDetail && !detailLoading ? (
+    <CatPreviewContent
+      cat={selectedDetail as CatDetail}
+      onClose={() => setFilter("selected", "")}
+    />
+  ) : filters.selected && detailLoading ? (
+    <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+  ) : null;
+
   return (
-    <div>
+    <ListDetailLayout
+      isDetailOpen={!!filters.selected}
+      detailPanel={panelContent}
+      onDetailClose={() => setFilter("selected", "")}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0 }}>Cats</h1>
         {!isDefault && (
@@ -259,10 +287,18 @@ function CatsPageContent() {
                 </thead>
                 <tbody>
                   {data.cats.map((cat) => (
-                    <tr key={cat.cat_id} style={cat.quality_tier !== "A" ? { opacity: 0.8 } : {}}>
+                    <tr
+                      key={cat.cat_id}
+                      style={{
+                        ...(cat.quality_tier !== "A" ? { opacity: 0.8 } : {}),
+                        cursor: "pointer",
+                        background: filters.selected === cat.cat_id ? "var(--section-bg, #f9fafb)" : undefined,
+                      }}
+                      onClick={() => handleRowClick(cat.cat_id)}
+                    >
                       <td>
                         <EntityPreview entityType="cat" entityId={cat.cat_id}>
-                          <a href={`/cats/${cat.cat_id}`} style={cat.is_deceased ? { textDecoration: "line-through", color: "var(--text-muted)" } : {}}>{cat.display_name}</a>
+                          <a href={`/cats/${cat.cat_id}`} onClick={(e) => e.stopPropagation()} style={cat.is_deceased ? { textDecoration: "line-through", color: "var(--text-muted)" } : {}}>{cat.display_name}</a>
                         </EntityPreview>
                         {(cat.health_flags?.length || cat.is_deceased) ? (
                           <div style={{ marginTop: "2px" }}>
@@ -324,7 +360,7 @@ function CatsPageContent() {
           )}
         </>
       )}
-    </div>
+    </ListDetailLayout>
   );
 }
 

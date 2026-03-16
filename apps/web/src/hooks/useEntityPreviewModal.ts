@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { EntityType } from "@/components/search/EntityPreviewContent";
+import type { EntityType } from "@/hooks/useEntityDetail";
 
 interface PreviewState {
   entityType: EntityType | null;
