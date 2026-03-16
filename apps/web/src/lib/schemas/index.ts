@@ -156,6 +156,8 @@ export const UpdateRequestSchema = z.object({
   observation_eartips_seen: z.number().int().min(0).nullable().optional(),
   observation_notes: z.string().max(2000).nullable().optional(),
   skip_trip_report_check: z.boolean().optional(),
+  // Status change reason (FFS-636: stored in ops.request_status_history)
+  status_change_reason: z.string().max(500).nullable().optional(),
   // ──────────────────────────────────────────────────────────────────────────
   // MIG_2532: Beacon-critical fields
   // ──────────────────────────────────────────────────────────────────────────

@@ -31,19 +31,14 @@ export async function GET() {
         (SELECT COUNT(*)::int FROM sot.cat_place cp
          JOIN sot.places p ON p.place_id = cp.place_id
          WHERE p.merged_into_place_id IS NULL
-           AND p.formatted_address ILIKE ANY(ARRAY[
-             '%1814%Empire Industrial%',
-             '%1820%Empire Industrial%',
-             '%845 Todd%'
-           ])
+           AND ops.is_clinic_address(p.formatted_address)
         ) AS active_clinic_contexts,
 
         -- Misclassified: non-clinic places incorrectly typed as clinic
         (SELECT COUNT(*)::int FROM sot.places
          WHERE merged_into_place_id IS NULL
            AND place_kind = 'clinic'
-           AND NOT (formatted_address ILIKE '%845 Todd%'
-                    OR formatted_address ILIKE '%Empire Industrial%')
+           AND NOT ops.is_clinic_address(formatted_address)
         ) AS misclassified,
 
         -- Total places checked

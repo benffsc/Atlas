@@ -29,11 +29,7 @@ export async function GET() {
         SELECT COUNT(*)::int as count
         FROM sot.cat_place cp
         JOIN sot.places p ON p.place_id = cp.place_id
-        WHERE p.formatted_address ILIKE ANY(ARRAY[
-          '%1814%Empire Industrial%',
-          '%1820%Empire Industrial%',
-          '%845 Todd%'
-        ])
+        WHERE ops.is_clinic_address(p.formatted_address)
         AND p.merged_into_place_id IS NULL
       `);
 

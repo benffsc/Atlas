@@ -1122,6 +1122,24 @@ export async function PATCH(
       }
     }
 
+    // Enrich trigger-inserted status history row with changed_by and reason (FFS-636)
+    if (body.status !== undefined && body.status !== current.status && result) {
+      try {
+        await query(
+          `UPDATE ops.request_status_history
+           SET changed_by = $1, reason = $2
+           WHERE request_id = $3 AND new_status = $4
+             AND changed_at = (
+               SELECT MAX(changed_at) FROM ops.request_status_history
+               WHERE request_id = $3 AND new_status = $4
+             )`,
+          ["web_user", body.status_change_reason || null, id, body.status]
+        );
+      } catch (histErr) {
+        console.error("[PATCH request] Status history enrichment failed:", histErr);
+      }
+    }
+
     // Revalidate cached pages that show request data
     revalidatePath("/"); // Dashboard
     revalidatePath("/requests"); // Requests list
