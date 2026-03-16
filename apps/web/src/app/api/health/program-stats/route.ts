@@ -51,7 +51,7 @@ export async function GET() {
         v.view_name,
         EXISTS (
           SELECT 1 FROM information_schema.views
-          WHERE table_schema = 'trapper' AND table_name = v.view_name
+          WHERE table_schema = 'ops' AND table_name = v.view_name
         ) as exists,
         NULL::bigint as row_count
       FROM views v
