@@ -814,8 +814,8 @@ export class AirtableSyncEngine {
     await queryOne(
       `INSERT INTO sot.entity_edits (
          entity_type, entity_id, edit_type, field_name,
-         new_value, edit_source, reason
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         new_value, edit_source, reason, edited_by
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         step.entity_type,
         personId,
@@ -824,6 +824,7 @@ export class AirtableSyncEngine {
         JSON.stringify(newValueObj),
         step.edit_source,
         step.reason,
+        "airtable_sync",
       ]
     );
   }

@@ -108,8 +108,8 @@ export async function PATCH(request: NextRequest) {
       );
 
       await query(
-        `INSERT INTO sot.entity_edits (entity_type, entity_id, field_name, old_value, new_value, edited_by, edit_source)
-         VALUES ('person', $1, 'data_quality', $2, 'normal', 'admin', 'data_quality_review')`,
+        `INSERT INTO sot.entity_edits (entity_type, entity_id, edit_type, field_name, old_value, new_value, edited_by, edit_source)
+         VALUES ('person', $1, 'field_update', 'data_quality', $2, 'normal', 'admin', 'data_quality_review')`,
         [person_id, person.data_quality]
       );
 
@@ -125,8 +125,8 @@ export async function PATCH(request: NextRequest) {
       );
 
       await query(
-        `INSERT INTO sot.entity_edits (entity_type, entity_id, field_name, old_value, new_value, edited_by, edit_source)
-         VALUES ('person', $1, 'data_quality', $2, 'garbage', 'admin', 'data_quality_review')`,
+        `INSERT INTO sot.entity_edits (entity_type, entity_id, edit_type, field_name, old_value, new_value, edited_by, edit_source)
+         VALUES ('person', $1, 'field_update', 'data_quality', $2, 'garbage', 'admin', 'data_quality_review')`,
         [person_id, person.data_quality]
       );
 

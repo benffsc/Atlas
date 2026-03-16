@@ -217,11 +217,12 @@ async function syncTrapperRecord(record: AirtableTrapperRecord): Promise<SyncRes
     await queryOne(
       `INSERT INTO sot.entity_edits (
          entity_type, entity_id, edit_type, field_name,
-         new_value, edit_source, reason
+         new_value, edit_source, reason, edited_by
        ) VALUES (
          'person', $1, 'create', 'trapper_onboarding',
          $2, 'trapper-agreement-sync',
-         'Community trapper agreement synced from Airtable'
+         'Community trapper agreement synced from Airtable',
+         'airtable_sync'
        )`,
       [
         personId,

@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
         } else {
           // keep_separate — log to entity_edits so the pair won't reappear
           await queryOne(
-            `INSERT INTO sot.entity_edits (entity_type, entity_id, edit_type, old_value, new_value, changed_by, created_at)
+            `INSERT INTO sot.entity_edits (entity_type, entity_id, edit_type, old_value, new_value, edited_by, edit_source)
              VALUES (
                'cat',
                $1::uuid,
@@ -233,7 +233,7 @@ export async function POST(request: NextRequest) {
                jsonb_build_object('cat_id_1', $1, 'cat_id_2', $2),
                NULL,
                'staff',
-               NOW()
+               'web_ui'
              )`,
             [pair.cat_id_1, pair.cat_id_2]
           );

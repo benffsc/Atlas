@@ -7,6 +7,10 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { TrapperBadge } from "@/components/badges/TrapperBadge";
 import { formatPhone, formatRelativeTime, getActivityColor } from "@/lib/formatters";
 import { generateCsv, downloadCsv } from "@/lib/csv-export";
+import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
+import { TrapperPreviewContent } from "@/components/preview/TrapperPreviewContent";
+import { EditTrapperDrawer } from "@/components/trappers/EditTrapperDrawer";
+import { RowActionMenu } from "@/components/shared/RowActionMenu";
 
 interface Trapper {
   person_id: string;
@@ -323,9 +327,11 @@ function ActiveAssignmentsBadge({ count }: { count: number }) {
 function TrapperCard({
   trapper,
   onClick,
+  isSelected,
 }: {
   trapper: Trapper;
   onClick: () => void;
+  isSelected?: boolean;
 }) {
   const isInactive = trapper.role_status !== "active";
   const isDormant = !isInactive && (!trapper.last_activity_date ||
@@ -338,15 +344,16 @@ function TrapperCard({
       onClick={onClick}
       style={{
         padding: "1rem",
-        border: `1px solid ${isDormant ? "#fbbf24" : "var(--card-border, #e5e7eb)"}`,
+        border: `1px solid ${isSelected ? "#3b82f6" : isDormant ? "#fbbf24" : "var(--card-border, #e5e7eb)"}`,
+        borderLeft: isSelected ? "3px solid #3b82f6" : undefined,
         borderRadius: "8px",
         cursor: "pointer",
         opacity: isInactive ? 0.6 : 1,
-        background: isInactive ? "#f9fafb" : isDormant ? "#fffbeb" : "var(--card-bg, #fff)",
-        transition: "border-color 0.15s",
+        background: isSelected ? "#eff6ff" : isInactive ? "#f9fafb" : isDormant ? "#fffbeb" : "var(--card-bg, #fff)",
+        transition: "border-color 0.15s, background 0.15s",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#0d6efd")}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--card-border, #e5e7eb)")}
+      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "#0d6efd"; }}
+      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "var(--card-border, #e5e7eb)"; }}
     >
       {/* Row 1: Name + Badge + Status */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
@@ -436,6 +443,7 @@ const FILTER_DEFAULTS = {
   search: "",
   view: "table",
   page: "0",
+  selected: "",
 };
 
 const DORMANT_DAYS = 90;
@@ -459,6 +467,14 @@ function TrappersPageInner() {
     value: string;
   } | null>(null);
   const [batchUpdating, setBatchUpdating] = useState(false);
+
+  // Preview panel + edit drawer state
+  const [editDrawerTrapper, setEditDrawerTrapper] = useState<Trapper | null>(null);
+  const selectedTrapper = data?.trappers.find((t) => t.person_id === filters.selected) || null;
+
+  const selectTrapper = (id: string) => {
+    setFilter("selected", filters.selected === id ? "" : id);
+  };
 
   const limit = 25;
   const page = parseInt(filters.page) || 0;
@@ -632,9 +648,19 @@ function TrappersPageInner() {
     downloadCsv(csv, `trappers-${date}.csv`);
   };
 
+  const getTrapperActions = (trapper: Trapper) => [
+    { label: "View Profile", onClick: () => router.push(`/trappers/${trapper.person_id}`) },
+    { label: "Edit", onClick: () => setEditDrawerTrapper(trapper) },
+    ...(trapper.email ? [{ label: "Copy Email", onClick: () => navigator.clipboard.writeText(trapper.email!) }] : []),
+    ...(trapper.phone ? [{ label: "Copy Phone", onClick: () => navigator.clipboard.writeText(trapper.phone!) }] : []),
+    { label: "Set Available", onClick: () => requestChange(trapper, "availability", "available"), dividerBefore: true },
+    { label: "Set Busy", onClick: () => requestChange(trapper, "availability", "busy") },
+    { label: "Set On Leave", onClick: () => requestChange(trapper, "availability", "on_leave") },
+  ];
+
   const agg = data?.aggregates;
 
-  return (
+  const pageContent = (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0 }}>Trappers</h1>
@@ -1083,11 +1109,16 @@ function TrappersPageInner() {
               }}
             >
               {data.trappers.map((trapper) => (
-                <TrapperCard
-                  key={trapper.person_id}
-                  trapper={trapper}
-                  onClick={() => router.push(`/trappers/${trapper.person_id}`)}
-                />
+                <div key={trapper.person_id} style={{ position: "relative" }}>
+                  <TrapperCard
+                    trapper={trapper}
+                    onClick={() => selectTrapper(trapper.person_id)}
+                    isSelected={filters.selected === trapper.person_id}
+                  />
+                  <div style={{ position: "absolute", top: "0.5rem", right: "0.5rem" }}>
+                    <RowActionMenu actions={getTrapperActions(trapper)} />
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
@@ -1125,6 +1156,7 @@ function TrappersPageInner() {
                   <th style={{ textAlign: "right" }}>Active</th>
                   <th style={{ textAlign: "right" }}>Completed</th>
                   <th>Last Activity</th>
+                  <th style={{ width: "2.5rem" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -1132,7 +1164,10 @@ function TrappersPageInner() {
                   const isInactive = trapper.role_status !== "active";
                   const isDormant = !isInactive && (!trapper.last_activity_date ||
                     Math.floor((Date.now() - new Date(trapper.last_activity_date).getTime()) / 86400000) > DORMANT_DAYS);
-                  const rowStyle = isInactive
+                  const isSelected = filters.selected === trapper.person_id;
+                  const rowStyle: React.CSSProperties = isSelected
+                    ? { background: "#eff6ff", borderLeft: "3px solid #3b82f6" }
+                    : isInactive
                     ? { opacity: 0.6, background: "#f9fafb" }
                     : isDormant
                     ? { background: "#fffbeb" }
@@ -1141,7 +1176,11 @@ function TrappersPageInner() {
                   const actColor = getActivityColor(trapper.last_activity_date);
 
                   return (
-                    <tr key={trapper.person_id} style={rowStyle}>
+                    <tr
+                      key={trapper.person_id}
+                      style={{ ...rowStyle, cursor: "pointer" }}
+                      onClick={() => selectTrapper(trapper.person_id)}
+                    >
                       <td style={{ textAlign: "center" }}>
                         <input
                           type="checkbox"
@@ -1156,6 +1195,13 @@ function TrappersPageInner() {
                             fontWeight: 500,
                             color: isInactive ? "#9ca3af" : "var(--foreground)",
                             textDecoration: "none",
+                          }}
+                          onClick={(e) => {
+                            if (!e.metaKey && !e.ctrlKey) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              selectTrapper(trapper.person_id);
+                            }
                           }}
                         >
                           {trapper.display_name}
@@ -1318,6 +1364,9 @@ function TrappersPageInner() {
                           <span style={{ color: "#999" }}>{"\u2014"}</span>
                         )}
                       </td>
+                      <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                        <RowActionMenu actions={getTrapperActions(trapper)} />
+                      </td>
                     </tr>
                   );
                 })}
@@ -1353,6 +1402,36 @@ function TrappersPageInner() {
         </>
       )}
     </div>
+  );
+
+  return (
+    <>
+      <ListDetailLayout
+        detailPanel={
+          selectedTrapper ? (
+            <TrapperPreviewContent
+              trapper={selectedTrapper}
+              onClose={() => setFilter("selected", "")}
+              onEdit={() => setEditDrawerTrapper(selectedTrapper)}
+            />
+          ) : null
+        }
+        isDetailOpen={!!selectedTrapper}
+        onDetailClose={() => setFilter("selected", "")}
+      >
+        {pageContent}
+      </ListDetailLayout>
+
+      {/* Edit Drawer */}
+      {editDrawerTrapper && (
+        <EditTrapperDrawer
+          isOpen={!!editDrawerTrapper}
+          onClose={() => setEditDrawerTrapper(null)}
+          trapper={editDrawerTrapper}
+          onSaved={fetchTrappers}
+        />
+      )}
+    </>
   );
 }
 

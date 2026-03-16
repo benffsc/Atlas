@@ -131,12 +131,12 @@ export async function POST(
     try {
       await query(
         `INSERT INTO sot.entity_edits (
-          entity_type, entity_id, edit_type, old_value, new_value, changed_by, reason
+          entity_type, entity_id, edit_type, old_value, new_value, edited_by, edit_source, reason
         ) VALUES (
           'request', $1, 'upgrade',
           jsonb_build_object('data_source', $2, 'source_system', $3),
           jsonb_build_object('data_source', 'atlas_ui', 'upgraded_at', NOW()::TEXT),
-          'web_user', 'Legacy request upgraded to Atlas schema'
+          'web_user', 'web_ui', 'Legacy request upgraded to Atlas schema'
         )`,
         [id, existingRequest.data_source, existingRequest.source_system]
       );
