@@ -16,3 +16,4 @@ export type { EntityType, EntityDetail, CatDetail, PersonDetail, PlaceDetail, Re
 export { default as GlobalSearch } from './GlobalSearch';
 export { GroupedSearchResult } from './GroupedSearchResult';
 export { SavedFilters, type RequestFilters } from './SavedFilters';
+export { CommandPaletteProvider, useCommandPalette } from './CommandPalette';

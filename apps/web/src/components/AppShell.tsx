@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { GlobalSearch } from "@/components/search";
+import { GlobalSearch, CommandPaletteProvider, useCommandPalette } from "@/components/search";
 import { mainSidebarSections, type NavSection } from "@/components/SidebarLayout";
 import { usePermission } from "@/hooks/usePermission";
 
@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <>
+    <CommandPaletteProvider>
       {/* Slim top bar */}
       <nav className="nav">
         <div className="nav-inner">
@@ -365,7 +365,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="container">{children}</main>
-    </>
+    </CommandPaletteProvider>
   );
 }
 

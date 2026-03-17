@@ -9,6 +9,8 @@ export interface NavItem {
   label: string;
   href: string;
   icon?: string;
+  /** Optional badge count (e.g., pending items) */
+  badge?: number;
 }
 
 export interface NavSection {
@@ -21,12 +23,24 @@ interface SidebarLayoutProps {
   sections: NavSection[];
   title?: string;
   backLink?: { label: string; href: string };
+  /** Allow sidebar to be collapsed to icon-only mode */
+  collapsible?: boolean;
 }
 
-export function SidebarLayout({ children, sections, title, backLink }: SidebarLayoutProps) {
+export function SidebarLayout({ children, sections, title, backLink, collapsible = true }: SidebarLayoutProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return localStorage.getItem("atlas-sidebar-collapsed") === "true"; } catch { return false; }
+  });
+
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try { localStorage.setItem("atlas-sidebar-collapsed", String(next)); } catch { /* ignore */ }
+  };
 
   // Check if this is a print route - these should have no sidebar
   const isPrintRoute = pathname?.includes("/print") || pathname?.includes("/trapper-sheet");
@@ -57,9 +71,25 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
     return <>{children}</>;
   }
 
+  const isCollapsed = collapsible && collapsed && !isMobile;
+
   const sidebarContent = (
     <>
-      {backLink && (
+      {/* Collapse toggle */}
+      {collapsible && !isMobile && (
+        <div style={{ display: "flex", justifyContent: isCollapsed ? "center" : "flex-end", padding: "0.25rem 0.5rem", marginBottom: "0.25rem" }}>
+          <button
+            onClick={toggleCollapsed}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem", color: "var(--text-muted)", padding: "4px 6px", borderRadius: "4px" }}
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isCollapsed ? "\u276F" : "\u276E"}
+          </button>
+        </div>
+      )}
+
+      {backLink && !isCollapsed && (
         <div style={{ padding: "0 1rem", marginBottom: "0.75rem" }}>
           <Link
             href={backLink.href}
@@ -71,12 +101,12 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
               color: "var(--text-muted)",
             }}
           >
-            <span style={{ fontSize: "1rem" }}>←</span> {backLink.label}
+            <span style={{ fontSize: "1rem" }}>{"\u2190"}</span> {backLink.label}
           </Link>
         </div>
       )}
 
-      {title && (
+      {title && !isCollapsed && (
         <div style={{ padding: "0 1rem", marginBottom: "1rem" }}>
           <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600 }}>{title}</h2>
         </div>
@@ -84,38 +114,63 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
 
       {sections.map((section, idx) => (
         <div key={idx} style={{ marginBottom: "1.5rem" }}>
-          <div
-            style={{
-              padding: "0 1rem",
-              marginBottom: "0.5rem",
-              fontSize: "0.7rem",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              color: "var(--text-muted)",
-            }}
-          >
-            {section.title}
-          </div>
+          {!isCollapsed && (
+            <div
+              style={{
+                padding: "0 1rem",
+                marginBottom: "0.5rem",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                color: "var(--text-muted)",
+              }}
+            >
+              {section.title}
+            </div>
+          )}
           <nav>
             {section.items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
+                title={isCollapsed ? item.label : undefined}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem 1rem",
+                  gap: isCollapsed ? "0" : "0.5rem",
+                  justifyContent: isCollapsed ? "center" : "flex-start",
+                  padding: isCollapsed ? "0.5rem" : "0.5rem 1rem",
                   fontSize: "0.875rem",
                   color: isActive(item.href) ? "var(--primary)" : "var(--text-primary)",
                   background: isActive(item.href) ? "var(--info-bg)" : "transparent",
                   borderLeft: isActive(item.href) ? "3px solid var(--primary)" : "3px solid transparent",
                   textDecoration: "none",
+                  position: "relative",
                 }}
               >
-                {item.icon && <span style={{ fontSize: "1rem" }}>{item.icon}</span>}
-                {item.label}
+                {item.icon && <span style={{ fontSize: isCollapsed ? "1.2rem" : "1rem" }}>{item.icon}</span>}
+                {!isCollapsed && item.label}
+                {item.badge != null && item.badge > 0 && (
+                  <span style={{
+                    marginLeft: isCollapsed ? "0" : "auto",
+                    position: isCollapsed ? "absolute" : "static",
+                    top: isCollapsed ? "2px" : undefined,
+                    right: isCollapsed ? "4px" : undefined,
+                    minWidth: "18px",
+                    height: "18px",
+                    lineHeight: "18px",
+                    textAlign: "center",
+                    fontSize: "0.65rem",
+                    fontWeight: 700,
+                    color: "#fff",
+                    background: "var(--primary)",
+                    borderRadius: "9px",
+                    padding: "0 4px",
+                  }}>
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
@@ -170,7 +225,7 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
       {/* Sidebar */}
       <aside
         style={{
-          width: isMobile ? "280px" : "180px",
+          width: isMobile ? "280px" : isCollapsed ? "52px" : "180px",
           flexShrink: 0,
           borderRight: "1px solid var(--card-border)",
           background: "var(--background)",
@@ -181,7 +236,7 @@ export function SidebarLayout({ children, sections, title, backLink }: SidebarLa
           height: isMobile ? "100dvh" : "calc(100vh - 56px)",
           overflowY: "auto",
           zIndex: isMobile ? 1000 : undefined,
-          transition: isMobile ? "left 0.3s ease-in-out" : undefined,
+          transition: isMobile ? "left 0.3s ease-in-out" : "width 0.2s ease-in-out",
           boxShadow: isMobile && mobileMenuOpen ? "2px 0 8px rgba(0,0,0,0.15)" : undefined,
         }}
       >
