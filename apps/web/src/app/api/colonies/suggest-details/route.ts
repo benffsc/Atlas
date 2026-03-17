@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 /**
  * GET /api/colonies/suggest-details
@@ -309,7 +310,7 @@ export async function GET(request: NextRequest) {
         EXISTS (
           SELECT 1 FROM ops.requests r
           WHERE r.place_id = p.place_id
-            AND r.status NOT IN ('completed', 'cancelled')
+            AND r.status NOT IN ${TERMINAL_PAIR_SQL}
         ) as has_active_request,
         COALESCE((
           SELECT COUNT(*)

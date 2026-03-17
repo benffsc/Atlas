@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 interface SearchResult {
   entity_type: string;
@@ -466,7 +467,7 @@ export async function GET(request: NextRequest) {
           LEFT JOIN sot.people per ON r.requester_person_id = per.person_id
           WHERE
             r.merged_into_request_id IS NULL
-            AND r.status NOT IN ('completed', 'cancelled')
+            AND r.status NOT IN ${TERMINAL_PAIR_SQL}
             AND (
               LOWER(COALESCE(r.summary, '')) ILIKE '%' || LOWER($1) || '%'
               OR LOWER(COALESCE(p.formatted_address, '')) ILIKE '%' || LOWER($1) || '%'

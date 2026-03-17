@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 interface TrapperSite {
   place_id: string;
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
         JOIN ops.requests r ON r.request_id = rta.request_id
         JOIN sot.places p ON p.place_id = r.place_id
         WHERE rta.assignment_status = 'active'
-          AND r.status NOT IN ('completed', 'cancelled')
+          AND r.status NOT IN ${TERMINAL_PAIR_SQL}
           ${trapperId ? "AND rta.trapper_person_id = $1" : ""}
       ),
       site_observations AS (

@@ -1,4 +1,5 @@
 import type { RequestStatus } from "@/lib/request-status";
+import type { IntakeExtendedData } from "@/lib/schemas/intake-extended-data";
 
 /**
  * RequestDetail - Complete request data structure
@@ -265,7 +266,7 @@ export interface RequestDetail {
   entry_mode: string | null;
   completion_data: Record<string, unknown> | null;
   // MIG_2868: Extended intake data (fields without dedicated columns)
-  intake_extended_data: Record<string, unknown> | null;
+  intake_extended_data: IntakeExtendedData | null;
   // FFS-349: Place's last clinic visit
   place_last_appointment_date: string | null;
   // Status history and trappers (from API response)

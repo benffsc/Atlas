@@ -1,5 +1,6 @@
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { getServerConfig } from "@/lib/server-config";
 
 /**
  * Beacon Dashboard Summary API
@@ -176,6 +177,9 @@ export async function GET() {
           ) / 10
         : 0;
 
+    // Fetch TNR target rate from config (FFS-640)
+    const tnrTargetRate = await getServerConfig("beacon.tnr_target_rate", 75);
+
     // Get top priority zones (needs attention with most cats) - V2 uses zones
     const priorityClusters = await queryRows<{
       zone_id: string;
@@ -202,10 +206,10 @@ export async function GET() {
         managed_percentage: managedPercentage,
         cluster_management_rate: clusterManagementRate,
         priority_clusters: priorityClusters,
-        tnr_target_rate: 75, // Scientific target (Levy et al.)
+        tnr_target_rate: tnrTargetRate,
         progress_to_target:
           summary.overall_alteration_rate !== null
-            ? Math.round((1000 * summary.overall_alteration_rate) / 75) / 10
+            ? Math.round((1000 * summary.overall_alteration_rate) / tnrTargetRate) / 10
             : null,
       },
       meta: {

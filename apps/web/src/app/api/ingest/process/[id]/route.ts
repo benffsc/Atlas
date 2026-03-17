@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
+import { getServerConfig } from "@/lib/server-config";
 import { isValidUUID } from "@/lib/validation";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -1751,6 +1752,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   }
 
   // Beacon enrichment: birth events from lactating appointments
+  const birthIntervalDays = await getServerConfig("beacon.birth_interval_days", 42);
   try {
     await saveProgress('Creating birth events from lactating appointments...');
     const birthResult = await query(`
@@ -1782,14 +1784,14 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       )
       SELECT
         NULL, cat_id,
-        appointment_date - INTERVAL '42 days',
+        appointment_date - INTERVAL '${birthIntervalDays} days',
         'estimated',
-        EXTRACT(YEAR FROM appointment_date - INTERVAL '42 days')::INT,
-        EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days')::INT,
+        EXTRACT(YEAR FROM appointment_date - INTERVAL '${birthIntervalDays} days')::INT,
+        EXTRACT(MONTH FROM appointment_date - INTERVAL '${birthIntervalDays} days')::INT,
         CASE
-          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (3,4,5) THEN 'spring'
-          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (6,7,8) THEN 'summer'
-          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (9,10,11) THEN 'fall'
+          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '${birthIntervalDays} days') IN (3,4,5) THEN 'spring'
+          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '${birthIntervalDays} days') IN (6,7,8) THEN 'summer'
+          WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '${birthIntervalDays} days') IN (9,10,11) THEN 'fall'
           ELSE 'winter'
         END,
         place_id, 'beacon_cron', appointment_id::TEXT, 'System',

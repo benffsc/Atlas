@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { TIPPY_TOOLS, executeToolCall, ToolContext, ToolResult } from "../tools";
 import { getSession } from "@/lib/auth";
 import { queryOne, execute } from "@/lib/db";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 // Domain knowledge modules available for future integration
 // import { DOMAIN_KNOWLEDGE, TNR_SCIENCE, SONOMA_GEOGRAPHY } from "../domain-knowledge";
 // import { DATA_QUALITY, KNOWN_GAPS, CAVEATS } from "../data-quality";
@@ -343,7 +344,7 @@ SELECT p.display_name, r.estimated_cat_count as reported,
   (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = p.place_id) as verified
 FROM ops.requests r
 JOIN sot.places p ON p.place_id = r.place_id
-WHERE r.status NOT IN ('completed', 'cancelled')
+WHERE r.status NOT IN ${TERMINAL_PAIR_SQL}
 AND r.estimated_cat_count > (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = r.place_id)
 ORDER BY (r.estimated_cat_count - (SELECT COUNT(*) FROM sot.cat_place cp WHERE cp.place_id = r.place_id)) DESC
 LIMIT 10;

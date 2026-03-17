@@ -148,6 +148,28 @@ export function buildStatusInClause(primary: PrimaryStatus): string {
 }
 
 // =============================================================================
+// SQL QUERY HELPERS
+// =============================================================================
+
+/**
+ * Common terminal pair for SQL NOT IN / IN clauses.
+ * Matches the two original terminal statuses: completed and cancelled.
+ *
+ * @example
+ * `WHERE status NOT IN ${TERMINAL_PAIR_SQL}`
+ */
+export const TERMINAL_PAIR_SQL = "('completed', 'cancelled')";
+
+/**
+ * All terminal statuses for SQL NOT IN / IN clauses.
+ * Includes completed, cancelled, partial, redirected, handed_off.
+ *
+ * @example
+ * `WHERE status NOT IN ${ALL_TERMINAL_SQL}`
+ */
+export const ALL_TERMINAL_SQL = buildStatusInClause("completed");
+
+// =============================================================================
 // DISPLAY LABELS
 // =============================================================================
 

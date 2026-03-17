@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
 import { apiServerError } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 export const revalidate = 120; // Cache 2 minutes
 
@@ -33,11 +34,11 @@ async function fetchRequestPins(layer: string, search: string, county: string): 
       statusFilter = "AND TRUE";
       break;
     case "completed":
-      statusFilter = "AND r.status IN ('completed', 'cancelled')";
+      statusFilter = `AND r.status IN ${TERMINAL_PAIR_SQL}`;
       break;
     case "active":
     default:
-      statusFilter = "AND r.status NOT IN ('completed', 'cancelled')";
+      statusFilter = `AND r.status NOT IN ${TERMINAL_PAIR_SQL}`;
       break;
   }
 

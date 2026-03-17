@@ -4,6 +4,7 @@ import { logFieldEdits } from "@/lib/audit";
 import { requireValidUUID, parseBody } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
 import { UpdatePlaceSchema } from "@/lib/schemas";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 interface PlaceDetailRow {
   place_id: string;
@@ -169,7 +170,7 @@ export async function GET(
     const activityStats = await queryOne<{ last_appointment_date: string | null; active_request_count: number }>(
       `SELECT
         (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.place_id = $1 OR a.inferred_place_id = $1) AS last_appointment_date,
-        (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = $1 AND r.merged_into_request_id IS NULL AND r.status NOT IN ('completed', 'cancelled')) AS active_request_count`,
+        (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = $1 AND r.merged_into_request_id IS NULL AND r.status NOT IN ${TERMINAL_PAIR_SQL}) AS active_request_count`,
       [placeId]
     );
     place.last_appointment_date = activityStats?.last_appointment_date || null;

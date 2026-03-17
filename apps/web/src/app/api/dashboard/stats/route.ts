@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/lib/db";
 import { apiServerError } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 // Cache for 5 minutes
 export const revalidate = 300;
@@ -29,13 +30,13 @@ export async function GET(request: NextRequest) {
         SELECT COUNT(*)::int AS cnt
         FROM ops.requests
         WHERE merged_into_request_id IS NULL
-          AND status NOT IN ('completed', 'cancelled')
+          AND status NOT IN ${TERMINAL_PAIR_SQL}
       ),
       my_active AS (
         SELECT COUNT(*)::int AS cnt
         FROM ops.requests r
         WHERE r.merged_into_request_id IS NULL
-          AND r.status NOT IN ('completed', 'cancelled')
+          AND r.status NOT IN ${TERMINAL_PAIR_SQL}
           AND ($1::uuid IS NOT NULL AND EXISTS (
             SELECT 1 FROM ops.request_trapper_assignments rta
             WHERE rta.request_id = r.request_id
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
         SELECT COUNT(*)::int AS cnt
         FROM ops.requests
         WHERE merged_into_request_id IS NULL
-          AND status NOT IN ('completed', 'cancelled')
+          AND status NOT IN ${TERMINAL_PAIR_SQL}
           AND assignment_status = 'pending'
       ),
       with_location AS (
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
         FROM ops.requests r
         JOIN sot.places p ON p.place_id = r.place_id
         WHERE r.merged_into_request_id IS NULL
-          AND r.status NOT IN ('completed', 'cancelled')
+          AND r.status NOT IN ${TERMINAL_PAIR_SQL}
           AND p.location IS NOT NULL
       ),
       person_dedup AS (

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 /**
  * AI Data Guardian Cron Job
@@ -126,7 +127,7 @@ export async function GET(request: NextRequest) {
           AND NOT EXISTS (
             SELECT 1 FROM ops.requests r
             WHERE r.place_id = p.place_id
-              AND r.status NOT IN ('completed', 'cancelled')
+              AND r.status NOT IN ${TERMINAL_PAIR_SQL}
           )
           AND p.merged_into_place_id IS NULL
         GROUP BY p.place_id, p.formatted_address

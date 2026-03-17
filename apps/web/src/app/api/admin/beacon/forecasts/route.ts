@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
+import { getServerConfig } from "@/lib/server-config";
 
 interface EcologyConfig {
   config_key: string;
@@ -122,9 +123,14 @@ export async function GET(request: NextRequest) {
           (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_low_intensity_rate') AS tnr_low_intensity_rate
       `, []);
 
+      // Fallbacks from app_config when ecology_config is missing (FFS-640)
+      const [managedPct, inProgressPct] = await Promise.all([
+        getServerConfig("beacon.colony_managed_pct", 75),
+        getServerConfig("beacon.colony_in_progress_pct", 50),
+      ]);
       const tnrTimeStep = params?.tnr_time_step_months || 6;
-      const highIntensityThreshold = params?.tnr_high_intensity_rate || 0.75;
-      const lowIntensityThreshold = params?.tnr_low_intensity_rate || 0.50;
+      const highIntensityThreshold = params?.tnr_high_intensity_rate || managedPct / 100;
+      const lowIntensityThreshold = params?.tnr_low_intensity_rate || inProgressPct / 100;
 
       // Get place forecasts using ecology stats
       const sql = `

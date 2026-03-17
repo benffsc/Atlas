@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 /**
  * GET /api/requests/[id]/nearby
@@ -190,7 +191,7 @@ export async function GET(
             SELECT 1 FROM ops.requests r
             WHERE r.place_id = p.place_id
               AND r.merged_into_request_id IS NULL
-              AND r.status NOT IN ('completed', 'cancelled')
+              AND r.status NOT IN ${TERMINAL_PAIR_SQL}
           ) as has_active_request
         FROM sot.places p
         WHERE p.place_id != $4

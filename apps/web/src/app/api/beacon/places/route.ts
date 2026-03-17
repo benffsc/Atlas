@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { getServerConfig } from "@/lib/server-config";
 
 /**
  * Beacon Place-Level Metrics API
@@ -50,6 +51,13 @@ export async function GET(request: NextRequest) {
       return apiServerError("Beacon places view not deployed. Run MIG_2082__beacon_views_implementation.sql");
     }
 
+    // Fetch configurable colony status thresholds (FFS-640)
+    const [managedPct, inProgressPct, needsWorkPct] = await Promise.all([
+      getServerConfig("beacon.colony_managed_pct", 75),
+      getServerConfig("beacon.colony_in_progress_pct", 50),
+      getServerConfig("beacon.colony_needs_work_pct", 25),
+    ]);
+
     const searchParams = request.nextUrl.searchParams;
 
     // Geographic bounds: "south,west,north,east" (lat,lng,lat,lng)
@@ -78,12 +86,12 @@ export async function GET(request: NextRequest) {
 
     // Colony status filter - V2 computes status from alteration_rate_pct
     if (status) {
-      // Map status to alteration rate ranges
+      // Map status to alteration rate ranges (thresholds from app_config)
       const statusConditions: Record<string, string> = {
-        managed: "alteration_rate_pct >= 75",
-        in_progress: "alteration_rate_pct >= 50 AND alteration_rate_pct < 75",
-        needs_work: "alteration_rate_pct >= 25 AND alteration_rate_pct < 50",
-        needs_attention: "alteration_rate_pct < 25 OR alteration_rate_pct IS NULL",
+        managed: `alteration_rate_pct >= ${managedPct}`,
+        in_progress: `alteration_rate_pct >= ${inProgressPct} AND alteration_rate_pct < ${managedPct}`,
+        needs_work: `alteration_rate_pct >= ${needsWorkPct} AND alteration_rate_pct < ${inProgressPct}`,
+        needs_attention: `alteration_rate_pct < ${needsWorkPct} OR alteration_rate_pct IS NULL`,
       };
       if (statusConditions[status]) {
         whereClause += ` AND (${statusConditions[status]})`;
@@ -108,9 +116,9 @@ export async function GET(request: NextRequest) {
         alteration_rate_pct as verified_alteration_rate,
         alteration_rate_pct as lower_bound_alteration_rate,
         CASE
-          WHEN alteration_rate_pct >= 75 THEN 'managed'
-          WHEN alteration_rate_pct >= 50 THEN 'in_progress'
-          WHEN alteration_rate_pct >= 25 THEN 'needs_work'
+          WHEN alteration_rate_pct >= ${managedPct} THEN 'managed'
+          WHEN alteration_rate_pct >= ${inProgressPct} THEN 'in_progress'
+          WHEN alteration_rate_pct >= ${needsWorkPct} THEN 'needs_work'
           ELSE 'needs_attention'
         END as colony_status,
         (total_appointments > 0) as has_cat_activity,
@@ -171,10 +179,10 @@ export async function GET(request: NextRequest) {
         calculation_method: "lower_bound_alteration",
         scientific_basis: "Levy et al. JAVMA 2005 - 71-94% threshold",
         status_thresholds: {
-          managed: ">= 75%",
-          in_progress: "50-74%",
-          needs_work: "25-49%",
-          needs_attention: "< 25%",
+          managed: `>= ${managedPct}%`,
+          in_progress: `${inProgressPct}-${managedPct - 1}%`,
+          needs_work: `${needsWorkPct}-${inProgressPct - 1}%`,
+          needs_attention: `< ${needsWorkPct}%`,
         },
       },
     });

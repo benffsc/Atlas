@@ -1,4 +1,5 @@
 import { queryOne, queryRows } from "@/lib/db";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 /**
  * Tippy Database Query Tools
@@ -1678,7 +1679,7 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
          AND c.altered_status IN ('spayed', 'neutered', 'Yes')) as verified_altered,
         (SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = pm.place_id) as verified_cats,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.merged_into_request_id IS NULL AND r.status = 'completed') as completed_requests,
-        (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ('completed', 'cancelled')) as active_requests
+        (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ${TERMINAL_PAIR_SQL}) as active_requests
       FROM place_match pm
     )
     SELECT
@@ -1819,7 +1820,7 @@ async function queryRequestStats(
         FROM ops.requests r
         ${area ? "LEFT JOIN sot.places p ON r.place_id = p.place_id" : ""}
         WHERE r.merged_into_request_id IS NULL
-        AND r.status NOT IN ('completed', 'cancelled')
+        AND r.status NOT IN ${TERMINAL_PAIR_SQL}
         ${area ? "AND p.formatted_address ILIKE $1" : ""}
         `,
         area ? [`%${area}%`] : []
@@ -2220,7 +2221,7 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
       SELECT
         COUNT(*) as total_requests,
         COUNT(*) FILTER (WHERE r.status = 'completed') as completed_requests,
-        COUNT(*) FILTER (WHERE r.status NOT IN ('completed', 'cancelled')) as active_requests
+        COUNT(*) FILTER (WHERE r.status NOT IN ${TERMINAL_PAIR_SQL}) as active_requests
       FROM ops.requests r
       JOIN regional_places rp ON r.place_id = rp.place_id
       WHERE r.merged_into_request_id IS NULL

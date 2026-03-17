@@ -5,6 +5,8 @@ import { logFieldEdits } from "@/lib/audit";
 import { requireValidUUID, parseBody } from "@/lib/api-validation";
 import { apiSuccess, apiError, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 import { UpdateRequestSchema } from "@/lib/schemas";
+import type { IntakeExtendedData } from "@/lib/schemas/intake-extended-data";
+import { parseIntakeExtendedData } from "@/lib/schemas/intake-extended-data";
 
 interface CurrentTrapper {
   trapper_person_id: string;
@@ -175,7 +177,7 @@ interface RequestDetailRow {
   wellness_cat_count: number | null;
   entry_mode: string | null;
   completion_data: Record<string, unknown> | null;
-  intake_extended_data: Record<string, unknown> | null;
+  intake_extended_data: IntakeExtendedData | null;
   place_last_appointment_date: string | null;
 }
 
@@ -470,6 +472,8 @@ export async function GET(
 
     return apiSuccess({
       ...requestDetail,
+      // Parse JSONB intake_extended_data through schema (FFS-643)
+      intake_extended_data: parseIntakeExtendedData(requestDetail.intake_extended_data),
       status_history: statusHistory,
       // Current trappers from the proper assignment system (source of truth)
       current_trappers: currentTrappers,

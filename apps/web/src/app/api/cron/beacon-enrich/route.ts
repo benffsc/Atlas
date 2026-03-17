@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
+import { getServerConfig } from "@/lib/server-config";
 
 /**
  * Beacon Data Enrichment Cron Job
@@ -46,6 +47,9 @@ export async function GET(request: NextRequest) {
   };
 
   try {
+    // Fetch configurable birth interval (FFS-640)
+    const birthIntervalDays = await getServerConfig("beacon.birth_interval_days", 42);
+
     // ============================================================
     // 1. Create Birth Events from Lactating Appointments
     // ============================================================
@@ -92,14 +96,14 @@ export async function GET(request: NextRequest) {
         SELECT
           NULL,
           cat_id,
-          appointment_date - INTERVAL '42 days',
+          appointment_date - INTERVAL '${birthIntervalDays} days',
           'estimated',
-          EXTRACT(YEAR FROM appointment_date - INTERVAL '42 days')::INT,
-          EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days')::INT,
+          EXTRACT(YEAR FROM appointment_date - INTERVAL '${birthIntervalDays} days')::INT,
+          EXTRACT(MONTH FROM appointment_date - INTERVAL '${birthIntervalDays} days')::INT,
           CASE
-            WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (3,4,5) THEN 'spring'
-            WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (6,7,8) THEN 'summer'
-            WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '42 days') IN (9,10,11) THEN 'fall'
+            WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '${birthIntervalDays} days') IN (3,4,5) THEN 'spring'
+            WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '${birthIntervalDays} days') IN (6,7,8) THEN 'summer'
+            WHEN EXTRACT(MONTH FROM appointment_date - INTERVAL '${birthIntervalDays} days') IN (9,10,11) THEN 'fall'
             ELSE 'winter'
           END,
           place_id,

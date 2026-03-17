@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryRows, query, queryOne } from "@/lib/db";
 import { parsePagination } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 interface DiseaseFlag {
   disease_key: string;
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest) {
         has_cat_activity,
         created_at,
         (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.place_id = v.place_id OR a.inferred_place_id = v.place_id) AS last_appointment_date,
-        (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = v.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ('completed', 'cancelled')) AS active_request_count,
+        (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = v.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ${TERMINAL_PAIR_SQL}) AS active_request_count,
         -- Risk fields (FFS-430)
         COALESCE((SELECT p.watch_list FROM sot.places p WHERE p.place_id = v.place_id), false) AS watch_list,
         COALESCE((

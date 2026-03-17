@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 /**
  * Map Places API
@@ -110,12 +111,12 @@ export async function GET(request: NextRequest) {
         (SELECT request_id FROM ops.requests
          WHERE place_id = p.place_id
            AND merged_into_request_id IS NULL
-           AND status NOT IN ('completed', 'cancelled')
+           AND status NOT IN ${TERMINAL_PAIR_SQL}
          ORDER BY created_at DESC LIMIT 1) as active_request_id,
         (SELECT status FROM ops.requests
          WHERE place_id = p.place_id
            AND merged_into_request_id IS NULL
-           AND status NOT IN ('completed', 'cancelled')
+           AND status NOT IN ${TERMINAL_PAIR_SQL}
          ORDER BY created_at DESC LIMIT 1) as request_status,
 
         -- Attached Google Maps entries

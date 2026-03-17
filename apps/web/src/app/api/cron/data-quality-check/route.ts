@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
+import { getServerConfig } from "@/lib/server-config";
 
 // Data Quality Check Cron Job
 //
@@ -153,60 +154,85 @@ export async function GET(request: NextRequest) {
       throw new Error("Failed to fetch data quality metrics");
     }
 
+    // Fetch configurable thresholds from ops.app_config (FFS-640)
+    const [
+      catPlaceCoverageWarning,
+      catPlaceCoverageCritical,
+      pendingReviewsWarning,
+      geocodingQueueWarning,
+      invalidPeople24hWarning,
+      orgsAsPeopleWarning,
+      clinichqMinServicesPerAppt,
+      mislinkedApptsWarning,
+      duplicatePlacesWarning,
+      unpropagatedMatchesWarning,
+    ] = await Promise.all([
+      getServerConfig("dq.cat_place_coverage_warning_pct", 95),
+      getServerConfig("dq.cat_place_coverage_critical_pct", 90),
+      getServerConfig("dq.pending_reviews_warning", 100),
+      getServerConfig("dq.geocoding_queue_warning", 100),
+      getServerConfig("dq.invalid_people_24h_warning", 10),
+      getServerConfig("dq.orgs_as_people_warning", 200),
+      getServerConfig("dq.clinichq_export_min_services_per_appt", 8),
+      getServerConfig("dq.mislinked_appointments_warning", 50),
+      getServerConfig("dq.duplicate_places_warning", 0),
+      getServerConfig("dq.unpropagated_matches_warning", 0),
+    ]);
+
     // Check thresholds and generate alerts
     const alerts: Alert[] = [];
 
-    // Critical: Cats without places > 5%
-    if (metrics.cat_place_coverage_pct < 95) {
+    // Critical: Cats without places
+    if (metrics.cat_place_coverage_pct < catPlaceCoverageWarning) {
       alerts.push({
-        level: metrics.cat_place_coverage_pct < 90 ? "critical" : "warning",
+        level: metrics.cat_place_coverage_pct < catPlaceCoverageCritical ? "critical" : "warning",
         metric: "cat_place_coverage",
         current: metrics.cat_place_coverage_pct,
-        threshold: 95,
-        message: `Cat-place coverage is ${metrics.cat_place_coverage_pct}% (target: 95%+). ${metrics.total_cats - metrics.cats_with_places} cats need place links.`,
+        threshold: catPlaceCoverageWarning,
+        message: `Cat-place coverage is ${metrics.cat_place_coverage_pct}% (target: ${catPlaceCoverageWarning}%+). ${metrics.total_cats - metrics.cats_with_places} cats need place links.`,
       });
     }
 
-    // Warning: Pending reviews > 100
-    if (metrics.pending_reviews > 100) {
+    // Warning: Pending reviews
+    if (metrics.pending_reviews > pendingReviewsWarning) {
       alerts.push({
-        level: metrics.pending_reviews > 500 ? "critical" : "warning",
+        level: metrics.pending_reviews > pendingReviewsWarning * 5 ? "critical" : "warning",
         metric: "pending_reviews",
         current: metrics.pending_reviews,
-        threshold: 100,
+        threshold: pendingReviewsWarning,
         message: `${metrics.pending_reviews} identity matches pending human review.`,
       });
     }
 
-    // Warning: Geocoding queue > 100
-    if (metrics.geocoding_queue > 100) {
+    // Warning: Geocoding queue
+    if (metrics.geocoding_queue > geocodingQueueWarning) {
       alerts.push({
-        level: metrics.geocoding_queue > 500 ? "critical" : "warning",
+        level: metrics.geocoding_queue > geocodingQueueWarning * 5 ? "critical" : "warning",
         metric: "geocoding_queue",
         current: metrics.geocoding_queue,
-        threshold: 100,
+        threshold: geocodingQueueWarning,
         message: `${metrics.geocoding_queue} places waiting for geocoding.`,
       });
     }
 
-    // Warning: Invalid people created in 24h > 10
-    if (metrics.invalid_people_24h > 10) {
+    // Warning: Invalid people created in 24h
+    if (metrics.invalid_people_24h > invalidPeople24hWarning) {
       alerts.push({
-        level: metrics.invalid_people_24h > 50 ? "critical" : "warning",
+        level: metrics.invalid_people_24h > invalidPeople24hWarning * 5 ? "critical" : "warning",
         metric: "invalid_people_24h",
         current: metrics.invalid_people_24h,
-        threshold: 10,
+        threshold: invalidPeople24hWarning,
         message: `${metrics.invalid_people_24h} invalid people created in last 24 hours. Check data ingestion.`,
       });
     }
 
-    // Warning: Organizations as people > 200
-    if (metrics.orgs_as_people > 200) {
+    // Warning: Organizations as people
+    if (metrics.orgs_as_people > orgsAsPeopleWarning) {
       alerts.push({
         level: "warning",
         metric: "orgs_as_people",
         current: metrics.orgs_as_people,
-        threshold: 200,
+        threshold: orgsAsPeopleWarning,
         message: `${metrics.orgs_as_people} organizations stored as people. Run conversion.`,
       });
     }
@@ -217,40 +243,40 @@ export async function GET(request: NextRequest) {
         level: "critical",
         metric: "clinichq_export_health",
         current: metrics.export_services_per_appt || 0,
-        threshold: 8,
+        threshold: clinichqMinServicesPerAppt,
         message: `ClinicHQ export is BROKEN: ${metrics.export_services_per_appt} services/appt (expected ~10). Missing microchips: ${metrics.export_microchips === 0 ? "YES" : "no"}, ear tips: ${metrics.export_ear_tips || 0}. Check ClinicHQ export settings immediately.`,
       });
     }
 
     // Critical: Duplicate places (FFS-141)
-    if (metrics.duplicate_place_groups > 0) {
+    if (metrics.duplicate_place_groups > duplicatePlacesWarning) {
       alerts.push({
         level: "critical",
         metric: "duplicate_place_groups",
         current: metrics.duplicate_place_groups,
-        threshold: 0,
+        threshold: duplicatePlacesWarning,
         message: `${metrics.duplicate_place_groups} normalized addresses have multiple active places. Unique index should prevent this — investigate.`,
       });
     }
 
     // Warning: Unpropagated matches (FFS-141)
-    if (metrics.unpropagated_matches > 0) {
+    if (metrics.unpropagated_matches > unpropagatedMatchesWarning) {
       alerts.push({
         level: "warning",
         metric: "unpropagated_matches",
         current: metrics.unpropagated_matches,
-        threshold: 0,
+        threshold: unpropagatedMatchesWarning,
         message: `${metrics.unpropagated_matches} clinic day entries matched but not propagated. Match propagation may not be running.`,
       });
     }
 
     // Warning: Mislinked appointments (FFS-141)
-    if (metrics.mislinked_appointments > 50) {
+    if (metrics.mislinked_appointments > mislinkedApptsWarning) {
       alerts.push({
-        level: metrics.mislinked_appointments > 200 ? "critical" : "warning",
+        level: metrics.mislinked_appointments > mislinkedApptsWarning * 4 ? "critical" : "warning",
         metric: "mislinked_appointments",
         current: metrics.mislinked_appointments,
-        threshold: 50,
+        threshold: mislinkedApptsWarning,
         message: `${metrics.mislinked_appointments} appointments where owner_address doesn't match inferred place.`,
       });
     }
