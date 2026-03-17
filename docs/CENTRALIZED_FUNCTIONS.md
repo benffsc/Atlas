@@ -21,7 +21,7 @@ Creates or finds a person using the Data Engine for identity resolution.
 ### Signature
 
 ```sql
-trapper.find_or_create_person(
+sot.find_or_create_person(
     p_email TEXT DEFAULT NULL,
     p_phone TEXT DEFAULT NULL,
     p_first_name TEXT DEFAULT NULL,
@@ -75,7 +75,7 @@ trapper.find_or_create_person(
 
 ```sql
 -- Find or create a person
-SELECT trapper.find_or_create_person(
+SELECT sot.find_or_create_person(
     p_email := 'jane@example.com',
     p_phone := '707-555-1234',
     p_first_name := 'Jane',
@@ -100,7 +100,7 @@ Creates or finds a place with address normalization and deduplication.
 ### Signature
 
 ```sql
-trapper.find_or_create_place_deduped(
+sot.find_or_create_place_deduped(
     p_formatted_address TEXT,
     p_display_name TEXT DEFAULT NULL,
     p_lat DOUBLE PRECISION DEFAULT NULL,
@@ -147,7 +147,7 @@ Returns NULL for:
 
 ```sql
 -- Find or create a place
-SELECT trapper.find_or_create_place_deduped(
+SELECT sot.find_or_create_place_deduped(
     p_formatted_address := '123 Main St, Santa Rosa, CA 95401',
     p_display_name := 'Smith Residence',
     p_source_system := 'web_intake'
@@ -164,7 +164,7 @@ Creates or finds a cat using microchip as the primary identifier.
 ### Signature
 
 ```sql
-trapper.unified_find_or_create_cat(
+sot.find_or_create_cat_by_microchip(
     p_microchip TEXT,
     p_name TEXT DEFAULT NULL,
     p_sex TEXT DEFAULT NULL,
@@ -225,12 +225,12 @@ When updating existing cats, source confidence determines which value wins:
 
 ```sql
 -- Find or create a cat
-SELECT trapper.unified_find_or_create_cat(
-    p_microchip := '985112012345678',
-    p_name := 'Whiskers',
-    p_sex := 'female',
-    p_altered_status := 'spayed',
-    p_source_system := 'clinichq'
+SELECT sot.find_or_create_cat_by_microchip(
+    p_microchip => '985112012345678',
+    p_name => 'Whiskers',
+    p_sex => 'female',
+    p_altered_status => 'spayed',
+    p_source_system => 'clinichq'
 );
 -- Returns: cat_id UUID
 ```
@@ -244,7 +244,7 @@ Creates or finds a request with proper attribution window support.
 ### Signature
 
 ```sql
-trapper.find_or_create_request(
+ops.find_or_create_request(
     p_source_system TEXT,
     p_source_record_id TEXT,
     p_source_created_at TIMESTAMP,
@@ -302,7 +302,7 @@ ELSE NOW() + '6 months'
 
 ```sql
 -- Find or create a request (from Airtable sync)
-SELECT trapper.find_or_create_request(
+SELECT ops.find_or_create_request(
     p_source_system := 'airtable',
     p_source_record_id := 'rec123ABC',
     p_source_created_at := '2024-06-15 10:30:00',
@@ -335,11 +335,11 @@ Use these exact values for `p_source_system`:
 
 ```sql
 -- WRONG: Direct insert bypasses all validation
-INSERT INTO trapper.sot_people (display_name, primary_email)
+INSERT INTO sot.people (display_name, primary_email)
 VALUES ('John Smith', 'john@example.com');
 
 -- RIGHT: Use centralized function
-SELECT trapper.find_or_create_person(
+SELECT sot.find_or_create_person(
     p_email := 'john@example.com',
     p_first_name := 'John',
     p_last_name := 'Smith',
@@ -349,12 +349,12 @@ SELECT trapper.find_or_create_person(
 
 ```sql
 -- WRONG: Custom source system value
-SELECT trapper.find_or_create_person(
+SELECT sot.find_or_create_person(
     p_source_system := 'my_custom_import'  -- NO!
 );
 
 -- RIGHT: Use approved source system
-SELECT trapper.find_or_create_person(
+SELECT sot.find_or_create_person(
     p_source_system := 'atlas_ui'  -- YES!
 );
 ```
@@ -367,14 +367,14 @@ SELECT trapper.find_or_create_person(
 
 ```sql
 -- View pending identity reviews
-SELECT * FROM trapper.v_data_engine_review_queue;
+SELECT * FROM sot.v_data_engine_review_queue;
 ```
 
 ### Match Decisions Audit
 
 ```sql
 -- See all identity decisions for an email
-SELECT * FROM trapper.data_engine_match_decisions
+SELECT * FROM sot.match_decisions
 WHERE input_data->>'email' = 'jane@example.com'
 ORDER BY created_at DESC;
 ```
@@ -383,7 +383,7 @@ ORDER BY created_at DESC;
 
 ```sql
 -- See changes to a person
-SELECT * FROM trapper.entity_edits
+SELECT * FROM ops.entity_edits
 WHERE entity_type = 'person'
 AND entity_id = 'your-person-uuid'
 ORDER BY created_at DESC;

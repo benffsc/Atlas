@@ -73,7 +73,6 @@ These are referenced from `CLAUDE.md` and should always be kept current:
 
 | Document | Purpose |
 |----------|---------|
-| `DATA_INGESTION_RULES.md` | Detailed ingestion procedures |
 | `ops/CATS_TO_PLACES.md` | Cat-place linking pipeline |
 | `ops/CATS_LAYER.md` | Cat data layer documentation |
 | `ops/PLACES_AND_ADDRESSES.md` | Place/address pipeline |
@@ -110,12 +109,10 @@ These are referenced from `CLAUDE.md` and should always be kept current:
 | `DATA_GAPS.md` | Active data quality issues tracker |
 | `DATA_GAP_054__address_type_accounts_missing_places.md` | Specific gap: address-type accounts |
 | `DATA_ISSUE_001__microchip_extraction_gap.md` | Specific issue: microchip extraction |
-| `DATA_QUALITY_ANALYSIS.md` | Data quality analysis snapshot |
 | `TECHNICAL_DEDUPLICATION.md` | Dedup methodology |
 | `TECHNICAL_METHODOLOGY.md` | Technical approach documentation |
 | `DEAD_CODE_ROUTES.md` | Dead/mismatched API routes tracker |
 | `TEST_SUITE_WORKING_LEDGER.md` | Test suite working notes |
-| `INTAKE_REQUEST_DATA_FLOW_AUDIT.md` | Intake data flow audit |
 
 ---
 
@@ -160,11 +157,8 @@ These are referenced from `CLAUDE.md` and should always be kept current:
 | Document | Purpose |
 |----------|---------|
 | `UI_REDESIGN_SPEC.md` | UI redesign specification |
-| `UI_AUDIT_GROUNDED.md` | Grounded UI audit |
-| `REQUESTS_REDESIGN_PLAN.md` | Request page redesign |
 | `ATLAS_OPERATOR_GUIDE.md` | Staff operator guide |
 | `STAFF_IDENTITY_REVIEW_GUIDE.md` | Identity review procedures |
-| `STAFF_ACTION_ITEMS.md` | Staff action items |
 
 ---
 
@@ -173,10 +167,6 @@ These are referenced from `CLAUDE.md` and should always be kept current:
 | Document | Purpose |
 |----------|---------|
 | `UNIFIED_IMPLEMENTATION_PLAN_V2.md` | Current master roadmap (Chunks 10-18) |
-| `CURRENT_STATE_AND_PLAN.md` | V2 overhaul status |
-| `UI_RESTRUCTURE_PLAN.md` | UI restructure phases |
-| `E2E_TEST_UPGRADE_PLAN.md` | E2E test upgrade plan |
-| `ENTITY_LINKING_FORTIFICATION_PLAN.md` | Entity linking improvements |
 
 ---
 
@@ -186,7 +176,6 @@ These are referenced from `CLAUDE.md` and should always be kept current:
 |----------|---------|
 | `ARCHIVED_ISSUES.md` | Linear issue archive (FFS-5 through FFS-322) |
 | `LINEAR_COMPLETED_ARCHIVE.md` | Completed Linear issues |
-| `meetings/2026-02-20_trapper_meeting_stats.md` | Trapper meeting stats |
 
 ---
 

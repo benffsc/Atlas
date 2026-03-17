@@ -85,12 +85,12 @@ SELECT sot.find_or_create_place_deduped(
 
 ---
 
-### `sot.find_or_create_request()`
+### `ops.find_or_create_request()`
 
 Creates or finds a request record.
 
 ```sql
-SELECT sot.find_or_create_request(
+SELECT ops.find_or_create_request(
   p_source_system      TEXT,
   p_source_record_id   TEXT,
   p_source_created_at  TIMESTAMPTZ,
@@ -206,9 +206,9 @@ SELECT sot.classify_owner_name('John', 'Carpenter'); -- 'likely_person'
 - `unknown` - Cannot classify
 
 **Uses Lookup Tables:**
-- `sot.common_first_names` - SSA baby names
-- `sot.occupation_surnames` - Carpenter, Baker, Mason, etc.
-- `sot.business_service_words` - Surgery, Carpets, Market, etc.
+- `ref.common_first_names` - SSA baby names
+- `ref.occupation_surnames` - Carpenter, Baker, Mason, etc.
+- `ref.business_service_words` - Surgery, Carpets, Market, etc.
 
 **Canonical Migration:** MIG_2547 (11 versions consolidated)
 
@@ -238,12 +238,12 @@ END IF;
 
 ## Identity Resolution
 
-### `trapper.data_engine_resolve_identity()`
+### `sot.data_engine_resolve_identity()`
 
 Core identity resolution via multi-signal weighted scoring.
 
 ```sql
-SELECT * FROM trapper.data_engine_resolve_identity(
+SELECT * FROM sot.data_engine_resolve_identity(
   p_email        TEXT,
   p_phone        TEXT,
   p_first_name   TEXT,
@@ -387,9 +387,9 @@ Always use these exact values for `source_system` parameters:
 
 ## Quick Reference: What NOT to Do
 
-❌ **Never INSERT directly** into `sot.people`, `sot.places`, `sot.cats`, `sot.requests`
+❌ **Never INSERT directly** into `sot.people`, `sot.places`, `sot.cats`, `ops.requests`
 
-❌ **Never INSERT directly** into `cat_place_relationships`, `person_cat_relationships`
+❌ **Never INSERT directly** into `sot.cat_place`, `sot.person_cat`, `sot.person_place`
 
 ❌ **Never match people by name alone** - require email or phone
 
@@ -404,6 +404,5 @@ Always use these exact values for `source_system` parameters:
 ## See Also
 
 - `CLAUDE.md` - System invariants and rules
-- `docs/CENTRALIZED_FUNCTIONS.md` - Detailed parameter signatures
+- `docs/CENTRALIZED_FUNCTIONS.md` - Detailed parameter signatures with examples
 - `docs/DATA_FLOW_ARCHITECTURE.md` - Pipeline documentation
-- `docs/ARCHITECTURE_ENTITY_RESOLUTION.md` - Data Engine deep dive
