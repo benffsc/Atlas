@@ -181,9 +181,17 @@ a:hover {
 
 /* Layout */
 .container {
-  max-width: 1800px;
+  max-width: min(1800px, 92vw);
   margin: 0 auto;
   padding: 0 1.5rem;
+}
+
+/* On very large screens (4K+), allow more space */
+@media (min-width: 2200px) {
+  .container {
+    max-width: min(2400px, 88vw);
+    padding: 0 2rem;
+  }
 }
 
 /* Navigation - slim top bar */

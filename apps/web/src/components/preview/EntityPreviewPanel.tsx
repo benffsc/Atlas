@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { formatPhone } from "@/lib/formatters";
 
@@ -14,6 +14,8 @@ interface EntityPreviewPanelProps {
   sections?: Array<{ id: string; title: string; content: ReactNode }>;
   actions?: ReactNode;
   children?: ReactNode;
+  /** When true, sections render in a 2-column grid for wider panels */
+  wide?: boolean;
 }
 
 /**
@@ -32,9 +34,28 @@ export function EntityPreviewPanel({
   sections,
   actions,
   children,
+  wide: wideProp,
 }: EntityPreviewPanelProps) {
+  // Auto-detect wide mode from own width
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [autoWide, setAutoWide] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setAutoWide(entry.contentRect.width > 560);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const wide = wideProp ?? autoWide;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div ref={containerRef} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Sticky header */}
       <div
         style={{
@@ -96,13 +117,13 @@ export function EntityPreviewPanel({
       </div>
 
       {/* Body */}
-      <div style={{ padding: "1.25rem", flex: 1 }}>
+      <div style={{ padding: wide ? "1.5rem 2rem" : "1.25rem", flex: 1, maxWidth: wide ? "960px" : undefined, margin: wide ? "0 auto" : undefined, width: "100%" }}>
         {/* Stats grid */}
         {stats && stats.length > 0 && (
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: wide ? "repeat(auto-fill, minmax(100px, 1fr))" : "1fr 1fr",
               gap: "0.75rem",
               marginBottom: "1.25rem",
             }}
@@ -164,23 +185,25 @@ export function EntityPreviewPanel({
         )}
 
         {/* Sections */}
-        {sections?.map((section) => (
-          <div key={section.id} style={{ marginBottom: "1rem" }}>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "var(--text-muted, #9ca3af)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: "0.5rem",
-              }}
-            >
-              {section.title}
+        <div style={wide ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem 1.5rem", alignItems: "start" } : undefined}>
+          {sections?.map((section) => (
+            <div key={section.id} style={{ marginBottom: wide ? 0 : "1rem" }}>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "var(--text-muted, #9ca3af)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                {section.title}
+              </div>
+              {section.content}
             </div>
-            {section.content}
-          </div>
-        ))}
+          ))}
+        </div>
 
         {children}
       </div>
