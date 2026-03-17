@@ -84,14 +84,15 @@ function StatCard({
       style={{
         textAlign: "center",
         padding: "1rem",
-        background: "#f8f9fa",
+        background: "var(--card-bg)",
         borderRadius: "8px",
+        border: "1px solid var(--card-border)",
       }}
     >
       <div style={{ fontSize: "1.75rem", fontWeight: "bold" }}>{value}</div>
-      <div style={{ fontSize: "0.8rem", color: "#666" }}>{label}</div>
+      <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{label}</div>
       {sublabel && (
-        <div style={{ fontSize: "0.7rem", color: "#999", marginTop: "0.25rem" }}>
+        <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginTop: "0.25rem" }}>
           {sublabel}
         </div>
       )}
@@ -100,13 +101,13 @@ function StatCard({
 }
 
 function ContactInfo({ phone, email }: { phone: string | null; email: string | null }) {
-  if (!phone && !email) return <span style={{ color: "#999" }}>—</span>;
+  if (!phone && !email) return <span style={{ color: "var(--text-tertiary)" }}>—</span>;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
       {phone && (
         <a
           href={`tel:${phone}`}
-          style={{ fontSize: "0.8rem", color: "#0d6efd", textDecoration: "none" }}
+          style={{ fontSize: "0.8rem", color: "var(--primary)", textDecoration: "none" }}
           onClick={(e) => e.stopPropagation()}
         >
           {formatPhone(phone)}
@@ -115,7 +116,7 @@ function ContactInfo({ phone, email }: { phone: string | null; email: string | n
       {email && (
         <a
           href={`mailto:${email}`}
-          style={{ fontSize: "0.75rem", color: "#6c757d", textDecoration: "none" }}
+          style={{ fontSize: "0.75rem", color: "var(--text-secondary)", textDecoration: "none" }}
           title={email}
           onClick={(e) => e.stopPropagation()}
         >
@@ -133,9 +134,9 @@ const AVAILABILITY_LABELS: Record<string, string> = {
 };
 
 const AVAILABILITY_STYLES: Record<string, { bg: string; color: string }> = {
-  available: { bg: "#d1fae5", color: "#065f46" },
-  busy: { bg: "#fef3c7", color: "#92400e" },
-  on_leave: { bg: "#e5e7eb", color: "#374151" },
+  available: { bg: "var(--success-bg)", color: "var(--success-text)" },
+  busy: { bg: "var(--warning-bg)", color: "var(--warning-text)" },
+  on_leave: { bg: "var(--bg-secondary)", color: "var(--text-primary)" },
 };
 
 function AvailabilityBadge({
@@ -223,25 +224,26 @@ function ConfirmModal({
     >
       <div
         style={{
-          background: "#fff",
+          background: "var(--background)",
           borderRadius: "12px",
           padding: "1.5rem",
           maxWidth: "420px",
           width: "90%",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          border: "1px solid var(--border)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 style={{ margin: "0 0 0.75rem", fontSize: "1.1rem" }}>
           {isDangerous ? "Warning" : "Confirm Change"}
         </h3>
-        <p style={{ margin: "0 0 1rem", color: "#374151", lineHeight: 1.5 }}>
+        <p style={{ margin: "0 0 1rem", color: "var(--text-primary)", lineHeight: 1.5 }}>
           Change <strong>{action.personName}</strong>&apos;s {fieldName} from{" "}
           <span
             style={{
               padding: "0.1rem 0.4rem",
               borderRadius: "4px",
-              background: "#f3f4f6",
+              background: "var(--bg-secondary)",
               fontWeight: 500,
             }}
           >
@@ -252,9 +254,9 @@ function ConfirmModal({
             style={{
               padding: "0.1rem 0.4rem",
               borderRadius: "4px",
-              background: isDangerous ? "#fef2f2" : "#ecfdf5",
+              background: isDangerous ? "var(--danger-bg)" : "var(--success-bg)",
               fontWeight: 500,
-              color: isDangerous ? "#991b1b" : "#065f46",
+              color: isDangerous ? "var(--danger-text)" : "var(--success-text)",
             }}
           >
             {newLabel}
@@ -266,10 +268,10 @@ function ConfirmModal({
             style={{
               margin: "0 0 1rem",
               padding: "0.5rem 0.75rem",
-              background: "#fef2f2",
+              background: "var(--danger-bg)",
               borderRadius: "6px",
               fontSize: "0.85rem",
-              color: "#991b1b",
+              color: "var(--danger-text)",
             }}
           >
             This action has significant implications for trapper permissions and attribution.
@@ -281,8 +283,9 @@ function ConfirmModal({
             style={{
               padding: "0.4rem 1rem",
               borderRadius: "6px",
-              border: "1px solid #d1d5db",
-              background: "#fff",
+              border: "1px solid var(--border-light)",
+              background: "var(--card-bg)",
+              color: "var(--foreground)",
               cursor: "pointer",
               fontSize: "0.875rem",
             }}
@@ -311,8 +314,8 @@ function ConfirmModal({
 }
 
 function ActiveAssignmentsBadge({ count }: { count: number }) {
-  const color = count === 0 ? "#198754" : count <= 2 ? "#fd7e14" : "#dc3545";
-  const bg = count === 0 ? "#d1fae5" : count <= 2 ? "#fff3cd" : "#f8d7da";
+  const color = count === 0 ? "var(--success-text)" : count <= 2 ? "var(--warning-text)" : "var(--danger-text)";
+  const bg = count === 0 ? "var(--success-bg)" : count <= 2 ? "var(--warning-bg)" : "var(--danger-bg)";
   return (
     <span
       style={{
@@ -368,8 +371,8 @@ function NewBadge() {
       fontSize: "0.6rem",
       padding: "0.1rem 0.4rem",
       borderRadius: "9999px",
-      background: "#dbeafe",
-      color: "#1d4ed8",
+      background: "var(--info-bg)",
+      color: "var(--info-text)",
       fontWeight: 600,
     }}>
       NEW
@@ -408,16 +411,16 @@ function TrapperCard({
       onClick={onClick}
       style={{
         padding: "1rem",
-        border: `1px solid ${isSelected ? "#3b82f6" : isDormant ? "#fbbf24" : "var(--card-border, #e5e7eb)"}`,
-        borderLeft: isSelected ? "3px solid #3b82f6" : undefined,
+        border: `1px solid ${isSelected ? "var(--primary)" : isDormant ? "var(--warning-border)" : "var(--card-border)"}`,
+        borderLeft: isSelected ? "3px solid var(--primary)" : undefined,
         borderRadius: "8px",
         cursor: "pointer",
         opacity: isInactive ? 0.6 : 1,
-        background: isSelected ? "#eff6ff" : isInactive ? "#f9fafb" : isDormant ? "#fffbeb" : "var(--card-bg, #fff)",
+        background: isSelected ? "var(--info-bg)" : isInactive ? "var(--bg-secondary)" : isDormant ? "var(--warning-bg)" : "var(--card-bg)",
         transition: "border-color 0.15s, background 0.15s",
       }}
-      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "#0d6efd"; }}
-      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "var(--card-border, #e5e7eb)"; }}
+      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "var(--primary)"; }}
+      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "var(--card-border)"; }}
     >
       {/* Row 1: Avatar + Name + Tier + Badges */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
@@ -429,7 +432,7 @@ function TrapperCard({
               style={{
                 fontWeight: 600,
                 fontSize: "0.95rem",
-                color: isInactive ? "#9ca3af" : "var(--foreground)",
+                color: isInactive ? "var(--text-tertiary)" : "var(--foreground)",
                 textDecoration: "none",
               }}
               onClick={(e) => e.stopPropagation()}
@@ -443,8 +446,8 @@ function TrapperCard({
                 fontSize: "0.6rem",
                 padding: "0.1rem 0.3rem",
                 borderRadius: "3px",
-                background: "#fef3c7",
-                color: "#92400e",
+                background: "var(--warning-bg)",
+                color: "var(--warning-text)",
                 fontWeight: 500,
               }}>
                 DORMANT
@@ -458,8 +461,8 @@ function TrapperCard({
                 fontSize: "0.65rem",
                 padding: "0.1rem 0.35rem",
                 borderRadius: "4px",
-                background: "#fef3c7",
-                color: "#92400e",
+                background: "var(--warning-bg)",
+                color: "var(--warning-text)",
                 fontWeight: 500,
               }}>
                 {trapper.role_status}
@@ -475,7 +478,7 @@ function TrapperCard({
       {/* Row 2: Active assignments + Last activity */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem" }}>
-          <span style={{ color: "#666" }}>Active:</span>
+          <span style={{ color: "var(--text-secondary)" }}>Active:</span>
           <ActiveAssignmentsBadge count={trapper.active_assignments} />
         </div>
         {relTime && (
@@ -495,9 +498,9 @@ function TrapperCard({
             return (
               <div key={req.request_id} style={{
                 display: "flex", alignItems: "center", gap: "0.35rem",
-                fontSize: "0.72rem", color: "#4b5563",
+                fontSize: "0.72rem", color: "var(--text-secondary)",
                 padding: "0.15rem 0.4rem",
-                background: "#f9fafb", borderRadius: "4px",
+                background: "var(--section-bg)", borderRadius: "4px",
               }}>
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {req.address.length > 40 ? req.address.slice(0, 38) + "..." : req.address}
@@ -512,7 +515,7 @@ function TrapperCard({
             );
           })}
           {extraCount > 0 && (
-            <span style={{ fontSize: "0.7rem", color: "#9ca3af", paddingLeft: "0.4rem" }}>
+            <span style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", paddingLeft: "0.4rem" }}>
               +{extraCount} more
             </span>
           )}
@@ -520,16 +523,18 @@ function TrapperCard({
       )}
 
       {/* Row 4: Stats */}
-      <div style={{ display: "flex", gap: "1rem", fontSize: "0.75rem", color: "#666", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: "1rem", fontSize: "0.75rem", color: "var(--text-secondary)", alignItems: "center" }}>
         <span>
-          <strong style={{ color: trapper.total_cats_caught > 0 ? "#198754" : "#999" }}>
+          <strong style={{ color: trapper.total_cats_caught > 0 ? "var(--success-text)" : "var(--text-tertiary)" }}>
             {trapper.total_cats_caught}
           </strong>{" "}
-          caught
+          cats fixed
         </span>
-        <span>{trapper.completed_assignments} completed</span>
+        {trapper.completed_assignments > 0 && (
+          <span>{trapper.completed_assignments} completed</span>
+        )}
         {trapper.has_signed_contract && (
-          <span style={{ color: "#16a34a" }} title="Contract signed">{"\u2713"} Contract</span>
+          <span style={{ color: "var(--success-text)" }} title="Contract signed">{"\u2713"} Contract</span>
         )}
       </div>
     </div>
@@ -724,8 +729,7 @@ function TrappersPageInner() {
 
     const headers = [
       "Name", "Email", "Phone", "Type", "Tier", "Status", "Availability",
-      "Total Caught", "Direct Bookings", "Clinic Days", "Avg Cats/Day",
-      "Active Assignments", "Completed", "Last Activity",
+      "Cats Fixed", "Active Assignments", "Completed", "Last Activity",
     ];
     const rows = trappers.map((t) => [
       t.display_name,
@@ -736,9 +740,6 @@ function TrappersPageInner() {
       t.role_status,
       t.availability_status,
       t.total_cats_caught,
-      t.total_clinic_cats,
-      t.unique_clinic_days,
-      t.avg_cats_per_day,
       t.active_assignments,
       t.completed_assignments,
       t.last_activity_date || "",
@@ -838,7 +839,7 @@ function TrappersPageInner() {
                 display: "flex",
                 gap: "1.5rem",
                 padding: "0.75rem 1rem",
-                background: "#f8f9fa",
+                background: "var(--section-bg)",
                 borderRadius: "8px",
                 marginBottom: "1rem",
                 fontSize: "0.85rem",
@@ -846,20 +847,20 @@ function TrappersPageInner() {
               }}>
                 <span>
                   <strong style={{ color: "#16a34a" }}>{free.length}</strong>{" "}
-                  <span style={{ color: "#666" }}>free for assignment</span>
+                  <span style={{ color: "var(--text-secondary)" }}>free for assignment</span>
                 </span>
                 <span>
                   <strong style={{ color: "#f59e0b" }}>{moderate.length}</strong>{" "}
-                  <span style={{ color: "#666" }}>1-2 active</span>
+                  <span style={{ color: "var(--text-secondary)" }}>1-2 active</span>
                 </span>
                 <span>
                   <strong style={{ color: "#dc2626" }}>{overloaded.length}</strong>{" "}
-                  <span style={{ color: "#666" }}>3+ active (heavy load)</span>
+                  <span style={{ color: "var(--text-secondary)" }}>3+ active (heavy load)</span>
                 </span>
                 {noActivity90d.length > 0 && (
                   <span>
-                    <strong style={{ color: "#9ca3af" }}>{noActivity90d.length}</strong>{" "}
-                    <span style={{ color: "#999" }}>no activity 90d+</span>
+                    <strong style={{ color: "var(--text-tertiary)" }}>{noActivity90d.length}</strong>{" "}
+                    <span style={{ color: "var(--text-tertiary)" }}>no activity 90d+</span>
                   </span>
                 )}
               </div>
@@ -876,27 +877,9 @@ function TrappersPageInner() {
             }}
           >
             <StatCard
-              label="Total Cats Caught"
+              label="Cats Fixed"
               value={agg.all_cats_caught}
               sublabel="via request assignments"
-            />
-            <StatCard
-              label="Direct Bookings"
-              value={agg.all_clinic_cats}
-              sublabel="self-booked appointments"
-            />
-            <StatCard label="Clinic Days" value={agg.all_clinic_days} />
-            <StatCard
-              label="Avg Cats/Day"
-              value={agg.avg_cats_per_day_all || "\u2014"}
-            />
-            <StatCard
-              label="FeLV Rate"
-              value={
-                agg.felv_positive_rate_pct_all !== null
-                  ? `${agg.felv_positive_rate_pct_all}%`
-                  : "\u2014"
-              }
             />
           </div>
         </>
@@ -929,9 +912,9 @@ function TrappersPageInner() {
                 borderRadius: "9999px",
                 fontSize: "0.8rem",
                 fontWeight: active ? 600 : 400,
-                border: `1px solid ${active ? chip.color : "#d1d5db"}`,
+                border: `1px solid ${active ? chip.color : "var(--border-light)"}`,
                 background: active ? chip.color : "transparent",
-                color: active ? "#fff" : "#374151",
+                color: active ? "#fff" : "var(--text-primary)",
                 cursor: "pointer",
               }}
             >
@@ -940,7 +923,7 @@ function TrappersPageInner() {
           );
         })}
 
-        <div style={{ borderLeft: "1px solid #d1d5db", height: "1.2rem", margin: "0 0.15rem" }} />
+        <div style={{ borderLeft: "1px solid var(--border-light)", height: "1.2rem", margin: "0 0.15rem" }} />
 
         {/* Availability Chips */}
         {([
@@ -960,9 +943,9 @@ function TrappersPageInner() {
                 borderRadius: "9999px",
                 fontSize: "0.8rem",
                 fontWeight: active ? 600 : 400,
-                border: `1px solid ${active ? (style?.color || "#2563eb") : "#d1d5db"}`,
-                background: active ? (style?.bg || "#dbeafe") : "transparent",
-                color: active ? (style?.color || "#1d4ed8") : "#374151",
+                border: `1px solid ${active ? (style?.color || "var(--primary)") : "var(--border-light)"}`,
+                background: active ? (style?.bg || "var(--info-bg)") : "transparent",
+                color: active ? (style?.color || "var(--info-text)") : "var(--text-primary)",
                 cursor: "pointer",
               }}
             >
@@ -971,7 +954,7 @@ function TrappersPageInner() {
           );
         })}
 
-        <div style={{ borderLeft: "1px solid #d1d5db", height: "1.2rem", margin: "0 0.15rem" }} />
+        <div style={{ borderLeft: "1px solid var(--border-light)", height: "1.2rem", margin: "0 0.15rem" }} />
 
         {/* Toggle Chips: Active / Dormant */}
         <button
@@ -981,9 +964,9 @@ function TrappersPageInner() {
             borderRadius: "9999px",
             fontSize: "0.8rem",
             fontWeight: filters.active === "true" ? 600 : 400,
-            border: `1px solid ${filters.active === "true" ? "#2563eb" : "#d1d5db"}`,
-            background: filters.active === "true" ? "#dbeafe" : "transparent",
-            color: filters.active === "true" ? "#1d4ed8" : "#374151",
+            border: `1px solid ${filters.active === "true" ? "var(--primary)" : "var(--border-light)"}`,
+            background: filters.active === "true" ? "var(--info-bg)" : "transparent",
+            color: filters.active === "true" ? "var(--info-text)" : "var(--text-primary)",
             cursor: "pointer",
           }}
         >
@@ -996,37 +979,36 @@ function TrappersPageInner() {
             borderRadius: "9999px",
             fontSize: "0.8rem",
             fontWeight: filters.dormant === "true" ? 600 : 400,
-            border: `1px solid ${filters.dormant === "true" ? "#dc2626" : "#d1d5db"}`,
-            background: filters.dormant === "true" ? "#fef2f2" : "transparent",
-            color: filters.dormant === "true" ? "#dc2626" : "#374151",
+            border: `1px solid ${filters.dormant === "true" ? "var(--danger-text)" : "var(--border-light)"}`,
+            background: filters.dormant === "true" ? "var(--danger-bg)" : "transparent",
+            color: filters.dormant === "true" ? "var(--danger-text)" : "var(--text-primary)",
             cursor: "pointer",
           }}
         >
           Dormant
         </button>
 
-        <div style={{ borderLeft: "1px solid #d1d5db", height: "1.2rem", margin: "0 0.15rem" }} />
+        <div style={{ borderLeft: "1px solid var(--border-light)", height: "1.2rem", margin: "0 0.15rem" }} />
 
         {/* Sort Dropdown (compact) */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-          <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>Sort:</span>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Sort:</span>
           <select
             value={filters.sort}
             onChange={(e) => setFilters({ sort: e.target.value, page: "0" })}
             style={{
               padding: "0.2rem 0.4rem",
               fontSize: "0.8rem",
-              border: "1px solid #d1d5db",
+              border: "1px solid var(--border-light)",
               borderRadius: "6px",
-              background: "transparent",
+              background: "var(--card-bg)",
+              color: "var(--foreground)",
             }}
           >
             <option value="tier_sort">Tier</option>
-            <option value="total_cats_caught">Total Caught</option>
-            <option value="total_clinic_cats">Direct Bookings</option>
+            <option value="total_cats_caught">Cats Fixed</option>
             <option value="active_assignments">Active Assignments</option>
             <option value="completed_assignments">Completed</option>
-            <option value="avg_cats_per_day">Avg Cats/Day</option>
             <option value="display_name">Name</option>
             <option value="last_activity_date">Last Activity</option>
           </select>
@@ -1040,10 +1022,12 @@ function TrappersPageInner() {
           onChange={(e) => handleSearchChange(e.target.value)}
           style={{
             padding: "0.3rem 0.75rem",
-            border: "1px solid #d1d5db",
+            border: "1px solid var(--border-light)",
             borderRadius: "9999px",
             fontSize: "0.8rem",
             minWidth: "160px",
+            background: "var(--input-bg)",
+            color: "var(--input-text)",
           }}
         />
 
@@ -1102,7 +1086,7 @@ function TrappersPageInner() {
               style={{
                 padding: "0.3rem 0.5rem",
                 fontSize: "0.8rem",
-                border: "1px solid #ddd",
+                border: "1px solid var(--border-light)",
                 borderRadius: "4px",
               }}
             >
@@ -1123,15 +1107,15 @@ function TrappersPageInner() {
                 padding: "0.25rem 0.5rem",
                 fontSize: "0.75rem",
                 background: "transparent",
-                border: "1px solid #ddd",
+                border: "1px solid var(--border-light)",
                 borderRadius: "4px",
                 cursor: "pointer",
-                color: "#666",
+                color: "var(--text-secondary)",
               }}
             >
               Clear
             </button>
-            <div style={{ borderLeft: "1px solid #ddd", height: "1.5rem", margin: "0 0.25rem" }} />
+            <div style={{ borderLeft: "1px solid var(--border-light)", height: "1.5rem", margin: "0 0.25rem" }} />
           </>
         )}
         <button
@@ -1141,7 +1125,7 @@ function TrappersPageInner() {
             padding: "0.3rem 0.75rem",
             fontSize: "0.8rem",
             background: "transparent",
-            border: "1px solid #ddd",
+            border: "1px solid var(--border-light)",
             borderRadius: "4px",
             cursor: data && data.trappers.length > 0 ? "pointer" : "not-allowed",
             opacity: data && data.trappers.length > 0 ? 1 : 0.5,
@@ -1168,26 +1152,27 @@ function TrappersPageInner() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--background)",
               borderRadius: "12px",
               padding: "1.5rem",
               maxWidth: "420px",
               width: "90%",
-              boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+              boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+              border: "1px solid var(--border)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ margin: "0 0 0.75rem", fontSize: "1.1rem" }}>
               Batch Change — {selectedIds.size} Trappers
             </h3>
-            <p style={{ margin: "0 0 1rem", color: "#374151", lineHeight: 1.5 }}>
+            <p style={{ margin: "0 0 1rem", color: "var(--text-primary)", lineHeight: 1.5 }}>
               Set <strong>{batchAction.field}</strong> to{" "}
               <span style={{
                 padding: "0.1rem 0.4rem",
                 borderRadius: "4px",
-                background: "#ecfdf5",
+                background: "var(--success-bg)",
                 fontWeight: 500,
-                color: "#065f46",
+                color: "var(--success-text)",
               }}>
                 {(FIELD_LABELS[batchAction.field] || {})[batchAction.value] || batchAction.value}
               </span>
@@ -1200,8 +1185,9 @@ function TrappersPageInner() {
                 style={{
                   padding: "0.4rem 1rem",
                   borderRadius: "6px",
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
+                  border: "1px solid var(--border-light)",
+                  background: "var(--card-bg)",
+                  color: "var(--foreground)",
                   cursor: "pointer",
                   fontSize: "0.875rem",
                 }}
@@ -1289,17 +1275,10 @@ function TrappersPageInner() {
                   <th style={{ textAlign: "center" }}>Contract</th>
                   <th>Availability</th>
                   <th style={{ textAlign: "right" }}>
-                    <span title="Cats attributed via request assignments - the primary performance metric">
-                      Total Caught
+                    <span title="Cats at request locations this trapper was assigned to">
+                      Cats Fixed
                     </span>
                   </th>
-                  <th style={{ textAlign: "right" }}>
-                    <span title="Appointments booked directly under trapper's email">
-                      Direct
-                    </span>
-                  </th>
-                  <th style={{ textAlign: "right" }}>Clinic Days</th>
-                  <th style={{ textAlign: "right" }}>Cats/Day</th>
                   <th style={{ textAlign: "right" }}>Active</th>
                   <th style={{ textAlign: "right" }}>Completed</th>
                   <th>Last Activity</th>
@@ -1313,11 +1292,11 @@ function TrappersPageInner() {
                     Math.floor((Date.now() - new Date(trapper.last_activity_date).getTime()) / 86400000) > DORMANT_DAYS);
                   const isSelected = filters.selected === trapper.person_id;
                   const rowStyle: React.CSSProperties = isSelected
-                    ? { background: "#eff6ff", borderLeft: "3px solid #3b82f6" }
+                    ? { background: "var(--info-bg)", borderLeft: "3px solid var(--primary)" }
                     : isInactive
-                    ? { opacity: 0.6, background: "#f9fafb" }
+                    ? { opacity: 0.6, background: "var(--bg-secondary)" }
                     : isDormant
-                    ? { background: "#fffbeb" }
+                    ? { background: "var(--warning-bg)" }
                     : {};
                   const relTime = formatRelativeTime(trapper.last_activity_date);
                   const actColor = getActivityColor(trapper.last_activity_date);
@@ -1343,7 +1322,7 @@ function TrappersPageInner() {
                               href={`/trappers/${trapper.person_id}`}
                               style={{
                                 fontWeight: 500,
-                                color: isInactive ? "#9ca3af" : "var(--foreground)",
+                                color: isInactive ? "var(--text-tertiary)" : "var(--foreground)",
                                 textDecoration: "none",
                               }}
                               onClick={(e) => {
@@ -1366,8 +1345,8 @@ function TrappersPageInner() {
                                   fontSize: "0.6rem",
                                   padding: "0.1rem 0.3rem",
                                   borderRadius: "3px",
-                                  background: "#fef3c7",
-                                  color: "#92400e",
+                                  background: "var(--warning-bg)",
+                                  color: "var(--warning-text)",
                                   fontWeight: 500,
                                   marginLeft: "0.35rem",
                                   verticalAlign: "middle",
@@ -1391,8 +1370,9 @@ function TrappersPageInner() {
                             fontSize: "0.75rem",
                             padding: "0.2rem 0.4rem",
                             borderRadius: "4px",
-                            border: "1px solid #ddd",
-                            background: isInactive ? "#e5e7eb" : "#fff",
+                            border: "1px solid var(--border-light)",
+                            background: isInactive ? "var(--bg-secondary)" : "var(--input-bg)",
+                            color: "var(--foreground)",
                           }}
                         >
                           <option value="coordinator">Coordinator</option>
@@ -1410,9 +1390,9 @@ function TrappersPageInner() {
                             fontSize: "0.75rem",
                             padding: "0.2rem 0.4rem",
                             borderRadius: "4px",
-                            border: "1px solid #ddd",
-                            background: isInactive ? "#fef3c7" : "#d1fae5",
-                            color: isInactive ? "#92400e" : "#065f46",
+                            border: "1px solid var(--border-light)",
+                            background: isInactive ? "var(--warning-bg)" : "var(--success-bg)",
+                            color: isInactive ? "var(--warning-text)" : "var(--success-text)",
                           }}
                         >
                           <option value="active">Active</option>
@@ -1425,14 +1405,14 @@ function TrappersPageInner() {
                         {trapper.tier ? (
                           <TrapperTierBadge tier={trapper.tier} />
                         ) : (
-                          <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>{"\u2014"}</span>
+                          <span style={{ color: "var(--text-tertiary)", fontSize: "0.8rem" }}>{"\u2014"}</span>
                         )}
                       </td>
                       <td style={{ textAlign: "center" }}>
                         {trapper.has_signed_contract ? (
                           <span style={{ color: "#16a34a", fontSize: "1.1rem" }} title="Contract signed">{"\u2713"}</span>
                         ) : (
-                          <span style={{ color: "#d1d5db" }}>{"\u2014"}</span>
+                          <span style={{ color: "var(--border-light)" }}>{"\u2014"}</span>
                         )}
                       </td>
                       <td>
@@ -1444,9 +1424,9 @@ function TrappersPageInner() {
                             fontSize: "0.75rem",
                             padding: "0.2rem 0.4rem",
                             borderRadius: "4px",
-                            border: "1px solid #ddd",
-                            background: AVAILABILITY_STYLES[trapper.availability_status]?.bg || "#fff",
-                            color: AVAILABILITY_STYLES[trapper.availability_status]?.color || "#333",
+                            border: "1px solid var(--border-light)",
+                            background: AVAILABILITY_STYLES[trapper.availability_status]?.bg || "var(--input-bg)",
+                            color: AVAILABILITY_STYLES[trapper.availability_status]?.color || "var(--foreground)",
                           }}
                         >
                           <option value="available">Available</option>
@@ -1460,8 +1440,8 @@ function TrappersPageInner() {
                           fontWeight: 600,
                           color:
                             trapper.total_cats_caught > 0
-                              ? "#198754"
-                              : "#999",
+                              ? "var(--success-text)"
+                              : "var(--text-tertiary)",
                         }}
                       >
                         {trapper.total_cats_caught}
@@ -1469,26 +1449,10 @@ function TrappersPageInner() {
                       <td
                         style={{
                           textAlign: "right",
-                          color: "#6c757d",
-                          fontSize: "0.9em",
-                        }}
-                        title="Appointments booked directly under their email"
-                      >
-                        {trapper.total_clinic_cats}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        {trapper.unique_clinic_days}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        {trapper.avg_cats_per_day}
-                      </td>
-                      <td
-                        style={{
-                          textAlign: "right",
                           color:
                             trapper.active_assignments > 0
                               ? "#fd7e14"
-                              : "#999",
+                              : "var(--text-tertiary)",
                         }}
                       >
                         {trapper.active_assignments}
@@ -1498,9 +1462,9 @@ function TrappersPageInner() {
                       </td>
                       <td style={{ fontSize: "0.875rem" }}>
                         {relTime ? (
-                          <span style={{ color: actColor || "#666" }}>{relTime}</span>
+                          <span style={{ color: actColor || "var(--text-secondary)" }}>{relTime}</span>
                         ) : (
-                          <span style={{ color: "#999" }}>{"\u2014"}</span>
+                          <span style={{ color: "var(--text-tertiary)" }}>{"\u2014"}</span>
                         )}
                       </td>
                       <td style={{ textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
@@ -1528,7 +1492,7 @@ function TrappersPageInner() {
             >
               Previous
             </button>
-            <span style={{ display: "flex", alignItems: "center", color: "#666" }}>
+            <span style={{ display: "flex", alignItems: "center", color: "var(--text-secondary)" }}>
               Page {page + 1}
             </span>
             <button

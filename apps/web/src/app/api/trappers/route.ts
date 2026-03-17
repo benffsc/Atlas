@@ -89,15 +89,12 @@ export async function GET(request: NextRequest) {
       "active_assignments",
       "completed_assignments",
       "total_cats_caught",
-      "total_clinic_cats",
-      "unique_clinic_days",
-      "avg_cats_per_day",
       "last_activity_date",
       "tier_sort",
     ];
     const orderColumn = validSortColumns.includes(sortBy)
       ? sortBy
-      : "total_clinic_cats";
+      : "total_cats_caught";
 
     // Build query params based on whether search is provided
     const queryParams = search && search.trim().length > 0
