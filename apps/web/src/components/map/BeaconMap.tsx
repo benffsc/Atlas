@@ -533,7 +533,7 @@ export default function BeaconMap({
         style={{
           height: "600px",
           borderRadius: "0.5rem",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
         }}
       />
       {loading && (

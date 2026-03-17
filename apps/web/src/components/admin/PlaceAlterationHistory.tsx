@@ -92,24 +92,24 @@ export function PlaceAlterationHistory({ placeId }: PlaceAlterationHistoryProps)
     <div>
       {/* Header Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
-        <div style={{ textAlign: "center", padding: "0.75rem", background: "#f8f9fa", borderRadius: "8px" }}>
+        <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: rateColor }}>
             {history.place_alteration_rate_pct !== null ? `${history.place_alteration_rate_pct}%` : "—"}
           </div>
           <div style={{ fontSize: "0.7rem", color: "#666" }}>Alteration Rate</div>
         </div>
 
-        <div style={{ textAlign: "center", padding: "0.75rem", background: "#f8f9fa", borderRadius: "8px" }}>
+        <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{history.total_requests}</div>
           <div style={{ fontSize: "0.7rem", color: "#666" }}>Requests</div>
         </div>
 
-        <div style={{ textAlign: "center", padding: "0.75rem", background: "#f8f9fa", borderRadius: "8px" }}>
+        <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{history.total_cats_caught}</div>
           <div style={{ fontSize: "0.7rem", color: "#666" }}>Cats Caught</div>
         </div>
 
-        <div style={{ textAlign: "center", padding: "0.75rem", background: "#f8f9fa", borderRadius: "8px" }}>
+        <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#198754" }}>{history.total_cats_altered}</div>
           <div style={{ fontSize: "0.7rem", color: "#666" }}>Altered</div>
         </div>
@@ -156,7 +156,7 @@ export function PlaceAlterationHistory({ placeId }: PlaceAlterationHistoryProps)
             <div style={{ marginTop: "0.75rem" }}>
               <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid #dee2e6" }}>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th style={{ textAlign: "left", padding: "0.5rem" }}>Year</th>
                     <th style={{ textAlign: "right", padding: "0.5rem" }}>Requests</th>
                     <th style={{ textAlign: "right", padding: "0.5rem" }}>Caught</th>

@@ -40,6 +40,7 @@
   --text-secondary: #6b7280;
   --text-tertiary: #9ca3af;
   --bg-secondary: #f3f4f6;
+  --bg-tertiary: #f3f4f6;
   --border-light: #d1d5db;
   --border-default: #e5e7eb;
 
@@ -130,6 +131,7 @@
     --text-secondary: #d1d5db;
     --text-tertiary: #9ca3af;
     --bg-secondary: #374151;
+    --bg-tertiary: #1f2937;
     --border-light: #4b5563;
     --border-default: #374151;
 

@@ -237,7 +237,7 @@ export function PhotoGroupingPanel({
           borderRadius: "4px",
           overflow: "hidden",
           border: isSelected ? "3px solid #0d6efd" : "1px solid #dee2e6",
-          background: "#fff",
+          background: "var(--background)",
           cursor: inGroup ? "grab" : "pointer",
           opacity: draggedMediaId === m.media_id ? 0.5 : 1,
         }}
@@ -294,7 +294,7 @@ export function PhotoGroupingPanel({
               height: "20px",
               borderRadius: "4px",
               background: isSelected ? "#0d6efd" : "rgba(255,255,255,0.9)",
-              border: "1px solid #dee2e6",
+              border: "1px solid var(--border)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -364,7 +364,7 @@ export function PhotoGroupingPanel({
               style={{
                 flex: 1,
                 padding: "0.375rem 0.5rem",
-                border: "1px solid #dee2e6",
+                border: "1px solid var(--border)",
                 borderRadius: "4px",
                 fontSize: "0.875rem",
               }}
@@ -415,9 +415,9 @@ export function PhotoGroupingPanel({
             style={{
               marginBottom: "1rem",
               padding: "0.75rem",
-              background: "#f8f9fa",
+              background: "var(--section-bg)",
               borderRadius: "8px",
-              border: "1px solid #dee2e6",
+              border: "1px solid var(--border)",
             }}
           >
             {/* Group header */}
@@ -495,9 +495,9 @@ export function PhotoGroupingPanel({
                 style={{
                   padding: "0.5rem",
                   marginBottom: "0.5rem",
-                  background: "#fff",
+                  background: "var(--background)",
                   borderRadius: "4px",
-                  border: "1px solid #dee2e6",
+                  border: "1px solid var(--border)",
                 }}
               >
                 <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -506,7 +506,7 @@ export function PhotoGroupingPanel({
                     onChange={(e) => setSelectedCatId(e.target.value)}
                     style={{
                       padding: "0.25rem 0.5rem",
-                      border: "1px solid #dee2e6",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                       fontSize: "0.875rem",
                     }}
@@ -523,7 +523,7 @@ export function PhotoGroupingPanel({
                     onChange={(e) => setSelectedConfidence(e.target.value as ConfidenceLevel)}
                     style={{
                       padding: "0.25rem 0.5rem",
-                      border: "1px solid #dee2e6",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                       fontSize: "0.875rem",
                     }}
@@ -572,7 +572,7 @@ export function PhotoGroupingPanel({
           onDrop={(e) => handleDropOnGroup(e, null)}
           style={{
             padding: "0.75rem",
-            background: "#fff",
+            background: "var(--background)",
             borderRadius: "8px",
             border: "2px dashed #dee2e6",
           }}
@@ -625,7 +625,7 @@ export function PhotoGroupingPanel({
         style={{
           marginTop: "1rem",
           padding: "0.5rem",
-          background: "#f8f9fa",
+          background: "var(--section-bg)",
           borderRadius: "4px",
           fontSize: "0.75rem",
           color: "#6c757d",

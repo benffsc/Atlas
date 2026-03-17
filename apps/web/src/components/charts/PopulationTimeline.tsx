@@ -113,7 +113,7 @@ export function PopulationTimeline({ placeId }: PopulationTimelineProps) {
             style={{
               textAlign: "center",
               padding: "0.75rem",
-              background: "#f3f4f6",
+              background: "var(--bg-secondary)",
               borderRadius: "8px",
             }}
           >
@@ -136,7 +136,7 @@ export function PopulationTimeline({ placeId }: PopulationTimelineProps) {
             top: 0,
             bottom: 0,
             width: "2px",
-            background: "#e5e7eb",
+            background: "var(--bg-secondary)",
           }}
         />
 
@@ -218,7 +218,7 @@ export function PopulationTimeline({ placeId }: PopulationTimelineProps) {
             width: "100%",
             padding: "0.5rem",
             background: "transparent",
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border)",
             borderRadius: "6px",
             cursor: "pointer",
             fontSize: "0.85rem",

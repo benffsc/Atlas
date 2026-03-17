@@ -83,7 +83,7 @@ export function PersonStatusBadges({
 
   // High cat count
   if (catCount != null && catCount > 10) {
-    badges.push({ key: "cats", label: `${catCount} cats`, bg: "#f3f4f6", color: "#374151" });
+    badges.push({ key: "cats", label: `${catCount} cats`, bg: "#f3f4f6", color: "var(--text-secondary)" });
   }
 
   if (badges.length === 0) return null;

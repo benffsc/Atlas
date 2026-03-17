@@ -61,7 +61,7 @@ export function PopulationEstimateCard({ placeId, days = 365 }: PopulationEstima
     return (
       <div style={{
         padding: "1rem",
-        background: "#f9fafb",
+        background: "var(--section-bg)",
         borderRadius: "8px",
         border: "1px solid var(--card-border, #e5e7eb)",
       }}>

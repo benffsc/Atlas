@@ -106,10 +106,10 @@ function AdminFormsContent() {
           <div
             key={t.template_key}
             style={{
-              border: "1px solid #e5e7eb",
+              border: "1px solid var(--border)",
               borderRadius: "8px",
               padding: "16px 20px",
-              background: "#fff",
+              background: "var(--background)",
             }}
           >
             <div
@@ -159,7 +159,7 @@ function AdminFormsContent() {
                 </span>
                 <span
                   style={{
-                    background: "#f3f4f6",
+                    background: "var(--bg-secondary)",
                     padding: "2px 8px",
                     borderRadius: "4px",
                     fontSize: "0.75rem",
@@ -211,7 +211,7 @@ function AdminFormsContent() {
         style={{
           marginTop: "2rem",
           padding: "16px",
-          background: "#f9fafb",
+          background: "var(--section-bg)",
           borderRadius: "8px",
           fontSize: "0.875rem",
           color: "#666",

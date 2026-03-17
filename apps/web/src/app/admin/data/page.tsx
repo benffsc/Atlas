@@ -508,14 +508,14 @@ function ConfigurationTab({ rules }: { rules: RuleEffectiveness[] }) {
     <div>
       {/* Matching Rules */}
       <h3 style={{ marginBottom: "1rem" }}>Matching Rules</h3>
-      <div style={{ background: "white", borderRadius: "8px", border: "1px solid #e5e7eb", overflow: "hidden", marginBottom: "2rem" }}>
+      <div style={{ background: "var(--background)", borderRadius: "8px", border: "1px solid var(--border)", overflow: "hidden", marginBottom: "2rem" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#f9fafb" }}>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Rule</th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>Status</th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>Matches</th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>Avg Score</th>
+            <tr style={{ background: "var(--section-bg)" }}>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "left", borderBottom: "1px solid var(--border)" }}>Rule</th>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)" }}>Status</th>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)" }}>Matches</th>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)" }}>Avg Score</th>
             </tr>
           </thead>
           <tbody>
@@ -528,14 +528,14 @@ function ConfigurationTab({ rules }: { rules: RuleEffectiveness[] }) {
             ) : (
               rules.map((rule) => (
                 <tr key={rule.rule_name}>
-                  <td style={{ padding: "0.75rem 1rem", borderBottom: "1px solid #e5e7eb" }}>{rule.rule_name}</td>
-                  <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>
+                  <td style={{ padding: "0.75rem 1rem", borderBottom: "1px solid var(--border)" }}>{rule.rule_name}</td>
+                  <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)" }}>
                     <StatusBadge status={rule.is_active ? "active" : "inactive"} />
                   </td>
-                  <td style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+                  <td style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)" }}>
                     {rule.total_matches.toLocaleString()}
                   </td>
-                  <td style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+                  <td style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)" }}>
                     {(rule.avg_score * 100).toFixed(0)}%
                   </td>
                 </tr>
@@ -630,9 +630,9 @@ function StatCard({
     <div
       style={{
         padding: "1rem",
-        background: "white",
+        background: "var(--background)",
         borderRadius: "8px",
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border)",
         borderLeft: `4px solid ${color}`,
         cursor: href ? "pointer" : "default",
         transition: "box-shadow 0.15s",
@@ -772,7 +772,7 @@ function DataHubContent() {
       </div>
 
       {/* Main Tabs */}
-      <div style={{ display: "flex", gap: "0.25rem", marginBottom: "1.5rem", borderBottom: "1px solid #e5e7eb", paddingBottom: "0" }}>
+      <div style={{ display: "flex", gap: "0.25rem", marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: "0" }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}

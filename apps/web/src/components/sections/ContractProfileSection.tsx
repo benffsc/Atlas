@@ -160,7 +160,7 @@ export function ContractProfileSection({ personId, data, onDataChange }: Section
         <>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "1rem" }}>
             {/* Contract Status */}
-            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+            <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>Contract</div>
               <span style={{
                 display: "inline-block", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.85rem", fontWeight: 500,
@@ -177,12 +177,12 @@ export function ContractProfileSection({ personId, data, onDataChange }: Section
             </div>
 
             {/* Trapper Type */}
-            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+            <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>Type</div>
               <select
                 value={stats?.trapper_type || "community_trapper"}
                 onChange={(e) => requestChange("type", e.target.value)}
-                style={{ width: "100%", padding: "0.35rem 0.5rem", fontSize: "0.85rem", borderRadius: "6px", border: "1px solid var(--border)", background: "#fff", cursor: "pointer" }}
+                style={{ width: "100%", padding: "0.35rem 0.5rem", fontSize: "0.85rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--background)", cursor: "pointer" }}
               >
                 {Object.entries(TYPE_LABELS).map(([val, label]) => (
                   <option key={val} value={val}>{label}</option>
@@ -194,12 +194,12 @@ export function ContractProfileSection({ personId, data, onDataChange }: Section
             </div>
 
             {/* Role Status */}
-            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+            <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>Status</div>
               <select
                 value={profile.is_active ? "active" : "inactive"}
                 onChange={(e) => requestChange("status", e.target.value)}
-                style={{ width: "100%", padding: "0.35rem 0.5rem", fontSize: "0.85rem", borderRadius: "6px", border: "1px solid var(--border)", background: "#fff", cursor: "pointer" }}
+                style={{ width: "100%", padding: "0.35rem 0.5rem", fontSize: "0.85rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--background)", cursor: "pointer" }}
               >
                 {Object.entries(STATUS_LABELS).map(([val, label]) => (
                   <option key={val} value={val}>{label}</option>
@@ -209,12 +209,12 @@ export function ContractProfileSection({ personId, data, onDataChange }: Section
             </div>
 
             {/* Availability */}
-            <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+            <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>Availability</div>
               <select
                 value={stats?.availability_status || "available"}
                 onChange={(e) => requestChange("availability", e.target.value)}
-                style={{ width: "100%", padding: "0.35rem 0.5rem", fontSize: "0.85rem", borderRadius: "6px", border: "1px solid var(--border)", background: "#fff", cursor: "pointer" }}
+                style={{ width: "100%", padding: "0.35rem 0.5rem", fontSize: "0.85rem", borderRadius: "6px", border: "1px solid var(--border)", background: "var(--background)", cursor: "pointer" }}
               >
                 {Object.entries(AVAILABILITY_LABELS).map(([val, label]) => (
                   <option key={val} value={val}>{label}</option>
@@ -224,14 +224,14 @@ export function ContractProfileSection({ personId, data, onDataChange }: Section
           </div>
 
           {profile.notes && (
-            <div style={{ marginTop: "1rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+            <div style={{ marginTop: "1rem", padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>Notes & Availability</div>
               <div style={{ fontSize: "0.9rem", whiteSpace: "pre-wrap" }}>{profile.notes}</div>
             </div>
           )}
 
           {profile.contract_areas && profile.contract_areas.length > 0 && (
-            <div style={{ marginTop: "1rem", padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+            <div style={{ marginTop: "1rem", padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.5rem" }}>Contracted Areas</div>
               <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                 {profile.contract_areas.map((area, i) => (
@@ -244,7 +244,7 @@ export function ContractProfileSection({ personId, data, onDataChange }: Section
       ) : (
         /* Edit mode form */
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px" }}>
+          <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
               <input type="checkbox" checked={editProfile.has_signed_contract} onChange={(e) => setEditProfile(prev => ({ ...prev, has_signed_contract: e.target.checked }))} />
               <span style={{ fontWeight: 500 }}>Contract Signed</span>

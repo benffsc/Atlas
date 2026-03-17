@@ -393,7 +393,7 @@ export default function EmailAuditPage() {
                     border: "1px solid var(--card-border)",
                     borderRadius: "6px",
                     padding: "1rem",
-                    background: "white",
+                    background: "var(--background)",
                     maxHeight: "300px",
                     overflow: "auto",
                   }}

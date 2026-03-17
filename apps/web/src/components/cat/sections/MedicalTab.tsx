@@ -139,7 +139,7 @@ export function MedicalTab({ data, preview, onAppointmentClick }: MedicalTabProp
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                   {cat.siblings.map(sibling => (
                     <a key={sibling.cat_id} href={`/cats/${sibling.cat_id}`} onClick={preview.handleClick("cat", sibling.cat_id)}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>
+                      style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", background: "var(--background)", border: "1px solid var(--border-light)", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>
                       <span style={{ fontSize: "1.25rem" }}>{"\uD83D\uDC31"}</span>
                       <div>
                         <div style={{ fontWeight: 500 }}>{sibling.display_name}</div>
@@ -309,8 +309,8 @@ export function MedicalTab({ data, preview, onAppointmentClick }: MedicalTabProp
                     </td>
                     <td>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                        {appt.is_spay && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Spay</span>}
-                        {appt.is_neuter && <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.7rem" }}>Neuter</span>}
+                        {appt.is_spay && <span className="badge" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", fontSize: "0.7rem" }}>Spay</span>}
+                        {appt.is_neuter && <span className="badge" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", fontSize: "0.7rem" }}>Neuter</span>}
                         {appt.vaccines?.map((v, i) => <span key={i} className="badge" style={{ background: "#d1e7dd", color: "#0f5132", fontSize: "0.7rem" }}>{v}</span>)}
                         {appt.treatments?.map((t, i) => <span key={i} className="badge" style={{ background: "#cfe2ff", color: "#084298", fontSize: "0.7rem" }}>{t}</span>)}
                       </div>

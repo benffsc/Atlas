@@ -63,7 +63,7 @@ export function FosterAgreementsAdapter({ data }: SectionProps) {
                 fontSize: "0.75rem",
                 padding: "0.125rem 0.375rem",
                 borderRadius: "4px",
-                background: "#f3f4f6",
+                background: "var(--bg-secondary)",
                 color: "#6b7280",
               }}>
                 {agreement.source_system}

@@ -52,7 +52,7 @@ export function ManualCatchesSection({ personId, data, onDataChange }: SectionPr
       {!showAddCatch ? (
         <button onClick={() => setShowAddCatch(true)} style={{ marginBottom: "1rem" }}>+ Add Manual Catch</button>
       ) : (
-        <form onSubmit={handleAddCatch} style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px", marginBottom: "1rem" }}>
+        <form onSubmit={handleAddCatch} style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px", marginBottom: "1rem" }}>
           {addError && (
             <div style={{ color: "#dc3545", marginBottom: "0.75rem", padding: "0.5rem", background: "#f8d7da", borderRadius: "4px", fontSize: "0.875rem" }}>{addError}</div>
           )}

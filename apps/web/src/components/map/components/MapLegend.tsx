@@ -225,7 +225,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
           {!isMobile && (
             <div
               style={{
-                borderTop: "1px solid #e5e7eb",
+                borderTop: "1px solid var(--border)",
                 marginTop: 8,
                 paddingTop: 6,
                 fontSize: 10,
@@ -234,7 +234,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
             >
               <kbd
                 style={{
-                  background: "#f3f4f6",
+                  background: "var(--bg-secondary)",
                   padding: "1px 4px",
                   borderRadius: 3,
                   fontSize: 9,

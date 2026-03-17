@@ -163,7 +163,7 @@ export function FormSubmissionsCard({
       {showUpload && (
         <div
           style={{
-            background: "#f9fafb",
+            background: "var(--section-bg)",
             borderRadius: "6px",
             padding: "12px",
             marginBottom: "12px",
@@ -289,7 +289,7 @@ export function FormSubmissionsCard({
                 justifyContent: "space-between",
                 alignItems: "center",
                 padding: "6px 8px",
-                background: "#f9fafb",
+                background: "var(--section-bg)",
                 borderRadius: "4px",
                 fontSize: "0.8rem",
               }}

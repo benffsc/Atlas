@@ -657,7 +657,7 @@ function IntakeForm() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--background)",
               borderRadius: "12px",
               maxWidth: "500px",
               width: "100%",
@@ -671,7 +671,7 @@ function IntakeForm() {
               <strong>FFSC is a spay/neuter clinic, NOT a 24-hour emergency hospital.</strong>
             </p>
             <p>If this is a life-threatening emergency (severe injury, poisoning, hit by car), please direct caller to:</p>
-            <div style={{ background: "#f8f9fa", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+            <div style={{ background: "var(--section-bg)", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
               <strong>Pet Care Veterinary Hospital</strong><br />
               <span style={{ fontSize: "1.2rem", color: "#198754" }}>(707) 579-3900</span><br />
               <span style={{ color: "#666" }}>2425 Mendocino Ave, Santa Rosa - Open 24/7</span>

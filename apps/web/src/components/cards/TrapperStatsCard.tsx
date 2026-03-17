@@ -58,7 +58,7 @@ function StatBox({
       style={{
         textAlign: "center",
         padding: "0.75rem",
-        background: "#f8f9fa",
+        background: "var(--section-bg)",
         borderRadius: "8px",
         cursor: onClick ? "pointer" : "default",
         transition: "background 0.15s",
@@ -130,7 +130,7 @@ function StatsBreakdownModal({
         {/* Cats Caught Section */}
         <div
           style={{
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
             padding: "1rem",
             marginBottom: "1rem",
@@ -170,7 +170,7 @@ function StatsBreakdownModal({
         {/* Alterations Section */}
         <div
           style={{
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
             padding: "1rem",
             marginBottom: "1rem",
@@ -188,7 +188,7 @@ function StatsBreakdownModal({
               <span>Direct Clinic Bookings:</span>
               <strong>{stats.spayed_count + stats.neutered_count}</strong>
             </div>
-            <div style={{ borderTop: "1px solid #dee2e6", marginTop: "0.5rem", paddingTop: "0.5rem" }}>
+            <div style={{ borderTop: "1px solid var(--border)", marginTop: "0.5rem", paddingTop: "0.5rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>Spayed:</span>
                 <strong>{stats.spayed_count}</strong>
@@ -436,7 +436,7 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
         <div
           style={{
             padding: "1rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
             marginBottom: "1.5rem",
           }}
@@ -478,7 +478,7 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
         <div
           style={{
             padding: "1rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
             marginBottom: "1.5rem",
           }}

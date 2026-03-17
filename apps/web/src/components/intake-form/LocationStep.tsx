@@ -218,7 +218,7 @@ export default function LocationStep({
       )}
 
       {/* Quick check: is caller at location? */}
-      <div style={{ marginTop: "1.5rem", background: "#f8f9fa", padding: "1rem", borderRadius: "8px" }}>
+      <div style={{ marginTop: "1.5rem", background: "var(--section-bg)", padding: "1rem", borderRadius: "8px" }}>
         <div style={{ marginBottom: "1rem" }}>
           <label>Is caller the property owner?</label>
           <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>

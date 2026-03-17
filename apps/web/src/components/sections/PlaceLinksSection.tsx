@@ -183,9 +183,9 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
                 alignItems: "center",
                 gap: "0.75rem",
                 padding: "0.75rem 1rem",
-                background: "#f8f9fa",
+                background: "var(--section-bg)",
                 borderRadius: "8px",
-                border: "1px solid #dee2e6",
+                border: "1px solid var(--border)",
               }}
             >
               <EntityLink
@@ -271,8 +271,8 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
         <div
           style={{
             padding: "1rem",
-            background: "#f8f9fa",
-            border: "1px solid #dee2e6",
+            background: "var(--section-bg)",
+            border: "1px solid var(--border)",
             borderRadius: "8px",
             marginTop: "0.5rem",
           }}
@@ -300,11 +300,11 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
               <div
                 style={{
                   marginTop: "0.5rem",
-                  border: "1px solid #dee2e6",
+                  border: "1px solid var(--border)",
                   borderRadius: "6px",
                   maxHeight: "200px",
                   overflowY: "auto",
-                  background: "white",
+                  background: "var(--background)",
                 }}
               >
                 {searchResults.map((place) => (
@@ -320,7 +320,7 @@ export function PlaceLinksSection({ placeId, placeName }: PlaceLinksSectionProps
                       width: "100%",
                       padding: "0.75rem 1rem",
                       border: "none",
-                      borderBottom: "1px solid #dee2e6",
+                      borderBottom: "1px solid var(--border)",
                       background: "transparent",
                       textAlign: "left",
                       cursor: "pointer",

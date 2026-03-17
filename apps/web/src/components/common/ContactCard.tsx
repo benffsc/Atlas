@@ -303,7 +303,7 @@ export default function ContactCard({
                   left: 0,
                   right: 0,
                   marginTop: "2px",
-                  background: "#fff",
+                  background: "var(--background)",
                   border: "1px solid var(--border, #e5e7eb)",
                   borderRadius: "6px",
                   boxShadow: "0 4px 12px rgba(0,0,0,0.1)",

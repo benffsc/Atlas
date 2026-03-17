@@ -644,7 +644,7 @@ export default function CatDetailsStep({
         <div style={{
           marginTop: "1.5rem",
           padding: "1rem",
-          background: "#f8f9fa",
+          background: "var(--section-bg)",
           borderRadius: "8px",
           border: "1px solid #ddd",
         }}>

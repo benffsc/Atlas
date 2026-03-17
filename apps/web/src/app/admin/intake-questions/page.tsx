@@ -171,7 +171,7 @@ export default function IntakeQuestionsAdmin() {
 
       {/* Add Custom Question Form */}
       {showAddCustom && (
-        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem", background: "#f8f9fa" }}>
+        <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem", background: "var(--section-bg)" }}>
           <h3 style={{ marginTop: 0 }}>Add Custom Question</h3>
           <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1rem" }}>
             Custom questions will appear on the intake form and responses will be saved for staff review.
@@ -290,7 +290,7 @@ export default function IntakeQuestionsAdmin() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                        <code style={{ fontSize: "0.8rem", color: "var(--muted)", background: "#f8f9fa", padding: "0.1rem 0.5rem", borderRadius: "4px" }}>
+                        <code style={{ fontSize: "0.8rem", color: "var(--muted)", background: "var(--section-bg)", padding: "0.1rem 0.5rem", borderRadius: "4px" }}>
                           {q.question_key}
                         </code>
                         {q.is_custom && (

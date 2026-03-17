@@ -58,7 +58,7 @@ export function ConfirmChangeModal({
     >
       <div
         style={{
-          background: "#fff",
+          background: "var(--background)",
           borderRadius: "12px",
           padding: "1.5rem",
           maxWidth: "420px",

@@ -159,15 +159,15 @@ export default function ContactStep({
             top: selectedPersonId ? "calc(100% - 1.5rem)" : "calc(100% - 2rem)",
             left: 0,
             right: 0,
-            background: "#fff",
-            border: "1px solid #dee2e6",
+            background: "var(--background)",
+            border: "1px solid var(--border)",
             borderRadius: "6px",
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
             zIndex: 1000,
             maxHeight: "200px",
             overflowY: "auto",
           }}>
-            <div style={{ padding: "0.5rem 0.75rem", background: "#f8f9fa", borderBottom: "1px solid #dee2e6", fontSize: "0.75rem", color: "#666" }}>
+            <div style={{ padding: "0.5rem 0.75rem", background: "var(--section-bg)", borderBottom: "1px solid var(--border)", fontSize: "0.75rem", color: "#666" }}>
               Existing contacts found:
             </div>
             {personSuggestions.map((person) => (

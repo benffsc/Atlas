@@ -518,7 +518,7 @@ export function PersonSection({
                           borderRadius: "16px",
                           fontSize: "0.8rem",
                           cursor: "pointer",
-                          color: "#374151",
+                          color: "var(--text-secondary)",
                           whiteSpace: "nowrap",
                         }}
                         title={`Use: ${addr.formatted_address}`}

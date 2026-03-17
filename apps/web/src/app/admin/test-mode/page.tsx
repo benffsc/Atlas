@@ -185,7 +185,7 @@ export default function TestModePage() {
                   key={table}
                   style={{
                     padding: "0.25rem 0.5rem",
-                    background: "#e9ecef",
+                    background: "var(--bg-secondary)",
                     borderRadius: "4px",
                     fontSize: "0.8rem",
                     fontFamily: "monospace",
@@ -202,7 +202,7 @@ export default function TestModePage() {
           <div
             style={{
               padding: "0.75rem",
-              background: "#fff",
+              background: "var(--background)",
               borderRadius: "6px",
               border: "1px solid #ffc107",
               fontSize: "0.85rem",

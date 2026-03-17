@@ -151,7 +151,7 @@ export function MergeReviewCard({
   return (
     <div
       style={{
-        background: "white",
+        background: "var(--background)",
         borderRadius: 12,
         border: `1px solid ${isSelected ? "#3b82f6" : "#e5e7eb"}`,
         boxShadow: isSelected
@@ -169,8 +169,8 @@ export function MergeReviewCard({
           justifyContent: "space-between",
           alignItems: "center",
           padding: "12px 16px",
-          background: "#f9fafb",
-          borderBottom: "1px solid #e5e7eb",
+          background: "var(--section-bg)",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -219,7 +219,7 @@ export function MergeReviewCard({
           style={{
             padding: 16,
             background: "rgba(34, 197, 94, 0.04)",
-            borderRight: "1px solid #e5e7eb",
+            borderRight: "1px solid var(--border)",
           }}
         >
           <div
@@ -302,7 +302,7 @@ export function MergeReviewCard({
             alignItems: "center",
             justifyContent: "center",
             padding: "0 12px",
-            background: "#f9fafb",
+            background: "var(--section-bg)",
           }}
         >
           <div
@@ -454,8 +454,8 @@ export function MergeReviewCard({
           justifyContent: "space-between",
           alignItems: "center",
           padding: "12px 16px",
-          background: "#f9fafb",
-          borderTop: "1px solid #e5e7eb",
+          background: "var(--section-bg)",
+          borderTop: "1px solid var(--border)",
         }}
       >
         <button
@@ -464,10 +464,10 @@ export function MergeReviewCard({
             padding: "6px 12px",
             fontSize: 13,
             background: "transparent",
-            border: "1px solid #d1d5db",
+            border: "1px solid var(--border-light)",
             borderRadius: 6,
             cursor: "pointer",
-            color: "#374151",
+            color: "var(--text-secondary)",
           }}
         >
           {showPreview ? "Hide Preview" : "Preview Merge"}

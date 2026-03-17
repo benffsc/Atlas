@@ -244,7 +244,7 @@ export function NoAtlasCatId({ size = "md" }: { size?: "sm" | "md" }) {
         display: "inline-flex",
         alignItems: "center",
         padding: size === "sm" ? "1px 5px" : "2px 8px",
-        background: "#f3f4f6",
+        background: "var(--bg-secondary)",
         color: "#9ca3af",
         borderRadius: "4px",
         fontSize: size === "sm" ? "0.6rem" : "0.7rem",

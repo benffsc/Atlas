@@ -239,7 +239,7 @@ export function PlaceContextPanel({
           padding: compact ? "0.5rem" : "1rem",
           backgroundColor: "#f9fafb",
           borderRadius: "0.5rem",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
           fontSize: "0.875rem",
           color: "#6b7280",
         }}
@@ -371,7 +371,7 @@ export function PlaceContextPanel({
     <div
       style={{
         backgroundColor: "#ffffff",
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border)",
         borderRadius: "0.5rem",
         overflow: "hidden",
       }}
@@ -381,21 +381,21 @@ export function PlaceContextPanel({
         style={{
           padding: "0.75rem 1rem",
           backgroundColor: "#f9fafb",
-          borderBottom: "1px solid #e5e7eb",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           gap: "0.5rem",
         }}
       >
         <span style={{ fontSize: "1rem" }}>Context</span>
-        <span style={{ fontWeight: 500, fontSize: "0.875rem", color: "#374151" }}>
+        <span style={{ fontWeight: 500, fontSize: "0.875rem", color: "var(--text-secondary)" }}>
           {address || context.address}
         </span>
       </div>
 
       {/* Active Requests Section */}
       {context.active_requests.length > 0 && (
-        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ borderBottom: "1px solid var(--border)" }}>
           <button
             onClick={() => toggleSection("active_requests")}
             style={{
@@ -442,7 +442,7 @@ export function PlaceContextPanel({
                     marginBottom: "0.5rem",
                     backgroundColor: "#f9fafb",
                     borderRadius: "0.375rem",
-                    border: "1px solid #e5e7eb",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
@@ -489,7 +489,7 @@ export function PlaceContextPanel({
 
       {/* Clinic Activity Section */}
       {flags.has_recent_clinic && context.clinic_activity && (
-        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ borderBottom: "1px solid var(--border)" }}>
           <button
             onClick={() => toggleSection("clinic")}
             style={{
@@ -517,7 +517,7 @@ export function PlaceContextPanel({
 
           {expandedSections.has("clinic") && (
             <div style={{ padding: "0.75rem 1rem", backgroundColor: "#fff" }}>
-              <div style={{ fontSize: "0.875rem", color: "#374151", marginBottom: "0.5rem" }}>
+              <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "0.5rem" }}>
                 <strong>{context.clinic_activity.total_appointments_6mo}</strong> appointments •
                 Last visit: <strong>{formatDate(context.clinic_activity.last_visit_date)}</strong>
               </div>
@@ -553,7 +553,7 @@ export function PlaceContextPanel({
 
       {/* Google Maps History Section */}
       {context.google_context.length > 0 && (
-        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ borderBottom: "1px solid var(--border)" }}>
           <button
             onClick={() => toggleSection("google")}
             style={{
@@ -589,11 +589,11 @@ export function PlaceContextPanel({
                     marginBottom: "0.5rem",
                     backgroundColor: "#f9fafb",
                     borderRadius: "0.375rem",
-                    border: "1px solid #e5e7eb",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                    <span style={{ fontWeight: 500, fontSize: "0.875rem", color: "#374151" }}>
+                    <span style={{ fontWeight: 500, fontSize: "0.875rem", color: "var(--text-secondary)" }}>
                       {entry.name || "Unnamed Entry"}
                     </span>
                     <span style={{ fontSize: "0.65rem", color: "#9ca3af" }}>
@@ -649,7 +649,7 @@ export function PlaceContextPanel({
 
       {/* Nearby Requests Section */}
       {context.nearby_requests.length > 0 && (
-        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ borderBottom: "1px solid var(--border)" }}>
           <button
             onClick={() => toggleSection("nearby")}
             style={{
@@ -685,7 +685,7 @@ export function PlaceContextPanel({
                     marginBottom: "0.5rem",
                     backgroundColor: "#f9fafb",
                     borderRadius: "0.375rem",
-                    border: "1px solid #e5e7eb",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
@@ -732,7 +732,7 @@ export function PlaceContextPanel({
 
       {/* Condition History Section */}
       {context.condition_history && context.condition_history.length > 0 && (
-        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ borderBottom: "1px solid var(--border)" }}>
           <button
             onClick={() => toggleSection("conditions")}
             style={{
@@ -790,7 +790,7 @@ export function PlaceContextPanel({
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                     <div>
-                      <span style={{ fontWeight: 600, fontSize: "0.875rem", color: "#374151" }}>
+                      <span style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--text-secondary)" }}>
                         {condition.display_label || condition.condition_type.replace("_", " ")}
                       </span>
                       <span
@@ -840,7 +840,7 @@ export function PlaceContextPanel({
 
       {/* Zone Demographics Section */}
       {context.zone_demographics && (
-        <div style={{ borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ borderBottom: "1px solid var(--border)" }}>
           <button
             onClick={() => toggleSection("demographics")}
             style={{

@@ -92,9 +92,9 @@ export function SkeletonCard({
     <div
       style={{
         padding: 16,
-        background: "white",
+        background: "var(--background)",
         borderRadius: 8,
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border)",
       }}
     >
       <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
@@ -119,9 +119,9 @@ export function SkeletonTable({
   return (
     <div
       style={{
-        background: "white",
+        background: "var(--background)",
         borderRadius: 8,
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border)",
         overflow: "hidden",
       }}
     >
@@ -132,8 +132,8 @@ export function SkeletonTable({
           gridTemplateColumns: `repeat(${columns}, 1fr)`,
           gap: 16,
           padding: "12px 16px",
-          background: "#f9fafb",
-          borderBottom: "1px solid #e5e7eb",
+          background: "var(--section-bg)",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         {Array.from({ length: columns }).map((_, i) => (
@@ -213,9 +213,9 @@ export function SkeletonStats({
           key={i}
           style={{
             padding: 16,
-            background: "white",
+            background: "var(--background)",
             borderRadius: 8,
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border)",
           }}
         >
           <Skeleton height={12} width="50%" style={{ marginBottom: 8 }} />

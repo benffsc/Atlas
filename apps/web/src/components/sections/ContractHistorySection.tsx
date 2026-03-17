@@ -86,7 +86,7 @@ export function ContractHistorySection({ personId, data, onDataChange }: Section
           + New Contract
         </button>
       ) : (
-        <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px", marginBottom: "1rem" }}>
+        <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px", marginBottom: "1rem" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
             <div>
               <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Contract Type</label>
@@ -131,7 +131,7 @@ export function ContractHistorySection({ personId, data, onDataChange }: Section
             return (
               <div key={c.contract_id} style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "0.75rem 1rem", background: "#f8f9fa", borderRadius: "8px",
+                padding: "0.75rem 1rem", background: "var(--section-bg)", borderRadius: "8px",
                 borderLeft: `4px solid ${statusStyle.color}`,
                 opacity: c.status === "terminated" || c.status === "expired" ? 0.7 : 1,
               }}>

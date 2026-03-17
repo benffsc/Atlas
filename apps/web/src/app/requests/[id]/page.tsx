@@ -747,8 +747,8 @@ export default function RequestDetailPage() {
             </TabPanel>
 
             <TabPanel tabId="admin" activeTab={activeTab}>
-              <div style={{ padding: "1rem", background: "#f9fafb", borderRadius: "8px" }}>
-                <h4 style={{ margin: "0 0 1rem 0", fontSize: "0.95rem", fontWeight: 600, color: "#374151" }}>Admin Tools</h4>
+              <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
+                <h4 style={{ margin: "0 0 1rem 0", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-secondary)" }}>Admin Tools</h4>
                 {request.place_coordinates && <NearbyEntities requestId={requestId} />}
                 {request.source_system?.startsWith("airtable") && (
                   <button onClick={() => setShowUpgradeWizard(true)} className="btn btn-secondary" style={{ width: "100%", marginTop: "1rem" }}>

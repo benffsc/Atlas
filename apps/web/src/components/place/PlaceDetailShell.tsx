@@ -275,7 +275,7 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
               )}
             </div>
             <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-              {place.partner_org.org_type && <span className="badge" style={{ fontSize: "0.7em", background: "#e9ecef" }}>{formatPlaceKind(place.partner_org.org_type)}</span>}
+              {place.partner_org.org_type && <span className="badge" style={{ fontSize: "0.7em", background: "var(--bg-secondary)" }}>{formatPlaceKind(place.partner_org.org_type)}</span>}
             </div>
           </div>
           {(place.partner_org.appointments_count || place.partner_org.cats_processed) && (

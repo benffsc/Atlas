@@ -360,7 +360,7 @@ export default function EducationMaterialsAdminPage() {
                     onClick={() => setEditingMaterial(material)}
                     style={{
                       padding: "0.375rem 0.75rem",
-                      background: "#f8f9fa",
+                      background: "var(--section-bg)",
                       border: "1px solid #ddd",
                       borderRadius: "4px",
                       cursor: "pointer",
@@ -410,7 +410,7 @@ export default function EducationMaterialsAdminPage() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--background)",
               borderRadius: "8px",
               width: "90%",
               maxWidth: "600px",
@@ -573,7 +573,7 @@ export default function EducationMaterialsAdminPage() {
                 }}
                 style={{
                   padding: "0.5rem 1rem",
-                  background: "#f8f9fa",
+                  background: "var(--section-bg)",
                   border: "1px solid #ddd",
                   borderRadius: "6px",
                   cursor: "pointer",
@@ -618,7 +618,7 @@ export default function EducationMaterialsAdminPage() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--background)",
               borderRadius: "8px",
               width: "90%",
               maxWidth: "500px",
@@ -710,7 +710,7 @@ export default function EducationMaterialsAdminPage() {
                 onClick={() => setEditingMaterial(null)}
                 style={{
                   padding: "0.5rem 1rem",
-                  background: "#f8f9fa",
+                  background: "var(--section-bg)",
                   border: "1px solid #ddd",
                   borderRadius: "6px",
                   cursor: "pointer",

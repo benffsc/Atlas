@@ -240,7 +240,7 @@ export function GeocodingControls() {
       <div style={{
         width: "100%",
         height: "8px",
-        background: "#e9ecef",
+        background: "var(--bg-secondary)",
         borderRadius: "4px",
         marginBottom: "1.5rem",
         overflow: "hidden"

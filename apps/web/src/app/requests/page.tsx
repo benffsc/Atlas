@@ -104,7 +104,7 @@ function DataQualityFlags({
   return (
     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
       {flags.map((flag) => {
-        const cfg = FLAG_CONFIG[flag] || { label: flag, bg: "#e5e7eb", color: "#374151" };
+        const cfg = FLAG_CONFIG[flag] || { label: flag, bg: "#e5e7eb", color: "var(--text-secondary)" };
         const isClickable = flag === "no_trapper" && requestId && onTrapperAction;
 
         return (
@@ -505,7 +505,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
               );
             })() : (
               request.is_legacy_request && ["completed", "cancelled", "partial"].includes(request.status) && (
-                <span className="badge" style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #d1d5db", fontSize: TYPOGRAPHY.size['2xs'] }}>
+                <span className="badge" style={{ background: "var(--bg-secondary)", color: "#6b7280", border: "1px solid var(--border-light)", fontSize: TYPOGRAPHY.size['2xs'] }}>
                   Legacy
                 </span>
               )
@@ -1435,7 +1435,7 @@ function RequestsPageContent() {
                         );
                       })() : (
                         req.is_legacy_request && ["completed", "cancelled", "partial"].includes(req.status) && (
-                          <span className="badge" style={{ background: "#f3f4f6", color: "#6b7280", border: "1px solid #d1d5db", fontSize: "0.7rem" }}>
+                          <span className="badge" style={{ background: "var(--bg-secondary)", color: "#6b7280", border: "1px solid var(--border-light)", fontSize: "0.7rem" }}>
                             Legacy
                           </span>
                         )

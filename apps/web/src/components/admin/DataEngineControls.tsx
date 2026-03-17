@@ -318,14 +318,14 @@ export function DataEngineControls() {
           style={{
             textAlign: "center",
             padding: "0.75rem",
-            background: "#e9ecef",
+            background: "var(--bg-secondary)",
             borderRadius: "8px",
           }}
         >
-          <div style={{ fontSize: "1.25rem", fontWeight: "bold", color: "#495057" }}>
+          <div style={{ fontSize: "1.25rem", fontWeight: "bold", color: "var(--text-secondary)" }}>
             {total.toLocaleString()}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#495057" }}>Total Staged</div>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Total Staged</div>
         </div>
       </div>
 
@@ -334,7 +334,7 @@ export function DataEngineControls() {
         style={{
           width: "100%",
           height: "8px",
-          background: "#e9ecef",
+          background: "var(--bg-secondary)",
           borderRadius: "4px",
           marginBottom: "1.5rem",
           overflow: "hidden",

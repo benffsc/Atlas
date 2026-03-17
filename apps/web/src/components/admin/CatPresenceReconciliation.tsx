@@ -346,7 +346,7 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
                   style={{
                     marginTop: "0.75rem",
                     paddingTop: "0.75rem",
-                    borderTop: "1px solid #e5e7eb",
+                    borderTop: "1px solid var(--border)",
                   }}
                 >
                   <label
@@ -366,7 +366,7 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
                       style={{
                         flex: 1,
                         padding: "0.5rem",
-                        border: "1px solid #d1d5db",
+                        border: "1px solid var(--border-light)",
                         borderRadius: "0.25rem",
                         fontSize: "0.875rem",
                       }}
@@ -399,8 +399,8 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
                       style={{
                         padding: "0.5rem 1rem",
                         backgroundColor: "#f3f4f6",
-                        color: "#374151",
-                        border: "1px solid #d1d5db",
+                        color: "var(--text-secondary)",
+                        border: "1px solid var(--border-light)",
                         borderRadius: "0.25rem",
                         cursor: "pointer",
                       }}
@@ -417,7 +417,7 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
                   style={{
                     marginTop: "0.75rem",
                     paddingTop: "0.75rem",
-                    borderTop: "1px solid #e5e7eb",
+                    borderTop: "1px solid var(--border)",
                   }}
                 >
                   <label
@@ -437,7 +437,7 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
                       style={{
                         flex: 1,
                         padding: "0.5rem",
-                        border: "1px solid #d1d5db",
+                        border: "1px solid var(--border-light)",
                         borderRadius: "0.25rem",
                         fontSize: "0.875rem",
                       }}
@@ -470,8 +470,8 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
                       style={{
                         padding: "0.5rem 1rem",
                         backgroundColor: "#f3f4f6",
-                        color: "#374151",
-                        border: "1px solid #d1d5db",
+                        color: "var(--text-secondary)",
+                        border: "1px solid var(--border-light)",
                         borderRadius: "0.25rem",
                         cursor: "pointer",
                       }}
@@ -520,8 +520,8 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
             padding: "0.5rem 1rem",
             fontSize: "0.875rem",
             backgroundColor: "#f3f4f6",
-            color: "#374151",
-            border: "1px solid #d1d5db",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border-light)",
             borderRadius: "0.375rem",
             cursor: "pointer",
           }}

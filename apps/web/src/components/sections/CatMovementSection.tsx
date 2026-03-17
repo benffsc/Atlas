@@ -176,7 +176,7 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
         <div
           style={{
             padding: "1rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             border: "1px solid var(--border)",
             borderRadius: "8px",
             marginBottom: "1rem",
@@ -270,7 +270,7 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
                 </span>
               </div>
               {r.notes && (
-                <div style={{ marginTop: "0.5rem", color: "#495057" }}>{r.notes}</div>
+                <div style={{ marginTop: "0.5rem", color: "var(--text-secondary)" }}>{r.notes}</div>
               )}
             </div>
           ))}
@@ -286,7 +286,7 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
             gap: "1rem",
             marginBottom: "1rem",
             padding: "0.75rem",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
           }}
         >
@@ -332,7 +332,7 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
                   alignItems: "flex-start",
                   gap: "0.75rem",
                   padding: "0.5rem",
-                  background: "#fff",
+                  background: "var(--background)",
                   borderLeft:
                     event.movement_type === "new_location"
                       ? "3px solid #fd7e14"

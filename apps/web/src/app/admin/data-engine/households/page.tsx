@@ -152,7 +152,7 @@ export default function HouseholdsPage() {
                           style={{
                             padding: "0.125rem 0.375rem",
                             borderRadius: "4px",
-                            background: "#f3f4f6",
+                            background: "var(--bg-secondary)",
                             fontSize: "0.75rem",
                           }}
                         >

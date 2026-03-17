@@ -168,7 +168,7 @@ export default function SourceConfidencePage() {
                     <td>
                       <code
                         style={{
-                          background: "#f3f4f6",
+                          background: "var(--bg-secondary)",
                           padding: "0.2rem 0.4rem",
                           borderRadius: "4px",
                         }}

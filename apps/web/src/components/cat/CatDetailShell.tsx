@@ -186,7 +186,7 @@ export function CatDetailShell({ id }: CatDetailShellProps) {
                 </span>
               )}
               {cat.field_source_count > 1 && !cat.has_field_conflicts && (
-                <span className="badge" style={{ background: "#e9ecef", color: "#495057", fontSize: "0.5em" }} title={`Data from ${cat.field_source_count} sources`}>
+                <span className="badge" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", fontSize: "0.5em" }} title={`Data from ${cat.field_source_count} sources`}>
                   {cat.field_source_count} Sources
                 </span>
               )}

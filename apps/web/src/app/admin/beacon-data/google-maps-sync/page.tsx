@@ -179,7 +179,7 @@ export default function GoogleMapsSyncPage() {
             padding: "1rem",
             backgroundColor: "white",
             borderRadius: "0.5rem",
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border)",
           }}
         >
           <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "0.25rem" }}>
@@ -194,7 +194,7 @@ export default function GoogleMapsSyncPage() {
             padding: "1rem",
             backgroundColor: "white",
             borderRadius: "0.5rem",
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border)",
           }}
         >
           <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "0.25rem" }}>
@@ -212,7 +212,7 @@ export default function GoogleMapsSyncPage() {
             padding: "1rem",
             backgroundColor: "white",
             borderRadius: "0.5rem",
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border)",
           }}
         >
           <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "0.25rem" }}>
@@ -230,7 +230,7 @@ export default function GoogleMapsSyncPage() {
           padding: "1.5rem",
           backgroundColor: "white",
           borderRadius: "0.5rem",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
           marginBottom: "1.5rem",
         }}
       >
@@ -262,7 +262,7 @@ export default function GoogleMapsSyncPage() {
               disabled={uploading}
               style={{
                 padding: "0.5rem",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--border-light)",
                 borderRadius: "0.375rem",
                 fontSize: "0.875rem",
               }}
@@ -322,7 +322,7 @@ export default function GoogleMapsSyncPage() {
             padding: "1.5rem",
             backgroundColor: "white",
             borderRadius: "0.5rem",
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border)",
             marginBottom: "1.5rem",
           }}
         >
@@ -331,7 +331,7 @@ export default function GoogleMapsSyncPage() {
           </h2>
           <table style={{ width: "100%", fontSize: "0.875rem", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
                 <th style={{ textAlign: "left", padding: "0.5rem", color: "#6b7280" }}>File</th>
                 <th style={{ textAlign: "left", padding: "0.5rem", color: "#6b7280" }}>Status</th>
                 <th style={{ textAlign: "right", padding: "0.5rem", color: "#6b7280" }}>Placemarks</th>
@@ -372,7 +372,7 @@ export default function GoogleMapsSyncPage() {
           padding: "1.5rem",
           backgroundColor: "white",
           borderRadius: "0.5rem",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
         }}
       >
         <h2 style={{ margin: "0 0 1rem", fontSize: "1rem", fontWeight: 600 }}>
@@ -442,7 +442,7 @@ export default function GoogleMapsSyncPage() {
             padding: "1.5rem",
             backgroundColor: "white",
             borderRadius: "0.5rem",
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border)",
             marginTop: "1.5rem",
           }}
         >

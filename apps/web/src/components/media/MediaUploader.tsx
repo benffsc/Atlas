@@ -438,10 +438,10 @@ export function MediaUploader({
 
     return (
       <div style={{
-        background: "#f8f9fa",
+        background: "var(--section-bg)",
         borderRadius: "8px",
         padding: "1rem",
-        border: "1px solid #dee2e6",
+        border: "1px solid var(--border)",
       }}>
         <div style={{ textAlign: "center", marginBottom: "1rem" }}>
           <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "#198754", marginBottom: "0.25rem" }}>
@@ -461,7 +461,7 @@ export function MediaUploader({
                 height: 64,
                 objectFit: "cover",
                 borderRadius: "6px",
-                border: "1px solid #dee2e6",
+                border: "1px solid var(--border)",
               }}
             />
           ))}
@@ -470,7 +470,7 @@ export function MediaUploader({
         {/* Clinic day number + appointment picker */}
         <div style={{
           background: "var(--bg-secondary, #fff)",
-          border: "1px solid #dee2e6",
+          border: "1px solid var(--border)",
           borderRadius: "6px",
           padding: "0.75rem",
           marginBottom: "1rem",
@@ -495,7 +495,7 @@ export function MediaUploader({
                 style={{
                   width: "100%",
                   padding: "0.375rem 0.5rem",
-                  border: "1px solid #dee2e6",
+                  border: "1px solid var(--border)",
                   borderRadius: "4px",
                   fontSize: "0.875rem",
                   background: "var(--bg-secondary, #fff)",
@@ -529,7 +529,7 @@ export function MediaUploader({
               style={{
                 width: "5rem",
                 padding: "0.375rem 0.5rem",
-                border: "1px solid #dee2e6",
+                border: "1px solid var(--border)",
                 borderRadius: "4px",
                 fontSize: "0.875rem",
                 textAlign: "center",
@@ -554,7 +554,7 @@ export function MediaUploader({
               padding: "0.5rem 1rem",
               background: "none",
               color: "#6c757d",
-              border: "1px solid #dee2e6",
+              border: "1px solid var(--border)",
               borderRadius: "4px",
               cursor: "pointer",
               fontSize: "0.875rem",
@@ -583,10 +583,10 @@ export function MediaUploader({
 
   return (
     <div style={{
-      background: "#f8f9fa",
+      background: "var(--section-bg)",
       borderRadius: "8px",
       padding: "1rem",
-      border: "1px solid #dee2e6",
+      border: "1px solid var(--border)",
     }}>
       {/* Drop zone */}
       <div
@@ -626,8 +626,8 @@ export function MediaUploader({
                     position: "relative",
                     borderRadius: "4px",
                     overflow: "hidden",
-                    border: "1px solid #dee2e6",
-                    background: "#fff",
+                    border: "1px solid var(--border)",
+                    background: "var(--background)",
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -648,7 +648,7 @@ export function MediaUploader({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      background: "#e9ecef",
+                      background: "var(--bg-secondary)",
                       fontSize: "1.5rem",
                     }}>
                       📄
@@ -660,7 +660,7 @@ export function MediaUploader({
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    color: "#495057",
+                    color: "var(--text-secondary)",
                   }}>
                     {sf.file.name}
                   </div>
@@ -860,7 +860,7 @@ export function MediaUploader({
                 style={{
                   width: "100%",
                   padding: "0.375rem 0.5rem",
-                  border: "1px solid #dee2e6",
+                  border: "1px solid var(--border)",
                   borderRadius: "4px",
                   fontSize: "0.875rem",
                 }}
@@ -884,7 +884,7 @@ export function MediaUploader({
             style={{
               width: "100%",
               padding: "0.5rem",
-              border: "1px solid #dee2e6",
+              border: "1px solid var(--border)",
               borderRadius: "4px",
               fontSize: "0.875rem",
             }}
@@ -908,7 +908,7 @@ export function MediaUploader({
           style={{
             width: "100%",
             padding: "0.5rem",
-            border: "1px solid #dee2e6",
+            border: "1px solid var(--border)",
             borderRadius: "4px",
             fontSize: "0.875rem",
           }}
@@ -929,7 +929,7 @@ export function MediaUploader({
           </div>
           <div style={{
             height: "8px",
-            background: "#e9ecef",
+            background: "var(--bg-secondary)",
             borderRadius: "4px",
             overflow: "hidden",
           }}>

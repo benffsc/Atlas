@@ -77,7 +77,7 @@ export function ConfidenceMeter({ confidence }: { confidence: number }) {
         style={{
           width: "60px",
           height: "6px",
-          background: "#e9ecef",
+          background: "var(--bg-secondary)",
           borderRadius: "3px",
           overflow: "hidden",
         }}

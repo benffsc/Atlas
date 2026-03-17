@@ -56,20 +56,20 @@ export const COLORS = {
   gray800: '#1f2937',
   gray900: '#111827',
 
-  // Text colors
-  textPrimary: '#111827',
-  textSecondary: '#6b7280',
-  textMuted: '#9ca3af',
+  // Text colors — use CSS variables for dark mode support
+  textPrimary: 'var(--text-primary, #111827)',
+  textSecondary: 'var(--text-secondary, #6b7280)',
+  textMuted: 'var(--text-tertiary, #9ca3af)',
   textInverse: '#ffffff',
 
-  // Background colors
-  bgPrimary: '#ffffff',
-  bgSecondary: '#f9fafb',
-  bgTertiary: '#f3f4f6',
+  // Background colors — use CSS variables for dark mode support
+  bgPrimary: 'var(--background, #ffffff)',
+  bgSecondary: 'var(--bg-secondary, #f9fafb)',
+  bgTertiary: 'var(--bg-tertiary, #f3f4f6)',
   bgDark: '#111827',
 
-  // Border colors
-  border: '#e5e7eb',
+  // Border colors — use CSS variables for dark mode support
+  border: 'var(--border-default, #e5e7eb)',
   borderFocus: '#3b82f6',
   borderError: '#ef4444',
 

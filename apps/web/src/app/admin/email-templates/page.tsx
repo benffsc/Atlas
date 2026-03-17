@@ -387,7 +387,7 @@ export default function EmailTemplatesAdminPage() {
                       onClick={() => openEditModal(template)}
                       style={{
                         padding: "0.375rem 0.75rem",
-                        background: "#f8f9fa",
+                        background: "var(--section-bg)",
                         border: "1px solid #ddd",
                         borderRadius: "4px",
                         cursor: "pointer",
@@ -452,7 +452,7 @@ export default function EmailTemplatesAdminPage() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--background)",
               borderRadius: "8px",
               width: "90%",
               maxWidth: "800px",
@@ -659,7 +659,7 @@ export default function EmailTemplatesAdminPage() {
                 onClick={closeModal}
                 style={{
                   padding: "0.5rem 1rem",
-                  background: "#f8f9fa",
+                  background: "var(--section-bg)",
                   border: "1px solid #ddd",
                   borderRadius: "6px",
                   cursor: "pointer",
@@ -704,7 +704,7 @@ export default function EmailTemplatesAdminPage() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--background)",
               borderRadius: "8px",
               width: "90%",
               maxWidth: "800px",
@@ -838,7 +838,7 @@ export default function EmailTemplatesAdminPage() {
                 onClick={closeSuggestModal}
                 style={{
                   padding: "0.5rem 1rem",
-                  background: "#f8f9fa",
+                  background: "var(--section-bg)",
                   border: "1px solid #ddd",
                   borderRadius: "6px",
                   cursor: "pointer",

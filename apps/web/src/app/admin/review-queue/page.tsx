@@ -198,7 +198,7 @@ export default function ReviewQueuePage() {
                   disabled={bulkLoading}
                   style={{
                     padding: "0.4rem 0.75rem", borderRadius: "6px",
-                    border: "1px solid var(--border)", background: "white", color: "#6b7280",
+                    border: "1px solid var(--border)", background: "var(--background)", color: "#6b7280",
                     fontSize: "0.8rem", cursor: "pointer", opacity: bulkLoading ? 0.5 : 1,
                   }}
                 >
@@ -340,7 +340,7 @@ export default function ReviewQueuePage() {
                   disabled={actionLoading === item.id || bulkLoading}
                   style={{
                     padding: "0.4rem 0.75rem", borderRadius: "6px",
-                    border: "1px solid var(--border)", background: "white", color: "#6b7280",
+                    border: "1px solid var(--border)", background: "var(--background)", color: "#6b7280",
                     fontSize: "0.8rem", cursor: "pointer",
                   }}
                 >

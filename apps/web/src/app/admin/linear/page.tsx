@@ -256,9 +256,9 @@ function SyncStatusSection({
               key={status.sync_type}
               style={{
                 padding: "1rem",
-                background: "white",
+                background: "var(--background)",
                 borderRadius: "8px",
-                border: "1px solid #e5e7eb",
+                border: "1px solid var(--border)",
                 borderTop: `3px solid ${config.color}`,
               }}
             >
@@ -302,7 +302,7 @@ function CycleSection({ cycle }: { cycle: CurrentCycle | null }) {
         <div
           style={{
             padding: "2rem",
-            background: "#f9fafb",
+            background: "var(--section-bg)",
             borderRadius: "8px",
             textAlign: "center",
             color: "#6b7280",
@@ -320,9 +320,9 @@ function CycleSection({ cycle }: { cycle: CurrentCycle | null }) {
       <div
         style={{
           padding: "1.5rem",
-          background: "white",
+          background: "var(--background)",
           borderRadius: "8px",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
@@ -386,9 +386,9 @@ function IssueSummarySection({ data }: { data: IssueSummary[] }) {
               key={summary.state_type}
               style={{
                 padding: "1rem",
-                background: "white",
+                background: "var(--background)",
                 borderRadius: "8px",
-                border: "1px solid #e5e7eb",
+                border: "1px solid var(--border)",
                 borderLeft: `4px solid ${config.color}`,
               }}
             >
@@ -434,7 +434,7 @@ function IssueSummarySection({ data }: { data: IssueSummary[] }) {
         <div
           style={{
             padding: "0.5rem 1rem",
-            background: "#f3f4f6",
+            background: "var(--bg-secondary)",
             color: "#6b7280",
             borderRadius: "6px",
             fontSize: "0.8rem",
@@ -456,23 +456,23 @@ function TeamWorkloadSection({ data }: { data: TeamWorkload[] }) {
   return (
     <div style={{ marginBottom: "2rem" }}>
       <h2 style={{ margin: 0, fontSize: "1.25rem", marginBottom: "1rem" }}>Team Workload</h2>
-      <div style={{ background: "white", borderRadius: "8px", border: "1px solid #e5e7eb", overflow: "hidden" }}>
+      <div style={{ background: "var(--background)", borderRadius: "8px", border: "1px solid var(--border)", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: "#f9fafb" }}>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "left", borderBottom: "1px solid #e5e7eb", fontSize: "0.75rem" }}>
+            <tr style={{ background: "var(--section-bg)" }}>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "left", borderBottom: "1px solid var(--border)", fontSize: "0.75rem" }}>
                 Team Member
               </th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid #e5e7eb", fontSize: "0.75rem" }}>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)", fontSize: "0.75rem" }}>
                 In Progress
               </th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid #e5e7eb", fontSize: "0.75rem" }}>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)", fontSize: "0.75rem" }}>
                 To Do
               </th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid #e5e7eb", fontSize: "0.75rem" }}>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)", fontSize: "0.75rem" }}>
                 Overdue
               </th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid #e5e7eb", fontSize: "0.75rem" }}>
+              <th style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)", fontSize: "0.75rem" }}>
                 Estimate
               </th>
             </tr>
@@ -480,7 +480,7 @@ function TeamWorkloadSection({ data }: { data: TeamWorkload[] }) {
           <tbody>
             {data.map((member) => (
               <tr key={member.id}>
-                <td style={{ padding: "0.75rem 1rem", borderBottom: "1px solid #e5e7eb" }}>
+                <td style={{ padding: "0.75rem 1rem", borderBottom: "1px solid var(--border)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     {member.avatar_url ? (
                       <img
@@ -494,7 +494,7 @@ function TeamWorkloadSection({ data }: { data: TeamWorkload[] }) {
                           width: 24,
                           height: 24,
                           borderRadius: "50%",
-                          background: "#e5e7eb",
+                          background: "var(--bg-secondary)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -509,22 +509,22 @@ function TeamWorkloadSection({ data }: { data: TeamWorkload[] }) {
                     <span style={{ fontWeight: 500 }}>{member.display_name || member.name}</span>
                   </div>
                 </td>
-                <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>
+                <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)" }}>
                   <span style={{ fontWeight: member.in_progress > 0 ? 600 : 400, color: member.in_progress > 0 ? "#3b82f6" : "#9ca3af" }}>
                     {member.in_progress}
                   </span>
                 </td>
-                <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>
+                <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)" }}>
                   {member.assigned_todo}
                 </td>
-                <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>
+                <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)" }}>
                   {member.overdue > 0 ? (
                     <span style={{ fontWeight: 600, color: "#dc2626" }}>{member.overdue}</span>
                   ) : (
                     <span style={{ color: "#9ca3af" }}>0</span>
                   )}
                 </td>
-                <td style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid #e5e7eb", color: "#6b7280" }}>
+                <td style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)", color: "#6b7280" }}>
                   {member.total_estimate || "-"}
                 </td>
               </tr>
@@ -557,7 +557,7 @@ function ClaudeSessionsSection({ data }: { data: ClaudeSession[] }) {
         <div
           style={{
             padding: "2rem",
-            background: "#f9fafb",
+            background: "var(--section-bg)",
             borderRadius: "8px",
             textAlign: "center",
             color: "#6b7280",
@@ -572,9 +572,9 @@ function ClaudeSessionsSection({ data }: { data: ClaudeSession[] }) {
               key={session.id}
               style={{
                 padding: "1rem",
-                background: "white",
+                background: "var(--background)",
                 borderRadius: "8px",
-                border: "1px solid #e5e7eb",
+                border: "1px solid var(--border)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",

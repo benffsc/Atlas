@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback, useRef } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
@@ -11,6 +11,7 @@ import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { TrapperPreviewContent } from "@/components/preview/TrapperPreviewContent";
 import { EditTrapperDrawer } from "@/components/trappers/EditTrapperDrawer";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
+import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
 
 interface AssignedRequest {
   request_id: string;
@@ -482,7 +483,7 @@ function TrapperCard({
           <ActiveAssignmentsBadge count={trapper.active_assignments} />
         </div>
         {relTime && (
-          <span style={{ fontSize: "0.75rem", color: actColor || "#999" }}>
+          <span style={{ fontSize: "0.75rem", color: actColor || "var(--text-tertiary)" }}>
             {relTime}
           </span>
         )}
@@ -565,7 +566,6 @@ function TrappersPageInner() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [searchInput, setSearchInput] = useState(filters.search);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Batch selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -629,14 +629,6 @@ function TrappersPageInner() {
   useEffect(() => {
     setSearchInput(filters.search);
   }, [filters.search]);
-
-  const handleSearchChange = (value: string) => {
-    setSearchInput(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setFilters({ search: value, page: "0" });
-    }, 300);
-  };
 
   const requestChange = (
     trapper: Trapper,
@@ -885,152 +877,87 @@ function TrappersPageInner() {
         </>
       )}
 
-      {/* Filter Bar — Chip-based */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.4rem",
-          marginBottom: "1rem",
-          flexWrap: "wrap",
-        }}
-      >
-        {/* Tier Chips */}
-        {([
-          { value: "all", label: "All", color: "#2563eb" },
-          { value: "1", label: "FFSC Official", color: "#198754" },
-          { value: "2", label: "Community", color: "#fd7e14" },
-          { value: "3", label: "Legacy", color: "#6c757d" },
-        ] as const).map((chip) => {
-          const active = filters.tier === chip.value;
-          return (
-            <button
-              key={chip.value}
-              onClick={() => setFilters({ tier: active && chip.value !== "all" ? "all" : chip.value, page: "0" })}
-              style={{
-                padding: "0.25rem 0.75rem",
-                borderRadius: "9999px",
-                fontSize: "0.8rem",
-                fontWeight: active ? 600 : 400,
-                border: `1px solid ${active ? chip.color : "var(--border-light)"}`,
-                background: active ? chip.color : "transparent",
-                color: active ? "#fff" : "var(--text-primary)",
-                cursor: "pointer",
-              }}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
-
-        <div style={{ borderLeft: "1px solid var(--border-light)", height: "1.2rem", margin: "0 0.15rem" }} />
-
-        {/* Availability Chips */}
-        {([
-          { value: "all", label: "All Status" },
-          { value: "available", label: "Available" },
-          { value: "busy", label: "Busy" },
-          { value: "on_leave", label: "On Leave" },
-        ] as const).map((chip) => {
-          const active = filters.availability === chip.value;
-          const style = chip.value !== "all" ? AVAILABILITY_STYLES[chip.value] : undefined;
-          return (
-            <button
-              key={chip.value}
-              onClick={() => setFilters({ availability: active && chip.value !== "all" ? "all" : chip.value, page: "0" })}
-              style={{
-                padding: "0.25rem 0.75rem",
-                borderRadius: "9999px",
-                fontSize: "0.8rem",
-                fontWeight: active ? 600 : 400,
-                border: `1px solid ${active ? (style?.color || "var(--primary)") : "var(--border-light)"}`,
-                background: active ? (style?.bg || "var(--info-bg)") : "transparent",
-                color: active ? (style?.color || "var(--info-text)") : "var(--text-primary)",
-                cursor: "pointer",
-              }}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
-
-        <div style={{ borderLeft: "1px solid var(--border-light)", height: "1.2rem", margin: "0 0.15rem" }} />
-
-        {/* Toggle Chips: Active / Dormant */}
-        <button
-          onClick={() => setFilters({ active: filters.active === "true" ? "false" : "true", page: "0" })}
-          style={{
-            padding: "0.25rem 0.75rem",
-            borderRadius: "9999px",
-            fontSize: "0.8rem",
-            fontWeight: filters.active === "true" ? 600 : 400,
-            border: `1px solid ${filters.active === "true" ? "var(--primary)" : "var(--border-light)"}`,
-            background: filters.active === "true" ? "var(--info-bg)" : "transparent",
-            color: filters.active === "true" ? "var(--info-text)" : "var(--text-primary)",
-            cursor: "pointer",
-          }}
-        >
-          Active only
-        </button>
-        <button
-          onClick={() => setFilters({ dormant: filters.dormant === "true" ? "false" : "true", page: "0" })}
-          style={{
-            padding: "0.25rem 0.75rem",
-            borderRadius: "9999px",
-            fontSize: "0.8rem",
-            fontWeight: filters.dormant === "true" ? 600 : 400,
-            border: `1px solid ${filters.dormant === "true" ? "var(--danger-text)" : "var(--border-light)"}`,
-            background: filters.dormant === "true" ? "var(--danger-bg)" : "transparent",
-            color: filters.dormant === "true" ? "var(--danger-text)" : "var(--text-primary)",
-            cursor: "pointer",
-          }}
-        >
-          Dormant
-        </button>
-
-        <div style={{ borderLeft: "1px solid var(--border-light)", height: "1.2rem", margin: "0 0.15rem" }} />
-
-        {/* Sort Dropdown (compact) */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Sort:</span>
-          <select
-            value={filters.sort}
-            onChange={(e) => setFilters({ sort: e.target.value, page: "0" })}
-            style={{
-              padding: "0.2rem 0.4rem",
-              fontSize: "0.8rem",
-              border: "1px solid var(--border-light)",
-              borderRadius: "6px",
-              background: "var(--card-bg)",
-              color: "var(--foreground)",
-            }}
-          >
-            <option value="tier_sort">Tier</option>
-            <option value="total_cats_caught">Cats Fixed</option>
-            <option value="active_assignments">Active Assignments</option>
-            <option value="completed_assignments">Completed</option>
-            <option value="display_name">Name</option>
-            <option value="last_activity_date">Last Activity</option>
-          </select>
-        </div>
-
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="Search by name..."
+      {/* Filter Bar */}
+      <FilterBar>
+        <SearchInput
           value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          style={{
-            padding: "0.3rem 0.75rem",
-            border: "1px solid var(--border-light)",
-            borderRadius: "9999px",
-            fontSize: "0.8rem",
-            minWidth: "160px",
-            background: "var(--input-bg)",
-            color: "var(--input-text)",
-          }}
+          onChange={setSearchInput}
+          onDebouncedChange={(v) => setFilters({ search: v, page: "0" })}
+          placeholder="Search by name..."
+          size="sm"
         />
-
+        <FilterDivider />
+        {/* Tier Chips */}
+        <ToggleButtonGroup
+          options={[
+            { value: "all", label: "All" },
+            { value: "1", label: "FFSC Official", color: "#198754" },
+            { value: "2", label: "Community", color: "#fd7e14" },
+            { value: "3", label: "Legacy", color: "#6c757d" },
+          ]}
+          value={filters.tier}
+          onChange={(v) => setFilters({ tier: v || "all", page: "0" })}
+          allowDeselect
+          defaultValue="all"
+          size="sm"
+          aria-label="Filter by tier"
+        />
+        <FilterDivider />
+        {/* Availability Chips */}
+        <ToggleButtonGroup
+          options={[
+            { value: "all", label: "All Status" },
+            { value: "available", label: "Available" },
+            { value: "busy", label: "Busy" },
+            { value: "on_leave", label: "On Leave" },
+          ]}
+          value={filters.availability}
+          onChange={(v) => setFilters({ availability: v || "all", page: "0" })}
+          allowDeselect
+          defaultValue="all"
+          size="sm"
+          aria-label="Filter by availability"
+        />
+        <FilterDivider />
+        {/* Toggle Chips */}
+        <ToggleButtonGroup
+          options={[{ value: "true", label: "Active only" }]}
+          value={filters.active}
+          onChange={(v) => setFilters({ active: v || "false", page: "0" })}
+          allowDeselect
+          defaultValue="false"
+          size="sm"
+        />
+        <ToggleButtonGroup
+          options={[{ value: "true", label: "Dormant" }]}
+          value={filters.dormant}
+          onChange={(v) => setFilters({ dormant: v || "false", page: "0" })}
+          allowDeselect
+          defaultValue="false"
+          size="sm"
+        />
+        <FilterDivider />
+        {/* Sort */}
+        <select
+          value={filters.sort}
+          onChange={(e) => setFilters({ sort: e.target.value, page: "0" })}
+          style={{
+            padding: "0.3rem 0.5rem",
+            fontSize: "0.75rem",
+            borderRadius: "9999px",
+            border: "1px solid var(--border, #e5e7eb)",
+            background: "var(--card-bg, #fff)",
+            color: "var(--text-primary, #111827)",
+            cursor: "pointer",
+          }}
+        >
+          <option value="tier_sort">Tier</option>
+          <option value="total_cats_caught">Cats Fixed</option>
+          <option value="active_assignments">Active Assignments</option>
+          <option value="completed_assignments">Completed</option>
+          <option value="display_name">Name</option>
+          <option value="last_activity_date">Last Activity</option>
+        </select>
         {/* View Toggle */}
         <div style={{ display: "flex", gap: "2px", marginLeft: "auto", flexShrink: 0 }}>
           {([
@@ -1060,7 +987,7 @@ function TrappersPageInner() {
             </button>
           ))}
         </div>
-      </div>
+      </FilterBar>
 
       {/* Batch Toolbar + CSV Export */}
       <div style={{

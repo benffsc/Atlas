@@ -633,7 +633,7 @@ function OptionsEditor({
             <code
               style={{
                 flex: 1, fontSize: "0.75rem", padding: "2px 6px",
-                background: "#fff", border: "1px solid var(--card-border, #e5e7eb)",
+                background: "var(--background)", border: "1px solid var(--card-border, #e5e7eb)",
                 borderRadius: "3px",
               }}
             >

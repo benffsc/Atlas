@@ -211,7 +211,7 @@ export default function ProcessorsPage() {
                   className="card"
                   style={{
                     padding: "0.75rem",
-                    background: "#f9fafb",
+                    background: "var(--section-bg)",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",

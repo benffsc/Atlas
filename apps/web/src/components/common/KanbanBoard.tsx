@@ -1,39 +1,41 @@
 "use client";
 
 import { useState } from "react";
-import { StatusBadge, PriorityBadge } from "@/components/badges";
+import { PriorityBadge } from "@/components/badges";
 import { formatDateLocal } from "@/lib/formatters";
 import { REQUEST_STATUS_COLORS } from "@/lib/design-tokens";
+import { KanbanBoard as SharedKanbanBoard } from "@/components/kanban";
+import type { KanbanColumn } from "@/components/kanban";
 
 // MIG_2530: Simplified 4-state status system
-const KANBAN_COLUMNS = [
+const KANBAN_COLUMNS: KanbanColumn[] = [
   {
     status: "new",
     label: "New",
     color: REQUEST_STATUS_COLORS.new.border,
     bgColor: REQUEST_STATUS_COLORS.new.bg,
-    description: "Awaiting initial review"
+    description: "Awaiting initial review",
   },
   {
     status: "working",
     label: "Working",
     color: REQUEST_STATUS_COLORS.working.border,
     bgColor: REQUEST_STATUS_COLORS.working.bg,
-    description: "Actively being handled"
+    description: "Actively being handled",
   },
   {
     status: "paused",
     label: "Paused",
     color: REQUEST_STATUS_COLORS.paused.border,
     bgColor: REQUEST_STATUS_COLORS.paused.bg,
-    description: "On hold"
+    description: "On hold",
   },
   {
     status: "completed",
     label: "Completed",
     color: REQUEST_STATUS_COLORS.completed.border,
     bgColor: REQUEST_STATUS_COLORS.completed.bg,
-    description: "Finished"
+    description: "Finished",
   },
 ];
 
@@ -74,28 +76,13 @@ interface Request {
 interface KanbanBoardProps {
   requests: Request[];
   onStatusChange?: (requestId: string, newStatus: string) => Promise<void>;
+  onBeforeDrop?: (itemId: string, fromStatus: string, toStatus: string) => Promise<boolean> | boolean;
   isUpdating?: boolean;
 }
 
-function KanbanCard({
-  request,
-  onStatusChange,
-  isUpdating
-}: {
-  request: Request;
-  onStatusChange?: (requestId: string, newStatus: string) => Promise<void>;
-  isUpdating?: boolean;
-}) {
-  const [showStatusMenu, setShowStatusMenu] = useState(false);
+function RequestKanbanCard({ request }: { request: Request }) {
   const hasKittens = request.has_kittens;
   const isPriority = request.priority === "urgent" || request.priority === "high";
-
-  const handleStatusClick = async (newStatus: string) => {
-    setShowStatusMenu(false);
-    if (onStatusChange && newStatus !== request.status) {
-      await onStatusChange(request.request_id, newStatus);
-    }
-  };
 
   return (
     <div
@@ -104,8 +91,7 @@ function KanbanCard({
         border: `1px solid ${isPriority ? REQUEST_STATUS_COLORS.working.border : "var(--card-border, #e5e7eb)"}`,
         borderRadius: "8px",
         padding: "0.75rem",
-        marginBottom: "0.5rem",
-        cursor: "pointer",
+        cursor: "grab",
         transition: "box-shadow 0.15s, transform 0.15s",
         boxShadow: isPriority ? "0 0 0 1px #fbbf24" : undefined,
       }}
@@ -118,86 +104,9 @@ function KanbanCard({
         e.currentTarget.style.transform = "translateY(0)";
       }}
     >
-      {/* Header: Priority + Status Dropdown */}
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
         <PriorityBadge priority={request.priority} />
-
-        {/* Status change dropdown */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowStatusMenu(!showStatusMenu);
-            }}
-            disabled={isUpdating}
-            style={{
-              padding: "2px 6px",
-              fontSize: "0.65rem",
-              background: "var(--bg-secondary, #f3f4f6)",
-              border: "1px solid var(--border, #e5e7eb)",
-              borderRadius: "4px",
-              cursor: isUpdating ? "wait" : "pointer",
-              color: "var(--text-muted)",
-            }}
-          >
-            {isUpdating ? "..." : "Move"}
-          </button>
-
-          {showStatusMenu && (
-            <>
-              <div
-                style={{ position: "fixed", inset: 0, zIndex: 99 }}
-                onClick={(e) => { e.stopPropagation(); setShowStatusMenu(false); }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  right: 0,
-                  marginTop: "4px",
-                  background: "var(--card-bg, white)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "6px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  zIndex: 100,
-                  minWidth: "120px",
-                }}
-              >
-                {KANBAN_COLUMNS.map((col) => (
-                  <button
-                    key={col.status}
-                    onClick={(e) => { e.stopPropagation(); handleStatusClick(col.status); }}
-                    disabled={STATUS_TO_COLUMN[request.status] === col.status}
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      padding: "8px 12px",
-                      border: "none",
-                      background: STATUS_TO_COLUMN[request.status] === col.status ? col.bgColor : "transparent",
-                      textAlign: "left",
-                      cursor: STATUS_TO_COLUMN[request.status] === col.status ? "default" : "pointer",
-                      fontSize: "0.8rem",
-                      color: STATUS_TO_COLUMN[request.status] === col.status ? col.color : "inherit",
-                      fontWeight: STATUS_TO_COLUMN[request.status] === col.status ? 600 : 400,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (STATUS_TO_COLUMN[request.status] !== col.status) {
-                        e.currentTarget.style.background = col.bgColor;
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (STATUS_TO_COLUMN[request.status] !== col.status) {
-                        e.currentTarget.style.background = "transparent";
-                      }
-                    }}
-                  >
-                    {col.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
       </div>
 
       {/* Title */}
@@ -216,6 +125,7 @@ function KanbanCard({
           whiteSpace: "nowrap",
         }}
         title={request.summary || undefined}
+        onClick={(e) => e.stopPropagation()}
       >
         {request.summary || <span style={{ color: "var(--text-muted)" }}>No summary</span>}
       </a>
@@ -236,7 +146,7 @@ function KanbanCard({
         </div>
       )}
 
-      {/* Footer: Cat count, Kittens, Date */}
+      {/* Footer */}
       <div
         style={{
           display: "flex",
@@ -265,7 +175,7 @@ function KanbanCard({
             </span>
           )}
         </div>
-        <span title={formatDateLocal(request.source_created_at || request.created_at, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "numeric" })}>
+        <span>
           {formatDateLocal(request.source_created_at || request.created_at)}
         </span>
       </div>
@@ -293,130 +203,44 @@ function KanbanCard({
   );
 }
 
-export function KanbanBoard({ requests, onStatusChange, isUpdating }: KanbanBoardProps) {
-  // Group requests by column
-  const columns = KANBAN_COLUMNS.map((col) => {
-    const columnRequests = requests.filter(
-      (req) => STATUS_TO_COLUMN[req.status] === col.status
-    );
-    return {
-      ...col,
-      requests: columnRequests,
-    };
-  });
-
+export function KanbanBoard({ requests, onStatusChange, onBeforeDrop }: KanbanBoardProps) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: "1rem",
-        minHeight: "400px",
-      }}
-    >
-      {columns.map((column) => (
-        <div
-          key={column.status}
-          style={{
-            background: "var(--bg-secondary, #f9fafb)",
-            borderRadius: "10px",
-            padding: "0.75rem",
-            minHeight: "300px",
-          }}
-        >
-          {/* Column Header */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "0.75rem",
-              paddingBottom: "0.5rem",
-              borderBottom: `2px solid ${column.color}`,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "50%",
-                  background: column.color,
-                }}
-              />
-              <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                {column.label}
-              </span>
-            </div>
-            <span
-              style={{
-                background: column.bgColor,
-                color: column.color,
-                padding: "2px 8px",
-                borderRadius: "10px",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-              }}
-            >
-              {column.requests.length}
-            </span>
-          </div>
-
-          {/* Column Description */}
-          <div
-            style={{
-              fontSize: "0.7rem",
-              color: "var(--text-muted)",
-              marginBottom: "0.75rem",
-            }}
-          >
-            {column.description}
-          </div>
-
-          {/* Cards */}
-          <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 350px)" }}>
-            {column.requests.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "2rem 1rem",
-                  color: "var(--text-muted)",
-                  fontSize: "0.8rem",
-                  fontStyle: "italic",
-                }}
-              >
-                No requests
-              </div>
-            ) : (
-              column.requests.map((request) => (
-                <KanbanCard
-                  key={request.request_id}
-                  request={request}
-                  onStatusChange={onStatusChange}
-                  isUpdating={isUpdating}
-                />
-              ))
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
+    <SharedKanbanBoard<Request>
+      columns={KANBAN_COLUMNS}
+      items={requests}
+      getItemId={(r) => r.request_id}
+      getItemStatus={(r) => r.status}
+      statusToColumn={(status) => STATUS_TO_COLUMN[status] || status}
+      renderCard={(r) => <RequestKanbanCard request={r} />}
+      onStatusChange={onStatusChange}
+      onBeforeDrop={onBeforeDrop}
+    />
   );
 }
 
-// Mobile-friendly stacked view
-export function KanbanBoardMobile({ requests, onStatusChange, isUpdating }: KanbanBoardProps) {
+// Mobile-friendly stacked view — uses dropdown instead of drag
+export function KanbanBoardMobile({ requests, onStatusChange }: KanbanBoardProps) {
   const [expandedColumn, setExpandedColumn] = useState<string | null>("new");
+  const [movingId, setMovingId] = useState<string | null>(null);
 
-  const columns = KANBAN_COLUMNS.map((col) => {
-    const columnRequests = requests.filter(
-      (req) => STATUS_TO_COLUMN[req.status] === col.status
-    );
-    return {
-      ...col,
-      requests: columnRequests,
-    };
-  });
+  const columns = KANBAN_COLUMNS.map((col) => ({
+    ...col,
+    requests: requests.filter(
+      (req) => (STATUS_TO_COLUMN[req.status] || req.status) === col.status,
+    ),
+  }));
+
+  const handleMobileStatusChange = async (requestId: string, newStatus: string) => {
+    if (!onStatusChange) return;
+    setMovingId(requestId);
+    try {
+      await onStatusChange(requestId, newStatus);
+    } catch (err) {
+      console.error("Mobile status change failed:", err);
+    } finally {
+      setMovingId(null);
+    }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -429,7 +253,6 @@ export function KanbanBoardMobile({ requests, onStatusChange, isUpdating }: Kanb
             overflow: "hidden",
           }}
         >
-          {/* Collapsible Header */}
           <button
             onClick={() => setExpandedColumn(expandedColumn === column.status ? null : column.status)}
             style={{
@@ -450,7 +273,7 @@ export function KanbanBoardMobile({ requests, onStatusChange, isUpdating }: Kanb
               </span>
               <span
                 style={{
-                  background: "white",
+                  background: "var(--background)",
                   color: column.color,
                   padding: "2px 8px",
                   borderRadius: "10px",
@@ -462,11 +285,10 @@ export function KanbanBoardMobile({ requests, onStatusChange, isUpdating }: Kanb
               </span>
             </div>
             <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              {expandedColumn === column.status ? "▼" : "▶"}
+              {expandedColumn === column.status ? "\u25BC" : "\u25B6"}
             </span>
           </button>
 
-          {/* Expandable Content */}
           {expandedColumn === column.status && (
             <div style={{ padding: "0.75rem" }}>
               {column.requests.length === 0 ? (
@@ -483,12 +305,35 @@ export function KanbanBoardMobile({ requests, onStatusChange, isUpdating }: Kanb
                 </div>
               ) : (
                 column.requests.map((request) => (
-                  <KanbanCard
-                    key={request.request_id}
-                    request={request}
-                    onStatusChange={onStatusChange}
-                    isUpdating={isUpdating}
-                  />
+                  <div key={request.request_id} style={{ marginBottom: "0.5rem" }}>
+                    <RequestKanbanCard request={request} />
+                    {onStatusChange && (
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.25rem" }}>
+                        <select
+                          value={column.status}
+                          disabled={movingId === request.request_id}
+                          onChange={(e) => handleMobileStatusChange(request.request_id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "0.2rem 0.4rem",
+                            borderRadius: "4px",
+                            border: "1px solid var(--card-border, #e5e7eb)",
+                            background: "var(--card-bg, white)",
+                            color: "var(--text-muted)",
+                            cursor: movingId === request.request_id ? "wait" : "pointer",
+                            opacity: movingId === request.request_id ? 0.5 : 1,
+                          }}
+                        >
+                          {KANBAN_COLUMNS.map((c) => (
+                            <option key={c.status} value={c.status}>
+                              {c.status === column.status ? c.label : `Move to ${c.label}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
                 ))
               )}
             </div>

@@ -165,7 +165,7 @@ export function MediaGallery({
       {/* Header with Add Photo button and view toggle */}
       {(allowUpload || showGrouping) && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-          <span style={{ fontWeight: 500, color: "#495057" }}>
+          <span style={{ fontWeight: 500, color: "var(--text-secondary)" }}>
             {media.length} {media.length === 1 ? "Photo" : "Photos"}
           </span>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -173,7 +173,7 @@ export function MediaGallery({
             {showGrouping && media.length > 0 && (
               <div style={{
                 display: "flex",
-                background: "#e9ecef",
+                background: "var(--bg-secondary)",
                 borderRadius: "4px",
                 padding: "2px",
               }}>
@@ -279,7 +279,7 @@ export function MediaGallery({
                       aspectRatio: "1",
                       objectFit: "cover",
                       borderRadius: "8px",
-                      background: "#e9ecef",
+                      background: "var(--bg-secondary)",
                     }}
                   />
                 )}
@@ -358,7 +358,7 @@ export function MediaGallery({
           style={{
             padding: "2rem",
             textAlign: "center",
-            background: "#f8f9fa",
+            background: "var(--section-bg)",
             borderRadius: "8px",
             border: "2px dashed #dee2e6",
             cursor: allowUpload ? "pointer" : "default",
@@ -417,7 +417,7 @@ export function MediaGallery({
                 borderRadius: "8px",
                 overflow: "hidden",
                 cursor: "pointer",
-                background: "#e9ecef",
+                background: "var(--bg-secondary)",
               }}
             >
               <img
@@ -562,7 +562,7 @@ export function MediaGallery({
               padding: "0.25rem 0.5rem",
               fontSize: "0.75rem",
               background: "none",
-              border: "1px solid #dee2e6",
+              border: "1px solid var(--border)",
               borderRadius: "4px",
               color: "#0d6efd",
               cursor: "pointer",
@@ -580,7 +580,7 @@ export function MediaGallery({
               padding: "0.25rem 0.5rem",
               fontSize: "0.75rem",
               background: "none",
-              border: "1px solid #dee2e6",
+              border: "1px solid var(--border)",
               borderRadius: "4px",
               color: "#6c757d",
               cursor: "pointer",

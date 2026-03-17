@@ -41,7 +41,7 @@ const AVAILABILITY_LABELS: Record<string, string> = {
 const AVAILABILITY_STYLES: Record<string, { bg: string; color: string }> = {
   available: { bg: "#d1fae5", color: "#065f46" },
   busy: { bg: "#fef3c7", color: "#92400e" },
-  on_leave: { bg: "#e5e7eb", color: "#374151" },
+  on_leave: { bg: "#e5e7eb", color: "var(--text-secondary)" },
 };
 
 const TIER_LABELS: Record<string, string> = {

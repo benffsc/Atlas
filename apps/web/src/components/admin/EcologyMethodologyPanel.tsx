@@ -76,7 +76,7 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
     <div
       style={{
         backgroundColor: "#f9fafb",
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border)",
         borderRadius: "0.5rem",
         marginTop: "1rem",
       }}
@@ -97,7 +97,7 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontWeight: 500, color: "#374151" }}>
+          <span style={{ fontWeight: 500, color: "var(--text-secondary)" }}>
             Methodology: {methodInfo.name}
           </span>
           <span
@@ -117,7 +117,7 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
 
       {/* Expanded content */}
       {expanded && (
-        <div style={{ padding: "0 1rem 1rem", borderTop: "1px solid #e5e7eb" }}>
+        <div style={{ padding: "0 1rem 1rem", borderTop: "1px solid var(--border)" }}>
           {/* Method description */}
           <div style={{ marginTop: "0.75rem" }}>
             <p style={{ fontSize: "0.875rem", color: "#6b7280", margin: 0 }}>
@@ -150,11 +150,11 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
                 marginTop: "0.75rem",
                 padding: "0.75rem",
                 backgroundColor: "white",
-                border: "1px solid #e5e7eb",
+                border: "1px solid var(--border)",
                 borderRadius: "0.375rem",
               }}
             >
-              <div style={{ fontWeight: 500, marginBottom: "0.5rem", color: "#374151" }}>
+              <div style={{ fontWeight: 500, marginBottom: "0.5rem", color: "var(--text-secondary)" }}>
                 Chapman Estimator Derivation
               </div>
               <code
@@ -173,7 +173,7 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
                 <div><strong>M</strong> (Marked/Altered): {ecology.a_known} cats</div>
                 <div><strong>C</strong> (Total Observed): {ecology.total_cats_seen} cats</div>
                 <div><strong>R</strong> (Eartips Observed): {ecology.total_eartips_seen} cats</div>
-                <div style={{ marginTop: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid #e5e7eb" }}>
+                <div style={{ marginTop: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid var(--border)" }}>
                   <strong>N̂</strong> (Estimated Population): <strong>{ecology.n_hat_chapman}</strong> cats
                 </div>
               </div>
@@ -186,7 +186,7 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
           {/* Alteration rate interpretation */}
           {thresholdInfo && ecology.p_lower_pct !== null && (
             <div style={{ marginTop: "0.75rem" }}>
-              <div style={{ fontWeight: 500, marginBottom: "0.5rem", color: "#374151" }}>
+              <div style={{ fontWeight: 500, marginBottom: "0.5rem", color: "var(--text-secondary)" }}>
                 TNR Progress Interpretation
               </div>
               <div
@@ -262,7 +262,7 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
           {/* Classification impact */}
           {classification && classification !== "unknown" && (
             <div style={{ marginTop: "0.75rem" }}>
-              <div style={{ fontWeight: 500, marginBottom: "0.5rem", color: "#374151" }}>
+              <div style={{ fontWeight: 500, marginBottom: "0.5rem", color: "var(--text-secondary)" }}>
                 Classification Impact
               </div>
               <div style={{ fontSize: "0.875rem", color: "#4b5563" }}>
@@ -288,7 +288,7 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
           {/* Cats needing TNR */}
           {ecology.cats_needing_tnr > 0 && (
             <div style={{ marginTop: "0.75rem" }}>
-              <div style={{ fontWeight: 500, marginBottom: "0.5rem", color: "#374151" }}>
+              <div style={{ fontWeight: 500, marginBottom: "0.5rem", color: "var(--text-secondary)" }}>
                 Active Request Impact
               </div>
               <p style={{ fontSize: "0.875rem", color: "#4b5563", margin: 0 }}>
@@ -304,7 +304,7 @@ export function EcologyMethodologyPanel({ ecology, classification }: Props) {
             style={{
               marginTop: "1rem",
               paddingTop: "0.75rem",
-              borderTop: "1px solid #e5e7eb",
+              borderTop: "1px solid var(--border)",
               fontSize: "0.75rem",
               color: "#9ca3af",
             }}

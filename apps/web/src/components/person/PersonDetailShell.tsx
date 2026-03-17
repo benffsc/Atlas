@@ -12,6 +12,8 @@ import { EntityPreviewModal } from "@/components/search";
 import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import { SendEmailModal } from "@/components/modals";
 import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { EntityHeader } from "./EntityHeader";
 import { SectionRenderer } from "./SectionRenderer";
 import { formatDateLocal } from "@/lib/formatters";
@@ -130,6 +132,7 @@ export function PersonDetailShell({
 }: PersonDetailShellProps) {
   const data = usePersonDetail(id, { initialRole });
   const preview = useEntityPreviewModal();
+  const navContext = useNavigationContext(data.person?.display_name);
 
   // Determine active tab - trapper tab first if accessed via /trappers
   const roles = detectRoles(data);
@@ -307,10 +310,16 @@ export function PersonDetailShell({
 
   // Header
   const headerContent = (
-    <EntityHeader
-      personId={person.person_id}
-      displayName={person.display_name}
-      backHref={backHref}
+    <>
+      {navContext.breadcrumbs.length > 0 && (
+        <div style={{ marginBottom: "0.5rem" }}>
+          <Breadcrumbs items={navContext.breadcrumbs} />
+        </div>
+      )}
+      <EntityHeader
+        personId={person.person_id}
+        displayName={person.display_name}
+        backHref={navContext.backHref}
       email={data.primaryEmail}
       phone={data.primaryPhone}
       badges={<>{badgeElements}</>}
@@ -323,6 +332,7 @@ export function PersonDetailShell({
       actions={actionButtons}
       onDataChange={() => data.refetchPerson()}
     />
+    </>
   );
 
   // Sidebar

@@ -35,7 +35,7 @@ export function DateRangeFilter({ fromDate, toDate, onDateRangeChange }: DateRan
         display: "flex",
         alignItems: "center",
         gap: 6,
-        background: "white",
+        background: "var(--background)",
         borderRadius: 8,
         padding: "4px 8px",
         boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
@@ -77,7 +77,7 @@ export function DateRangeFilter({ fromDate, toDate, onDateRangeChange }: DateRan
         value={fromDate || ""}
         onChange={(e) => onDateRangeChange(e.target.value || null, toDate)}
         style={{
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
           borderRadius: 4,
           padding: "2px 4px",
           fontSize: "0.75rem",
@@ -90,7 +90,7 @@ export function DateRangeFilter({ fromDate, toDate, onDateRangeChange }: DateRan
         value={toDate || ""}
         onChange={(e) => onDateRangeChange(fromDate, e.target.value || null)}
         style={{
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
           borderRadius: 4,
           padding: "2px 4px",
           fontSize: "0.75rem",

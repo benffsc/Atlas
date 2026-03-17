@@ -400,7 +400,7 @@ export default function PhoneIntakePage() {
           </p>
 
           <div style={{
-            background: "#f9fafb",
+            background: "var(--section-bg)",
             borderRadius: 12,
             padding: 20,
             marginBottom: 24,
@@ -444,9 +444,9 @@ export default function PhoneIntakePage() {
               onClick={() => router.push("/intake/queue")}
               style={{
                 padding: "12px 24px",
-                background: "white",
-                color: "#374151",
-                border: "1px solid #d1d5db",
+                background: "var(--background)",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border-light)",
                 borderRadius: 8,
                 fontWeight: 500,
                 cursor: "pointer",
@@ -503,8 +503,8 @@ export default function PhoneIntakePage() {
 
       {/* Form Content */}
       <div style={{
-        background: "white",
-        border: "1px solid #e5e7eb",
+        background: "var(--background)",
+        border: "1px solid var(--border)",
         borderRadius: 12,
         padding: 24,
         minHeight: 400,
@@ -525,7 +525,7 @@ export default function PhoneIntakePage() {
                   value={form.first_name}
                   onChange={(e) => updateForm({ first_name: e.target.value })}
                   placeholder="First name"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                 />
               </FormField>
               <FormField label="Last Name" required>
@@ -534,7 +534,7 @@ export default function PhoneIntakePage() {
                   value={form.last_name}
                   onChange={(e) => updateForm({ last_name: e.target.value })}
                   placeholder="Last name"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                 />
               </FormField>
             </div>
@@ -549,7 +549,7 @@ export default function PhoneIntakePage() {
                   updateForm({ phone: formatted });
                 }}
                 placeholder="(707) 555-1234"
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
               />
             </FormField>
 
@@ -559,7 +559,7 @@ export default function PhoneIntakePage() {
                 value={form.email}
                 onChange={(e) => updateForm({ email: e.target.value })}
                 placeholder="email@example.com"
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
               />
             </FormField>
           </>
@@ -712,7 +712,7 @@ export default function PhoneIntakePage() {
                   onChange={(e) => updateForm({ access_notes: e.target.value })}
                   placeholder="e.g., Need to contact property manager at..."
                   rows={2}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db", resize: "vertical" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)", resize: "vertical" }}
                 />
               </FormField>
             )}
@@ -776,7 +776,7 @@ export default function PhoneIntakePage() {
                       value={form.organization_name}
                       onChange={(e) => updateForm({ organization_name: e.target.value })}
                       placeholder="Enter organization name..."
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                     />
                   </FormField>
                 )}
@@ -786,7 +786,7 @@ export default function PhoneIntakePage() {
                   <select
                     value={form.property_type}
                     onChange={(e) => updateForm({ property_type: e.target.value })}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                   >
                     <option value="">Not specified</option>
                     <option value="residential">Residential (single home)</option>
@@ -819,14 +819,14 @@ export default function PhoneIntakePage() {
                   onChange={(e) => updateForm({ cat_count_estimate: e.target.value })}
                   placeholder="Number of cats"
                   min="1"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                 />
               </FormField>
               <FormField label="Count confidence">
                 <select
                   value={form.count_confidence}
                   onChange={(e) => updateForm({ count_confidence: e.target.value })}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                 >
                   <option value="exact">Exact count</option>
                   <option value="good_estimate">Good estimate</option>
@@ -856,7 +856,7 @@ export default function PhoneIntakePage() {
                   onChange={(e) => updateForm({ eartip_count_observed: e.target.value })}
                   placeholder="Number with ear tips"
                   min="0"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                 />
               </FormField>
             )}
@@ -936,14 +936,14 @@ export default function PhoneIntakePage() {
                         onChange={(e) => updateForm({ kitten_count: e.target.value })}
                         placeholder="Number"
                         min="1"
-                        style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                        style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                       />
                     </FormField>
                     <FormField label="Kitten age estimate">
                       <select
                         value={form.kitten_age_estimate}
                         onChange={(e) => updateForm({ kitten_age_estimate: e.target.value })}
-                        style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                        style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                       >
                         <option value="">Select age...</option>
                         {KITTEN_AGE_OPTIONS.map((opt) => (
@@ -1005,7 +1005,7 @@ export default function PhoneIntakePage() {
                     onChange={(e) => updateForm({ medical_description: e.target.value })}
                     placeholder="What is wrong with the cat? Any injuries, illness symptoms?"
                     rows={2}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db", resize: "vertical" }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)", resize: "vertical" }}
                   />
                 </FormField>
               )}
@@ -1079,7 +1079,7 @@ export default function PhoneIntakePage() {
                 onChange={(e) => updateForm({ situation_description: e.target.value })}
                 placeholder="Any additional details the caller mentioned..."
                 rows={3}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db", resize: "vertical" }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)", resize: "vertical" }}
               />
             </FormField>
 
@@ -1121,7 +1121,7 @@ export default function PhoneIntakePage() {
                 <select
                   value={form.feeding_frequency}
                   onChange={(e) => updateForm({ feeding_frequency: e.target.value })}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
                 >
                   <option value="">Select...</option>
                   <option value="daily">Daily</option>
@@ -1136,7 +1136,7 @@ export default function PhoneIntakePage() {
               <select
                 value={form.referral_source}
                 onChange={(e) => updateForm({ referral_source: e.target.value })}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)" }}
               >
                 <option value="">Select...</option>
                 {REFERRAL_SOURCE_OPTIONS.map((opt) => (
@@ -1151,13 +1151,13 @@ export default function PhoneIntakePage() {
                 onChange={(e) => updateForm({ staff_notes: e.target.value })}
                 placeholder="Any notes for staff reviewing this intake..."
                 rows={2}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid #d1d5db", resize: "vertical" }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--border-light)", resize: "vertical" }}
               />
             </FormField>
 
             {/* Summary */}
             <div style={{
-              background: "#f9fafb",
+              background: "var(--section-bg)",
               borderRadius: 8,
               padding: 16,
               marginTop: 20,
@@ -1205,7 +1205,7 @@ export default function PhoneIntakePage() {
             padding: "12px 24px",
             background: step === 1 ? "#f3f4f6" : "white",
             color: step === 1 ? "#9ca3af" : "#374151",
-            border: "1px solid #d1d5db",
+            border: "1px solid var(--border-light)",
             borderRadius: 8,
             cursor: step === 1 ? "not-allowed" : "pointer",
             fontWeight: 500,

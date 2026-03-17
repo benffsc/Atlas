@@ -358,7 +358,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
               title={(comparisonCount || 0) >= 3 ? "Max 3 places" : "Add to comparison"}
               style={{
                 background: "none",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--border-light)",
                 borderRadius: 4,
                 padding: "4px 8px",
                 cursor: (comparisonCount || 0) >= 3 ? "not-allowed" : "pointer",
@@ -686,7 +686,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                         width: "100%",
                         fontSize: "13px",
                         padding: "8px",
-                        border: "1px solid #e5e7eb",
+                        border: "1px solid var(--border)",
                         borderRadius: "6px",
                         boxSizing: "border-box",
                       }}
@@ -699,7 +699,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                           left: 0,
                           right: 0,
                           backgroundColor: "#fff",
-                          border: "1px solid #e5e7eb",
+                          border: "1px solid var(--border)",
                           borderRadius: "6px",
                           boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                           maxHeight: "150px",
@@ -740,7 +740,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                       width: "100%",
                       fontSize: "13px",
                       padding: "8px",
-                      border: "1px solid #e5e7eb",
+                      border: "1px solid var(--border)",
                       borderRadius: "6px",
                       boxSizing: "border-box",
                       backgroundColor: "#fff",

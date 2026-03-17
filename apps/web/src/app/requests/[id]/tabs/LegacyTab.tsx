@@ -27,7 +27,7 @@ export function LegacyTab({ request, onShowUpgradeWizard, onSwitchToDetails }: L
 
       {/* Info banner */}
       <div style={{
-        background: "#f8f9fa",
+        background: "var(--section-bg)",
         border: "1px solid #e9ecef",
         borderRadius: "8px",
         padding: "1rem",
@@ -88,7 +88,7 @@ export function LegacyTab({ request, onShowUpgradeWizard, onSwitchToDetails }: L
         {/* Location Info */}
         <div>
           <strong style={{ display: "block", marginBottom: "0.5rem" }}>Location Info:</strong>
-          <div style={{ background: "#f8f9fa", padding: "0.75rem", borderRadius: "6px" }}>
+          <div style={{ background: "var(--section-bg)", padding: "0.75rem", borderRadius: "6px" }}>
             <p style={{ margin: "0 0 0.25rem 0" }}><strong>Place:</strong> {request.place_name || "N/A"}</p>
             <p style={{ margin: "0 0 0.25rem 0" }}><strong>Address:</strong> {request.place_address || "N/A"}</p>
             <p style={{ margin: "0 0 0.25rem 0" }}><strong>City:</strong> {request.place_city || "N/A"}</p>
@@ -99,7 +99,7 @@ export function LegacyTab({ request, onShowUpgradeWizard, onSwitchToDetails }: L
         {/* Original Request Details */}
         <div>
           <strong style={{ display: "block", marginBottom: "0.5rem" }}>Original Request Details:</strong>
-          <div style={{ background: "#f8f9fa", padding: "0.75rem", borderRadius: "6px" }}>
+          <div style={{ background: "var(--section-bg)", padding: "0.75rem", borderRadius: "6px" }}>
             <p style={{ margin: "0 0 0.25rem 0" }}><strong>Request Title:</strong> {request.summary || "N/A"}</p>
             <p style={{ margin: "0 0 0.25rem 0" }}><strong>Cats Needing TNR:</strong> {request.estimated_cat_count ?? "N/A"}</p>
             <p style={{ margin: "0 0 0.25rem 0" }}><strong>Has Kittens:</strong> {request.has_kittens ? "Yes" : "No"}</p>

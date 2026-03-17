@@ -356,7 +356,7 @@ export function RequestSection({
                 style={{
                   padding: "0.25rem 0.75rem",
                   fontSize: "0.8rem",
-                  background: "#fff",
+                  background: "var(--background)",
                   color: config.color,
                   border: "none",
                   borderRadius: BORDERS.radius.md,

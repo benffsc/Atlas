@@ -85,7 +85,7 @@ export function ServiceAreasSection({ personId, data, onDataChange }: SectionPro
       {!showAddArea ? (
         <button onClick={() => setShowAddArea(true)} style={{ marginBottom: "1rem" }}>+ Add Service Area</button>
       ) : (
-        <div style={{ padding: "1rem", background: "#f8f9fa", borderRadius: "8px", marginBottom: "1rem" }}>
+        <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px", marginBottom: "1rem" }}>
           <div style={{ marginBottom: "0.75rem" }}>
             <PlaceResolver value={newAreaPlace} onChange={setNewAreaPlace} placeholder="Search for a place..." />
           </div>
@@ -130,7 +130,7 @@ export function ServiceAreasSection({ personId, data, onDataChange }: SectionPro
           {serviceAreas.filter(a => a.service_type !== "historical").map((area) => (
             <div key={area.id} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "0.75rem 1rem", background: "#f8f9fa", borderRadius: "8px",
+              padding: "0.75rem 1rem", background: "var(--section-bg)", borderRadius: "8px",
               borderLeft: `4px solid ${SERVICE_TYPE_COLORS[area.service_type] || "#6c757d"}`,
             }}>
               <div>

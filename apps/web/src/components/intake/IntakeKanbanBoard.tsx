@@ -172,7 +172,7 @@ function IntakeKanbanCard({
             style={{
               padding: "0.1rem 0.35rem",
               borderRadius: "4px",
-              background: "#f3f4f6",
+              background: "var(--bg-secondary)",
               fontSize: "0.65rem",
             }}
           >

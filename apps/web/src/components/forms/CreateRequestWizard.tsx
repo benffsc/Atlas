@@ -229,7 +229,7 @@ export default function CreateRequestWizard({
               <span style={{ fontWeight: 600, color: "#10b981", fontSize: "0.8rem", textTransform: "uppercase" }}>
                 From Intake Submission
               </span>
-              <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "#e5e7eb", padding: "2px 8px", borderRadius: "10px" }}>
+              <span style={{ fontSize: "0.75rem", color: "#6b7280", background: "var(--bg-secondary)", padding: "2px 8px", borderRadius: "10px" }}>
                 Pre-filled
               </span>
             </div>

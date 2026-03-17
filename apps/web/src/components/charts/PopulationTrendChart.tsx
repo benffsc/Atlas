@@ -123,7 +123,7 @@ export function PopulationTrendChart({ placeId }: PopulationTrendChartProps) {
                     left: "10%",
                     right: "10%",
                     height: `${caughtHeight}px`,
-                    background: "#e9ecef",
+                    background: "var(--bg-secondary)",
                     borderRadius: "2px 2px 0 0",
                   }}
                 />
@@ -167,7 +167,7 @@ export function PopulationTrendChart({ placeId }: PopulationTrendChartProps) {
       {/* Legend */}
       <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.7rem" }}>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <span style={{ width: "10px", height: "10px", background: "#e9ecef", borderRadius: "2px" }} />
+          <span style={{ width: "10px", height: "10px", background: "var(--bg-secondary)", borderRadius: "2px" }} />
           Caught
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>

@@ -539,7 +539,7 @@ export function IntakeDetailPanel({
                 style={{
                   padding: "0.375rem 0.75rem",
                   fontSize: "0.8rem",
-                  background: "#fff",
+                  background: "var(--background)",
                   border: `1px solid ${COLORS.error}`,
                   color: COLORS.error,
                   borderRadius: "4px",
@@ -580,8 +580,8 @@ export function IntakeDetailPanel({
         {/* Urgent downgrade reason picker */}
         {showUrgentDowngrade && (
           <div style={{
-            background: "#fff",
-            border: "1px solid #dee2e6",
+            background: "var(--background)",
+            border: "1px solid var(--border)",
             borderRadius: "8px",
             padding: "1rem",
             marginBottom: "1rem",
@@ -1367,7 +1367,7 @@ export function IntakeDetailPanel({
                             marginTop: "0.25rem",
                             padding: "0.15rem 0.4rem",
                             fontSize: "0.7rem",
-                            background: "#fff",
+                            background: "var(--background)",
                             border: "1px solid #fd7e14",
                             color: COLORS.warning,
                             borderRadius: "3px",

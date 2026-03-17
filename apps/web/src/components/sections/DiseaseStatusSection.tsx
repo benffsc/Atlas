@@ -251,9 +251,9 @@ export default function DiseaseStatusSection({
       <div
         style={{
           padding: "1.5rem",
-          background: "#ffffff",
+          background: "var(--background)",
           borderRadius: "8px",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
           boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}
       >
@@ -291,9 +291,9 @@ export default function DiseaseStatusSection({
       <div
         style={{
           padding: "1rem 1.25rem",
-          background: "#f9fafb",
+          background: "var(--section-bg)",
           borderRadius: "8px",
-          border: "1px solid #e5e7eb",
+          border: "1px solid var(--border)",
           color: "#9ca3af",
           fontSize: "0.875rem",
         }}
@@ -335,9 +335,9 @@ export default function DiseaseStatusSection({
   return (
     <div
       style={{
-        background: "#ffffff",
+        background: "var(--background)",
         borderRadius: "8px",
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border)",
         boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         overflow: "hidden",
       }}
@@ -346,14 +346,14 @@ export default function DiseaseStatusSection({
       <div
         style={{
           padding: "0.75rem 1rem",
-          borderBottom: "1px solid #e5e7eb",
+          borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "#f9fafb",
+          background: "var(--section-bg)",
         }}
       >
-        <h3 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 600, color: "#374151" }}>
+        <h3 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-secondary)" }}>
           Disease Status
         </h3>
         {statuses.length === 0 && !showAddForm && availableTypes.length > 0 && (
@@ -402,8 +402,8 @@ export default function DiseaseStatusSection({
               <div
                 key={status.status_id}
                 style={{
-                  background: "#ffffff",
-                  border: "1px solid #e5e7eb",
+                  background: "var(--background)",
+                  border: "1px solid var(--border)",
                   borderLeft: `4px solid ${status.color}`,
                   borderRadius: "8px",
                   padding: "0.75rem 1rem",
@@ -442,7 +442,7 @@ export default function DiseaseStatusSection({
                     style={{
                       fontWeight: 600,
                       fontSize: "0.875rem",
-                      color: "#374151",
+                      color: "var(--text-secondary)",
                       textDecoration: isFalseFlag ? "line-through" : "none",
                     }}
                   >
@@ -492,12 +492,12 @@ export default function DiseaseStatusSection({
                 >
                   {(status.positive_cat_count > 0 || status.total_tested_count > 0) && (
                     <span>
-                      <strong style={{ color: "#374151" }}>{status.positive_cat_count}</strong>{" "}
+                      <strong style={{ color: "var(--text-secondary)" }}>{status.positive_cat_count}</strong>{" "}
                       cat{status.positive_cat_count !== 1 ? "s" : ""} positive
                       {status.total_tested_count > 0 && (
                         <>
                           {" / "}
-                          <strong style={{ color: "#374151" }}>{status.total_tested_count}</strong>{" "}
+                          <strong style={{ color: "var(--text-secondary)" }}>{status.total_tested_count}</strong>{" "}
                           tested
                         </>
                       )}
@@ -565,7 +565,7 @@ export default function DiseaseStatusSection({
                         width: "100%",
                         padding: "0.375rem 0.5rem",
                         fontSize: "0.8125rem",
-                        border: "1px solid #d1d5db",
+                        border: "1px solid var(--border-light)",
                         borderRadius: "4px",
                         marginBottom: "0.375rem",
                         boxSizing: "border-box",
@@ -614,7 +614,7 @@ export default function DiseaseStatusSection({
                           fontSize: "0.6875rem",
                           padding: "0.25rem 0.625rem",
                           background: "transparent",
-                          border: "1px solid #d1d5db",
+                          border: "1px solid var(--border-light)",
                           borderRadius: "4px",
                           cursor: "pointer",
                           color: "#6b7280",
@@ -657,9 +657,9 @@ export default function DiseaseStatusSection({
             style={{
               marginTop: "0.75rem",
               padding: "0.75rem",
-              background: "#f9fafb",
+              background: "var(--section-bg)",
               borderRadius: "6px",
-              border: "1px solid #e5e7eb",
+              border: "1px solid var(--border)",
             }}
           >
             <div style={{ marginBottom: "0.625rem" }}>
@@ -669,7 +669,7 @@ export default function DiseaseStatusSection({
                   fontSize: "0.75rem",
                   fontWeight: 500,
                   marginBottom: "0.25rem",
-                  color: "#374151",
+                  color: "var(--text-secondary)",
                 }}
               >
                 Disease Type
@@ -681,9 +681,9 @@ export default function DiseaseStatusSection({
                   width: "100%",
                   padding: "0.375rem 0.5rem",
                   fontSize: "0.875rem",
-                  border: "1px solid #d1d5db",
+                  border: "1px solid var(--border-light)",
                   borderRadius: "4px",
-                  background: "#ffffff",
+                  background: "var(--background)",
                 }}
               >
                 <option value="">Select a disease...</option>
@@ -702,7 +702,7 @@ export default function DiseaseStatusSection({
                   fontSize: "0.75rem",
                   fontWeight: 500,
                   marginBottom: "0.25rem",
-                  color: "#374151",
+                  color: "var(--text-secondary)",
                 }}
               >
                 Notes
@@ -716,7 +716,7 @@ export default function DiseaseStatusSection({
                   width: "100%",
                   padding: "0.375rem 0.5rem",
                   fontSize: "0.8125rem",
-                  border: "1px solid #d1d5db",
+                  border: "1px solid var(--border-light)",
                   borderRadius: "4px",
                   resize: "vertical",
                   boxSizing: "border-box",
@@ -740,7 +740,7 @@ export default function DiseaseStatusSection({
                   fontSize: "0.8125rem",
                   padding: "0.375rem 0.75rem",
                   background: "transparent",
-                  border: "1px solid #d1d5db",
+                  border: "1px solid var(--border-light)",
                   borderRadius: "4px",
                   cursor: "pointer",
                   color: "#6b7280",

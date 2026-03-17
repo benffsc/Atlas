@@ -89,7 +89,7 @@ export function SourceIndicator({
         style={{
           display: "inline-flex",
           padding: sizeStyle.padding,
-          background: "#f3f4f6",
+          background: "var(--bg-secondary)",
           color: "#6b7280",
           borderRadius: 4,
           fontSize: sizeStyle.fontSize,

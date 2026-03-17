@@ -195,9 +195,9 @@ export function ClassificationSuggestionBanner({
             disabled={loading}
             className="btn btn-sm"
             style={{
-              background: "#fff",
-              color: "#374151",
-              border: "1px solid #d1d5db",
+              background: "var(--background)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border-light)",
               padding: "0.4rem 0.75rem",
               borderRadius: "4px",
               cursor: loading ? "not-allowed" : "pointer",
@@ -298,9 +298,9 @@ export function ClassificationSuggestionBanner({
           style={{
             marginTop: "0.75rem",
             padding: "1rem",
-            background: "#fff",
+            background: "var(--background)",
             borderRadius: "4px",
-            border: "1px solid #e5e7eb",
+            border: "1px solid var(--border)",
           }}
         >
           <div style={{ fontWeight: 500, marginBottom: "0.75rem" }}>Override Classification</div>
@@ -315,7 +315,7 @@ export function ClassificationSuggestionBanner({
               style={{
                 width: "100%",
                 padding: "0.5rem",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--border-light)",
                 borderRadius: "4px",
               }}
             >
@@ -340,7 +340,7 @@ export function ClassificationSuggestionBanner({
                 style={{
                   width: "100%",
                   padding: "0.5rem",
-                  border: "1px solid #d1d5db",
+                  border: "1px solid var(--border-light)",
                   borderRadius: "4px",
                 }}
               />
@@ -362,7 +362,7 @@ export function ClassificationSuggestionBanner({
               style={{
                 width: "100%",
                 padding: "0.5rem",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--border-light)",
                 borderRadius: "4px",
                 resize: "vertical",
               }}
@@ -373,9 +373,9 @@ export function ClassificationSuggestionBanner({
             <button
               onClick={() => setShowOverride(false)}
               style={{
-                background: "#fff",
-                color: "#374151",
-                border: "1px solid #d1d5db",
+                background: "var(--background)",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border-light)",
                 padding: "0.4rem 0.75rem",
                 borderRadius: "4px",
                 cursor: "pointer",

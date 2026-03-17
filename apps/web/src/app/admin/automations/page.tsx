@@ -346,7 +346,7 @@ export default function AutomationsAdminPage() {
         style={{
           padding: "1rem",
           marginBottom: "1.5rem",
-          background: "#f8f9fa",
+          background: "var(--section-bg)",
         }}
       >
         <h3 style={{ margin: "0 0 0.5rem", fontSize: "0.9rem" }}>How Automations Work</h3>
@@ -448,7 +448,7 @@ export default function AutomationsAdminPage() {
                       onClick={() => openEditModal(rule)}
                       style={{
                         padding: "0.375rem 0.75rem",
-                        background: "#f8f9fa",
+                        background: "var(--section-bg)",
                         border: "1px solid #ddd",
                         borderRadius: "4px",
                         cursor: "pointer",
@@ -510,7 +510,7 @@ export default function AutomationsAdminPage() {
         >
           <div
             style={{
-              background: "#fff",
+              background: "var(--background)",
               borderRadius: "8px",
               width: "90%",
               maxWidth: "600px",
@@ -700,7 +700,7 @@ export default function AutomationsAdminPage() {
                 onClick={closeModal}
                 style={{
                   padding: "0.5rem 1rem",
-                  background: "#f8f9fa",
+                  background: "var(--section-bg)",
                   border: "1px solid #ddd",
                   borderRadius: "6px",
                   cursor: "pointer",

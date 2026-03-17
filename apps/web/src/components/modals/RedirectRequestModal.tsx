@@ -646,7 +646,7 @@ export function RedirectRequestModal({
                     value={requestSearchQuery}
                     onChange={(e) => setRequestSearchQuery(e.target.value)}
                     placeholder="Search by address, summary, or requester name..."
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px" }}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border-light)", fontSize: "13px" }}
                   />
                   {searchingRequests && <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>Searching...</div>}
                   {requestSearchResults.length > 0 && (
@@ -657,7 +657,7 @@ export function RedirectRequestModal({
                           type="button"
                           onClick={() => { setTargetRequestId(r.request_id); setTargetRequest(r); setRequestSearchResults([]); }}
                           style={{
-                            textAlign: "left", padding: "10px 12px", background: "#f9fafb", border: "1px solid #e5e7eb",
+                            textAlign: "left", padding: "10px 12px", background: "var(--section-bg)", border: "1px solid var(--border)",
                             borderRadius: "8px", cursor: "pointer", fontSize: "12px",
                           }}
                         >
@@ -707,7 +707,7 @@ export function RedirectRequestModal({
                   onChange={(e) => setNotes(e.target.value)}
                   rows={2}
                   placeholder="Any additional context for the redirect..."
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #d1d5db", fontSize: "13px", resize: "vertical" }}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border-light)", fontSize: "13px", resize: "vertical" }}
                 />
               </div>
             </div>

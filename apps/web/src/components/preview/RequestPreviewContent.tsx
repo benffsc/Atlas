@@ -108,7 +108,7 @@ export function RequestPreviewContent({ request: r, onClose }: RequestPreviewCon
         {r.place_name && <div style={{ fontWeight: 600 }}>{r.place_name}</div>}
         {r.place_address && <div style={{ color: "var(--text-secondary)" }}>{r.place_address}</div>}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          {r.place_kind && r.place_kind !== "unknown" && <span className="badge" style={{ fontSize: "0.65rem", background: "#f3f4f6", color: "#374151" }}>{r.place_kind.replace(/_/g, " ")}</span>}
+          {r.place_kind && r.place_kind !== "unknown" && <span className="badge" style={{ fontSize: "0.65rem", background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>{r.place_kind.replace(/_/g, " ")}</span>}
           {r.place_service_zone && <span className="badge" style={{ fontSize: "0.65rem", background: "#dbeafe", color: "#1d4ed8" }}>Zone: {r.place_service_zone}</span>}
           {r.place_city && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{r.place_city}</span>}
         </div>

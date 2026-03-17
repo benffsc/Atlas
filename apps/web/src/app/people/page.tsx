@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { useIsMobile } from "@/hooks/useIsMobile";
 import { useEntityDetail } from "@/hooks/useEntityDetail";
 import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
@@ -13,6 +12,9 @@ import EntityPreview from "@/components/search/EntityPreview";
 import { CreatePersonModal } from "@/components/modals";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { PersonPreviewContent } from "@/components/preview/PersonPreviewContent";
+import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
+import { DataTable, useDataTable } from "@/components/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 
 interface Person {
   person_id: string;
@@ -47,21 +49,124 @@ const FILTER_DEFAULTS = {
   q: "",
   deep: "",
   page: "0",
+  pageSize: "25",
+  sortDir: "desc",
   selected: "",
 };
+
+const DEEP_SEARCH_OPTIONS = [
+  { value: "", label: "Standard" },
+  { value: "true", label: "Deep" },
+];
+
+const personColumns: ColumnDef<Person, unknown>[] = [
+  {
+    id: "name",
+    header: "Name",
+    cell: ({ row }) => {
+      const person = row.original;
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+          <EntityPreview entityType="person" entityId={person.person_id}>
+            <a href={`/people/${person.person_id}`} onClick={(e) => e.stopPropagation()}>{person.display_name}</a>
+          </EntityPreview>
+          <PersonStatusBadges
+            primaryRole={person.primary_role}
+            trapperType={person.trapper_type}
+            doNotContact={person.do_not_contact}
+            entityType={person.entity_type}
+            catCount={person.cat_count}
+          />
+          {person.account_type && person.account_type !== "person" && !person.entity_type && (
+            <span className="badge" style={{ fontSize: "0.7em", background: "#6c757d" }}>
+              {person.account_type}
+            </span>
+          )}
+          {person.is_canonical === false && (
+            <span
+              className="badge"
+              style={{ fontSize: "0.7em", background: "#dc3545" }}
+              title="Non-canonical record (organization, placeholder, or garbage name)"
+            >
+              Non-canonical
+            </span>
+          )}
+        </div>
+      );
+    },
+  },
+  {
+    id: "confidence",
+    header: "Confidence",
+    cell: ({ row }) => {
+      const person = row.original;
+      if (person.surface_quality === "High") {
+        return <span className="badge badge-primary" title={person.quality_reason || undefined}>High</span>;
+      }
+      if (person.surface_quality === "Medium") {
+        return <span className="badge" title={person.quality_reason || undefined} style={{ background: "#ffc107", color: "#000" }}>Medium</span>;
+      }
+      return <span className="badge" title={person.quality_reason || undefined} style={{ background: "#dc3545" }}>Low</span>;
+    },
+  },
+  {
+    id: "contact",
+    header: "Contact",
+    cell: ({ row }) => {
+      const person = row.original;
+      if (person.has_email && person.has_phone) {
+        return <span title="Has email and phone">Email / Phone</span>;
+      }
+      if (person.has_email) return <span title="Has email">Email</span>;
+      if (person.has_phone) return <span title="Has phone">Phone</span>;
+      return <span className="text-muted">&mdash;</span>;
+    },
+  },
+  {
+    id: "cats",
+    header: "Cats",
+    cell: ({ row }) => {
+      const person = row.original;
+      if (person.cat_count > 0) {
+        return <span title={person.cat_names || ""}>{person.cat_count}</span>;
+      }
+      return <span className="text-muted">0</span>;
+    },
+  },
+  {
+    id: "places",
+    header: "Places",
+    cell: ({ row }) => {
+      const person = row.original;
+      if (person.place_count > 0) return <span>{person.place_count}</span>;
+      return <span className="text-muted">0</span>;
+    },
+  },
+  {
+    id: "last_active",
+    header: "Last Active",
+    cell: ({ row }) => {
+      const person = row.original;
+      if (person.last_appointment_date) {
+        return <span title={person.last_appointment_date}>{formatRelativeTime(person.last_appointment_date)}</span>;
+      }
+      return <span className="text-muted">&mdash;</span>;
+    },
+  },
+];
 
 function PeoplePageContent() {
   const router = useRouter();
   const { filters, setFilter, setFilters, clearFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
-  const isMobile = useIsMobile();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const { pageIndex, pageSize, sortKey, sortDir, handlePaginationChange, handleSortChange, apiParams } =
+    useDataTable(filters, setFilters, { defaultPageSize: 25 });
+
+  const [searchInput, setSearchInput] = useState(filters.q);
   const [data, setData] = useState<PeopleResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const limit = 25;
-
-  const page = parseInt(filters.page, 10) || 0;
 
   // Panel preview
   const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
@@ -76,15 +181,15 @@ function PeoplePageContent() {
     const params = new URLSearchParams();
     if (filters.q) params.set("q", filters.q);
     if (filters.deep === "true") params.set("deep_search", "true");
-    params.set("limit", String(limit));
-    params.set("offset", String(page * limit));
+    params.set("limit", String(apiParams.limit));
+    params.set("offset", String(apiParams.offset));
 
     try {
       const result = await fetchApiWithMeta<{ people: Person[] }>(`/api/people?${params.toString()}`);
       setData({
         people: result.data.people || [],
         total: result.meta?.total || 0,
-        limit: result.meta?.limit || limit,
+        limit: result.meta?.limit || apiParams.limit,
         offset: result.meta?.offset || 0,
       });
     } catch (err) {
@@ -92,22 +197,20 @@ function PeoplePageContent() {
     } finally {
       setLoading(false);
     }
-  }, [filters.q, filters.deep, page]);
+  }, [filters.q, filters.deep, apiParams.limit, apiParams.offset]);
 
   useEffect(() => {
     fetchPeople();
   }, [fetchPeople]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setFilter("page", "0");
-  };
+  // Sync search input on external clear
+  useEffect(() => {
+    if (filters.q !== searchInput) setSearchInput(filters.q);
+  }, [filters.q]);
 
   const handleRowClick = (personId: string) => {
     setFilter("selected", filters.selected === personId ? "" : personId);
   };
-
-  const totalPages = data ? Math.ceil(data.total / limit) : 0;
 
   const panelContent = filters.selected && selectedDetail && !detailLoading ? (
     <PersonPreviewContent
@@ -126,31 +229,21 @@ function PeoplePageContent() {
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0 }}>People</h1>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          {!isDefault && (
-            <button
-              onClick={clearFilters}
-              style={{ fontSize: "0.875rem", background: "none", border: "1px solid var(--border)", borderRadius: "4px", padding: "0.25rem 0.75rem", cursor: "pointer" }}
-            >
-              Clear Filters
-            </button>
-          )}
-          <button
-            onClick={() => setShowCreateModal(true)}
-            style={{
-              fontSize: "0.875rem",
-              background: "#2563eb",
-              color: "#fff",
-              border: "none",
-              borderRadius: "4px",
-              padding: "0.35rem 0.75rem",
-              cursor: "pointer",
-              fontWeight: 500,
-            }}
-          >
-            + New Person
-          </button>
-        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          style={{
+            fontSize: "0.875rem",
+            background: "#2563eb",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            padding: "0.35rem 0.75rem",
+            cursor: "pointer",
+            fontWeight: 500,
+          }}
+        >
+          + New Person
+        </button>
       </div>
 
       <CreatePersonModal
@@ -162,208 +255,98 @@ function PeoplePageContent() {
         }}
       />
 
-      <form onSubmit={handleSearch} className="filters">
-        <input
-          type="text"
+      <FilterBar showClear={!isDefault} onClear={clearFilters}>
+        <SearchInput
+          value={searchInput}
+          onChange={setSearchInput}
+          onDebouncedChange={(v) => setFilters({ q: v, page: "0" })}
           placeholder="Search by name..."
-          value={filters.q}
-          onChange={(e) => setFilters({ q: e.target.value, page: "0" })}
-          style={{ minWidth: "250px" }}
         />
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem" }}>
-          <input
-            type="checkbox"
-            checked={filters.deep === "true"}
-            onChange={(e) => setFilters({ deep: e.target.checked ? "true" : "", page: "0" })}
-          />
-          Deep Search
-          <span className="text-muted" style={{ fontSize: "0.75rem" }}>(includes all records)</span>
-        </label>
-        <button type="submit">Search</button>
-      </form>
-
-      {loading && <div className="loading">Loading people...</div>}
+        <FilterDivider />
+        <ToggleButtonGroup
+          options={DEEP_SEARCH_OPTIONS}
+          value={filters.deep}
+          onChange={(v) => setFilters({ deep: v, page: "0" })}
+          aria-label="Search depth"
+        />
+      </FilterBar>
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
 
-      {!loading && !error && data && (
-        <>
-          <p className="text-muted text-sm mb-4">
-            Showing {data.offset + 1}-{Math.min(data.offset + data.people.length, data.total)} of {data.total} people
-          </p>
-
-          {isMobile ? (
-            /* Mobile card view */
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "0.75rem" }}>
-              {data.people.map((person) => (
-                <a
-                  key={person.person_id}
-                  href={`/people/${person.person_id}`}
-                  style={{
-                    display: "block",
-                    textDecoration: "none",
-                    color: "inherit",
-                    background: "var(--card-bg)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    padding: "0.75rem",
-                    opacity: person.surface_quality === "Low" ? 0.7 : 1,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{person.display_name}</div>
-                    {person.surface_quality === "High" ? (
-                      <span className="badge badge-primary" style={{ fontSize: "0.7em" }}>High</span>
-                    ) : person.surface_quality === "Medium" ? (
-                      <span className="badge" style={{ fontSize: "0.7em", background: "#ffc107", color: "#000" }}>Med</span>
-                    ) : (
-                      <span className="badge" style={{ fontSize: "0.7em", background: "#dc3545" }}>Low</span>
-                    )}
-                  </div>
-                  {(person.do_not_contact || person.primary_role || person.entity_type) && (
-                    <div style={{ marginTop: "4px" }}>
-                      <PersonStatusBadges
-                        primaryRole={person.primary_role}
-                        trapperType={person.trapper_type}
-                        doNotContact={person.do_not_contact}
-                        entityType={person.entity_type}
-                        catCount={person.cat_count}
-                      />
-                    </div>
-                  )}
-                  <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                    <span>
-                      {person.has_email && "Email"}{person.has_email && person.has_phone && " / "}{person.has_phone && "Phone"}
-                      {!person.has_email && !person.has_phone && "No contact"}
-                    </span>
-                    <span>{person.cat_count} cats</span>
-                    <span>{person.place_count} places</span>
-                    {person.last_appointment_date && (
-                      <span>Last: {formatRelativeTime(person.last_appointment_date)}</span>
-                    )}
-                  </div>
-                  {person.primary_place && (
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>{person.primary_place}</div>
-                  )}
-                </a>
-              ))}
+      <DataTable<Person>
+        columns={personColumns}
+        data={data?.people ?? []}
+        getRowId={(row) => row.person_id}
+        total={data?.total ?? 0}
+        pageIndex={pageIndex}
+        pageSize={pageSize}
+        onPaginationChange={handlePaginationChange}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSortChange={handleSortChange}
+        selectedRowId={filters.selected}
+        onRowClick={handleRowClick}
+        getRowStyle={(row) => row.surface_quality === "Low" ? { opacity: 0.7 } : undefined}
+        loading={loading}
+        hasActiveFilters={!isDefault}
+        onClearFilters={clearFilters}
+        aria-label="People"
+        renderCard={(person, { isSelected, onClick }) => (
+          <a
+            href={`/people/${person.person_id}`}
+            style={{
+              display: "block",
+              textDecoration: "none",
+              color: "inherit",
+              background: isSelected ? "var(--info-bg, #eff6ff)" : "var(--card-bg)",
+              border: "1px solid var(--border)",
+              borderRadius: "8px",
+              padding: "0.75rem",
+              opacity: person.surface_quality === "Low" ? 0.7 : 1,
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              onClick();
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{person.display_name}</div>
+              {person.surface_quality === "High" ? (
+                <span className="badge badge-primary" style={{ fontSize: "0.7em" }}>High</span>
+              ) : person.surface_quality === "Medium" ? (
+                <span className="badge" style={{ fontSize: "0.7em", background: "#ffc107", color: "#000" }}>Med</span>
+              ) : (
+                <span className="badge" style={{ fontSize: "0.7em", background: "#dc3545" }}>Low</span>
+              )}
             </div>
-          ) : (
-            /* Desktop table view */
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Confidence</th>
-                    <th>Contact</th>
-                    <th>Cats</th>
-                    <th>Places</th>
-                    <th>Last Active</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.people.map((person) => (
-                    <tr
-                      key={person.person_id}
-                      style={{
-                        ...(person.surface_quality === "Low" ? { opacity: 0.7 } : {}),
-                        cursor: "pointer",
-                        background: filters.selected === person.person_id ? "var(--section-bg, #f9fafb)" : undefined,
-                      }}
-                      onClick={() => handleRowClick(person.person_id)}
-                    >
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                          <EntityPreview entityType="person" entityId={person.person_id}>
-                            <a href={`/people/${person.person_id}`} onClick={(e) => e.stopPropagation()}>{person.display_name}</a>
-                          </EntityPreview>
-                          <PersonStatusBadges
-                            primaryRole={person.primary_role}
-                            trapperType={person.trapper_type}
-                            doNotContact={person.do_not_contact}
-                            entityType={person.entity_type}
-                            catCount={person.cat_count}
-                          />
-                          {person.account_type && person.account_type !== "person" && !person.entity_type && (
-                            <span className="badge" style={{ fontSize: "0.7em", background: "#6c757d" }}>
-                              {person.account_type}
-                            </span>
-                          )}
-                          {person.is_canonical === false && (
-                            <span
-                              className="badge"
-                              style={{ fontSize: "0.7em", background: "#dc3545" }}
-                              title="Non-canonical record (organization, placeholder, or garbage name)"
-                            >
-                              Non-canonical
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        {person.surface_quality === "High" ? (
-                          <span className="badge badge-primary" title={person.quality_reason || undefined}>High</span>
-                        ) : person.surface_quality === "Medium" ? (
-                          <span className="badge" title={person.quality_reason || undefined} style={{ background: "#ffc107", color: "#000" }}>Medium</span>
-                        ) : (
-                          <span className="badge" title={person.quality_reason || undefined} style={{ background: "#dc3545" }}>Low</span>
-                        )}
-                      </td>
-                      <td>
-                        {person.has_email && person.has_phone ? (
-                          <span title="Has email and phone">Email / Phone</span>
-                        ) : person.has_email ? (
-                          <span title="Has email">Email</span>
-                        ) : person.has_phone ? (
-                          <span title="Has phone">Phone</span>
-                        ) : (
-                          <span className="text-muted">&mdash;</span>
-                        )}
-                      </td>
-                      <td>
-                        {person.cat_count > 0 ? (
-                          <span title={person.cat_names || ""}>{person.cat_count}</span>
-                        ) : (
-                          <span className="text-muted">0</span>
-                        )}
-                      </td>
-                      <td>
-                        {person.place_count > 0 ? <span>{person.place_count}</span> : <span className="text-muted">0</span>}
-                      </td>
-                      <td>
-                        {person.last_appointment_date ? (
-                          <span title={person.last_appointment_date}>{formatRelativeTime(person.last_appointment_date)}</span>
-                        ) : (
-                          <span className="text-muted">&mdash;</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {(person.do_not_contact || person.primary_role || person.entity_type) && (
+              <div style={{ marginTop: "4px" }}>
+                <PersonStatusBadges
+                  primaryRole={person.primary_role}
+                  trapperType={person.trapper_type}
+                  doNotContact={person.do_not_contact}
+                  entityType={person.entity_type}
+                  catCount={person.cat_count}
+                />
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+              <span>
+                {person.has_email && "Email"}{person.has_email && person.has_phone && " / "}{person.has_phone && "Phone"}
+                {!person.has_email && !person.has_phone && "No contact"}
+              </span>
+              <span>{person.cat_count} cats</span>
+              <span>{person.place_count} places</span>
+              {person.last_appointment_date && (
+                <span>Last: {formatRelativeTime(person.last_appointment_date)}</span>
+              )}
             </div>
-          )}
-
-          {totalPages > 1 && (
-            <div className="pagination">
-              <button
-                onClick={() => setFilter("page", String(Math.max(0, page - 1)))}
-                disabled={page === 0}
-              >
-                Previous
-              </button>
-              <span className="pagination-info">Page {page + 1} of {totalPages}</span>
-              <button
-                onClick={() => setFilter("page", String(Math.min(totalPages - 1, page + 1)))}
-                disabled={page >= totalPages - 1}
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </>
-      )}
+            {person.primary_place && (
+              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>{person.primary_place}</div>
+            )}
+          </a>
+        )}
+      />
     </ListDetailLayout>
   );
 }

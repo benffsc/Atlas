@@ -358,7 +358,7 @@ export function PlaceContextEditor({
         <div
           style={{
             padding: "0.75rem",
-            background: "#f9fafb",
+            background: "var(--section-bg)",
             borderRadius: "6px",
             marginTop: "0.5rem",
           }}
@@ -378,7 +378,7 @@ export function PlaceContextEditor({
                 width: "100%",
                 padding: "0.5rem",
                 borderRadius: "4px",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--border-light)",
                 fontSize: "0.875rem",
               }}
             >
@@ -408,7 +408,7 @@ export function PlaceContextEditor({
                     flex: 1,
                     padding: "0.5rem",
                     borderRadius: "4px",
-                    border: "1px solid #d1d5db",
+                    border: "1px solid var(--border-light)",
                     fontSize: "0.875rem",
                   }}
                 >
@@ -424,8 +424,8 @@ export function PlaceContextEditor({
                   onClick={() => setShowCreateOrg(true)}
                   style={{
                     padding: "0.5rem",
-                    background: "#f3f4f6",
-                    border: "1px solid #d1d5db",
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border-light)",
                     borderRadius: "4px",
                     cursor: "pointer",
                     fontSize: "0.75rem",
@@ -448,7 +448,7 @@ export function PlaceContextEditor({
                     width: "100%",
                     padding: "0.5rem",
                     borderRadius: "4px",
-                    border: "1px solid #d1d5db",
+                    border: "1px solid var(--border-light)",
                     fontSize: "0.875rem",
                   }}
                 />
@@ -467,7 +467,7 @@ export function PlaceContextEditor({
               style={{
                 padding: "0.375rem 0.75rem",
                 background: "transparent",
-                border: "1px solid #d1d5db",
+                border: "1px solid var(--border-light)",
                 borderRadius: "4px",
                 fontSize: "0.8125rem",
                 cursor: "pointer",
@@ -536,7 +536,7 @@ export function PlaceContextEditor({
                   width: "100%",
                   padding: "0.5rem",
                   borderRadius: "4px",
-                  border: "1px solid #d1d5db",
+                  border: "1px solid var(--border-light)",
                 }}
                 autoFocus
               />
@@ -553,7 +553,7 @@ export function PlaceContextEditor({
                   width: "100%",
                   padding: "0.5rem",
                   borderRadius: "4px",
-                  border: "1px solid #d1d5db",
+                  border: "1px solid var(--border-light)",
                 }}
               >
                 <option value="other">Other</option>
@@ -572,7 +572,7 @@ export function PlaceContextEditor({
                 style={{
                   padding: "0.5rem 1rem",
                   background: "transparent",
-                  border: "1px solid #d1d5db",
+                  border: "1px solid var(--border-light)",
                   borderRadius: "4px",
                   cursor: "pointer",
                 }}
@@ -627,7 +627,7 @@ export function PlaceContextBadges({ contexts }: { contexts: PlaceContext[] }) {
           style={{
             fontSize: "0.6875rem",
             padding: "0.125rem 0.375rem",
-            background: "#f3f4f6",
+            background: "var(--bg-secondary)",
             borderRadius: "4px",
           }}
         >

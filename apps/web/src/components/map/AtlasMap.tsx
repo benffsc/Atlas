@@ -2410,7 +2410,7 @@ function AtlasMapInner() {
           <button
             onClick={() => { setStreetViewCoords(null); setStreetViewFullscreen(false); searchInputRef.current?.focus(); }}
             style={{
-              background: "white",
+              background: "var(--background)",
               borderRadius: 20,
               padding: "8px 14px",
               boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
@@ -2422,7 +2422,7 @@ function AtlasMapInner() {
               display: "flex",
               alignItems: "center",
               gap: 6,
-              color: "#374151",
+              color: "var(--text-secondary)",
             }}
           >
             <span style={{ fontSize: 14 }}>&#x1F50D;</span> Search
@@ -2440,7 +2440,7 @@ function AtlasMapInner() {
         padding: "0 16px",
       }}>
         <div style={{
-          background: "white",
+          background: "var(--background)",
           borderRadius: 24,
           boxShadow: "0 2px 6px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)",
           display: "flex",
@@ -2456,7 +2456,7 @@ function AtlasMapInner() {
               gap: 6,
               marginRight: 8,
               textDecoration: "none",
-              color: "#374151",
+              color: "var(--text-secondary)",
               fontWeight: 700,
               fontSize: 14,
               flexShrink: 0,
@@ -2471,7 +2471,7 @@ function AtlasMapInner() {
             <img src="/logo.png" alt="" style={{ height: 22, width: "auto" }} />
             {!isMobile && <span>Atlas</span>}
           </a>
-          <span style={{ width: 1, height: 20, background: "#e5e7eb", marginRight: 10, flexShrink: 0 }} />
+          <span style={{ width: 1, height: 20, background: "var(--bg-secondary)", marginRight: 10, flexShrink: 0 }} />
           <input
             ref={searchInputRef}
             type="text"
@@ -2503,7 +2503,7 @@ function AtlasMapInner() {
         {/* Search results dropdown */}
         {showSearchResults && (searchResults.length > 0 || atlasSearchResults.length > 0 || googleSuggestions.length > 0 || (searchQuery.length >= 3 && !searchLoading)) && (
           <div style={{
-            background: "white",
+            background: "var(--background)",
             borderRadius: 12,
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
             marginTop: 8,
@@ -2520,8 +2520,8 @@ function AtlasMapInner() {
                   color: "#6b7280",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
-                  background: "#f9fafb",
-                  borderBottom: "1px solid #e5e7eb",
+                  background: "var(--section-bg)",
+                  borderBottom: "1px solid var(--border)",
                 }}>
                   In Atlas
                 </div>
@@ -2633,8 +2633,8 @@ function AtlasMapInner() {
                   color: "#6b7280",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
-                  background: "#f9fafb",
-                  borderBottom: "1px solid #e5e7eb",
+                  background: "var(--section-bg)",
+                  borderBottom: "1px solid var(--border)",
                   marginTop: searchResults.length > 0 || atlasSearchResults.length > 0 ? 8 : 0,
                 }}>
                   Search All Addresses
@@ -2764,7 +2764,7 @@ function AtlasMapInner() {
 
           {/* Legend */}
           {(atlasLayerEnabled || enabledLayers.google_pins || enabledLayers.tnr_priority || enabledLayers.historical_sources) && (
-            <div style={{ padding: 16, borderTop: "1px solid #e5e7eb" }}>
+            <div style={{ padding: 16, borderTop: "1px solid var(--border)" }}>
               <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 8 }}>
                 Legend
               </div>
@@ -2891,7 +2891,7 @@ function AtlasMapInner() {
           bottom: 24,
           left: 16,
           zIndex: MAP_Z_INDEX.statsBar,
-          background: "white",
+          background: "var(--background)",
           borderRadius: 12,
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
           padding: "10px 16px",
@@ -2900,13 +2900,13 @@ function AtlasMapInner() {
           fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#374151" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text-secondary)" }}>
               {summary.total_places.toLocaleString()}
             </div>
             <div style={{ fontSize: 11, color: "#6b7280" }}>Total Places</div>
           </div>
           <div style={{ borderLeft: "1px solid #e5e7eb", paddingLeft: 24 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#374151" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text-secondary)" }}>
               {summary.total_cats.toLocaleString()}
             </div>
             <div style={{ fontSize: 11, color: "#6b7280" }}>Cats Linked</div>
@@ -3010,15 +3010,15 @@ function AtlasMapInner() {
         color: "#9ca3af",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}>
-        <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>/</kbd> search
+        <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>/</kbd> search
         <span style={{ margin: "0 6px" }}>·</span>
-        <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>L</kbd> layers
+        <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>L</kbd> layers
         <span style={{ margin: "0 6px" }}>·</span>
-        <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>A</kbd> add point
+        <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>A</kbd> add point
         <span style={{ margin: "0 6px" }}>·</span>
-        <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>M</kbd> location
+        <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>M</kbd> location
         <span style={{ margin: "0 6px" }}>·</span>
-        <kbd style={{ background: "#f3f4f6", padding: "1px 4px", borderRadius: 3 }}>F</kbd> fullscreen
+        <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>F</kbd> fullscreen
       </div>}
 
       {/* Map Legend */}

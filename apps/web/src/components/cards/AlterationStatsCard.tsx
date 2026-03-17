@@ -160,7 +160,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
       {/* Main Stats Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
         {/* Alteration Rate */}
-        <div style={{ textAlign: "center", padding: "0.75rem", background: "#f8f9fa", borderRadius: "8px" }}>
+        <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.75rem", fontWeight: "bold", color: rateColor }}>
             {stats.alteration_rate_pct !== null ? `${stats.alteration_rate_pct}%` : "—"}
           </div>
@@ -176,7 +176,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
         </div>
 
         {/* Total At Place */}
-        <div style={{ textAlign: "center", padding: "0.75rem", background: "#f8f9fa", borderRadius: "8px" }}>
+        <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.75rem", fontWeight: "bold", color: "#212529" }}>
             {stats.cats_caught}
           </div>
@@ -184,7 +184,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
         </div>
 
         {/* Historical (Pre-Request) */}
-        <div style={{ textAlign: "center", padding: "0.75rem", background: "#f8f9fa", borderRadius: "8px" }}>
+        <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.75rem", fontWeight: "bold", color: "#6c757d" }}>
             {stats.already_altered_before}
           </div>
@@ -250,7 +250,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
             <div style={{ marginTop: "0.75rem", maxHeight: "300px", overflowY: "auto" }}>
               <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid #dee2e6" }}>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th style={{ textAlign: "left", padding: "0.5rem" }}>Cat</th>
                     <th style={{ textAlign: "left", padding: "0.5rem" }}>Microchip</th>
                     <th style={{ textAlign: "left", padding: "0.5rem" }}>Sex</th>

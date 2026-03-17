@@ -46,7 +46,7 @@ export function ChangeHistorySection({ data }: SectionProps) {
           return (
             <div key={entry.edit_id} style={{
               display: "flex", alignItems: "center", gap: "0.75rem",
-              padding: "0.5rem 0.75rem", background: "#f8f9fa", borderRadius: "6px", fontSize: "0.85rem",
+              padding: "0.5rem 0.75rem", background: "var(--section-bg)", borderRadius: "6px", fontSize: "0.85rem",
             }}>
               <span style={{ color: "var(--muted)", fontSize: "0.75rem", minWidth: "60px" }}>
                 {timeAgo(entry.created_at)}

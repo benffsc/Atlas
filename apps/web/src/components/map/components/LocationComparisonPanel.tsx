@@ -108,7 +108,7 @@ export function LocationComparisonPanel({ placeIds, onRemovePlace, onClear }: Lo
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: MAP_Z_INDEX.drawer,
-        background: "white",
+        background: "var(--background)",
         borderRadius: 12,
         boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
         maxWidth: 700,
@@ -123,8 +123,8 @@ export function LocationComparisonPanel({ placeIds, onRemovePlace, onClear }: Lo
           alignItems: "center",
           justifyContent: "space-between",
           padding: "8px 12px",
-          background: "#f8f9fa",
-          borderBottom: "1px solid #e5e7eb",
+          background: "var(--section-bg)",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         <button
@@ -135,7 +135,7 @@ export function LocationComparisonPanel({ placeIds, onRemovePlace, onClear }: Lo
             cursor: "pointer",
             fontWeight: 600,
             fontSize: "0.85rem",
-            color: "#374151",
+            color: "var(--text-secondary)",
             display: "flex",
             alignItems: "center",
             gap: 4,

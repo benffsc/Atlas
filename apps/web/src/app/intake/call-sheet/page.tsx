@@ -212,8 +212,8 @@ interface PersonSuggestion {
 
 // ─── Styles ─────────────────────────────────────────────────────
 const card: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e5e7eb",
+  background: "var(--background)",
+  border: "1px solid var(--border)",
   borderRadius: "8px",
   padding: "1.25rem",
   marginBottom: "1rem",
@@ -232,14 +232,14 @@ const fieldLabel: React.CSSProperties = {
   display: "block",
   fontWeight: 600,
   fontSize: "13px",
-  color: "#374151",
+  color: "var(--text-secondary)",
   marginBottom: "4px",
 };
 
 const fieldInput: React.CSSProperties = {
   width: "100%",
   padding: "8px 10px",
-  border: "1px solid #d1d5db",
+  border: "1px solid var(--border-light)",
   borderRadius: "6px",
   fontSize: "14px",
   boxSizing: "border-box" as const,
@@ -289,7 +289,7 @@ const pageHeader: React.CSSProperties = {
   gap: "8px",
   marginBottom: "16px",
   paddingBottom: "8px",
-  borderBottom: "1px solid #e5e7eb",
+  borderBottom: "1px solid var(--border)",
 };
 
 // ─── Component ──────────────────────────────────────────────────
@@ -588,7 +588,7 @@ export default function CallSheetEntryPage() {
                 {showPersonDropdown && personSuggestions.length > 0 && (
                   <div style={{
                     position: "absolute", top: "100%", left: 0, right: 0,
-                    background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px",
+                    background: "var(--background)", border: "1px solid var(--border-light)", borderRadius: "6px",
                     boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 50, maxHeight: "200px", overflow: "auto",
                   }}>
                     {personSuggestions.map(p => (
@@ -1054,7 +1054,7 @@ export default function CallSheetEntryPage() {
 
           <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
             <a href="/intake/queue" style={{ textDecoration: "none" }}>
-              <button type="button" style={{ padding: "10px 24px", border: "1px solid #d1d5db", borderRadius: "8px", background: "#fff", cursor: "pointer", fontSize: "14px" }}>
+              <button type="button" style={{ padding: "10px 24px", border: "1px solid var(--border-light)", borderRadius: "8px", background: "var(--background)", cursor: "pointer", fontSize: "14px" }}>
                 Cancel
               </button>
             </a>

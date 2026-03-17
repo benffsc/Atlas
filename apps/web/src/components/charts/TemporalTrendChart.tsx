@@ -124,7 +124,7 @@ export function TemporalTrendChart({ placeId, months = 24 }: TemporalTrendChartP
                 <div style={{
                   position: "absolute", bottom: 0, left: "15%", right: "15%",
                   height: `${newH}px`, minHeight: t.new_cats_seen > 0 ? "3px" : 0,
-                  background: "#e9ecef", borderRadius: "2px 2px 0 0",
+                  background: "var(--bg-secondary)", borderRadius: "2px 2px 0 0",
                 }} />
                 {/* Alterations bar (overlay) */}
                 <div style={{
@@ -157,7 +157,7 @@ export function TemporalTrendChart({ placeId, months = 24 }: TemporalTrendChartP
       {/* Legend */}
       <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.7rem", color: "var(--text-muted)" }}>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <span style={{ width: "10px", height: "10px", background: "#e9ecef", borderRadius: "2px", display: "inline-block" }} />
+          <span style={{ width: "10px", height: "10px", background: "var(--bg-secondary)", borderRadius: "2px", display: "inline-block" }} />
           New Cats
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>

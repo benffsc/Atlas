@@ -71,7 +71,7 @@ function ProgressBar({ value, max, color = "#3b82f6" }: { value: number; max: nu
       <div style={{
         flex: 1,
         height: "8px",
-        background: "#e5e7eb",
+        background: "var(--bg-secondary)",
         borderRadius: "4px",
         overflow: "hidden"
       }}>
@@ -90,8 +90,8 @@ function ProgressBar({ value, max, color = "#3b82f6" }: { value: number; max: nu
 function StatCard({ label, value, subtitle }: { label: string; value: string | number; subtitle?: string }) {
   return (
     <div style={{
-      background: "white",
-      border: "1px solid #e5e7eb",
+      background: "var(--background)",
+      border: "1px solid var(--border)",
       borderRadius: "8px",
       padding: "16px"
     }}>
@@ -205,8 +205,8 @@ export default function AIExtractionPage() {
 
       {/* Google Maps Progress */}
       <div style={{
-        background: "white",
-        border: "1px solid #e5e7eb",
+        background: "var(--background)",
+        border: "1px solid var(--border)",
         borderRadius: "8px",
         padding: "20px",
         marginBottom: "24px"
@@ -253,17 +253,17 @@ export default function AIExtractionPage() {
         gap: "16px",
         marginBottom: "24px"
       }}>
-        <div style={{ background: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px" }}>
+        <div style={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: "8px", padding: "16px" }}>
           <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>Request Notes</h3>
           <div style={{ fontSize: "24px", fontWeight: 600 }}>{data.sources.requests.with_notes?.toLocaleString()}</div>
           <div style={{ fontSize: "12px", color: "#6b7280" }}>of {data.sources.requests.total.toLocaleString()} total requests</div>
         </div>
-        <div style={{ background: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px" }}>
+        <div style={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: "8px", padding: "16px" }}>
           <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>Clinic Appointments</h3>
           <div style={{ fontSize: "24px", fontWeight: 600 }}>{data.sources.clinic.with_notes?.toLocaleString()}</div>
           <div style={{ fontSize: "12px", color: "#6b7280" }}>of {data.sources.clinic.total.toLocaleString()} total</div>
         </div>
-        <div style={{ background: "white", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px" }}>
+        <div style={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: "8px", padding: "16px" }}>
           <h3 style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>Intake Submissions</h3>
           <div style={{ fontSize: "24px", fontWeight: 600 }}>{data.sources.intake.with_notes?.toLocaleString()}</div>
           <div style={{ fontSize: "12px", color: "#6b7280" }}>of {data.sources.intake.total.toLocaleString()} total</div>
@@ -272,8 +272,8 @@ export default function AIExtractionPage() {
 
       {/* Attributes by Entity Type */}
       <div style={{
-        background: "white",
-        border: "1px solid #e5e7eb",
+        background: "var(--background)",
+        border: "1px solid var(--border)",
         borderRadius: "8px",
         padding: "20px",
         marginBottom: "24px"
@@ -305,8 +305,8 @@ export default function AIExtractionPage() {
 
       {/* Queue Status */}
       <div style={{
-        background: "white",
-        border: "1px solid #e5e7eb",
+        background: "var(--background)",
+        border: "1px solid var(--border)",
         borderRadius: "8px",
         padding: "20px",
         marginBottom: "24px"
@@ -345,8 +345,8 @@ export default function AIExtractionPage() {
       {/* Recent Jobs */}
       {data.recent_jobs.length > 0 && (
         <div style={{
-          background: "white",
-          border: "1px solid #e5e7eb",
+          background: "var(--background)",
+          border: "1px solid var(--border)",
           borderRadius: "8px",
           padding: "20px"
         }}>
@@ -355,7 +355,7 @@ export default function AIExtractionPage() {
           </h2>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
                 <th style={{ textAlign: "left", padding: "8px 12px", color: "#6b7280", fontWeight: 500 }}>Source</th>
                 <th style={{ textAlign: "left", padding: "8px 12px", color: "#6b7280", fontWeight: 500 }}>Entity Type</th>
                 <th style={{ textAlign: "right", padding: "8px 12px", color: "#6b7280", fontWeight: 500 }}>Records</th>

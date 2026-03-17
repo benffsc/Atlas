@@ -93,7 +93,7 @@ export function TimelineEntry({
             marginBottom: 2,
           }}
         >
-          <span style={{ fontWeight: 500, fontSize: 13, color: "#374151" }}>
+          <span style={{ fontWeight: 500, fontSize: 13, color: "var(--text-secondary)" }}>
             {description}
           </span>
         </div>

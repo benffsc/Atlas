@@ -325,7 +325,7 @@ export function StatusPipeline({
           alignItems: "center",
           gap: 16,
           padding: "12px 16px",
-          background: "#f9fafb",
+          background: "var(--section-bg)",
           borderRadius: 8,
         }}
       >
@@ -333,7 +333,7 @@ export function StatusPipeline({
           <div
             style={{
               height: 8,
-              background: "#e5e7eb",
+              background: "var(--bg-secondary)",
               borderRadius: 4,
               overflow: "hidden",
             }}
