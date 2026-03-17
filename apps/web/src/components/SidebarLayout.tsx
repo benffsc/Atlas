@@ -225,7 +225,7 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
       {/* Sidebar */}
       <aside
         style={{
-          width: isMobile ? "280px" : isCollapsed ? "52px" : "180px",
+          width: isMobile ? "280px" : isCollapsed ? "var(--sidebar-collapsed-width, 52px)" : "var(--sidebar-width, 180px)",
           flexShrink: 0,
           borderRight: "1px solid var(--card-border)",
           background: "var(--background)",

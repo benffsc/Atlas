@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </a>
 
           {/* Search - flex grow to fill center */}
-          <div style={{ flex: 1, maxWidth: "480px" }}>
+          <div style={{ flex: 1, maxWidth: "min(480px, 40vw)" }}>
             <GlobalSearch />
           </div>
 

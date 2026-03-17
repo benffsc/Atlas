@@ -64,6 +64,14 @@
   /* Layout dimensions */
   --topbar-height: 56px;
 
+  /* Responsive layout tokens — scale with viewport */
+  --sidebar-width: 180px;
+  --sidebar-collapsed-width: 52px;
+  --content-padding: 1.5rem;
+  --card-min-width: 240px;
+  --kanban-col-max-width: 380px;
+  --stat-grid-cols: 2;
+
   /* Status badge colors (canonical) */
   --status-new: #0d6efd;
   --status-triaged: #6610f2;
@@ -186,12 +194,48 @@ a:hover {
   padding: 0 1.5rem;
 }
 
-/* On very large screens (4K+), allow more space */
+/* Responsive component overrides */
+.stats-grid { grid-template-columns: repeat(2, 1fr); }
+
+/* Large desktop (1440p+) */
+@media (min-width: 1440px) {
+  :root {
+    --sidebar-width: 200px;
+    --content-padding: 1.75rem;
+    --card-min-width: 260px;
+    --kanban-col-max-width: 420px;
+  }
+}
+
+/* QHD / ultrawide (2560px+) */
 @media (min-width: 2200px) {
+  :root {
+    --sidebar-width: 220px;
+    --sidebar-collapsed-width: 56px;
+    --content-padding: 2rem;
+    --card-min-width: 300px;
+    --kanban-col-max-width: 480px;
+  }
   .container {
     max-width: min(2400px, 88vw);
-    padding: 0 2rem;
+    padding: 0 var(--content-padding);
   }
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* 4K (3840px+) */
+@media (min-width: 3200px) {
+  :root {
+    --sidebar-width: 260px;
+    --sidebar-collapsed-width: 60px;
+    --content-padding: 2.5rem;
+    --card-min-width: 340px;
+    --kanban-col-max-width: 560px;
+  }
+  .container {
+    max-width: min(3200px, 90vw);
+  }
+  .stats-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
 /* Navigation - slim top bar */

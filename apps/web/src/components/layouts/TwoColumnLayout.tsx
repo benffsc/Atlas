@@ -99,7 +99,7 @@ export function TwoColumnLayout({
           </aside>
         )}
 
-        <main style={{ width: mainWidth, overflowY: "auto", padding: "1.5rem" }}>
+        <main style={{ width: mainWidth, overflowY: "auto", padding: "var(--content-padding, 1.5rem)" }}>
           {main}
         </main>
 

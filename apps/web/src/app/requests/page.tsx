@@ -18,6 +18,7 @@ import type { RequestDetail } from "@/hooks/useEntityDetail";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { RequestPreviewContent } from "@/components/preview/RequestPreviewContent";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
+import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
 
 interface Request {
   request_id: string;
@@ -765,7 +766,7 @@ function StatusGroupedCards({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(max(240px, calc((100% - 3rem) / 5)), 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(max(var(--card-min-width, 240px), calc((100% - 3rem) / 5)), 1fr))",
                 gap: "1rem",
               }}
             >
@@ -836,7 +837,7 @@ function StatusGroupedCards({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(max(240px, calc((100% - 3rem) / 5)), 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(max(var(--card-min-width, 240px), calc((100% - 3rem) / 5)), 1fr))",
                 gap: "1rem",
                 marginTop: "0.75rem",
               }}
@@ -1007,16 +1008,6 @@ function RequestsPageContent() {
     URL.revokeObjectURL(url);
   };
 
-  // Debounce search input → sync to URL param
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchInput !== filters.q) {
-        setFilter("q", searchInput);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Auto-select card view on mobile
   useEffect(() => {
     if (isMobile && filters.view === "table") {
@@ -1127,111 +1118,63 @@ function RequestsPageContent() {
       />
 
       {/* Row 2: Search + Filter Chips + Sort + View Toggle */}
-      <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.5rem", marginBottom: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
-        {/* Search Bar */}
-        <div style={{ position: "relative", flex: "0 1 240px", minWidth: "100px" }}>
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search..."
-            style={{
-              width: "100%",
-              padding: "0.3rem 0.6rem 0.3rem 1.8rem",
-              fontSize: "0.8rem",
-              borderRadius: "16px",
-              border: "1px solid var(--border)",
-              background: "var(--background)",
-            }}
-          />
-          <span
-            style={{
-              position: "absolute",
-              left: "0.55rem",
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "var(--text-muted)",
-              pointerEvents: "none",
-              fontSize: "0.7rem",
-            }}
-          >
-            🔍
-          </span>
-          {searchInput && (
-            <button
-              onClick={() => { setSearchInput(""); setFilter("q", ""); }}
-              style={{
-                position: "absolute",
-                right: "0.4rem",
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--text-muted)",
-                padding: "2px",
-                fontSize: "0.7rem",
-              }}
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        {/* Toggle Filter Chips */}
-        {([
-          { key: "trapper", value: "pending", label: "Needs Trapper" },
-          { key: "trapper", value: "mine", label: "My Assigned" },
-          { key: "priority", value: "urgent", label: "Urgent" },
-          { key: "kittens", value: "true", label: "Has Kittens" },
-          { key: "showArchived", value: "true", label: "Archived" },
-        ] as const).map((chip) => {
-          const isActive = filters[chip.key] === chip.value;
-          return (
-            <button
-              key={`${chip.key}-${chip.value}`}
-              onClick={() => {
-                if (isActive) {
-                  setFilter(chip.key, "");
-                } else {
-                  setFilter(chip.key, chip.value);
-                }
-              }}
-              style={{
-                padding: "0.3rem 0.7rem",
-                fontSize: "0.8rem",
-                borderRadius: "16px",
-                border: `1px solid ${isActive ? "var(--primary)" : "var(--border)"}`,
-                background: isActive ? "var(--info-bg, #eff6ff)" : "transparent",
-                color: isActive ? "var(--primary)" : "var(--text-secondary, #6b7280)",
-                cursor: "pointer",
-                fontWeight: isActive ? 600 : 400,
-                transition: "all 0.15s",
-              }}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
-
+      <FilterBar>
+        <SearchInput
+          value={searchInput}
+          onChange={setSearchInput}
+          onDebouncedChange={(v) => setFilter("q", v)}
+          placeholder="Search..."
+          size="sm"
+        />
+        <FilterDivider />
+        <ToggleButtonGroup
+          options={[
+            { value: "pending", label: "Needs Trapper" },
+            { value: "mine", label: "My Assigned" },
+          ]}
+          value={filters.trapper}
+          onChange={(v) => setFilter("trapper", v)}
+          allowDeselect
+          size="sm"
+          aria-label="Trapper filter"
+        />
+        <ToggleButtonGroup
+          options={[{ value: "urgent", label: "Urgent" }]}
+          value={filters.priority}
+          onChange={(v) => setFilter("priority", v)}
+          allowDeselect
+          size="sm"
+          aria-label="Priority filter"
+        />
+        <ToggleButtonGroup
+          options={[{ value: "true", label: "Has Kittens" }]}
+          value={filters.kittens}
+          onChange={(v) => setFilter("kittens", v)}
+          allowDeselect
+          size="sm"
+          aria-label="Kittens filter"
+        />
+        <ToggleButtonGroup
+          options={[{ value: "true", label: "Archived" }]}
+          value={filters.showArchived}
+          onChange={(v) => setFilter("showArchived", v)}
+          allowDeselect
+          size="sm"
+          aria-label="Archive filter"
+        />
+        <FilterDivider />
         {/* Sort Dropdown */}
         <select
           value={filters.sort}
           onChange={(e) => setFilter("sort", e.target.value)}
           style={{
-            padding: "0.3rem 1.4rem 0.3rem 0.6rem",
-            fontSize: "0.8rem",
-            borderRadius: "16px",
-            border: "1px solid var(--border)",
-            background: "var(--background)",
-            color: "var(--foreground)",
+            padding: "0.3rem 0.5rem",
+            fontSize: "0.75rem",
+            borderRadius: "9999px",
+            border: "1px solid var(--border, #e5e7eb)",
+            background: "var(--card-bg, #fff)",
+            color: "var(--text-primary, #111827)",
             cursor: "pointer",
-            WebkitAppearance: "none",
-            MozAppearance: "none",
-            appearance: "none",
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236b7280'/%3E%3C/svg%3E")`,
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "right 0.5rem center",
           }}
         >
           <option value="status">By Status</option>
@@ -1239,7 +1182,6 @@ function RequestsPageContent() {
           <option value="oldest">Oldest First</option>
           <option value="priority">By Priority</option>
         </select>
-
         {/* View Toggle */}
         <div style={{ display: "flex", gap: "2px", marginLeft: "auto", flexShrink: 0 }}>
           <button
@@ -1286,7 +1228,7 @@ function RequestsPageContent() {
             Table
           </button>
         </div>
-      </div>
+      </FilterBar>
 
       {/* Bulk Action Bar */}
       {selectedIds.size > 0 && (
@@ -1400,24 +1342,31 @@ function RequestsPageContent() {
           <KanbanBoardMobile
             requests={requests}
             onStatusChange={async (requestId, newStatus) => {
-              try {
-                await postApi(`/api/requests/${requestId}`, { status: newStatus }, { method: "PATCH" });
-                setRefreshTrigger((n) => n + 1);
-              } catch (err) {
-                console.error("Failed to update status:", err);
-              }
+              await postApi(`/api/requests/${requestId}`, { status: newStatus }, { method: "PATCH" });
+              setRequests((prev) =>
+                prev.map((r) =>
+                  r.request_id === requestId ? { ...r, status: newStatus } : r
+                )
+              );
             }}
           />
         ) : (
           <KanbanBoard
             requests={requests}
-            onStatusChange={async (requestId, newStatus) => {
-              try {
-                await postApi(`/api/requests/${requestId}`, { status: newStatus }, { method: "PATCH" });
-                setRefreshTrigger((n) => n + 1);
-              } catch (err) {
-                console.error("Failed to update status:", err);
+            onBeforeDrop={(_itemId, _from, toStatus) => {
+              if (toStatus === "completed") {
+                return window.confirm("Mark this request as completed? This is a terminal status.");
               }
+              return true;
+            }}
+            onStatusChange={async (requestId, newStatus) => {
+              await postApi(`/api/requests/${requestId}`, { status: newStatus }, { method: "PATCH" });
+              // Targeted state update — don't refetch (destroys optimistic state)
+              setRequests((prev) =>
+                prev.map((r) =>
+                  r.request_id === requestId ? { ...r, status: newStatus } : r
+                )
+              );
             }}
           />
         )

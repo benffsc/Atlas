@@ -97,7 +97,7 @@ export function ListDetailLayout({
           flex: listFlex,
           overflowY: "auto",
           transition: `flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease`,
-          padding: "1.5rem",
+          padding: "var(--content-padding, 1.5rem)",
           opacity: size === "full" ? 0 : 1,
           pointerEvents: size === "full" ? "none" : "auto",
           minWidth: 0,
