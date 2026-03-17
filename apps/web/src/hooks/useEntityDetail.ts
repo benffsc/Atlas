@@ -71,6 +71,7 @@ export interface RequestDetail {
   status: string;
   priority: string | null;
   summary: string | null;
+  notes: string | null;
   place_name: string | null;
   requester_name: string | null;
   estimated_cat_count: number | null;
@@ -81,9 +82,72 @@ export interface RequestDetail {
   place_id?: string | null;
   place_address?: string | null;
   place_kind?: string | null;
+  place_city?: string | null;
+  place_coordinates?: { lat: number; lng: number } | null;
+  place_service_zone?: string | null;
   linked_cat_count?: number;
   assignment_status?: string;
   primary_trapper_name?: string | null;
+  // Contact
+  requester_phone?: string | null;
+  requester_email?: string | null;
+  requester_role_at_submission?: string | null;
+  requester_is_site_contact?: boolean | null;
+  site_contact_name?: string | null;
+  site_contact_phone?: string | null;
+  site_contact_email?: string | null;
+  // Colony & cats
+  peak_count?: number | null;
+  eartip_count?: number | null;
+  colony_size_estimate?: number | null;
+  colony_verified_altered?: number | null;
+  colony_work_remaining?: number | null;
+  colony_alteration_rate?: number | null;
+  has_kittens?: boolean;
+  cats_are_friendly?: boolean | null;
+  handleability?: string | null;
+  count_confidence?: string | null;
+  colony_duration?: string | null;
+  awareness_duration?: string | null;
+  // Trapping logistics
+  dogs_on_site?: string | null;
+  trap_savvy?: string | null;
+  previous_tnr?: string | null;
+  traps_overnight_safe?: boolean | null;
+  best_times_seen?: string | null;
+  best_trapping_time?: string | null;
+  permission_status?: string | null;
+  property_type?: string | null;
+  // Feeding
+  is_being_fed?: boolean | null;
+  feeder_name?: string | null;
+  feeding_frequency?: string | null;
+  feeding_location?: string | null;
+  feeding_time?: string | null;
+  // Urgency
+  is_emergency?: boolean | null;
+  urgency_reasons?: string[] | null;
+  urgency_notes?: string | null;
+  has_medical_concerns?: boolean;
+  medical_description?: string | null;
+  // Trappers
+  current_trappers?: Array<{
+    trapper_person_id: string;
+    trapper_name: string;
+    trapper_type: string | null;
+    is_ffsc_trapper: boolean;
+    is_primary: boolean;
+    assigned_at: string;
+  }>;
+  // Linked cats
+  cats?: Array<{
+    cat_id: string;
+    cat_name: string | null;
+    link_purpose: string;
+    microchip: string | null;
+    altered_status: string | null;
+    linked_at: string;
+  }> | null;
 }
 
 export type EntityType = "cat" | "person" | "place" | "request";
