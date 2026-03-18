@@ -85,8 +85,10 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   const debounceRef = useRef<NodeJS.Timeout>();
+  const abortRef = useRef<AbortController>();
+  const searchIdRef = useRef(0);
 
-  // ── Debounced parallel search ──
+  // ── Debounced search with independent result streams (FFS-688) ──
 
   useEffect(() => {
     if (query.length < 3 || selectedPlace) {
@@ -98,42 +100,54 @@ export function usePlaceResolver(options: UsePlaceResolverOptions = {}) {
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    debounceRef.current = setTimeout(async () => {
+    debounceRef.current = setTimeout(() => {
+      // Abort any in-flight requests from previous search
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const currentSearchId = ++searchIdRef.current;
+
       setSearching(true);
       setShowDropdown(true);
 
-      try {
-        const [atlasResult, googleResult] = await Promise.allSettled([
-          fetchApi<{ results?: AtlasPlace[]; suggestions?: AtlasPlace[] }>(
-            `/api/search?q=${encodeURIComponent(query)}&type=place&limit=${atlasLimit}`
-          ),
-          fetchApi<{ predictions: GooglePrediction[] }>(
-            `/api/places/autocomplete?input=${encodeURIComponent(query)}`
-          ),
-        ]);
-
-        if (atlasResult.status === "fulfilled") {
-          setAtlasResults(atlasResult.value.results || atlasResult.value.suggestions || []);
-        } else {
-          console.warn("Atlas search failed:", atlasResult.reason);
+      // Fire Atlas and Google independently — show each as it arrives
+      fetchApi<{ results?: AtlasPlace[]; suggestions?: AtlasPlace[] }>(
+        `/api/search?q=${encodeURIComponent(query)}&type=place&limit=${atlasLimit}`,
+        { signal: controller.signal }
+      )
+        .then((data) => {
+          if (searchIdRef.current !== currentSearchId) return;
+          setAtlasResults(data.results || data.suggestions || []);
+        })
+        .catch((err) => {
+          if (controller.signal.aborted) return;
+          console.warn("Atlas search failed:", err);
           setAtlasResults([]);
-        }
+        });
 
-        if (googleResult.status === "fulfilled") {
-          setGoogleResults((googleResult.value.predictions || []).slice(0, googleLimit));
-        } else {
-          console.warn("Google Places search failed:", googleResult.reason);
+      fetchApi<{ predictions: GooglePrediction[] }>(
+        `/api/places/autocomplete?input=${encodeURIComponent(query)}`,
+        { signal: controller.signal }
+      )
+        .then((data) => {
+          if (searchIdRef.current !== currentSearchId) return;
+          setGoogleResults((data.predictions || []).slice(0, googleLimit));
+        })
+        .catch((err) => {
+          if (controller.signal.aborted) return;
+          console.warn("Google Places search failed:", err);
           setGoogleResults([]);
-        }
-      } catch (err) {
-        console.error("PlaceResolver search error:", err);
-      } finally {
-        setSearching(false);
-      }
+        })
+        .finally(() => {
+          if (searchIdRef.current === currentSearchId) {
+            setSearching(false);
+          }
+        });
     }, debounceMs);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (abortRef.current) abortRef.current.abort();
     };
   }, [query, selectedPlace, atlasLimit, googleLimit, debounceMs]);
 
