@@ -7,6 +7,7 @@ import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/common";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { COUNTY_OPTIONS } from "@/lib/form-options";
 
 /**
  * Parse city and zip from a Google formatted address string.
@@ -158,7 +159,7 @@ const initialForm: CallSheetForm = {
   cats_address: "",
   cats_city: "",
   cats_zip: "",
-  county: "sonoma",
+  county: "Sonoma",
   property_type: "",
   ownership_status: "",
   cat_count_estimate: "",
@@ -198,7 +199,6 @@ const initialForm: CallSheetForm = {
 
 // IMPORTANT_NOTE_OPTIONS and URGENCY_REASON_OPTIONS imported from @/lib/intake-options
 
-const COUNTY_OPTIONS = ["sonoma", "marin", "napa", "other"];
 const PROPERTY_TYPE_OPTIONS = ["house", "apartment", "business", "rural", "other"];
 
 // ─── Person Search ──────────────────────────────────────────────
@@ -662,10 +662,10 @@ export default function CallSheetEntryPage() {
               <div>
                 <label style={fieldLabel}>County</label>
                 <div style={radioGroup}>
-                  {COUNTY_OPTIONS.map(c => (
-                    <label key={c} style={radioLabel}>
-                      <input type="radio" name="county" value={c} checked={form.county === c} onChange={() => updateForm({ county: c })} />
-                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                  {COUNTY_OPTIONS.map(opt => (
+                    <label key={opt.value} style={radioLabel}>
+                      <input type="radio" name="county" value={opt.value} checked={form.county === opt.value} onChange={() => updateForm({ county: opt.value })} />
+                      {opt.label}
                     </label>
                   ))}
                 </div>

@@ -1,14 +1,8 @@
 import { NextRequest } from "next/server";
 import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
+import { getAutocompleteBias } from "@/lib/geo-config";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
-
-// Bias results to Sonoma County area
-const LOCATION_BIAS = {
-  lat: 38.5,
-  lng: -122.8,
-  radius: 50000, // 50km
-};
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -23,6 +17,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const locationBias = await getAutocompleteBias();
+
     const url = new URL(
       "https://maps.googleapis.com/maps/api/place/autocomplete/json"
     );
@@ -31,9 +27,9 @@ export async function GET(request: NextRequest) {
     url.searchParams.set("types", "address");
     url.searchParams.set(
       "location",
-      `${LOCATION_BIAS.lat},${LOCATION_BIAS.lng}`
+      `${locationBias.lat},${locationBias.lng}`
     );
-    url.searchParams.set("radius", String(LOCATION_BIAS.radius));
+    url.searchParams.set("radius", String(locationBias.radius));
     url.searchParams.set("components", "country:us");
 
     const response = await fetch(url.toString());

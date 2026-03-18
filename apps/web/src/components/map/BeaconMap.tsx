@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useGeoConfig } from "@/hooks/useGeoConfig";
 
 interface Place {
   id: string;
@@ -124,6 +125,7 @@ export default function BeaconMap({
   tnrPriority = [],
   loading = false,
 }: BeaconMapProps) {
+  const { mapCenter, mapZoom } = useGeoConfig();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<{
@@ -138,8 +140,7 @@ export default function BeaconMap({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Sonoma County center
-    const map = L.map(mapContainerRef.current).setView([38.45, -122.75], 10);
+    const map = L.map(mapContainerRef.current).setView(mapCenter, mapZoom);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",

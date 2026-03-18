@@ -231,23 +231,6 @@ export interface MapConfig {
   clusterMinPoints: number;
 }
 
-export const DEFAULT_MAP_CONFIG: MapConfig = {
-  defaultCenter: { lat: 38.4404, lng: -122.7141 }, // Sonoma County
-  defaultZoom: 10,
-  minZoom: 8,
-  maxZoom: 18,
-  clusteringEnabled: true,
-  clusterRadius: 80,
-  clusterMinPoints: 3,
-};
-
-/** Expanded bounds covering Sonoma County + neighboring Marin & Lake county edges */
-export const SONOMA_COUNTY_BOUNDS = {
-  south: 37.8,
-  north: 39.4,
-  west: -123.6,
-  east: -122.3,
-};
 
 // =============================================================================
 // COORDINATE UTILITIES

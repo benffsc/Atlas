@@ -12,7 +12,7 @@
 import useSWR, { type KeyedMutator } from "swr";
 import { fetchApi } from "@/lib/api-client";
 
-// Hardcoded fallbacks — must stay in sync with MIG_2926 + MIG_2963 seed data
+// Hardcoded fallbacks — must stay in sync with MIG_2926 + MIG_2963 + MIG_2964 seed data
 const DEFAULTS: Record<string, unknown> = {
   "request.stale_days": 30,
   "request.in_progress_stale_days": 14,
@@ -20,6 +20,12 @@ const DEFAULTS: Record<string, unknown> = {
   "pagination.max_limit": 200,
   "map.default_zoom": 10,
   "map.default_center": [38.45, -122.75],
+  // Map & geo (MIG_2964 / FFS-685)
+  "map.default_bounds": { south: 37.8, north: 39.4, west: -123.6, east: -122.3 },
+  "map.autocomplete_bias": { lat: 38.5, lng: -122.8, radius: 50000 },
+  "geo.service_counties": ["Sonoma", "Marin", "Napa", "Mendocino", "Lake"],
+  "geo.default_county": "Sonoma",
+  "geo.service_area_name": "Sonoma County",
   // Org branding (MIG_2963 / FFS-684)
   "org.name_full": "Forgotten Felines of Sonoma County",
   "org.name_short": "FFSC",

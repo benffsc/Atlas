@@ -9,6 +9,7 @@ import {
   type LayerGroup,
 } from "@/components/map/GroupedLayerControl";
 import type { AtlasPin } from "@/hooks/useMapData";
+import { useGeoConfig } from "@/hooks/useGeoConfig";
 
 export interface DashboardMapPin {
   request_id: string;
@@ -72,8 +73,6 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: "Low",
 };
 
-const SONOMA_CENTER: [number, number] = [38.45, -122.75];
-const DEFAULT_ZOOM = 10;
 
 /** Dashboard layer group definitions */
 export const DASHBOARD_LAYER_GROUPS: LayerGroup[] = [
@@ -262,6 +261,7 @@ export function DashboardMap({
   loading,
   layerCounts,
 }: DashboardMapProps) {
+  const { mapCenter, mapZoom } = useGeoConfig();
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
@@ -305,8 +305,8 @@ export function DashboardMap({
       leafletRef.current = LCjs;
 
       const map = L.map(containerRef.current, {
-        center: SONOMA_CENTER,
-        zoom: DEFAULT_ZOOM,
+        center: mapCenter,
+        zoom: mapZoom,
         scrollWheelZoom: false,
         zoomControl: false,
       });

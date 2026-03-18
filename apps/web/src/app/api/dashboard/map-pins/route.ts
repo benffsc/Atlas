@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryRows } from "@/lib/db";
 import { apiServerError } from "@/lib/api-response";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
+import { getMapBounds } from "@/lib/geo-config";
 
 export const revalidate = 120; // Cache 2 minutes
 
@@ -20,14 +21,8 @@ export interface DashboardMapPin {
   layer: string;
 }
 
-const SONOMA_BOUNDS = {
-  south: 37.8,
-  north: 39.4,
-  west: -123.6,
-  east: -122.3,
-};
-
 async function fetchRequestPins(layer: string, search: string, county: string): Promise<DashboardMapPin[]> {
+  const defaultBounds = await getMapBounds();
   let statusFilter: string;
   switch (layer) {
     case "all":
@@ -48,7 +43,7 @@ async function fetchRequestPins(layer: string, search: string, county: string): 
   const params = search ? [`%${search}%`] : [];
 
   const boundsFilter = county === "sonoma"
-    ? `AND ST_Y(p.location::geometry) BETWEEN ${SONOMA_BOUNDS.south} AND ${SONOMA_BOUNDS.north} AND ST_X(p.location::geometry) BETWEEN ${SONOMA_BOUNDS.west} AND ${SONOMA_BOUNDS.east}`
+    ? `AND ST_Y(p.location::geometry) BETWEEN ${defaultBounds.south} AND ${defaultBounds.north} AND ST_X(p.location::geometry) BETWEEN ${defaultBounds.west} AND ${defaultBounds.east}`
     : "";
 
   return queryRows<DashboardMapPin>(`
@@ -79,13 +74,14 @@ async function fetchRequestPins(layer: string, search: string, county: string): 
 }
 
 async function fetchIntakePins(search: string, county: string): Promise<DashboardMapPin[]> {
+  const defaultBounds = await getMapBounds();
   const searchFilter = search
     ? "AND (i.submitter_name ILIKE $1 OR i.cats_address ILIKE $1 OR i.geo_formatted_address ILIKE $1)"
     : "AND TRUE";
   const params = search ? [`%${search}%`] : [];
 
   const boundsFilter = county === "sonoma"
-    ? `AND i.geo_latitude BETWEEN ${SONOMA_BOUNDS.south} AND ${SONOMA_BOUNDS.north} AND i.geo_longitude BETWEEN ${SONOMA_BOUNDS.west} AND ${SONOMA_BOUNDS.east}`
+    ? `AND i.geo_latitude BETWEEN ${defaultBounds.south} AND ${defaultBounds.north} AND i.geo_longitude BETWEEN ${defaultBounds.west} AND ${defaultBounds.east}`
     : "";
 
   return queryRows<DashboardMapPin>(`

@@ -95,12 +95,12 @@ export const CALL_TYPE_OPTIONS = [
 // =============================================================================
 
 export const COUNTY_OPTIONS = [
-  { value: "sonoma", label: "Sonoma" },
-  { value: "marin", label: "Marin" },
-  { value: "napa", label: "Napa" },
-  { value: "mendocino", label: "Mendocino" },
-  { value: "lake", label: "Lake" },
-  { value: "other", label: "Other" },
+  { value: "Sonoma", label: "Sonoma" },
+  { value: "Marin", label: "Marin" },
+  { value: "Napa", label: "Napa" },
+  { value: "Mendocino", label: "Mendocino" },
+  { value: "Lake", label: "Lake" },
+  { value: "Other", label: "Other" },
 ] as const satisfies readonly FormOption[];
 
 export const PROPERTY_TYPE_OPTIONS = [

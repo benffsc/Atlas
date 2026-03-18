@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { getMapBounds } from "@/lib/geo-config";
 
 /**
  * GET /api/beacon/map-data
@@ -41,8 +42,8 @@ export async function GET(req: NextRequest) {
   const dateFrom = searchParams.get("from"); // YYYY-MM-DD
   const dateTo = searchParams.get("to"); // YYYY-MM-DD
 
-  // Sonoma County bounds for default filtering
-  const SONOMA_BOUNDS = { south: 37.8, north: 39.4, west: -123.6, east: -122.3 };
+  // Default map bounds from config (white-label ready)
+  const defaultBounds = await getMapBounds();
 
   // Parse bounds for viewport-based loading (format: south,west,north,east)
   let boundsCondition = "";
@@ -56,8 +57,8 @@ export async function GET(req: NextRequest) {
       boundsCondition = `AND lat IS NOT NULL AND lng IS NOT NULL AND lat BETWEEN ${south - latBuffer} AND ${north + latBuffer} AND lng BETWEEN ${west - lngBuffer} AND ${east + lngBuffer}`;
     }
   } else if (county === "sonoma") {
-    // Default to Sonoma County bounds when no explicit bounds provided
-    boundsCondition = `AND lat IS NOT NULL AND lng IS NOT NULL AND lat BETWEEN ${SONOMA_BOUNDS.south} AND ${SONOMA_BOUNDS.north} AND lng BETWEEN ${SONOMA_BOUNDS.west} AND ${SONOMA_BOUNDS.east}`;
+    // Default to configured bounds when no explicit bounds provided
+    boundsCondition = `AND lat IS NOT NULL AND lng IS NOT NULL AND lat BETWEEN ${defaultBounds.south} AND ${defaultBounds.north} AND lng BETWEEN ${defaultBounds.west} AND ${defaultBounds.east}`;
   }
 
   const result: {

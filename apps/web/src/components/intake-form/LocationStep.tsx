@@ -1,4 +1,5 @@
 import { PlaceResolver } from "@/components/forms";
+import { COUNTY_OPTIONS } from "@/lib/form-options";
 import type { LocationStepProps } from "./types";
 
 export default function LocationStep({
@@ -168,12 +169,9 @@ export default function LocationStep({
           onChange={(e) => updateField("county", e.target.value)}
         >
           <option value="">Select...</option>
-          <option value="Sonoma">Sonoma</option>
-          <option value="Marin">Marin</option>
-          <option value="Napa">Napa</option>
-          <option value="Mendocino">Mendocino</option>
-          <option value="Lake">Lake</option>
-          <option value="other">Other</option>
+          {COUNTY_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
       </div>
 

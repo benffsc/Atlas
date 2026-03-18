@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useGeoConfig } from "@/hooks/useGeoConfig";
 
 interface VolunteerStats {
   assigned_requests: number;
@@ -18,6 +19,7 @@ interface AssignedRequest {
 }
 
 export default function VolunteerDashboard() {
+  const { serviceAreaName } = useGeoConfig();
   const [stats, setStats] = useState<VolunteerStats | null>(null);
   const [requests, setRequests] = useState<AssignedRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,7 @@ export default function VolunteerDashboard() {
           Thank You for Volunteering!
         </h2>
         <p style={{ margin: 0, color: "#047857", lineHeight: 1.6 }}>
-          Your work helps community cats across Sonoma County. As a volunteer,
+          Your work helps community cats across {serviceAreaName}. As a volunteer,
           you can view request locations, track colony status, and log field
           observations.
         </p>

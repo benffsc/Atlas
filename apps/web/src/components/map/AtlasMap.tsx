@@ -21,6 +21,7 @@ import {
   createAnnotationMarker,
 } from "@/lib/map-markers";
 import { useMapColors } from "@/hooks/useMapColors";
+import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
 import {
   buildPlacePopup,
@@ -215,6 +216,7 @@ function AtlasMapInner() {
 
   // Admin-configurable map colors (falls back to hardcoded MAP_COLORS)
   const { colors } = useMapColors();
+  const { mapCenter, mapZoom } = useGeoConfig();
 
   // Sync layer state to URL
   useEffect(() => {
@@ -756,7 +758,7 @@ function AtlasMapInner() {
       inertiaDeceleration: 2000,
       inertiaMaxSpeed: 1500,
       bounceAtZoomLimits: false,
-    }).setView([38.45, -122.75], 10);
+    }).setView(mapCenter, mapZoom);
 
     // Add default street tile layer (CartoDB Voyager)
     const streetTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {

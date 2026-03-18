@@ -133,7 +133,6 @@ export type {
 // Map constants and utilities
 export {
   DEFAULT_LAYERS,
-  DEFAULT_MAP_CONFIG,
   COORDINATE_TOLERANCE,
   coordinatesMatch,
   calculateDistance,
