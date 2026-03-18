@@ -294,10 +294,10 @@ export function PlaceContextPanel({
               padding: "0.125rem 0.5rem",
               fontSize: "0.7rem",
               fontWeight: 500,
-              backgroundColor: "#f0fdf4",
+              backgroundColor: "var(--success-bg)",
               color: "#166534",
               borderRadius: "9999px",
-              border: "1px solid #bbf7d0",
+              border: "1px solid var(--success-border)",
             }}
           >
             Clinic Activity
@@ -498,7 +498,7 @@ export function PlaceContextPanel({
               justifyContent: "space-between",
               alignItems: "center",
               padding: "0.75rem 1rem",
-              background: "#f0fdf4",
+              background: "var(--success-bg)",
               border: "none",
               cursor: "pointer",
               textAlign: "left",
@@ -864,10 +864,10 @@ export function PlaceContextPanel({
                     fontSize: "0.625rem",
                     backgroundColor:
                       context.zone_demographics.tnr_priority_score >= 70
-                        ? "#fef2f2"
+                        ? "var(--danger-bg)"
                         : context.zone_demographics.tnr_priority_score >= 50
                         ? "#fefce8"
-                        : "#f0fdf4",
+                        : "var(--success-bg)",
                     color:
                       context.zone_demographics.tnr_priority_score >= 70
                         ? "#dc2626"

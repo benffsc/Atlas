@@ -217,7 +217,7 @@ export default function SourceConfidencePage() {
                         {(score.confidence_score * 100).toFixed(0)}%
                       </span>
                     </td>
-                    <td style={{ fontSize: "0.875rem", color: "#666" }}>
+                    <td style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
                       <input
                         type="text"
                         value={score.description || ""}
@@ -232,7 +232,7 @@ export default function SourceConfidencePage() {
                         placeholder="Add description..."
                         style={{
                           width: "100%",
-                          border: "1px solid #ddd",
+                          border: "1px solid var(--border)",
                           borderRadius: "4px",
                           padding: "0.25rem 0.5rem",
                           fontSize: "0.875rem",
@@ -278,7 +278,7 @@ export default function SourceConfidencePage() {
                   style={{
                     display: "block",
                     fontSize: "0.75rem",
-                    color: "#666",
+                    color: "var(--muted)",
                     marginBottom: "0.25rem",
                   }}
                 >
@@ -290,7 +290,7 @@ export default function SourceConfidencePage() {
                   onChange={(e) => setNewSource(e.target.value)}
                   placeholder="e.g., manual_import"
                   style={{
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                     padding: "0.5rem",
                     width: "180px",
@@ -302,7 +302,7 @@ export default function SourceConfidencePage() {
                   style={{
                     display: "block",
                     fontSize: "0.75rem",
-                    color: "#666",
+                    color: "var(--muted)",
                     marginBottom: "0.25rem",
                   }}
                 >
@@ -316,7 +316,7 @@ export default function SourceConfidencePage() {
                   value={newScore}
                   onChange={(e) => setNewScore(e.target.value)}
                   style={{
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                     padding: "0.5rem",
                     width: "80px",
@@ -328,7 +328,7 @@ export default function SourceConfidencePage() {
                   style={{
                     display: "block",
                     fontSize: "0.75rem",
-                    color: "#666",
+                    color: "var(--muted)",
                     marginBottom: "0.25rem",
                   }}
                 >
@@ -340,7 +340,7 @@ export default function SourceConfidencePage() {
                   onChange={(e) => setNewDescription(e.target.value)}
                   placeholder="Optional description"
                   style={{
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                     padding: "0.5rem",
                     width: "100%",

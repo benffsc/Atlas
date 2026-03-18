@@ -35,7 +35,7 @@ interface ReviewSummary {
 }
 
 const entityTypeLabels: Record<string, { label: string; color: string; bg: string }> = {
-  colony_estimate: { label: "Colony", color: "#0d6efd", bg: "#e7f1ff" },
+  colony_estimate: { label: "Colony", color: "#0d6efd", bg: "var(--info-bg)" },
   reproduction: { label: "Reproduction", color: "#d63384", bg: "#fce7f3" },
   mortality: { label: "Mortality", color: "#dc3545", bg: "#fee2e2" },
   birth: { label: "Birth", color: "#198754", bg: "#d1fae5" },

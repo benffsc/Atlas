@@ -596,7 +596,7 @@ export default function CallSheetEntryPage() {
                         key={p.person_id}
                         onClick={() => selectPerson(p)}
                         style={{ padding: "8px 10px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: "13px" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#f0fdf4")}
+                        onMouseEnter={e => (e.currentTarget.style.background = "var(--success-bg)")}
                         onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
                       >
                         <strong>{p.display_name}</strong>
@@ -917,7 +917,7 @@ export default function CallSheetEntryPage() {
           </div>
 
           {/* Feeding Schedule */}
-          <div style={{ marginBottom: "16px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "8px", padding: "12px" }}>
+          <div style={{ marginBottom: "16px", background: "var(--success-bg)", border: "1px solid var(--success-border)", borderRadius: "8px", padding: "12px" }}>
             <div style={{ ...sectionTitle, color: "#166534", borderBottomColor: "#86efac" }}>Feeding Schedule &amp; Best Trapping Times</div>
             <div style={grid3}>
               <div>
@@ -1038,7 +1038,7 @@ export default function CallSheetEntryPage() {
                     padding: "8px 16px",
                     border: submitMode === opt.value ? "2px solid #27ae60" : "1px solid #d1d5db",
                     borderRadius: "8px",
-                    background: submitMode === opt.value ? "#f0fdf4" : "#fff",
+                    background: submitMode === opt.value ? "var(--success-bg)" : "var(--card-bg)",
                     cursor: "pointer",
                     fontSize: "13px",
                     fontWeight: submitMode === opt.value ? 600 : 400,

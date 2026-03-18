@@ -602,7 +602,7 @@ export function MediaUploader({
           padding: selectedFiles.length > 0 ? "1rem" : "2rem",
           textAlign: "center",
           cursor: "pointer",
-          background: isDragging ? "#e7f1ff" : "white",
+          background: isDragging ? "var(--info-bg)" : "white",
           transition: "all 0.2s ease",
           marginBottom: "1rem",
           minHeight: selectedFiles.length > 0 ? "auto" : "120px",
@@ -837,7 +837,7 @@ export function MediaUploader({
         <div style={{
           marginBottom: "1rem",
           padding: "0.75rem",
-          background: "#e7f1ff",
+          background: "var(--info-bg)",
           borderRadius: "4px",
           border: "1px solid #b6d4fe",
         }}>

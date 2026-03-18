@@ -131,7 +131,7 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
   };
 
   if (loading) {
-    return <div style={{ padding: "1rem", color: "#666" }}>Loading movement data...</div>;
+    return <div style={{ padding: "1rem", color: "var(--muted)" }}>Loading movement data...</div>;
   }
 
   const hasMovements = timeline.length > 0;
@@ -265,7 +265,7 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
                     ? "Pending"
                     : "Declined"}
                 </span>
-                <span style={{ color: "#666", fontSize: "0.75rem" }}>
+                <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>
                   {new Date(r.recorded_at).toLocaleDateString()}
                 </span>
               </div>
@@ -307,12 +307,12 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
             <strong>{pattern.unique_places}</strong> locations visited
           </div>
           {pattern.primary_place_name && (
-            <div style={{ fontSize: "0.85rem", color: "#666" }}>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
               Primary: {pattern.primary_place_name}
             </div>
           )}
           {pattern.avg_distance_meters && pattern.avg_distance_meters > 0 && (
-            <div style={{ fontSize: "0.85rem", color: "#666" }}>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
               Avg distance: {Math.round(pattern.avg_distance_meters)}m
             </div>
           )}
@@ -342,14 +342,14 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
                   borderRadius: "0 4px 4px 0",
                 }}
               >
-                <div style={{ fontSize: "0.75rem", color: "#666", minWidth: "70px" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)", minWidth: "70px" }}>
                   {new Date(event.event_date).toLocaleDateString()}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: "0.85rem" }}>
                     {event.to_place_name || event.to_address || "Unknown location"}
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "#666" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                     {movementTypeLabels[event.movement_type] || event.movement_type}
                     {event.days_since_previous && ` • ${event.days_since_previous} days since last`}
                     {event.distance_category &&
@@ -361,13 +361,13 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
             ))}
           </div>
           {timeline.length > 10 && (
-            <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#666" }}>
+            <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
               + {timeline.length - 10} more locations
             </div>
           )}
         </div>
       ) : (
-        <div style={{ color: "#666", fontSize: "0.85rem" }}>
+        <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
           No movement history recorded for this cat.
         </div>
       )}

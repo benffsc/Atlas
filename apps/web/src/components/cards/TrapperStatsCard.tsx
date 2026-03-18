@@ -75,9 +75,9 @@ function StatBox({
       >
         {value}
       </div>
-      <div style={{ fontSize: "0.7rem", color: "#666" }}>{label}</div>
+      <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>{label}</div>
       {sublabel && (
-        <div style={{ fontSize: "0.65rem", color: "#999", marginTop: "0.125rem" }}>
+        <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: "0.125rem" }}>
           {sublabel}
         </div>
       )}
@@ -161,7 +161,7 @@ function StatsBreakdownModal({
               </div>
             )}
           </div>
-          <p style={{ margin: "0.75rem 0 0", fontSize: "0.75rem", color: "#666", fontStyle: "italic" }}>
+          <p style={{ margin: "0.75rem 0 0", fontSize: "0.75rem", color: "var(--muted)", fontStyle: "italic" }}>
             Total Caught = max(assignments, direct, visits) + manual catches.
             The largest source is used to avoid double-counting.
           </p>
@@ -278,7 +278,7 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
 
   if (loading) {
     return (
-      <div style={{ padding: "1rem", color: "#666" }}>
+      <div style={{ padding: "1rem", color: "var(--muted)" }}>
         Loading trapper statistics...
       </div>
     );
@@ -461,11 +461,11 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
                   ? `${stats.felv_positive_rate_pct}%`
                   : "—"}
               </span>
-              <span style={{ color: "#666", marginLeft: "0.5rem" }}>
+              <span style={{ color: "var(--muted)", marginLeft: "0.5rem" }}>
                 positive
               </span>
             </div>
-            <div style={{ color: "#666" }}>
+            <div style={{ color: "var(--muted)" }}>
               {stats.felv_positive_count} positive / {stats.felv_tested_count}{" "}
               tested
             </div>
@@ -506,11 +506,11 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
                   ? `${stats.first_visit_success_rate_pct}%`
                   : "—"}
               </span>
-              <span style={{ color: "#666", marginLeft: "0.5rem" }}>
+              <span style={{ color: "var(--muted)", marginLeft: "0.5rem" }}>
                 of assessments yielded catches
               </span>
             </div>
-            <div style={{ color: "#666" }}>
+            <div style={{ color: "var(--muted)" }}>
               {stats.assessment_visits} assessment visits
             </div>
           </div>
@@ -549,7 +549,7 @@ export function TrapperStatsCard({ personId, compact = false }: TrapperStatsCard
 
       {/* Activity Period */}
       {stats.first_activity_date && (
-        <div style={{ fontSize: "0.8rem", color: "#666" }}>
+        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
           Activity period:{" "}
           {new Date(stats.first_activity_date).toLocaleDateString()} to{" "}
           {stats.last_activity_date

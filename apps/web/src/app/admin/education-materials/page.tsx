@@ -187,7 +187,7 @@ export default function EducationMaterialsAdminPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
           <h1 style={{ margin: 0 }}>Training Materials</h1>
-          <p style={{ color: "#666", margin: "0.25rem 0 0" }}>
+          <p style={{ color: "var(--muted)", margin: "0.25rem 0 0" }}>
             Upload and manage trapper education resources
           </p>
         </div>
@@ -216,10 +216,10 @@ export default function EducationMaterialsAdminPage() {
           onClick={() => setSelectedCategory(null)}
           style={{
             padding: "0.375rem 0.75rem",
-            border: "1px solid #ddd",
+            border: "1px solid var(--border)",
             borderRadius: "20px",
             background: selectedCategory === null ? "#0d6efd" : "#fff",
-            color: selectedCategory === null ? "#fff" : "#333",
+            color: selectedCategory === null ? "#fff" : "var(--text-primary)",
             cursor: "pointer",
             fontSize: "0.875rem",
           }}
@@ -234,10 +234,10 @@ export default function EducationMaterialsAdminPage() {
               onClick={() => setSelectedCategory(cat.category)}
               style={{
                 padding: "0.375rem 0.75rem",
-                border: "1px solid #ddd",
+                border: "1px solid var(--border)",
                 borderRadius: "20px",
                 background: selectedCategory === cat.category ? "#0d6efd" : "#fff",
-                color: selectedCategory === cat.category ? "#fff" : "#333",
+                color: selectedCategory === cat.category ? "#fff" : "var(--text-primary)",
                 cursor: "pointer",
                 fontSize: "0.875rem",
               }}
@@ -322,12 +322,12 @@ export default function EducationMaterialsAdminPage() {
                   </div>
 
                   {material.description && (
-                    <p style={{ color: "#666", margin: "0.25rem 0 0", fontSize: "0.875rem" }}>
+                    <p style={{ color: "var(--muted)", margin: "0.25rem 0 0", fontSize: "0.875rem" }}>
                       {material.description}
                     </p>
                   )}
 
-                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.8rem", color: "#666" }}>
+                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
                     <span>{formatFileSize(material.file_size_bytes)}</span>
                     <span>{material.view_count} views</span>
                     <span>{material.download_count} downloads</span>
@@ -361,7 +361,7 @@ export default function EducationMaterialsAdminPage() {
                     style={{
                       padding: "0.375rem 0.75rem",
                       background: "var(--section-bg)",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                       cursor: "pointer",
                       fontSize: "0.875rem",
@@ -418,7 +418,7 @@ export default function EducationMaterialsAdminPage() {
               overflow: "auto",
             }}
           >
-            <div style={{ padding: "1.5rem", borderBottom: "1px solid #ddd" }}>
+            <div style={{ padding: "1.5rem", borderBottom: "1px solid var(--border)" }}>
               <h2 style={{ margin: 0 }}>Upload Training Material</h2>
             </div>
 
@@ -449,12 +449,12 @@ export default function EducationMaterialsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
                 {selectedFile && (
-                  <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.25rem" }}>
                     {selectedFile.name} ({formatFileSize(selectedFile.size)})
                   </div>
                 )}
@@ -473,7 +473,7 @@ export default function EducationMaterialsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -492,7 +492,7 @@ export default function EducationMaterialsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -509,7 +509,7 @@ export default function EducationMaterialsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 >
@@ -543,7 +543,7 @@ export default function EducationMaterialsAdminPage() {
                     style={{
                       width: "100%",
                       padding: "0.5rem",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                     }}
                   >
@@ -560,7 +560,7 @@ export default function EducationMaterialsAdminPage() {
             <div
               style={{
                 padding: "1rem 1.5rem",
-                borderTop: "1px solid #ddd",
+                borderTop: "1px solid var(--border)",
                 display: "flex",
                 justifyContent: "flex-end",
                 gap: "0.75rem",
@@ -574,7 +574,7 @@ export default function EducationMaterialsAdminPage() {
                 style={{
                   padding: "0.5rem 1rem",
                   background: "var(--section-bg)",
-                  border: "1px solid #ddd",
+                  border: "1px solid var(--border)",
                   borderRadius: "6px",
                   cursor: "pointer",
                 }}
@@ -637,7 +637,7 @@ export default function EducationMaterialsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -652,7 +652,7 @@ export default function EducationMaterialsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -666,7 +666,7 @@ export default function EducationMaterialsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 >
@@ -698,7 +698,7 @@ export default function EducationMaterialsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -711,7 +711,7 @@ export default function EducationMaterialsAdminPage() {
                 style={{
                   padding: "0.5rem 1rem",
                   background: "var(--section-bg)",
-                  border: "1px solid #ddd",
+                  border: "1px solid var(--border)",
                   borderRadius: "6px",
                   cursor: "pointer",
                 }}

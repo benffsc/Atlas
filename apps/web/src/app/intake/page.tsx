@@ -524,7 +524,7 @@ function IntakeForm() {
           <h2 style={{ color: "#155724", marginBottom: "1rem" }}>Request Submitted</h2>
           <p style={{ color: "#155724" }}>{submitResult.message}</p>
           {submitResult.triage_category && (
-            <p style={{ fontSize: "0.9rem", color: "#666", marginTop: "1rem" }}>
+            <p style={{ fontSize: "0.9rem", color: "var(--muted)", marginTop: "1rem" }}>
               Triage: {submitResult.triage_category}
             </p>
           )}
@@ -593,7 +593,7 @@ function IntakeForm() {
             <button onClick={loadDraft} style={{ padding: "0.25rem 0.75rem", fontSize: "0.85rem" }}>
               Load
             </button>
-            <button onClick={clearDraft} style={{ padding: "0.25rem 0.75rem", fontSize: "0.85rem", background: "transparent", border: "1px solid #ccc" }}>
+            <button onClick={clearDraft} style={{ padding: "0.25rem 0.75rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border-light)" }}>
               Discard
             </button>
           </div>
@@ -601,7 +601,7 @@ function IntakeForm() {
       )}
 
       <h1 style={{ textAlign: "center", marginBottom: "0.5rem" }}>Intake Call</h1>
-      <p style={{ textAlign: "center", color: "#666", marginBottom: "1.5rem" }}>
+      <p style={{ textAlign: "center", color: "var(--muted)", marginBottom: "1.5rem" }}>
         Receptionist intake form
       </p>
 
@@ -617,7 +617,7 @@ function IntakeForm() {
             }}
           />
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem", fontSize: "0.8rem", color: "#666" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
           <span>Step {stepIndex + 1} of {steps.length}</span>
           <span>{currentStep.replace(/_/g, " ").toUpperCase()}</span>
         </div>
@@ -674,7 +674,7 @@ function IntakeForm() {
             <div style={{ background: "var(--section-bg)", padding: "1rem", borderRadius: "8px", marginBottom: "1rem" }}>
               <strong>Pet Care Veterinary Hospital</strong><br />
               <span style={{ fontSize: "1.2rem", color: "#198754" }}>(707) 579-3900</span><br />
-              <span style={{ color: "#666" }}>2425 Mendocino Ave, Santa Rosa - Open 24/7</span>
+              <span style={{ color: "var(--muted)" }}>2425 Mendocino Ave, Santa Rosa - Open 24/7</span>
             </div>
             <label style={{
               display: "flex",
@@ -806,7 +806,7 @@ function IntakeForm() {
           {!isPreview && currentStep !== "call_type" && (
             <button
               onClick={saveDraft}
-              style={{ padding: "0.5rem 1rem", background: "transparent", border: "1px solid #ddd", fontSize: "0.85rem" }}
+              style={{ padding: "0.5rem 1rem", background: "transparent", border: "1px solid var(--border)", fontSize: "0.85rem" }}
             >
               Save Draft
             </button>
@@ -827,7 +827,7 @@ function IntakeForm() {
             Continue
           </button>
         ) : isPreview ? (
-          <span style={{ color: "#666", fontStyle: "italic" }}>Preview mode</span>
+          <span style={{ color: "var(--muted)", fontStyle: "italic" }}>Preview mode</span>
         ) : (
           <button
             onClick={handleSubmit}

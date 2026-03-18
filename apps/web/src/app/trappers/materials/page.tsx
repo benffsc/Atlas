@@ -133,7 +133,7 @@ export default function TrapperMaterialsPage() {
     <div>
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: "0 0 0.5rem" }}>Training Materials</h1>
-        <p style={{ color: "#666", margin: 0 }}>
+        <p style={{ color: "var(--muted)", margin: 0 }}>
           Resources and guides for FFSC trappers
         </p>
       </div>
@@ -151,10 +151,10 @@ export default function TrapperMaterialsPage() {
           onClick={() => setSelectedCategory(null)}
           style={{
             padding: "0.5rem 1rem",
-            border: "1px solid #ddd",
+            border: "1px solid var(--border)",
             borderRadius: "20px",
             background: selectedCategory === null ? "#0d6efd" : "#fff",
-            color: selectedCategory === null ? "#fff" : "#333",
+            color: selectedCategory === null ? "#fff" : "var(--text-primary)",
             cursor: "pointer",
             fontWeight: 500,
           }}
@@ -165,7 +165,7 @@ export default function TrapperMaterialsPage() {
           const info = CATEGORY_LABELS[cat.category] || {
             label: cat.category,
             icon: "📁",
-            color: "#666",
+            color: "var(--muted)",
           };
           return (
             <button
@@ -173,10 +173,10 @@ export default function TrapperMaterialsPage() {
               onClick={() => setSelectedCategory(cat.category)}
               style={{
                 padding: "0.5rem 1rem",
-                border: "1px solid #ddd",
+                border: "1px solid var(--border)",
                 borderRadius: "20px",
                 background: selectedCategory === cat.category ? info.color : "#fff",
-                color: selectedCategory === cat.category ? "#fff" : "#333",
+                color: selectedCategory === cat.category ? "#fff" : "var(--text-primary)",
                 cursor: "pointer",
                 fontWeight: 500,
                 display: "flex",
@@ -210,7 +210,7 @@ export default function TrapperMaterialsPage() {
         style={{
           width: "100%",
           padding: "0.75rem 1rem",
-          border: "1px solid #ddd",
+          border: "1px solid var(--border)",
           borderRadius: "8px",
           fontSize: "1rem",
           marginBottom: "1.5rem",
@@ -238,7 +238,7 @@ export default function TrapperMaterialsPage() {
                 const info = CATEGORY_LABELS[category] || {
                   label: category,
                   icon: "📁",
-                  color: "#666",
+                  color: "var(--muted)",
                 };
                 return (
                   <div key={category}>
@@ -269,7 +269,7 @@ export default function TrapperMaterialsPage() {
                           key={material.material_id}
                           style={{
                             background: "#fff",
-                            border: "1px solid #ddd",
+                            border: "1px solid var(--border)",
                             borderRadius: "8px",
                             padding: "1rem",
                             display: "flex",
@@ -316,7 +316,7 @@ export default function TrapperMaterialsPage() {
                                   </span>
                                 )}
                               </div>
-                              <div style={{ fontSize: "0.8rem", color: "#666" }}>
+                              <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
                                 {formatFileSize(material.file_size_bytes)} • Added {formatDate(material.created_at)}
                               </div>
                             </div>
@@ -325,7 +325,7 @@ export default function TrapperMaterialsPage() {
                           {material.description && (
                             <p
                               style={{
-                                color: "#666",
+                                color: "var(--muted)",
                                 fontSize: "0.9rem",
                                 margin: "0 0 0.75rem",
                                 flex: 1,
@@ -357,8 +357,8 @@ export default function TrapperMaterialsPage() {
                                 flex: 1,
                                 padding: "0.5rem",
                                 background: "#f8f9fa",
-                                color: "#333",
-                                border: "1px solid #ddd",
+                                color: "var(--text-primary)",
+                                border: "1px solid var(--border)",
                                 borderRadius: "4px",
                                 cursor: "pointer",
                                 fontWeight: 500,

@@ -81,9 +81,9 @@ export function PopulationEstimateCard({ placeId, days = 365 }: PopulationEstima
   return (
     <div style={{
       padding: "1rem",
-      background: adequate ? "#f0fdf4" : "#fffbeb",
+      background: adequate ? "var(--success-bg)" : "#fffbeb",
       borderRadius: "8px",
-      border: `1px solid ${adequate ? "#bbf7d0" : "#fde68a"}`,
+      border: `1px solid ${adequate ? "var(--success-border)" : "#fde68a"}`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
         <div>

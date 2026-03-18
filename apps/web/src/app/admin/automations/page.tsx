@@ -246,7 +246,7 @@ export default function AutomationsAdminPage() {
           style={{
             width: "100%",
             padding: "0.5rem",
-            border: "1px solid #ddd",
+            border: "1px solid var(--border)",
             borderRadius: "4px",
           }}
         >
@@ -268,7 +268,7 @@ export default function AutomationsAdminPage() {
           style={{
             width: "100%",
             padding: "0.5rem",
-            border: "1px solid #ddd",
+            border: "1px solid var(--border)",
             borderRadius: "4px",
           }}
         >
@@ -292,7 +292,7 @@ export default function AutomationsAdminPage() {
           style={{
             width: "100%",
             padding: "0.5rem",
-            border: "1px solid #ddd",
+            border: "1px solid var(--border)",
             borderRadius: "4px",
           }}
         />
@@ -308,7 +308,7 @@ export default function AutomationsAdminPage() {
         style={{
           width: "100%",
           padding: "0.5rem",
-          border: "1px solid #ddd",
+          border: "1px solid var(--border)",
           borderRadius: "4px",
         }}
       />
@@ -320,7 +320,7 @@ export default function AutomationsAdminPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
           <h1 style={{ margin: 0 }}>Automations</h1>
-          <p style={{ color: "#666", margin: "0.25rem 0 0" }}>
+          <p style={{ color: "var(--muted)", margin: "0.25rem 0 0" }}>
             Configure triggers and actions like Zapier, without code
           </p>
         </div>
@@ -350,7 +350,7 @@ export default function AutomationsAdminPage() {
         }}
       >
         <h3 style={{ margin: "0 0 0.5rem", fontSize: "0.9rem" }}>How Automations Work</h3>
-        <p style={{ margin: 0, fontSize: "0.85rem", color: "#666" }}>
+        <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
           Each automation has a <strong>trigger</strong> (when something happens) and an <strong>action</strong> (what to do).
           For example: &ldquo;When intake status changes to out_of_county, send the out_of_county email template.&rdquo;
         </p>
@@ -399,7 +399,7 @@ export default function AutomationsAdminPage() {
                     </div>
 
                     {rule.description && (
-                      <p style={{ color: "#666", margin: "0.25rem 0 0", fontSize: "0.875rem" }}>
+                      <p style={{ color: "var(--muted)", margin: "0.25rem 0 0", fontSize: "0.875rem" }}>
                         {rule.description}
                       </p>
                     )}
@@ -424,7 +424,7 @@ export default function AutomationsAdminPage() {
                       >
                         When: {triggerInfo?.label || rule.trigger_type}
                       </span>
-                      <span style={{ color: "#666" }}>→</span>
+                      <span style={{ color: "var(--muted)" }}>→</span>
                       <span
                         style={{
                           background: "#dcfce7",
@@ -438,7 +438,7 @@ export default function AutomationsAdminPage() {
                       </span>
                     </div>
 
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#666" }}>
+                    <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
                       Runs: {rule.execution_count} times • Last run: {formatDate(rule.last_executed_at)}
                     </div>
                   </div>
@@ -449,7 +449,7 @@ export default function AutomationsAdminPage() {
                       style={{
                         padding: "0.375rem 0.75rem",
                         background: "var(--section-bg)",
-                        border: "1px solid #ddd",
+                        border: "1px solid var(--border)",
                         borderRadius: "4px",
                         cursor: "pointer",
                         fontSize: "0.875rem",
@@ -518,7 +518,7 @@ export default function AutomationsAdminPage() {
               overflow: "auto",
             }}
           >
-            <div style={{ padding: "1.5rem", borderBottom: "1px solid #ddd" }}>
+            <div style={{ padding: "1.5rem", borderBottom: "1px solid var(--border)" }}>
               <h2 style={{ margin: 0 }}>
                 {editingRule ? "Edit Automation" : "New Automation"}
               </h2>
@@ -551,7 +551,7 @@ export default function AutomationsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -570,7 +570,7 @@ export default function AutomationsAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -598,7 +598,7 @@ export default function AutomationsAdminPage() {
                     style={{
                       width: "100%",
                       padding: "0.5rem",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                     }}
                   >
@@ -609,7 +609,7 @@ export default function AutomationsAdminPage() {
                     ))}
                   </select>
                   {getTriggerInfo(form.trigger_type)?.description && (
-                    <div style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.25rem" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
                       {getTriggerInfo(form.trigger_type)?.description}
                     </div>
                   )}
@@ -653,7 +653,7 @@ export default function AutomationsAdminPage() {
                     style={{
                       width: "100%",
                       padding: "0.5rem",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                     }}
                   >
@@ -664,7 +664,7 @@ export default function AutomationsAdminPage() {
                     ))}
                   </select>
                   {getActionInfo(form.action_type)?.description && (
-                    <div style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.25rem" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
                       {getActionInfo(form.action_type)?.description}
                     </div>
                   )}
@@ -690,7 +690,7 @@ export default function AutomationsAdminPage() {
             <div
               style={{
                 padding: "1rem 1.5rem",
-                borderTop: "1px solid #ddd",
+                borderTop: "1px solid var(--border)",
                 display: "flex",
                 justifyContent: "flex-end",
                 gap: "0.75rem",
@@ -701,7 +701,7 @@ export default function AutomationsAdminPage() {
                 style={{
                   padding: "0.5rem 1rem",
                   background: "var(--section-bg)",
-                  border: "1px solid #ddd",
+                  border: "1px solid var(--border)",
                   borderRadius: "6px",
                   cursor: "pointer",
                 }}

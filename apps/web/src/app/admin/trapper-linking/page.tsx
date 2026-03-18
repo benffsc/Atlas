@@ -308,7 +308,7 @@ function TrapperLinkCard({
                   padding: "0.375rem 0.75rem",
                   borderRadius: "4px",
                   border: "1px solid #0d6efd",
-                  background: "#e7f1ff",
+                  background: "var(--info-bg)",
                   color: "#0d6efd",
                   cursor: isPending ? "pointer" : "default",
                   fontSize: "0.875rem",

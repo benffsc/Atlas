@@ -297,8 +297,8 @@ export default function GoogleMapsSyncPage() {
             style={{
               marginTop: "1rem",
               padding: "0.75rem",
-              backgroundColor: "#f0fdf4",
-              border: "1px solid #bbf7d0",
+              backgroundColor: "var(--success-bg)",
+              border: "1px solid var(--success-border)",
               borderRadius: "0.375rem",
               fontSize: "0.875rem",
             }}

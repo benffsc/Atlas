@@ -3,6 +3,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PRINT_BASE_CSS, PRINT_EDITABLE_CSS } from "@/lib/print-styles";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 import {
   TemplateRenderer,
   PrintHeader,
@@ -33,6 +34,7 @@ export default function FormPreviewPage() {
 
 function FormPreview({ templateKey }: { templateKey: TemplateKey }) {
   const searchParams = useSearchParams();
+  const { nameFull } = useOrgConfig();
   const { template, loading, error } = useFormTemplate(templateKey);
   const [formData, setFormData] = useState<FormData>({});
   const [requestLoading, setRequestLoading] = useState(false);
@@ -118,7 +120,7 @@ function FormPreview({ templateKey }: { templateKey: TemplateKey }) {
             onChange={(e) => setRequestIdInput(e.target.value)}
             style={{
               padding: "0.25rem 0.5rem",
-              border: "1px solid #ccc",
+              border: "1px solid var(--border-light)",
               borderRadius: "4px",
               fontSize: "0.85rem",
               width: "280px",
@@ -163,13 +165,13 @@ function FormPreview({ templateKey }: { templateKey: TemplateKey }) {
       <div className="print-page">
         <PrintHeader
           title={template.name}
-          subtitle="Forgotten Felines of Sonoma County"
+          subtitle={nameFull}
         />
 
         <TemplateRenderer template={template} data={formData} />
 
         <PrintFooter
-          left="Forgotten Felines of Sonoma County"
+          left={nameFull}
           right="Template Preview"
         />
       </div>

@@ -33,53 +33,53 @@ export function PerformanceBannerSection({ data }: SectionProps) {
       gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
       gap: "0.75rem",
       padding: "1rem",
-      background: isDormant ? "#fffbeb" : "#f0fdf4",
+      background: isDormant ? "#fffbeb" : "var(--success-bg)",
       borderRadius: "10px",
-      border: `1px solid ${isDormant ? "#fde68a" : "#bbf7d0"}`,
+      border: `1px solid ${isDormant ? "#fde68a" : "var(--success-border)"}`,
     }}>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#166534" }}>
           {stats.total_cats_caught}
         </div>
-        <div style={{ fontSize: "0.7rem", color: "#666" }}>Total Caught</div>
+        <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Total Caught</div>
       </div>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
           {stats.active_assignments}
         </div>
-        <div style={{ fontSize: "0.7rem", color: "#666" }}>Active Assignments</div>
+        <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Active Assignments</div>
       </div>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
           {stats.unique_clinic_days}
         </div>
-        <div style={{ fontSize: "0.7rem", color: "#666" }}>Clinic Days</div>
+        <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Clinic Days</div>
       </div>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
           {tenureLabel}
         </div>
-        <div style={{ fontSize: "0.7rem", color: "#666" }}>Tenure</div>
+        <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Tenure</div>
       </div>
       {catsPerMonth && (
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#0d6efd" }}>
             {catsPerMonth}
           </div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>Cats/Month</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Cats/Month</div>
         </div>
       )}
       <div style={{ textAlign: "center" }}>
         <div style={{
           fontSize: "1.5rem",
           fontWeight: 700,
-          color: isDormant ? "#b45309" : daysSinceLast !== null && daysSinceLast < 30 ? "#166534" : "#666",
+          color: isDormant ? "#b45309" : daysSinceLast !== null && daysSinceLast < 30 ? "#166534" : "var(--muted)",
         }}>
           {daysSinceLast !== null ? (
             daysSinceLast === 0 ? "Today" : `${daysSinceLast}d`
           ) : "—"}
         </div>
-        <div style={{ fontSize: "0.7rem", color: isDormant ? "#b45309" : "#666" }}>
+        <div style={{ fontSize: "0.7rem", color: isDormant ? "#b45309" : "var(--muted)" }}>
           {isDormant ? "Dormant" : "Since Last Activity"}
         </div>
       </div>

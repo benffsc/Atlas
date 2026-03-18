@@ -565,7 +565,7 @@ export function HandoffRequestModal({
                   background: "var(--input-bg, #fff)",
                 }}
               />
-              <div style={{ fontSize: "0.7rem", color: "#666", marginTop: "4px" }}>
+              <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "4px" }}>
                 Adults only - kittens below
               </div>
             </div>
@@ -702,7 +702,7 @@ export function HandoffRequestModal({
                         fontSize: "0.85rem",
                       }}
                     />
-                    <p style={{ fontSize: "0.7rem", color: "#666", marginTop: "4px" }}>
+                    <p style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "4px" }}>
                       Can be changed later if circumstances change
                     </p>
                   </div>

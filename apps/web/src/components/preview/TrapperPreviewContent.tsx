@@ -68,8 +68,8 @@ export function TrapperPreviewContent({ trapper, onClose, onEdit }: TrapperPrevi
   const availStyle = AVAILABILITY_STYLES[trapper.availability_status] || AVAILABILITY_STYLES.available;
 
   const stats = [
-    { label: "Total Caught", value: trapper.total_cats_caught, color: trapper.total_cats_caught > 0 ? "#198754" : "#999" },
-    { label: "Active Assignments", value: trapper.active_assignments, color: trapper.active_assignments > 0 ? "#fd7e14" : "#999" },
+    { label: "Total Caught", value: trapper.total_cats_caught, color: trapper.total_cats_caught > 0 ? "#198754" : "var(--muted)" },
+    { label: "Active Assignments", value: trapper.active_assignments, color: trapper.active_assignments > 0 ? "#fd7e14" : "var(--muted)" },
     { label: "Direct Bookings", value: trapper.total_clinic_cats },
     { label: "Clinic Days", value: trapper.unique_clinic_days },
     { label: "Avg Cats/Day", value: trapper.avg_cats_per_day },
@@ -128,7 +128,7 @@ export function TrapperPreviewContent({ trapper, onClose, onEdit }: TrapperPrevi
         <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "var(--text-secondary)" }}>Last Activity</span>
-            <span style={{ fontWeight: 500, color: actColor || "#999" }}>
+            <span style={{ fontWeight: 500, color: actColor || "var(--muted)" }}>
               {relTime || "Never"}
             </span>
           </div>

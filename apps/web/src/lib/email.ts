@@ -1,13 +1,17 @@
 import { Resend } from "resend";
 import { queryOne, queryRows } from "./db";
+import { getOrgEmailFrom } from "./org-config";
 
 // Initialize Resend client
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-// Default sender
-const DEFAULT_FROM = process.env.EMAIL_FROM || "Forgotten Felines <noreply@forgottenfelines.org>";
+// Default sender — env var takes precedence, then DB config, then hardcoded fallback
+async function getDefaultFrom(): Promise<string> {
+  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+  return getOrgEmailFrom();
+}
 
 export interface EmailTemplate {
   template_id: string;
@@ -98,8 +102,9 @@ export async function sendTemplateEmail(
       : undefined;
 
     // Send via Resend
+    const fromAddress = await getDefaultFrom();
     const { data, error } = await resend.emails.send({
-      from: DEFAULT_FROM,
+      from: fromAddress,
       to: toName ? `${toName} <${to}>` : to,
       subject,
       html: bodyHtml,

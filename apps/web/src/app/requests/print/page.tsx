@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { PRINT_BASE_CSS, PRINT_EDITABLE_CSS } from "@/lib/print-styles";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 import {
   EditableField,
   EditableTextArea,
@@ -84,6 +85,7 @@ export default function FullCallSheetPage() {
 
 function FullCallSheet() {
   const searchParams = useSearchParams();
+  const { nameFull, phone, website } = useOrgConfig();
   const [prefill, setPrefill] = useState<Prefill>(EMPTY_PREFILL);
   const [includeKittenPage, setIncludeKittenPage] = useState(true);
   const isBlank = searchParams.get("blank") === "true";
@@ -232,7 +234,7 @@ function FullCallSheet() {
       <div className="print-page">
         <PrintHeader
           title="TNR Call Sheet"
-          subtitle="Forgotten Felines of Sonoma County"
+          subtitle={nameFull}
           rightContent={
             <div className="date-field">
               <strong>Date:</strong>
@@ -400,7 +402,7 @@ function FullCallSheet() {
         </div>
 
         <PrintFooter
-          left="Forgotten Felines of Sonoma County &bull; (707) 576-7999 &bull; forgottenfelines.org"
+          left={`${nameFull} &bull; ${phone} &bull; ${website}`}
           right={`Page 1${includeKittenPage ? " of 2" : ""}`}
         />
       </div>
@@ -564,7 +566,7 @@ function FullCallSheet() {
           </div>
 
           <PrintFooter
-            left="Forgotten Felines of Sonoma County &bull; forgottenfelines.org"
+            left={`${nameFull} &bull; ${website}`}
             right="Page 2 of 2"
           />
         </div>

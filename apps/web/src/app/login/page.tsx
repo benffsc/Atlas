@@ -2,11 +2,13 @@
 
 import { useState, FormEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
+  const { nameFull, supportEmail } = useOrgConfig();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -218,11 +220,11 @@ function LoginForm() {
             color: "var(--text-muted)",
           }}
         >
-          <p>Forgotten Felines of Sonoma County</p>
+          <p>{nameFull}</p>
           <p style={{ marginTop: "0.25rem" }}>
             Need help?{" "}
             <a
-              href="mailto:admin@forgottenfelinessoco.org"
+              href={`mailto:${supportEmail}`}
               style={{ color: "#0d6efd" }}
             >
               Contact an administrator

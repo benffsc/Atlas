@@ -83,7 +83,7 @@ export function VolunteerProfileAdapter({ data }: SectionProps) {
               .map(([key, value]) => (
                 <span key={key} style={{
                   display: "inline-block", padding: "0.2rem 0.5rem", fontSize: "0.7rem",
-                  background: "#f0fdf4", color: "#166534", borderRadius: "9999px", border: "1px solid #bbf7d0",
+                  background: "var(--success-bg)", color: "#166534", borderRadius: "9999px", border: "1px solid var(--success-border)",
                 }} title={String(value)}>
                   {key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
                 </span>

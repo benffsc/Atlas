@@ -131,7 +131,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
       </div>
 
       {/* Time Window Info */}
-      <div style={{ fontSize: "0.75rem", color: "#666", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+      <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
         <span>
           Data window: {new Date(stats.window_start).toLocaleDateString()} to{" "}
           {new Date(stats.window_end).toLocaleDateString()}
@@ -164,7 +164,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
           <div style={{ fontSize: "1.75rem", fontWeight: "bold", color: rateColor }}>
             {stats.alteration_rate_pct !== null ? `${stats.alteration_rate_pct}%` : "—"}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#666" }}>Place Progress</div>
+          <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Place Progress</div>
         </div>
 
         {/* Cats For This Request - Primary metric */}
@@ -180,7 +180,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
           <div style={{ fontSize: "1.75rem", fontWeight: "bold", color: "#212529" }}>
             {stats.cats_caught}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#666" }}>Total at Place</div>
+          <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Total at Place</div>
         </div>
 
         {/* Historical (Pre-Request) */}
@@ -188,18 +188,18 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
           <div style={{ fontSize: "1.75rem", fontWeight: "bold", color: "#6c757d" }}>
             {stats.already_altered_before}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#666" }}>Historical</div>
+          <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Historical</div>
         </div>
       </div>
 
       {/* Sex Breakdown */}
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.875rem", color: "#666" }}>Males:</span>
+          <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>Males:</span>
           <span style={{ fontWeight: 600 }}>{stats.males}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.875rem", color: "#666" }}>Females:</span>
+          <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>Females:</span>
           <span style={{ fontWeight: 600 }}>{stats.females}</span>
         </div>
         {stats.estimated_cat_count && (
@@ -207,7 +207,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
             style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginLeft: "auto" }}
             title="Cats still needing TNR at this location (not total colony size)"
           >
-            <span style={{ fontSize: "0.875rem", color: "#666" }}>TNR Target:</span>
+            <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>TNR Target:</span>
             <span style={{ fontWeight: 600 }}>{stats.estimated_cat_count}</span>
           </div>
         )}
@@ -216,7 +216,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
       {/* Match Confidence */}
       {stats.cats_caught > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-          <span style={{ fontSize: "0.875rem", color: "#666" }}>Match Confidence:</span>
+          <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>Match Confidence:</span>
           <ConfidenceMeter confidence={stats.avg_match_confidence} />
         </div>
       )}
@@ -328,7 +328,7 @@ export function AlterationStatsCard({ requestId, onUpgradeClick }: AlterationSta
       )}
 
       {/* Explanation */}
-      <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f0f0f0", borderRadius: "6px", fontSize: "0.75rem", color: "#666" }}>
+      <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f0f0f0", borderRadius: "6px", fontSize: "0.75rem", color: "var(--muted)" }}>
         <strong>How this is calculated:</strong>
         <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
           <li><strong>For This Request:</strong> Cats caught within the data window (attributable to this request)</li>

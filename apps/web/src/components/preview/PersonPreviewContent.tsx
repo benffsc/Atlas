@@ -25,7 +25,7 @@ export function PersonPreviewContent({ person, onClose }: PersonPreviewContentPr
   const stats = [
     { label: "Cats", value: catCount },
     { label: "Places", value: placeCount },
-    { label: "Last Activity", value: relTime || "Never", color: actColor || "#999" },
+    { label: "Last Activity", value: relTime || "Never", color: actColor || "var(--muted)" },
   ];
 
   const email = person.identifiers?.find((i) => i.id_type === "email")?.id_value || null;

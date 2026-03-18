@@ -168,7 +168,7 @@ export function PopulationTimeline({ placeId }: PopulationTimelineProps) {
             <div
               style={{
                 padding: "0.75rem",
-                background: event.event_type === "birth" ? "#f0fdf4" : "#fef2f2",
+                background: event.event_type === "birth" ? "var(--success-bg)" : "var(--danger-bg)",
                 borderRadius: "8px",
                 borderLeft: `3px solid ${event.event_type === "birth" ? "#10b981" : "#ef4444"}`,
               }}

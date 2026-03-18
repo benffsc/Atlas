@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PRINT_BASE_CSS } from "@/lib/print-styles";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 import {
   Bubble,
   Check,
@@ -54,6 +55,7 @@ const KITTEN_READINESS = getShortLabels(KITTEN_READINESS_OPTIONS);
 type FormVersion = "staff" | "client";
 
 export default function PrintableIntakeForm() {
+  const { nameFull, nameShort, phone, website } = useOrgConfig();
   const [includeKittenPage, setIncludeKittenPage] = useState(true);
   const [formVersion, setFormVersion] = useState<FormVersion>("client");
 
@@ -234,7 +236,7 @@ export default function PrintableIntakeForm() {
         {!isStaff && (
           <div className="info-box" style={{ marginBottom: "10px", fontSize: "8.5pt" }}>
             <strong>Thank you for reaching out!</strong> Fill out this form completely so we can best help the cats.
-            Fill bubbles completely: ● &nbsp;|&nbsp; <strong>Phone:</strong> (707) 576-7999 &nbsp;|&nbsp; <strong>Web:</strong> forgottenfelines.com
+            Fill bubbles completely: ● &nbsp;|&nbsp; <strong>Phone:</strong> {phone} &nbsp;|&nbsp; <strong>Web:</strong> {website}
           </div>
         )}
 
@@ -336,7 +338,7 @@ export default function PrintableIntakeForm() {
           </div>
           {!isStaff && (
             <div style={{ fontSize: "8pt", color: "#7f8c8d" }}>
-              <strong>Note:</strong> FFSC is a spay/neuter clinic, NOT a 24hr hospital. For life-threatening emergencies:
+              <strong>Note:</strong> {nameShort} is a spay/neuter clinic, NOT a 24hr hospital. For life-threatening emergencies:
               <strong> Pet Care Hospital (707) 579-3900</strong>
               <span style={{ marginLeft: "10px" }}>
                 <span className="checkbox" style={{ width: "10px", height: "10px", display: "inline-block", verticalAlign: "middle" }}></span>
@@ -381,7 +383,7 @@ export default function PrintableIntakeForm() {
         {!isStaff && (
           <div className="signature-area">
             <div className="consent">
-              By submitting, you agree to be contacted by Forgotten Felines regarding this request.
+              By submitting, you agree to be contacted by {nameFull} regarding this request.
             </div>
             <div className="sig-fields">
               <span><strong>Date:</strong> ____________</span>
@@ -422,7 +424,7 @@ export default function PrintableIntakeForm() {
         </div>
 
         <PrintFooter
-          left="Forgotten Felines of Sonoma County • (707) 576-7999 • forgottenfelines.com"
+          left={`${nameFull} • ${phone} • ${website}`}
           right={`Page 1${includeKittenPage ? " of 2" : ""}`}
         />
       </div>
@@ -541,7 +543,7 @@ export default function PrintableIntakeForm() {
           </div>
 
           <PrintFooter
-            left="Forgotten Felines of Sonoma County • Helping community cats since 1990"
+            left={`${nameFull} • Helping community cats since 1990`}
             right="Page 2 of 2"
           />
         </div>

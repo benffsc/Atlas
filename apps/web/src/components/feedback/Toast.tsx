@@ -39,8 +39,8 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const TYPE_STYLES: Record<ToastType, { bg: string; border: string; icon: string; color: string }> = {
-  success: { bg: "#f0fdf4", border: "#bbf7d0", icon: "✓", color: "#166534" },
-  error: { bg: "#fef2f2", border: "#fecaca", icon: "✗", color: "#991b1b" },
+  success: { bg: "var(--success-bg)", border: "var(--success-border)", icon: "✓", color: "#166534" },
+  error: { bg: "var(--danger-bg)", border: "var(--danger-border)", icon: "✗", color: "#991b1b" },
   warning: { bg: "#fffbeb", border: "#fde68a", icon: "!", color: "#92400e" },
   info: { bg: "#eff6ff", border: "#bfdbfe", icon: "i", color: "#1e40af" },
 };

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 
 const STORAGE_KEY = "atlas_authenticated";
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export default function PasswordGate({ children }: { children: React.ReactNode }) {
+  const { nameFull } = useOrgConfig();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -152,7 +154,7 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
             fontSize: "0.8rem",
             color: "var(--muted)",
           }}>
-            Forgotten Felines of Sonoma County
+            {nameFull}
           </p>
         </div>
       </div>

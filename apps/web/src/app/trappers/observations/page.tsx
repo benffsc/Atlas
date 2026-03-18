@@ -81,7 +81,7 @@ function StatCard({ label, value, color }: { label: string; value: number | stri
       <div style={{ fontSize: "1.75rem", fontWeight: "bold", color: color || "inherit" }}>
         {value}
       </div>
-      <div style={{ fontSize: "0.8rem", color: "#666" }}>{label}</div>
+      <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>{label}</div>
     </div>
   );
 }
@@ -176,10 +176,10 @@ export default function TrapperObservationsPage() {
             onClick={() => setViewMode("sites")}
             style={{
               padding: "0.5rem 1rem",
-              border: "1px solid #ddd",
+              border: "1px solid var(--border)",
               borderRadius: "4px 0 0 4px",
               background: viewMode === "sites" ? "#0d6efd" : "#fff",
-              color: viewMode === "sites" ? "#fff" : "#333",
+              color: viewMode === "sites" ? "#fff" : "var(--text-primary)",
               cursor: "pointer",
               fontWeight: 500,
             }}
@@ -190,11 +190,11 @@ export default function TrapperObservationsPage() {
             onClick={() => setViewMode("recent")}
             style={{
               padding: "0.5rem 1rem",
-              border: "1px solid #ddd",
+              border: "1px solid var(--border)",
               borderLeft: "none",
               borderRadius: "0 4px 4px 0",
               background: viewMode === "recent" ? "#0d6efd" : "#fff",
-              color: viewMode === "recent" ? "#fff" : "#333",
+              color: viewMode === "recent" ? "#fff" : "var(--text-primary)",
               cursor: "pointer",
               fontWeight: 500,
             }}
@@ -213,7 +213,7 @@ export default function TrapperObservationsPage() {
               flex: 1,
               minWidth: "200px",
               padding: "0.5rem 1rem",
-              border: "1px solid #ddd",
+              border: "1px solid var(--border)",
               borderRadius: "4px",
               fontSize: "1rem",
             }}
@@ -254,7 +254,7 @@ export default function TrapperObservationsPage() {
                           gap: "1rem",
                           padding: "1rem",
                           background: needsObservation ? "#fff8e6" : "#fff",
-                          border: `1px solid ${needsObservation ? "#ffe0b2" : "#ddd"}`,
+                          border: `1px solid ${needsObservation ? "#ffe0b2" : "var(--border)"}`,
                           borderRadius: "8px",
                           borderLeft: `4px solid ${urgencyColor}`,
                         }}
@@ -279,7 +279,7 @@ export default function TrapperObservationsPage() {
                           </div>
                           <div
                             style={{
-                              color: "#666",
+                              color: "var(--muted)",
                               fontSize: "0.85rem",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
@@ -289,7 +289,7 @@ export default function TrapperObservationsPage() {
                             {site.full_address}
                           </div>
                           <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.8rem" }}>
-                            <span style={{ color: "#666" }}>
+                            <span style={{ color: "var(--muted)" }}>
                               Last: <strong style={{ color: urgencyColor }}>{formatDate(site.last_observation_date)}</strong>
                             </span>
                             {site.total_cats_from_clinic > 0 && (
@@ -365,7 +365,7 @@ export default function TrapperObservationsPage() {
                         gap: "1rem",
                         padding: "1rem",
                         background: "#fff",
-                        border: "1px solid #ddd",
+                        border: "1px solid var(--border)",
                         borderRadius: "8px",
                       }}
                     >
@@ -379,7 +379,7 @@ export default function TrapperObservationsPage() {
                           minWidth: "60px",
                         }}
                       >
-                        <div style={{ fontSize: "0.75rem", color: "#666" }}>
+                        <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                           {formatDate(obs.observation_date)}
                         </div>
                       </div>
@@ -418,13 +418,13 @@ export default function TrapperObservationsPage() {
                             {obs.eartip_count_observed} tipped
                           </span>
                           {obs.total_cats_observed > 0 && (
-                            <span style={{ fontSize: "0.8rem", color: "#666" }}>
+                            <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
                               ({Math.round((obs.eartip_count_observed / obs.total_cats_observed) * 100)}% altered)
                             </span>
                           )}
                         </div>
                         {obs.notes && (
-                          <div style={{ marginTop: "0.5rem", color: "#666", fontSize: "0.9rem", fontStyle: "italic" }}>
+                          <div style={{ marginTop: "0.5rem", color: "var(--muted)", fontSize: "0.9rem", fontStyle: "italic" }}>
                             &ldquo;{obs.notes}&rdquo;
                           </div>
                         )}

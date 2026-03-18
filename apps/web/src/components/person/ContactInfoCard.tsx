@@ -35,7 +35,7 @@ export function ContactInfoCard({
   };
 
   if (!phone && !email && !address) {
-    return <span style={{ color: "#999", fontSize: compact ? "0.8rem" : "0.875rem" }}>No contact info</span>;
+    return <span style={{ color: "var(--muted)", fontSize: compact ? "0.8rem" : "0.875rem" }}>No contact info</span>;
   }
 
   if (compact) {

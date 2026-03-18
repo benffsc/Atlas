@@ -666,7 +666,7 @@ export default function PhoneIntakePage() {
                 placeholder="Start typing the address..."
               />
               {form.selected_place_id && (
-                <div style={{ marginTop: 8, padding: 8, background: "#f0fdf4", borderRadius: 6, fontSize: 13 }}>
+                <div style={{ marginTop: 8, padding: 8, background: "var(--success-bg)", borderRadius: 6, fontSize: 13 }}>
                   Address linked to existing place
                 </div>
               )}

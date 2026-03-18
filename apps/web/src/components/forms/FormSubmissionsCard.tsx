@@ -174,7 +174,7 @@ export function FormSubmissionsCard({
               style={{
                 display: "block",
                 fontSize: "0.75rem",
-                color: "#666",
+                color: "var(--muted)",
                 marginBottom: "4px",
               }}
             >
@@ -191,7 +191,7 @@ export function FormSubmissionsCard({
               style={{
                 width: "100%",
                 padding: "6px 8px",
-                border: "1px solid #ddd",
+                border: "1px solid var(--border)",
                 borderRadius: "4px",
                 fontSize: "0.85rem",
               }}
@@ -208,7 +208,7 @@ export function FormSubmissionsCard({
               style={{
                 display: "block",
                 fontSize: "0.75rem",
-                color: "#666",
+                color: "var(--muted)",
                 marginBottom: "4px",
               }}
             >
@@ -229,7 +229,7 @@ export function FormSubmissionsCard({
               style={{
                 display: "block",
                 fontSize: "0.75rem",
-                color: "#666",
+                color: "var(--muted)",
                 marginBottom: "4px",
               }}
             >
@@ -244,7 +244,7 @@ export function FormSubmissionsCard({
               style={{
                 width: "100%",
                 padding: "6px 8px",
-                border: "1px solid #ddd",
+                border: "1px solid var(--border)",
                 borderRadius: "4px",
                 fontSize: "0.85rem",
                 minHeight: "50px",
@@ -303,7 +303,7 @@ export function FormSubmissionsCard({
                 <span
                   style={{
                     marginLeft: "8px",
-                    color: "#888",
+                    color: "var(--muted)",
                     fontSize: "0.75rem",
                   }}
                 >
@@ -315,7 +315,7 @@ export function FormSubmissionsCard({
                   display: "flex",
                   alignItems: "center",
                   gap: "6px",
-                  color: "#888",
+                  color: "var(--muted)",
                   fontSize: "0.75rem",
                 }}
               >
@@ -332,10 +332,10 @@ export function FormSubmissionsCard({
                   <label
                     style={{
                       background: "none",
-                      border: "1px dashed #ccc",
+                      border: "1px dashed var(--border-light)",
                       borderRadius: "3px",
                       padding: "1px 6px",
-                      color: "#888",
+                      color: "var(--muted)",
                       cursor:
                         uploadingFor === sub.id ? "wait" : "pointer",
                       fontSize: "0.7rem",

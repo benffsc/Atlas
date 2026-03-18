@@ -233,8 +233,8 @@ export default function ComparisonPage() {
           className="card"
           style={{
             padding: "1.25rem", marginBottom: "2rem",
-            background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
-            border: "1px solid #bbf7d0",
+            background: "linear-gradient(135deg, var(--success-bg) 0%, #dcfce7 100%)",
+            border: "1px solid var(--success-border)",
           }}
         >
           <div style={{
@@ -303,10 +303,10 @@ export default function ComparisonPage() {
                     key={p.place_id}
                     style={{
                       borderBottom: "1px solid var(--border)",
-                      background: isBest ? "#f0fdf4" : isWorst ? "#fef2f2" : undefined,
+                      background: isBest ? "var(--success-bg)" : isWorst ? "var(--danger-bg)" : undefined,
                     }}
                   >
-                    <td style={{ padding: "0.5rem 0.75rem", position: "sticky", left: 0, background: isBest ? "#f0fdf4" : isWorst ? "#fef2f2" : "var(--card-bg, white)" }}>
+                    <td style={{ padding: "0.5rem 0.75rem", position: "sticky", left: 0, background: isBest ? "var(--success-bg)" : isWorst ? "var(--danger-bg)" : "var(--card-bg, white)" }}>
                       <a href={`/places/${p.place_id}`} style={{ fontWeight: 500, color: "inherit", textDecoration: "none" }}>
                         {p.display_name || p.formatted_address}
                       </a>

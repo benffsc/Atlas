@@ -412,8 +412,8 @@ export function MergeReviewCard({
         <div
           style={{
             padding: 16,
-            background: "#f0fdf4",
-            borderTop: "1px solid #bbf7d0",
+            background: "var(--success-bg)",
+            borderTop: "1px solid var(--success-border)",
           }}
         >
           <div

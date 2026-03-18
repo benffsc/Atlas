@@ -248,7 +248,7 @@ export default function EmailTemplatesAdminPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.5rem" }}>
         <div>
           <h1 style={{ margin: 0 }}>Email Templates</h1>
-          <p style={{ color: "#666", margin: "0.25rem 0 0" }}>
+          <p style={{ color: "var(--muted)", margin: "0.25rem 0 0" }}>
             {isAdmin ? "Create and manage email templates" : "View templates and suggest edits"}
           </p>
         </div>
@@ -352,18 +352,18 @@ export default function EmailTemplatesAdminPage() {
                     )}
                   </div>
                   {template.description && (
-                    <p style={{ color: "#666", margin: "0.25rem 0 0", fontSize: "0.875rem" }}>
+                    <p style={{ color: "var(--muted)", margin: "0.25rem 0 0", fontSize: "0.875rem" }}>
                       {template.description}
                     </p>
                   )}
-                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.8rem", color: "#666" }}>
+                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
                     <span>Subject: <strong>{template.subject}</strong></span>
                     <span>Sent: <strong>{template.send_count}</strong></span>
                     <span>Last sent: {formatDate(template.last_sent)}</span>
                   </div>
                   {template.placeholders && template.placeholders.length > 0 && (
                     <div style={{ marginTop: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#666" }}>Placeholders: </span>
+                      <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Placeholders: </span>
                       {template.placeholders.map((p) => (
                         <code
                           key={p}
@@ -388,7 +388,7 @@ export default function EmailTemplatesAdminPage() {
                       style={{
                         padding: "0.375rem 0.75rem",
                         background: "var(--section-bg)",
-                        border: "1px solid #ddd",
+                        border: "1px solid var(--border)",
                         borderRadius: "4px",
                         cursor: "pointer",
                         fontSize: "0.875rem",
@@ -460,7 +460,7 @@ export default function EmailTemplatesAdminPage() {
               overflow: "auto",
             }}
           >
-            <div style={{ padding: "1.5rem", borderBottom: "1px solid #ddd" }}>
+            <div style={{ padding: "1.5rem", borderBottom: "1px solid var(--border)" }}>
               <h2 style={{ margin: 0 }}>
                 {editingTemplate ? "Edit Template" : "New Email Template"}
               </h2>
@@ -494,12 +494,12 @@ export default function EmailTemplatesAdminPage() {
                     style={{
                       width: "100%",
                       padding: "0.5rem",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                       fontFamily: "monospace",
                     }}
                   />
-                  <div style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.25rem" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
                     Unique identifier (snake_case)
                   </div>
                 </div>
@@ -515,7 +515,7 @@ export default function EmailTemplatesAdminPage() {
                     style={{
                       width: "100%",
                       padding: "0.5rem",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                     }}
                   />
@@ -534,7 +534,7 @@ export default function EmailTemplatesAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -552,11 +552,11 @@ export default function EmailTemplatesAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
-                <div style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.25rem" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
                   Use {`{{placeholder}}`} syntax for dynamic values
                 </div>
               </div>
@@ -588,7 +588,7 @@ export default function EmailTemplatesAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                     fontFamily: "monospace",
                     fontSize: "0.875rem",
@@ -607,7 +607,7 @@ export default function EmailTemplatesAdminPage() {
                   <div
                     style={{
                       padding: "1rem",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                       background: "#fafafa",
                     }}
@@ -632,7 +632,7 @@ export default function EmailTemplatesAdminPage() {
                       style={{
                         padding: "0.25rem 0.5rem",
                         background: "#f0f0f0",
-                        border: "1px solid #ddd",
+                        border: "1px solid var(--border)",
                         borderRadius: "4px",
                         cursor: "pointer",
                         fontSize: "0.75rem",
@@ -649,7 +649,7 @@ export default function EmailTemplatesAdminPage() {
             <div
               style={{
                 padding: "1rem 1.5rem",
-                borderTop: "1px solid #ddd",
+                borderTop: "1px solid var(--border)",
                 display: "flex",
                 justifyContent: "flex-end",
                 gap: "0.75rem",
@@ -660,7 +660,7 @@ export default function EmailTemplatesAdminPage() {
                 style={{
                   padding: "0.5rem 1rem",
                   background: "var(--section-bg)",
-                  border: "1px solid #ddd",
+                  border: "1px solid var(--border)",
                   borderRadius: "6px",
                   cursor: "pointer",
                 }}
@@ -712,9 +712,9 @@ export default function EmailTemplatesAdminPage() {
               overflow: "auto",
             }}
           >
-            <div style={{ padding: "1.5rem", borderBottom: "1px solid #ddd" }}>
+            <div style={{ padding: "1.5rem", borderBottom: "1px solid var(--border)" }}>
               <h2 style={{ margin: 0 }}>Suggest Edit</h2>
-              <p style={{ margin: "0.25rem 0 0", color: "#666", fontSize: "0.875rem" }}>
+              <p style={{ margin: "0.25rem 0 0", color: "var(--muted)", fontSize: "0.875rem" }}>
                 Template: <strong>{suggestingTemplate.name}</strong>
               </p>
             </div>
@@ -748,7 +748,7 @@ export default function EmailTemplatesAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -781,7 +781,7 @@ export default function EmailTemplatesAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                     fontFamily: "monospace",
                     fontSize: "0.875rem",
@@ -797,7 +797,7 @@ export default function EmailTemplatesAdminPage() {
                   <div
                     style={{
                       padding: "1rem",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border)",
                       borderRadius: "4px",
                       background: "#fafafa",
                     }}
@@ -818,7 +818,7 @@ export default function EmailTemplatesAdminPage() {
                   style={{
                     width: "100%",
                     padding: "0.5rem",
-                    border: "1px solid #ddd",
+                    border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
                 />
@@ -828,7 +828,7 @@ export default function EmailTemplatesAdminPage() {
             <div
               style={{
                 padding: "1rem 1.5rem",
-                borderTop: "1px solid #ddd",
+                borderTop: "1px solid var(--border)",
                 display: "flex",
                 justifyContent: "flex-end",
                 gap: "0.75rem",
@@ -839,7 +839,7 @@ export default function EmailTemplatesAdminPage() {
                 style={{
                   padding: "0.5rem 1rem",
                   background: "var(--section-bg)",
-                  border: "1px solid #ddd",
+                  border: "1px solid var(--border)",
                   borderRadius: "6px",
                   cursor: "pointer",
                 }}

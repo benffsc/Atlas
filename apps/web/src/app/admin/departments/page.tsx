@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 
 interface Department {
   org_id: string;
@@ -41,6 +42,7 @@ const ORG_TYPE_COLORS: Record<string, string> = {
 };
 
 export default function DepartmentsPage() {
+  const { nameShort, nameFull } = useOrgConfig();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [hierarchy, setHierarchy] = useState<Hierarchy | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -82,9 +84,9 @@ export default function DepartmentsPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <div>
-          <h1 style={{ margin: 0 }}>FFSC Departments</h1>
+          <h1 style={{ margin: 0 }}>{nameShort} Departments</h1>
           <p style={{ margin: "0.25rem 0 0", color: "var(--muted)", fontSize: "0.875rem" }}>
-            Forgotten Felines of Sonoma County internal structure
+            {nameFull} internal structure
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>

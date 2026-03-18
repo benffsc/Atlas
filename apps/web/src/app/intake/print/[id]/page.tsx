@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi } from "@/lib/api-client";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { PRINT_BASE_CSS } from "@/lib/print-styles";
 import { PrintFooter, PrintControlsPanel } from "@/components/print";
 import {
@@ -120,6 +121,7 @@ function CheckItem({ value, label }: { value: boolean | null; label: string }) {
 
 export default function PrintSubmissionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { nameFull, phone, website, tagline } = useOrgConfig();
   const [submission, setSubmission] = useState<IntakeSubmission | null>(null);
   const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([]);
   const [loading, setLoading] = useState(true);
@@ -337,10 +339,10 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Forgotten Felines" style={{ height: "50px", width: "auto" }} />
+            <img src="/logo.png" alt={nameFull} style={{ height: "50px", width: "auto" }} />
             <div style={{ textAlign: "right", fontSize: "9pt", color: "#7f8c8d" }}>
-              (707) 576-7999<br />
-              forgottenfelines.com
+              {phone}<br />
+              {website}
             </div>
           </div>
         </div>
@@ -548,7 +550,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
         {/* Footer */}
         <div style={{ marginTop: "auto" }}>
           <PrintFooter
-            left="Forgotten Felines of Sonoma County • Helping community cats since 1990"
+            left={`${nameFull} • ${tagline}`}
             right={`Printed ${new Date().toLocaleDateString()}`}
           />
         </div>
@@ -566,7 +568,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="Forgotten Felines" style={{ height: "50px", width: "auto" }} />
+              <img src="/logo.png" alt={nameFull} style={{ height: "50px", width: "auto" }} />
               <div style={{ textAlign: "right", fontSize: "9pt", color: "#7f8c8d" }}>
                 Kitten Program
               </div>
@@ -675,7 +677,7 @@ export default function PrintSubmissionPage({ params }: { params: Promise<{ id: 
 
           <div style={{ marginTop: "auto" }}>
             <PrintFooter
-              left="Forgotten Felines of Sonoma County • Kitten Program"
+              left={`${nameFull} • Kitten Program`}
               right="Page 2 of 2"
             />
           </div>

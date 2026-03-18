@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi } from "@/lib/api-client";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { PRINT_BASE_CSS, PRINT_EDITABLE_CSS } from "@/lib/print-styles";
 import { formatPrintValue, formatPrintDate } from "@/lib/print-helpers";
 import { buildCallSheetUrl } from "@/lib/print-documents";
@@ -110,6 +111,7 @@ export default function TrapperSheetPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const id = params.id as string;
+  const { nameFull } = useOrgConfig();
 
   const [data, setData] = useState<TrapperSheetData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -250,7 +252,7 @@ export default function TrapperSheetPage() {
       <div className="print-page">
         <PrintHeader
           title={sheetTitle}
-          subtitle="Forgotten Felines of Sonoma County"
+          subtitle={nameFull}
           rightContent={
             <div className={`priority-badge priority-${data.priority}`}>
               {data.priority}
@@ -600,7 +602,7 @@ export default function TrapperSheetPage() {
           </div>
 
           <PrintFooter
-            left={`Ref: ${data.request_id.slice(0, 8)} | Forgotten Felines of Sonoma County`}
+            left={`Ref: ${data.request_id.slice(0, 8)} | ${nameFull}`}
             right="Page 2 of 2"
           />
         </div>

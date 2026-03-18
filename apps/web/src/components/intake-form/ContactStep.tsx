@@ -28,7 +28,7 @@ export default function ContactStep({
         marginBottom: "1.5rem",
         padding: "1rem",
         background: formData.is_third_party_report ? "#fff3cd" : "#f8f9fa",
-        border: `1px solid ${formData.is_third_party_report ? "#ffc107" : "#ddd"}`,
+        border: `1px solid ${formData.is_third_party_report ? "#ffc107" : "var(--border)"}`,
         borderRadius: "8px",
       }}>
         <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", cursor: "pointer" }}>
@@ -39,7 +39,7 @@ export default function ContactStep({
           />
           <span>
             <strong>Third-party report</strong>
-            <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>
+            <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)" }}>
               Caller is reporting about cats they've seen but don't care for
             </span>
           </span>
@@ -120,7 +120,7 @@ export default function ContactStep({
             <button
               type="button"
               onClick={() => setSelectedPersonId(null)}
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "#666" }}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.8rem", color: "var(--muted)" }}
             >
               Clear
             </button>
@@ -167,7 +167,7 @@ export default function ContactStep({
             maxHeight: "200px",
             overflowY: "auto",
           }}>
-            <div style={{ padding: "0.5rem 0.75rem", background: "var(--section-bg)", borderBottom: "1px solid var(--border)", fontSize: "0.75rem", color: "#666" }}>
+            <div style={{ padding: "0.5rem 0.75rem", background: "var(--section-bg)", borderBottom: "1px solid var(--border)", fontSize: "0.75rem", color: "var(--muted)" }}>
               Existing contacts found:
             </div>
             {personSuggestions.map((person) => (
@@ -183,7 +183,7 @@ export default function ContactStep({
                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
                 <div style={{ fontWeight: 500 }}>{person.display_name}</div>
-                <div style={{ fontSize: "0.8rem", color: "#666" }}>
+                <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
                   {person.emails && <span>{person.emails}</span>}
                   {person.emails && person.phones && <span> · </span>}
                   {person.phones && <span>{formatPhone(person.phones)}</span>}
@@ -217,7 +217,7 @@ export default function ContactStep({
           />
         </div>
       </div>
-      <p style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.5rem" }}>* Email or phone required</p>
+      <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem" }}>* Email or phone required</p>
 
       {/* Identity-based person suggestion (email/phone match) */}
       {identitySuggestions && onDismissIdentitySuggestion && onSelectIdentitySuggestion && (

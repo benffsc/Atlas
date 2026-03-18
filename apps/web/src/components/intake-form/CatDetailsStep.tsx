@@ -31,7 +31,7 @@ function renderCustomField(
             onChange={(e) => onChange(field.field_key, e.target.value)}
             placeholder={field.placeholder || undefined}
           />
-          {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          {field.help_text && <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
         </div>
       );
 
@@ -48,7 +48,7 @@ function renderCustomField(
             placeholder={field.placeholder || undefined}
             rows={3}
           />
-          {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          {field.help_text && <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
         </div>
       );
 
@@ -66,7 +66,7 @@ function renderCustomField(
             placeholder={field.placeholder || undefined}
             style={{ maxWidth: "150px" }}
           />
-          {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          {field.help_text && <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
         </div>
       );
 
@@ -86,7 +86,7 @@ function renderCustomField(
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          {field.help_text && <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
         </div>
       );
 
@@ -102,7 +102,7 @@ function renderCustomField(
             <span>
               {field.field_label}
               {field.help_text && (
-                <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>{field.help_text}</span>
+                <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)" }}>{field.help_text}</span>
               )}
             </span>
           </label>
@@ -121,7 +121,7 @@ function renderCustomField(
             value={value as string}
             onChange={(e) => onChange(field.field_key, e.target.value)}
           />
-          {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          {field.help_text && <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
         </div>
       );
 
@@ -138,7 +138,7 @@ function renderCustomField(
             onChange={(e) => onChange(field.field_key, e.target.value)}
             placeholder={field.placeholder || undefined}
           />
-          {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          {field.help_text && <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
         </div>
       );
 
@@ -155,7 +155,7 @@ function renderCustomField(
             onChange={(e) => onChange(field.field_key, e.target.value)}
             placeholder={field.placeholder || undefined}
           />
-          {field.help_text && <p style={{ fontSize: "0.8rem", color: "#666", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
+          {field.help_text && <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field.help_text}</p>}
         </div>
       );
 
@@ -207,7 +207,7 @@ export default function CatDetailsStep({
               />
             </div>
           </div>
-          <p style={{ fontSize: "0.9rem", background: "#e7f1ff", padding: "0.75rem", borderRadius: "6px" }}>
+          <p style={{ fontSize: "0.9rem", background: "var(--info-bg)", padding: "0.75rem", borderRadius: "6px" }}>
             Direct caller to schedule spay/neuter appointment via regular booking process.
           </p>
         </>
@@ -296,7 +296,7 @@ export default function CatDetailsStep({
           {/* HANDLEABILITY - key question */}
           <div style={{ marginBottom: "1rem", background: "#f0f9ff", padding: "1rem", borderRadius: "8px" }}>
             <label><strong>Can the caller handle this cat?</strong></label>
-            <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.75rem" }}>
+            <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.75rem" }}>
               This determines if they can bring it in a carrier or if trapping is needed
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -308,10 +308,10 @@ export default function CatDetailsStep({
                     alignItems: "flex-start",
                     gap: "0.5rem",
                     padding: "0.5rem",
-                    border: `1px solid ${formData.handleability === opt.value ? "#0066cc" : "#ddd"}`,
+                    border: `1px solid ${formData.handleability === opt.value ? "#0066cc" : "var(--border)"}`,
                     borderRadius: "4px",
                     cursor: "pointer",
-                    background: formData.handleability === opt.value ? "#e7f1ff" : "#fff",
+                    background: formData.handleability === opt.value ? "var(--info-bg)" : "#fff",
                   }}
                 >
                   <input
@@ -323,7 +323,7 @@ export default function CatDetailsStep({
                   />
                   <span>
                     <strong>{opt.label}</strong>
-                    <span style={{ display: "block", fontSize: "0.8rem", color: "#666" }}>{opt.desc}</span>
+                    <span style={{ display: "block", fontSize: "0.8rem", color: "var(--muted)" }}>{opt.desc}</span>
                   </span>
                 </label>
               ))}
@@ -369,7 +369,7 @@ export default function CatDetailsStep({
                   onChange={(e) => updateField("cat_count", e.target.value)}
                   placeholder="e.g., 8 or 10-12"
                 />
-                <p style={{ fontSize: "0.75rem", color: "#666", margin: "0.25rem 0 0" }}>
+                <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
                   Adults only - kittens tracked separately
                 </p>
               </div>
@@ -381,7 +381,7 @@ export default function CatDetailsStep({
                   onChange={(e) => updateField("cats_needing_tnr", e.target.value)}
                   placeholder="e.g., 5"
                 />
-                <p style={{ fontSize: "0.75rem", color: "#666", margin: "0.25rem 0 0" }}>
+                <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
                   Adults without ear tips
                 </p>
               </div>
@@ -565,7 +565,7 @@ export default function CatDetailsStep({
               gap: "0.5rem",
               padding: "1rem",
               background: formData.is_emergency ? "#f8d7da" : "#f8f9fa",
-              border: `2px solid ${formData.is_emergency ? "#dc3545" : "#ddd"}`,
+              border: `2px solid ${formData.is_emergency ? "#dc3545" : "var(--border)"}`,
               borderRadius: "8px",
               cursor: "pointer",
               marginBottom: "1rem",
@@ -579,7 +579,7 @@ export default function CatDetailsStep({
             />
             <span>
               <strong>This is an urgent situation</strong>
-              <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>
+              <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)" }}>
                 {URGENT_SITUATION_EXAMPLES}
               </span>
             </span>
@@ -646,7 +646,7 @@ export default function CatDetailsStep({
           padding: "1rem",
           background: "var(--section-bg)",
           borderRadius: "8px",
-          border: "1px solid #ddd",
+          border: "1px solid var(--border)",
         }}>
           <h3 style={{ fontSize: "1rem", marginBottom: "1rem" }}>Additional Questions</h3>
           {customFields.map(field => renderCustomField(field, customFieldValues[field.field_key] || "", updateCustomField))}

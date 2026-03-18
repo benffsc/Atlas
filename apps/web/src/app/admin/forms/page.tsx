@@ -96,7 +96,7 @@ function AdminFormsContent() {
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
           Form Templates
         </h1>
-        <span style={{ fontSize: "0.875rem", color: "#666" }}>
+        <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
           {templates.length} templates
         </span>
       </div>
@@ -130,7 +130,7 @@ function AdminFormsContent() {
                   <p
                     style={{
                       fontSize: "0.875rem",
-                      color: "#666",
+                      color: "var(--muted)",
                       margin: "4px 0 0",
                     }}
                   >
@@ -147,7 +147,7 @@ function AdminFormsContent() {
               >
                 <span
                   style={{
-                    background: "#f0fdf4",
+                    background: "var(--success-bg)",
                     color: "#166534",
                     padding: "2px 8px",
                     borderRadius: "4px",
@@ -176,7 +176,7 @@ function AdminFormsContent() {
                 alignItems: "center",
               }}
             >
-              <span style={{ fontSize: "0.875rem", color: "#888" }}>
+              <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
                 {t.field_count} fields
               </span>
               <div style={{ display: "flex", gap: "12px" }}>
@@ -184,7 +184,7 @@ function AdminFormsContent() {
                   href={`/admin/forms/${t.template_key}`}
                   style={{
                     fontSize: "0.875rem",
-                    color: "#333",
+                    color: "var(--text-primary)",
                     textDecoration: "none",
                     fontWeight: 500,
                   }}
@@ -214,7 +214,7 @@ function AdminFormsContent() {
           background: "var(--section-bg)",
           borderRadius: "8px",
           fontSize: "0.875rem",
-          color: "#666",
+          color: "var(--muted)",
           display: "flex",
           gap: "1.5rem",
           flexWrap: "wrap",

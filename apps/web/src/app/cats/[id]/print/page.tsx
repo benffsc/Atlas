@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 
 interface CatPrint {
   cat_id: string;
@@ -48,6 +49,7 @@ interface CatPrint {
 export default function CatPrintPage() {
   const params = useParams();
   const id = params.id as string;
+  const { nameShort } = useOrgConfig();
 
   const [cat, setCat] = useState<CatPrint | null>(null);
   const [loading, setLoading] = useState(true);
@@ -276,7 +278,7 @@ export default function CatPrintPage() {
         display: "flex",
         justifyContent: "space-between"
       }}>
-        <span>Printed from Atlas - FFSC FFR Management</span>
+        <span>Printed from Atlas - {nameShort} FFR Management</span>
         <span>{new Date().toLocaleString()}</span>
       </div>
 

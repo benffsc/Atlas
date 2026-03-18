@@ -26,9 +26,9 @@ export function PlacePreviewContent({ place, onClose }: PlacePreviewContentProps
 
   const stats = [
     { label: "Cats", value: catCount },
-    { label: "Altered", value: alteredCount, color: alteredCount > 0 ? "#16a34a" : "#999" },
+    { label: "Altered", value: alteredCount, color: alteredCount > 0 ? "#16a34a" : "var(--muted)" },
     { label: "People", value: personCount },
-    { label: "Active Requests", value: place.active_request_count ?? 0, color: (place.active_request_count ?? 0) > 0 ? "#f59e0b" : "#999" },
+    { label: "Active Requests", value: place.active_request_count ?? 0, color: (place.active_request_count ?? 0) > 0 ? "#f59e0b" : "var(--muted)" },
   ];
 
   const hasDiseaseRisk = place.disease_badges?.length || place.watch_list;
@@ -54,7 +54,7 @@ export function PlacePreviewContent({ place, onClose }: PlacePreviewContentProps
           {place.formatted_address && <DetailRow label="Address" value={place.formatted_address} />}
           {place.place_kind && <DetailRow label="Type" value={formatPlaceKind(place.place_kind)} />}
           {place.locality && <DetailRow label="Locality" value={place.locality} />}
-          <DetailRow label="Last Activity" value={relTime || "Never"} valueColor={actColor || "#999"} />
+          <DetailRow label="Last Activity" value={relTime || "Never"} valueColor={actColor || "var(--muted)"} />
         </div>
       ),
     },

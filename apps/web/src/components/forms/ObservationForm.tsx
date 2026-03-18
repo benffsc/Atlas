@@ -263,7 +263,7 @@ export function ObservationForm({
               padding: "0.75rem",
               border: isAtFeedingStation === true ? "2px solid #16a34a" : "1px solid var(--card-border)",
               borderRadius: "6px",
-              background: isAtFeedingStation === true ? "#f0fdf4" : "transparent",
+              background: isAtFeedingStation === true ? "var(--success-bg)" : "transparent",
               cursor: "pointer",
               fontSize: "0.875rem",
               fontWeight: isAtFeedingStation === true ? 600 : 400,

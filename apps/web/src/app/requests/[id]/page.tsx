@@ -674,7 +674,7 @@ export default function RequestDetailPage() {
                         key={report.report_id}
                         style={{
                           padding: "0.75rem 1rem",
-                          background: report.is_final_visit ? "#f0fdf4" : "var(--muted-bg)",
+                          background: report.is_final_visit ? "var(--success-bg)" : "var(--muted-bg)",
                           borderRadius: "8px",
                           border: report.is_final_visit ? "1px solid #86efac" : "1px solid var(--border)",
                         }}

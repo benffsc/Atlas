@@ -56,7 +56,7 @@ export function PlaceAlterationHistory({ placeId }: PlaceAlterationHistoryProps)
 
   if (loading) {
     return (
-      <div style={{ padding: "1rem", color: "#666" }}>
+      <div style={{ padding: "1rem", color: "var(--muted)" }}>
         Loading colony statistics...
       </div>
     );
@@ -72,7 +72,7 @@ export function PlaceAlterationHistory({ placeId }: PlaceAlterationHistoryProps)
 
   if (!history || !history.has_data) {
     return (
-      <div style={{ padding: "1rem", color: "#666" }}>
+      <div style={{ padding: "1rem", color: "var(--muted)" }}>
         No TNR activity data available for this location.
       </div>
     );
@@ -96,22 +96,22 @@ export function PlaceAlterationHistory({ placeId }: PlaceAlterationHistoryProps)
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: rateColor }}>
             {history.place_alteration_rate_pct !== null ? `${history.place_alteration_rate_pct}%` : "—"}
           </div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>Alteration Rate</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Alteration Rate</div>
         </div>
 
         <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{history.total_requests}</div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>Requests</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Requests</div>
         </div>
 
         <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{history.total_cats_caught}</div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>Cats Caught</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Cats Caught</div>
         </div>
 
         <div style={{ textAlign: "center", padding: "0.75rem", background: "var(--section-bg)", borderRadius: "8px" }}>
           <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#198754" }}>{history.total_cats_altered}</div>
-          <div style={{ fontSize: "0.7rem", color: "#666" }}>Altered</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Altered</div>
         </div>
       </div>
 
@@ -119,14 +119,14 @@ export function PlaceAlterationHistory({ placeId }: PlaceAlterationHistoryProps)
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", fontSize: "0.875rem" }}>
         <span><strong>Males:</strong> {history.total_males}</span>
         <span><strong>Females:</strong> {history.total_females}</span>
-        <span style={{ color: "#666" }}>
+        <span style={{ color: "var(--muted)" }}>
           <strong>Pre-Altered:</strong> {history.total_already_altered}
         </span>
       </div>
 
       {/* Date Range */}
       {history.first_request_date && (
-        <div style={{ fontSize: "0.8rem", color: "#666", marginBottom: "1rem" }}>
+        <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
           Activity period: {new Date(history.first_request_date).toLocaleDateString()} to{" "}
           {new Date(history.latest_request_date!).toLocaleDateString()}
         </div>

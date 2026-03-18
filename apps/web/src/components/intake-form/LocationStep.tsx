@@ -28,7 +28,7 @@ export default function LocationStep({
         <div style={{
           marginBottom: "1.5rem",
           padding: "1rem",
-          background: "#e7f1ff",
+          background: "var(--info-bg)",
           border: "1px solid #b8daff",
           borderRadius: "8px",
         }}>
@@ -45,7 +45,7 @@ export default function LocationStep({
             cursor: "pointer",
             padding: "0.5rem",
             background: catsAtMyAddress ? "#d4edda" : "#fff",
-            border: `2px solid ${catsAtMyAddress ? "#198754" : "#ddd"}`,
+            border: `2px solid ${catsAtMyAddress ? "#198754" : "var(--border)"}`,
             borderRadius: "6px",
           }}>
             <input
@@ -66,7 +66,7 @@ export default function LocationStep({
                   alignItems: "flex-start",
                   gap: "0.5rem",
                   padding: "0.75rem",
-                  border: `2px solid ${selectedAddressId === addr.place_id ? "#0066cc" : "#ddd"}`,
+                  border: `2px solid ${selectedAddressId === addr.place_id ? "#0066cc" : "var(--border)"}`,
                   borderRadius: "6px",
                   cursor: "pointer",
                   background: selectedAddressId === addr.place_id ? "#fff" : "#f8f9fa",
@@ -81,7 +81,7 @@ export default function LocationStep({
                 <span>
                   <span style={{ display: "block" }}>{addr.formatted_address}</span>
                   {addr.role && (
-                    <span style={{ fontSize: "0.75rem", color: "#666" }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                       ({addr.role})
                     </span>
                   )}
@@ -96,7 +96,7 @@ export default function LocationStep({
                 alignItems: "center",
                 gap: "0.5rem",
                 padding: "0.75rem",
-                border: `2px solid ${selectedAddressId === "new" ? "#0066cc" : "#ddd"}`,
+                border: `2px solid ${selectedAddressId === "new" ? "#0066cc" : "var(--border)"}`,
                 borderRadius: "6px",
                 cursor: "pointer",
                 background: selectedAddressId === "new" ? "#fff" : "#f8f9fa",
@@ -189,7 +189,7 @@ export default function LocationStep({
           <p style={{ margin: "0 0 0.75rem 0", fontWeight: 500 }}>
             Your Home Address (Optional)
           </p>
-          <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.75rem" }}>
+          <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.75rem" }}>
             Since the cats are at a different location, you can optionally provide your home address.
           </p>
           <PlaceResolver

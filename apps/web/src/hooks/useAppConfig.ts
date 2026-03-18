@@ -12,7 +12,7 @@
 import useSWR, { type KeyedMutator } from "swr";
 import { fetchApi } from "@/lib/api-client";
 
-// Hardcoded fallbacks — must stay in sync with MIG_2926 seed data
+// Hardcoded fallbacks — must stay in sync with MIG_2926 + MIG_2963 seed data
 const DEFAULTS: Record<string, unknown> = {
   "request.stale_days": 30,
   "request.in_progress_stale_days": 14,
@@ -20,6 +20,14 @@ const DEFAULTS: Record<string, unknown> = {
   "pagination.max_limit": 200,
   "map.default_zoom": 10,
   "map.default_center": [38.45, -122.75],
+  // Org branding (MIG_2963 / FFS-684)
+  "org.name_full": "Forgotten Felines of Sonoma County",
+  "org.name_short": "FFSC",
+  "org.phone": "(707) 576-7999",
+  "org.website": "forgottenfelines.com",
+  "org.support_email": "admin@forgottenfelinessoco.org",
+  "org.email_from": "Forgotten Felines <noreply@forgottenfelines.org>",
+  "org.tagline": "Helping community cats since 1990",
 };
 
 interface ConfigRow {

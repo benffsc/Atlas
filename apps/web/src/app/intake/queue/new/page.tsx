@@ -805,7 +805,7 @@ export default function NewIntakeEntryPage() {
 
         {/* Staff Section: Triage */}
         <div className="card" style={{ marginBottom: "1rem", padding: "1rem", background: "#f5f5f5", border: "1px solid #999" }}>
-          <h3 style={{ margin: "0 0 1rem 0", color: "#333" }}>Staff Triage</h3>
+          <h3 style={{ margin: "0 0 1rem 0", color: "var(--text-primary)" }}>Staff Triage</h3>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
             <div>
@@ -852,7 +852,7 @@ export default function NewIntakeEntryPage() {
         {/* Staff Section: Kitten Assessment (conditional) */}
         {form.has_kittens && (
           <div className="card" style={{ marginBottom: "1rem", padding: "1rem", background: "#f5f5f5", border: "1px solid #999" }}>
-            <h3 style={{ margin: "0 0 1rem 0", color: "#333" }}>Staff Kitten Assessment</h3>
+            <h3 style={{ margin: "0 0 1rem 0", color: "var(--text-primary)" }}>Staff Kitten Assessment</h3>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
               <div>
@@ -929,7 +929,7 @@ export default function NewIntakeEntryPage() {
           <button type="submit" disabled={submitting} style={{ padding: "0.75rem 2rem" }}>
             {submitting ? "Submitting..." : "Submit Intake"}
           </button>
-          <a href="/intake/queue" style={{ padding: "0.75rem 1.5rem", background: "#f0f0f0", color: "#333", borderRadius: "6px", textDecoration: "none" }}>
+          <a href="/intake/queue" style={{ padding: "0.75rem 1.5rem", background: "#f0f0f0", color: "var(--text-primary)", borderRadius: "6px", textDecoration: "none" }}>
             Cancel
           </a>
         </div>

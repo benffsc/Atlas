@@ -233,7 +233,7 @@ export default function ReviewQueuePage() {
             key={item.id}
             style={{
               padding: "1rem 1.25rem",
-              background: selected.has(item.id) ? "#f0fdf4" : "white",
+              background: selected.has(item.id) ? "var(--success-bg)" : "var(--card-bg)",
               borderRadius: "8px",
               border: `1px solid ${selected.has(item.id) ? "#86efac" : "var(--border)"}`,
               opacity: actionLoading === item.id || bulkLoading ? 0.5 : 1,

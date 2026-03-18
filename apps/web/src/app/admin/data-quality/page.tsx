@@ -676,7 +676,7 @@ const SEVERITY_COLORS = {
   CRITICAL: { bg: "#fef2f2", border: "#ef4444", text: "#dc2626" },
   HIGH: { bg: "#fef3c7", border: "#f59e0b", text: "#d97706" },
   MEDIUM: { bg: "#fefce8", border: "#eab308", text: "#ca8a04" },
-  LOW: { bg: "#f0fdf4", border: "#22c55e", text: "#16a34a" },
+  LOW: { bg: "var(--success-bg)", border: "#22c55e", text: "#16a34a" },
 };
 
 function AlertsPanel({ alerts }: { alerts: AlertsResponse | null }) {

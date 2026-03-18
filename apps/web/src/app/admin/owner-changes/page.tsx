@@ -281,7 +281,7 @@ function OwnerChangeCard({
         </div>
 
         {/* New Data */}
-        <div style={{ padding: "1rem", background: "#f0fdf4", borderRadius: "8px", border: "1px solid #bbf7d0" }}>
+        <div style={{ padding: "1rem", background: "var(--success-bg)", borderRadius: "8px", border: "1px solid var(--success-border)" }}>
           <div style={{ fontWeight: 600, marginBottom: "0.5rem", fontSize: "0.875rem", color: "#16a34a" }}>
             New Data from ClinicHQ
           </div>

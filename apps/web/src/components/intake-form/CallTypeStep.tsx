@@ -21,7 +21,7 @@ export default function CallTypeStep({ formData, updateField, errors }: BaseStep
   return (
     <div className="card" style={{ padding: "1.5rem" }}>
       <h2 style={{ marginBottom: "0.5rem" }}>What is this call about?</h2>
-      <p style={{ color: "#666", marginBottom: "1rem", fontSize: "0.9rem" }}>
+      <p style={{ color: "var(--muted)", marginBottom: "1rem", fontSize: "0.9rem" }}>
         Select the option that best describes the caller's situation
       </p>
 
@@ -34,10 +34,10 @@ export default function CallTypeStep({ formData, updateField, errors }: BaseStep
               alignItems: "center",
               gap: "1rem",
               padding: "1rem",
-              border: `2px solid ${formData.call_type === opt.value ? "#0066cc" : "#ddd"}`,
+              border: `2px solid ${formData.call_type === opt.value ? "#0066cc" : "var(--border)"}`,
               borderRadius: "8px",
               cursor: "pointer",
-              background: formData.call_type === opt.value ? "#e7f1ff" : "#fff",
+              background: formData.call_type === opt.value ? "var(--info-bg)" : "#fff",
               transition: "all 0.15s ease",
             }}
           >
@@ -52,7 +52,7 @@ export default function CallTypeStep({ formData, updateField, errors }: BaseStep
             <span style={{ fontSize: "1.5rem" }}>{opt.icon}</span>
             <span>
               <strong>{opt.label}</strong>
-              <span style={{ display: "block", fontSize: "0.85rem", color: "#666" }}>{opt.desc}</span>
+              <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)" }}>{opt.desc}</span>
             </span>
           </label>
         ))}

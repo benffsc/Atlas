@@ -10,7 +10,7 @@ interface DataQualityBadgeProps {
 
 const sourceLabels: Record<string, { label: string; color: string; bg: string }> = {
   // System sources
-  clinichq: { label: "Clinic", color: "#0d6efd", bg: "#e7f1ff" },
+  clinichq: { label: "Clinic", color: "#0d6efd", bg: "var(--info-bg)" },
   airtable: { label: "Airtable", color: "#6c757d", bg: "#f8f9fa" },
   web_intake: { label: "Web", color: "#198754", bg: "#d1e7dd" },
   web_app: { label: "App", color: "#198754", bg: "#d1e7dd" },
@@ -23,11 +23,11 @@ const sourceLabels: Record<string, { label: string; color: string; bg: string }>
   // Manual sources
   manual_entry: { label: "Manual", color: "#6c757d", bg: "#f8f9fa" },
   staff_verified: { label: "Verified", color: "#198754", bg: "#d1e7dd" },
-  trapper_report: { label: "Trapper", color: "#0d6efd", bg: "#e7f1ff" },
-  intake_form: { label: "Intake", color: "#0d6efd", bg: "#e7f1ff" },
+  trapper_report: { label: "Trapper", color: "#0d6efd", bg: "var(--info-bg)" },
+  intake_form: { label: "Intake", color: "#0d6efd", bg: "var(--info-bg)" },
 
   // Colony estimate sources
-  post_clinic_survey: { label: "Survey", color: "#0d6efd", bg: "#e7f1ff" },
+  post_clinic_survey: { label: "Survey", color: "#0d6efd", bg: "var(--info-bg)" },
   trapping_request: { label: "Request", color: "#6c757d", bg: "#f8f9fa" },
   trapper_site_visit: { label: "Site Visit", color: "#198754", bg: "#d1e7dd" },
   verified_cats: { label: "Verified", color: "#198754", bg: "#d1e7dd" },

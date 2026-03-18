@@ -347,7 +347,7 @@ export function PhotoGroupingPanel({
           style={{
             padding: "0.75rem",
             marginBottom: "1rem",
-            background: "#e7f1ff",
+            background: "var(--info-bg)",
             borderRadius: "4px",
             border: "1px solid #b6d4fe",
           }}

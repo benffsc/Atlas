@@ -287,9 +287,9 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
             <div style={{
               padding: "2rem",
               textAlign: "center",
-              background: "#f0fdf4",
+              background: "var(--success-bg)",
               borderRadius: "0.5rem",
-              border: "1px solid #bbf7d0",
+              border: "1px solid var(--success-border)",
             }}>
               <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>No pending reviews</div>
               <p style={{ color: "#6b7280", margin: 0 }}>All owner changes have been resolved</p>

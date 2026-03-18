@@ -94,7 +94,7 @@ export function MedicalTab({ data, preview, onAppointmentClick }: MedicalTabProp
       {/* Birth Information */}
       {cat.birth_event && (
         <Section title="Birth Information">
-          <div style={{ padding: "1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px" }}>
+          <div style={{ padding: "1rem", background: "var(--success-bg)", border: "1px solid var(--success-border)", borderRadius: "8px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
               <div>
                 <div className="text-muted text-sm">Birth Date</div>
@@ -134,7 +134,7 @@ export function MedicalTab({ data, preview, onAppointmentClick }: MedicalTabProp
               )}
             </div>
             {cat.siblings && cat.siblings.length > 0 && (
-              <div style={{ borderTop: "1px solid #bbf7d0", paddingTop: "0.75rem", marginTop: "0.75rem" }}>
+              <div style={{ borderTop: "1px solid var(--success-border)", paddingTop: "0.75rem", marginTop: "0.75rem" }}>
                 <div className="text-muted text-sm" style={{ marginBottom: "0.5rem" }}>Littermates ({cat.siblings.length})</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                   {cat.siblings.map(sibling => (
@@ -151,7 +151,7 @@ export function MedicalTab({ data, preview, onAppointmentClick }: MedicalTabProp
               </div>
             )}
             {cat.birth_event.notes && (
-              <div style={{ borderTop: "1px solid #bbf7d0", paddingTop: "0.75rem", marginTop: "0.75rem" }}>
+              <div style={{ borderTop: "1px solid var(--success-border)", paddingTop: "0.75rem", marginTop: "0.75rem" }}>
                 <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>Notes</div>
                 <p style={{ margin: 0, fontSize: "0.9rem" }}>{cat.birth_event.notes}</p>
               </div>

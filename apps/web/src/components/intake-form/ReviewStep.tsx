@@ -21,7 +21,7 @@ export default function ReviewStep({ formData }: BaseStepProps) {
         alignItems: "center",
         gap: "0.5rem",
         padding: "0.5rem 1rem",
-        background: "#e7f1ff",
+        background: "var(--info-bg)",
         borderRadius: "20px",
         marginBottom: "1rem",
       }}>
@@ -46,22 +46,22 @@ export default function ReviewStep({ formData }: BaseStepProps) {
       {/* Summary sections */}
       <div style={{ display: "grid", gap: "1rem" }}>
         <div style={{ background: "var(--section-bg)", padding: "1rem", borderRadius: "8px" }}>
-          <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>CONTACT</h4>
+          <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "var(--muted)" }}>CONTACT</h4>
           <p style={{ margin: 0 }}><strong>{formData.first_name} {formData.last_name}</strong></p>
           {formData.email && <p style={{ margin: 0 }}>{formData.email}</p>}
           {formData.phone && <p style={{ margin: 0 }}>{formatPhone(formData.phone)}</p>}
         </div>
 
         <div style={{ background: "var(--section-bg)", padding: "1rem", borderRadius: "8px" }}>
-          <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>LOCATION</h4>
+          <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "var(--muted)" }}>LOCATION</h4>
           <p style={{ margin: 0 }}>{formData.cats_address}</p>
           {formData.cats_city && <p style={{ margin: 0 }}>{formData.cats_city}{formData.cats_zip && `, ${formData.cats_zip}`}</p>}
           {formData.county && <p style={{ margin: 0 }}>{formData.county} County</p>}
-          {formData.is_property_owner && <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.85rem", color: "#666" }}>Property owner: {formData.is_property_owner}</p>}
+          {formData.is_property_owner && <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>Property owner: {formData.is_property_owner}</p>}
         </div>
 
         <div style={{ background: "var(--section-bg)", padding: "1rem", borderRadius: "8px" }}>
-          <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>DETAILS</h4>
+          <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "var(--muted)" }}>DETAILS</h4>
           {formData.cat_name && <p style={{ margin: 0 }}><strong>Name:</strong> {formData.cat_name}</p>}
           {formData.cat_description && <p style={{ margin: 0 }}><strong>Description:</strong> {formData.cat_description}</p>}
           {formData.call_type === "colony_tnr" && (
@@ -96,7 +96,7 @@ export default function ReviewStep({ formData }: BaseStepProps) {
 
         {formData.notes && (
           <div style={{ background: "var(--section-bg)", padding: "1rem", borderRadius: "8px" }}>
-            <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>NOTES</h4>
+            <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "var(--muted)" }}>NOTES</h4>
             <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{formData.notes}</p>
           </div>
         )}

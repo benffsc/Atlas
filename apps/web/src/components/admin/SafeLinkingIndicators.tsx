@@ -91,7 +91,7 @@ export function ConfidenceMeter({ confidence }: { confidence: number }) {
           }}
         />
       </div>
-      <span style={{ fontSize: "0.75rem", color: "#666" }}>{pct}%</span>
+      <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{pct}%</span>
     </div>
   );
 }

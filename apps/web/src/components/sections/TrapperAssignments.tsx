@@ -494,7 +494,7 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
                         )}
                       </div>
                       {hasScore && (
-                        <div style={{ fontSize: "0.65rem", color: "#888", marginTop: "0.1rem" }}>
+                        <div style={{ fontSize: "0.65rem", color: "var(--muted)", marginTop: "0.1rem" }}>
                           {typeof s.active_assignments === "number" && `${s.active_assignments} active`}
                           {typeof s.total_cats_caught === "number" && ` · ${s.total_cats_caught} caught`}
                         </div>
@@ -527,7 +527,7 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
         </div>
       )}
       {loadingSuggestions && suggestedTrappers.length === 0 && placeId && (
-        <div style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "#666" }}>
+        <div style={{ marginBottom: "0.75rem", fontSize: "0.8rem", color: "var(--muted)" }}>
           Checking for suggested trappers...
         </div>
       )}
@@ -570,9 +570,9 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
       {assignMode === "official" && (
         <div style={{ marginBottom: "0.75rem" }}>
           {loadingTrappers ? (
-            <div style={{ color: "#666", fontSize: "0.875rem" }}>Loading trappers...</div>
+            <div style={{ color: "var(--muted)", fontSize: "0.875rem" }}>Loading trappers...</div>
           ) : availableTrappers.length === 0 ? (
-            <div style={{ color: "#666", fontSize: "0.875rem" }}>
+            <div style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
               No official trappers found. Use &quot;Search All People&quot; to find someone.
             </div>
           ) : (
@@ -612,7 +612,7 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
                   </optgroup>
                 )}
               </select>
-              <div style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.25rem" }}>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
                 {ffscTrappers.length} FFSC, {communityTrappers.length} Community trappers available
               </div>
             </>
@@ -626,7 +626,7 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
           <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: 500 }}>
             Search for any person
           </label>
-          <div style={{ fontSize: "0.75rem", color: "#666", marginBottom: "0.5rem" }}>
+          <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
             Use this if a neighbor or non-trapper offered to help trap
           </div>
           <input
@@ -648,7 +648,7 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
             }}
           />
           {searchingPeople && (
-            <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>Searching...</div>
+            <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.25rem" }}>Searching...</div>
           )}
           {personResults.length > 0 && (
             <div style={{
@@ -676,13 +676,13 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
                   onMouseOut={(e) => (e.currentTarget.style.background = selectedTrapperId === p.entity_id ? "rgba(13, 110, 253, 0.1)" : "transparent")}
                 >
                   <div style={{ fontWeight: 500 }}>{p.display_name}</div>
-                  {p.subtitle && <div style={{ fontSize: "0.8rem", color: "#666" }}>{p.subtitle}</div>}
+                  {p.subtitle && <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>{p.subtitle}</div>}
                 </div>
               ))}
             </div>
           )}
           {personSearch.length >= 2 && personResults.length === 0 && !searchingPeople && (
-            <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.5rem" }}>
+            <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem" }}>
               No people found matching &quot;{personSearch}&quot;
             </div>
           )}

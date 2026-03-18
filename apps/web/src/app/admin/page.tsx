@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { ClinicHQUploadModal } from "@/components/modals";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 
 interface QueueStats {
   total: number;
@@ -29,6 +30,7 @@ const geoConfidenceColors: Record<string, string> = {
 };
 
 export default function AdminPage() {
+  const { nameShort } = useOrgConfig();
   const [stats, setStats] = useState<QueueStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [showClinicHQModal, setShowClinicHQModal] = useState(false);
@@ -81,7 +83,7 @@ export default function AdminPage() {
                 <AdminCard
                   href="/admin/staff"
                   title="Staff & Trappers"
-                  description="Manage FFSC personnel"
+                  description={`Manage ${nameShort} personnel`}
                   icon="👥"
                 />
               </div>
@@ -111,7 +113,7 @@ export default function AdminPage() {
                 />
                 <AdminCard
                   href="/admin/departments"
-                  title="FFSC Departments"
+                  title={`${nameShort} Departments`}
                   description="Internal teams & structure"
                   icon="🐾"
                 />
