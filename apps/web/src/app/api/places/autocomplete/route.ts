@@ -1,8 +1,20 @@
 import { NextRequest } from "next/server";
 import { apiSuccess, apiServerError, apiBadRequest } from "@/lib/api-response";
-import { getAutocompleteBias } from "@/lib/geo-config";
+import { getAutocompleteBias, type AutocompleteBias } from "@/lib/geo-config";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
+
+// Cache geo bias in memory — avoids a DB query on every keystroke (FFS-688)
+let cachedBias: AutocompleteBias | null = null;
+let biasCachedAt = 0;
+const BIAS_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getBias(): Promise<AutocompleteBias> {
+  if (cachedBias && Date.now() - biasCachedAt < BIAS_TTL) return cachedBias;
+  cachedBias = await getAutocompleteBias();
+  biasCachedAt = Date.now();
+  return cachedBias;
+}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -17,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const locationBias = await getAutocompleteBias();
+    const locationBias = await getBias();
 
     const url = new URL(
       "https://maps.googleapis.com/maps/api/place/autocomplete/json"
