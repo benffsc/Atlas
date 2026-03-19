@@ -785,7 +785,7 @@ export default function RequestDetailPage() {
               </div>
               <div style={{ textAlign: "center", padding: "0.5rem", background: "var(--muted-bg)", borderRadius: "6px" }}>
                 <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#6366f1" }}>
-                  {request.colony_alteration_rate != null ? `${Math.round(request.colony_alteration_rate * 100)}%` : "—"}
+                  {request.colony_alteration_rate != null ? `${Math.round(request.colony_alteration_rate)}%` : "—"}
                 </div>
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase" }}>Coverage</div>
               </div>

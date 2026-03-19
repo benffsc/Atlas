@@ -1160,7 +1160,14 @@ export async function PATCH(
     }
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error("Error updating request:", errMsg, error);
-    // Keep error detail for debugging but don't expose raw SQL to users
-    return apiServerError("Failed to update request");
+    // Surface constraint/trigger errors for debugging (no raw SQL exposed)
+    const safeMsg = errMsg.includes("violates check constraint")
+      ? `Validation error: ${errMsg.split("violates check constraint")[1]?.split('"')[1] || "invalid value"}`
+      : errMsg.includes("column") && errMsg.includes("does not exist")
+        ? `Column error: ${errMsg.match(/column "([^"]+)"/)?.[1] || "unknown column"} does not exist`
+        : errMsg.includes("function") && errMsg.includes("does not exist")
+          ? `Database function missing — a migration may need to be applied`
+          : "Failed to update request";
+    return apiServerError(safeMsg);
   }
 }

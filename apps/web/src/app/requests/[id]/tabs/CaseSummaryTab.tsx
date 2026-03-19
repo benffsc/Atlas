@@ -303,7 +303,7 @@ export function CaseSummaryTab({
               <div className="text-muted text-sm">Alteration Rate</div>
               <div style={{ fontWeight: 500, fontSize: "1.1rem" }}>
                 {request.colony_alteration_rate != null
-                  ? `${Math.round(request.colony_alteration_rate * 100)}%`
+                  ? `${Math.round(request.colony_alteration_rate)}%`
                   : "N/A"}
               </div>
             </div>
