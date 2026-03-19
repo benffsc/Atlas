@@ -9,6 +9,7 @@ import {
   ReviewStatsBar,
   ReviewFilterTabs,
 } from "@/components/reviews";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface UnifiedReviewItem {
   id: string;
@@ -387,47 +388,15 @@ function IdentityReviewContent() {
         ))}
 
       {/* Pagination */}
-      {!loading && data && data.pagination.hasMore && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: "1.5rem",
-          }}
-        >
-          <button
-            onClick={() => setOffset(Math.max(0, offset - limit))}
-            disabled={offset === 0}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              border: "1px solid var(--border)",
-              background: "transparent",
-              cursor: offset === 0 ? "default" : "pointer",
-              opacity: offset === 0 ? 0.5 : 1,
-            }}
-          >
-            Previous
-          </button>
-          <span className="text-muted text-sm">
-            Showing {offset + 1}–{offset + data.items.length}
-          </span>
-          <button
-            onClick={() => setOffset(offset + limit)}
-            disabled={!data.pagination.hasMore}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              border: "1px solid var(--border)",
-              background: "transparent",
-              cursor: !data.pagination.hasMore ? "default" : "pointer",
-              opacity: !data.pagination.hasMore ? 0.5 : 1,
-            }}
-          >
-            Next
-          </button>
-        </div>
+      {!loading && data && (data.pagination.hasMore || offset > 0) && (
+        <Pagination
+          offset={offset}
+          limit={limit}
+          hasMore={data.pagination.hasMore}
+          itemCount={data.items.length}
+          onPrevious={() => setOffset(Math.max(0, offset - limit))}
+          onNext={() => setOffset(offset + limit)}
+        />
       )}
     </div>
   );

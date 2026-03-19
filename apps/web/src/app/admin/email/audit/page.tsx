@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi } from "@/lib/api-client";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface EmailAuditEntry {
   email_id: string;
@@ -114,8 +115,6 @@ export default function EmailAuditPage() {
     });
   };
 
-  const totalPages = Math.ceil(total / limit);
-  const currentPage = Math.floor(offset / limit) + 1;
 
   return (
     <div>
@@ -283,30 +282,15 @@ export default function EmailAuditPage() {
             </table>
 
             {/* Pagination */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1rem", borderTop: "1px solid var(--card-border)" }}>
-              <div className="text-muted" style={{ fontSize: "0.875rem" }}>
-                Showing {offset + 1}–{Math.min(offset + limit, total)} of {total} emails
-              </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button
-                  className="btn btn-secondary"
-                  disabled={offset === 0}
-                  onClick={() => setOffset(Math.max(0, offset - limit))}
-                >
-                  Previous
-                </button>
-                <span className="text-muted" style={{ padding: "0.5rem", fontSize: "0.875rem" }}>
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  className="btn btn-secondary"
-                  disabled={offset + limit >= total}
-                  onClick={() => setOffset(offset + limit)}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
+            <Pagination
+              offset={offset}
+              limit={limit}
+              total={total}
+              totalLabel="emails"
+              onPrevious={() => setOffset(Math.max(0, offset - limit))}
+              onNext={() => setOffset(offset + limit)}
+              style={{ marginTop: 0, padding: "0.75rem 1rem", borderTop: "1px solid var(--card-border)" }}
+            />
           </>
         )}
       </div>

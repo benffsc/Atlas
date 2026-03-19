@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface Tier4ReviewItem {
   duplicate_id: string;
@@ -758,47 +759,13 @@ export default function MergeReviewPage() {
 
       {/* Pagination */}
       {!loading && data && data.pagination.total > limit && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: "1.5rem",
-          }}
-        >
-          <button
-            onClick={() => setOffset(Math.max(0, offset - limit))}
-            disabled={offset === 0}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              border: "1px solid var(--border)",
-              background: "transparent",
-              cursor: offset === 0 ? "default" : "pointer",
-              opacity: offset === 0 ? 0.5 : 1,
-            }}
-          >
-            Previous
-          </button>
-          <span className="text-muted text-sm">
-            Showing {offset + 1}–{Math.min(offset + limit, data.pagination.total)} of{" "}
-            {data.pagination.total}
-          </span>
-          <button
-            onClick={() => setOffset(offset + limit)}
-            disabled={offset + limit >= data.pagination.total}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              border: "1px solid var(--border)",
-              background: "transparent",
-              cursor: offset + limit >= data.pagination.total ? "default" : "pointer",
-              opacity: offset + limit >= data.pagination.total ? 0.5 : 1,
-            }}
-          >
-            Next
-          </button>
-        </div>
+        <Pagination
+          offset={offset}
+          limit={limit}
+          total={data.pagination.total}
+          onPrevious={() => setOffset(Math.max(0, offset - limit))}
+          onNext={() => setOffset(offset + limit)}
+        />
       )}
     </div>
   );

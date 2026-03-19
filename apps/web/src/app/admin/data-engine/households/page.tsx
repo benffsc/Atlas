@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface Household {
   household_id: string;
@@ -165,27 +166,14 @@ export default function HouseholdsPage() {
               </div>
 
               {/* Pagination */}
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "1rem", fontSize: "0.875rem" }}>
-                <button
-                  onClick={() => fetchHouseholds(Math.max(0, offset - limit))}
-                  disabled={offset === 0}
-                  className="btn btn-secondary"
-                  style={{ padding: "0.375rem 0.75rem" }}
-                >
-                  Previous
-                </button>
-                <span className="text-muted">
-                  {offset + 1} - {Math.min(offset + limit, total)} of {total}
-                </span>
-                <button
-                  onClick={() => fetchHouseholds(offset + limit)}
-                  disabled={offset + limit >= total}
-                  className="btn btn-secondary"
-                  style={{ padding: "0.375rem 0.75rem" }}
-                >
-                  Next
-                </button>
-              </div>
+              <Pagination
+                offset={offset}
+                limit={limit}
+                total={total}
+                onPrevious={() => fetchHouseholds(Math.max(0, offset - limit))}
+                onNext={() => fetchHouseholds(offset + limit)}
+                style={{ marginTop: "1rem" }}
+              />
             </>
           )}
         </div>

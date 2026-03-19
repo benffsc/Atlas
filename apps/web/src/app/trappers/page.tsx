@@ -12,6 +12,7 @@ import { TrapperPreviewContent } from "@/components/preview/TrapperPreviewConten
 import { EditTrapperDrawer } from "@/components/trappers/EditTrapperDrawer";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
 import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface AssignedRequest {
   request_id: string;
@@ -1405,30 +1406,13 @@ function TrappersPageInner() {
           )}
 
           {/* Pagination */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              gap: "1rem",
-              marginTop: "1.5rem",
-            }}
-          >
-            <button
-              onClick={() => setFilter("page", String(Math.max(0, page - 1)))}
-              disabled={page === 0}
-            >
-              Previous
-            </button>
-            <span style={{ display: "flex", alignItems: "center", color: "var(--text-secondary)" }}>
-              Page {page + 1}
-            </span>
-            <button
-              onClick={() => setFilter("page", String(page + 1))}
-              disabled={!data.pagination.hasMore}
-            >
-              Next
-            </button>
-          </div>
+          <Pagination
+            offset={page * limit}
+            limit={limit}
+            hasMore={data.pagination.hasMore}
+            onPrevious={() => setFilter("page", String(Math.max(0, page - 1)))}
+            onNext={() => setFilter("page", String(page + 1))}
+          />
         </>
       )}
     </div>
