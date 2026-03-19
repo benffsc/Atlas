@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatPhone } from "@/lib/formatters";
 import { formatRole } from "@/lib/display-labels";
 import { fetchApi } from "@/lib/api-client";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface PersonInfo {
   personId?: string | null;
@@ -83,7 +84,6 @@ export default function ContactCard({
   const [searching, setSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const doSearch = useCallback(async (q: string) => {
     if (q.length < 2) {
@@ -103,11 +103,7 @@ export default function ContactCard({
     }
   }, []);
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(searchQuery), 250);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [searchQuery, doSearch]);
+  const debouncedSearch = useDebounce(doSearch, 250);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -275,7 +271,10 @@ export default function ContactCard({
               ref={searchInputRef}
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                debouncedSearch(e.target.value);
+              }}
               placeholder="Search people by name, email, or phone..."
               style={{
                 width: "100%",

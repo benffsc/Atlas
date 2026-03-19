@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface PlacePrediction {
   place_id: string;
@@ -50,7 +51,6 @@ export default function AddressAutocomplete({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
 
   // Fetch predictions from API
   const fetchPredictions = useCallback(async (input: string) => {
@@ -73,19 +73,14 @@ export default function AddressAutocomplete({
     }
   }, []);
 
+  const debouncedFetch = useDebounce(fetchPredictions, 300);
+
   // Debounced input handler
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     onChange(newValue);
     setSelectedIndex(-1);
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    debounceRef.current = setTimeout(() => {
-      fetchPredictions(newValue);
-    }, 300);
+    debouncedFetch(newValue);
   };
 
   // Select a prediction

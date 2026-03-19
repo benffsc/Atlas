@@ -5,6 +5,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import { formatPhoneAsYouType } from "@/lib/formatters";
 import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
 import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
+import { useDebounce } from "@/hooks/useDebounce";
 
 export interface PersonReference {
   person_id: string | null;
@@ -66,7 +67,6 @@ export function PersonReferencePicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const createRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout>();
 
   // Dedup check for inline creation
   const { suggestions: createSuggestions, loading: suggestLoading, dismissed: suggestDismissed, dismiss: suggestDismiss } =
@@ -105,16 +105,14 @@ export function PersonReferencePicker({
     }
   }, []);
 
+  const debouncedSearch = useDebounce(searchPeople, 300);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setQuery(newValue);
     setSelectedIndex(-1);
     setShowCreateFields(false);
     setCreateError(null);
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
 
     if (newValue.length < 2) {
       setResults([]);
@@ -123,9 +121,7 @@ export function PersonReferencePicker({
       return;
     }
 
-    debounceRef.current = setTimeout(() => {
-      searchPeople(newValue);
-    }, 300);
+    debouncedSearch(newValue);
   };
 
   const handleSelect = (person: PersonSearchResult) => {
@@ -298,13 +294,6 @@ export function PersonReferencePicker({
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
   }, []);
 
   // Resolved state: show linked name with badge + clear button

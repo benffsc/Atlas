@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface Staff {
   staff_id: string;
@@ -64,7 +65,6 @@ function StaffManagementContent() {
     is_resolved: false,
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -104,12 +104,9 @@ function StaffManagementContent() {
     fetchStaff();
   }, [fetchStaff]);
 
-  const handleSearchChange = (value: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setFilter("search", value);
-    }, 300);
-  };
+  const handleSearchChange = useDebounce((value: string) => {
+    setFilter("search", value);
+  }, 300);
 
   const copyToClipboard = (text: string, staffId: string) => {
     navigator.clipboard.writeText(text).then(() => {
