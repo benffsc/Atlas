@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AdminSidebar } from "@/components/SidebarLayout";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 interface TriageFlag {
   id: string;
@@ -32,19 +33,14 @@ function TriageFlagsContent() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<TriageFlag>>({});
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
+  const { success: showSuccess, error: showError } = useToast();
 
   async function loadFlags() {
     try {
       const data = await fetchApi<{ flags: TriageFlag[] }>("/api/admin/triage-flags?entity_type=request");
       setFlags(data.flags);
     } catch {
-      showToast("Failed to load flags", "error");
+      showError("Failed to load flags");
     } finally {
       setLoading(false);
     }
@@ -58,9 +54,9 @@ function TriageFlagsContent() {
     try {
       await postApi("/api/admin/triage-flags", { id: flag.id, active: !flag.active }, { method: "PUT" });
       await loadFlags();
-      showToast(`${flag.label} ${flag.active ? "disabled" : "enabled"}`, "success");
+      showSuccess(`${flag.label} ${flag.active ? "disabled" : "enabled"}`);
     } catch {
-      showToast("Failed to update", "error");
+      showError("Failed to update");
     }
   }
 
@@ -74,9 +70,9 @@ function TriageFlagsContent() {
       await postApi("/api/admin/triage-flags", { id, ...editForm }, { method: "PUT" });
       setEditingId(null);
       await loadFlags();
-      showToast("Saved", "success");
+      showSuccess("Saved");
     } catch {
-      showToast("Failed to save", "error");
+      showError("Failed to save");
     }
   }
 
@@ -94,7 +90,7 @@ function TriageFlagsContent() {
       ]);
       await loadFlags();
     } catch {
-      showToast("Failed to reorder", "error");
+      showError("Failed to reorder");
     }
   }
 
@@ -106,12 +102,6 @@ function TriageFlagsContent() {
 
   return (
     <div style={{ maxWidth: "800px" }}>
-      {toast && (
-        <div style={{ position: "fixed", top: "1rem", right: "1rem", padding: "0.75rem 1.25rem", borderRadius: "8px", background: toast.type === "success" ? "var(--success-bg, #dcfce7)" : "var(--danger-bg, #fef2f2)", color: toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)", border: `1px solid ${toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)"}`, zIndex: 1000, fontSize: "0.875rem" }}>
-          {toast.message}
-        </div>
-      )}
-
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>Triage Flags</h1>
         <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.875rem" }}>

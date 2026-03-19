@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AdminSidebar } from "@/components/SidebarLayout";
 import { postApi } from "@/lib/api-client";
 import { useAllDisplayLabels } from "@/hooks/useDisplayLabels";
+import { useToast } from "@/components/feedback/Toast";
 
 const REGISTRY_LABELS: Record<string, string> = {
   place_kind: "Place Kinds",
@@ -31,12 +32,7 @@ function LabelsContent() {
   const [selectedRegistry, setSelectedRegistry] = useState<string>("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
+  const { success: showSuccess, error: showError } = useToast();
 
   const activeRegistry = selectedRegistry || registries[0] || "";
   const filtered = labels
@@ -54,9 +50,9 @@ function LabelsContent() {
       await postApi("/api/admin/labels", { registry, key, label: editValue.trim() }, { method: "PUT" });
       setEditingKey(null);
       mutate();
-      showToast("Label saved", "success");
+      showSuccess("Label saved");
     } catch {
-      showToast("Failed to save", "error");
+      showError("Failed to save");
     }
   }
 
@@ -66,12 +62,6 @@ function LabelsContent() {
 
   return (
     <div style={{ maxWidth: "800px" }}>
-      {toast && (
-        <div style={{ position: "fixed", top: "1rem", right: "1rem", padding: "0.75rem 1.25rem", borderRadius: "8px", background: toast.type === "success" ? "var(--success-bg, #dcfce7)" : "var(--danger-bg, #fef2f2)", color: toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)", border: `1px solid ${toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)"}`, zIndex: 1000, fontSize: "0.875rem" }}>
-          {toast.message}
-        </div>
-      )}
-
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>Display Labels</h1>
         <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.875rem" }}>

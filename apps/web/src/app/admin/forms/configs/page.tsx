@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { AdminSidebar } from "@/components/SidebarLayout";
 import Link from "next/link";
+import { useToast } from "@/components/feedback/Toast";
 
 const VALID_COMPONENTS = [
   "person", "place", "catDetails", "kittens", "propertyAccess", "urgencyNotes",
@@ -48,12 +49,7 @@ function FormConfigsContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<FormConfigItem | null>(null);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
+  const { success: showSuccess, error: showError } = useToast();
 
   const loadConfigs = useCallback(async () => {
     try {
@@ -90,9 +86,9 @@ function FormConfigsContent() {
       }, { method: "PUT" });
       setEditing(null);
       await loadConfigs();
-      showToast("Form config saved", "success");
+      showSuccess("Form config saved");
     } catch {
-      showToast("Failed to save", "error");
+      showError("Failed to save");
     } finally {
       setSaving(false);
     }
@@ -154,18 +150,6 @@ function FormConfigsContent() {
 
   return (
     <div style={{ maxWidth: "900px" }}>
-      {toast && (
-        <div style={{
-          position: "fixed", top: "1rem", right: "1rem", padding: "0.75rem 1.25rem",
-          borderRadius: "8px", zIndex: 1000, fontSize: "0.875rem",
-          background: toast.type === "success" ? "var(--success-bg, #dcfce7)" : "var(--danger-bg, #fef2f2)",
-          color: toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)",
-          border: `1px solid ${toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)"}`,
-        }}>
-          {toast.message}
-        </div>
-      )}
-
       {/* Header */}
       <div style={{ marginBottom: "1.5rem" }}>
         <div style={{ marginBottom: "0.5rem" }}>

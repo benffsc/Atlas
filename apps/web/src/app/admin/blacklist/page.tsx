@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AdminSidebar } from "@/components/SidebarLayout";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 interface BlacklistEntry {
   id: string;
@@ -30,12 +31,7 @@ function BlacklistContent() {
   const [showAdd, setShowAdd] = useState(false);
   const [newEntry, setNewEntry] = useState({ identifier_type: "email", identifier_norm: "", reason: "" });
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
+  const { success: showSuccess, error: showError } = useToast();
 
   async function loadEntries() {
     try {
@@ -45,7 +41,7 @@ function BlacklistContent() {
       const data = await fetchApi<{ entries: BlacklistEntry[] }>(`/api/admin/blacklist?${params}`);
       setEntries(data.entries);
     } catch {
-      showToast("Failed to load blacklist", "error");
+      showError("Failed to load blacklist");
     } finally {
       setLoading(false);
     }
@@ -69,9 +65,9 @@ function BlacklistContent() {
       setNewEntry({ identifier_type: "email", identifier_norm: "", reason: "" });
       setShowAdd(false);
       await loadEntries();
-      showToast("Entry added", "success");
+      showSuccess("Entry added");
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to add", "error");
+      showError(err instanceof Error ? err.message : "Failed to add");
     } finally {
       setSaving(false);
     }
@@ -82,9 +78,9 @@ function BlacklistContent() {
     try {
       await postApi(`/api/admin/blacklist?id=${entry.id}`, {}, { method: "DELETE" });
       await loadEntries();
-      showToast(`Removed ${entry.identifier_norm}`, "success");
+      showSuccess(`Removed ${entry.identifier_norm}`);
     } catch {
-      showToast("Failed to remove", "error");
+      showError("Failed to remove");
     }
   }
 
@@ -93,21 +89,6 @@ function BlacklistContent() {
 
   return (
     <div style={{ maxWidth: "900px" }}>
-      {toast && (
-        <div
-          style={{
-            position: "fixed", top: "1rem", right: "1rem",
-            padding: "0.75rem 1.25rem", borderRadius: "8px",
-            background: toast.type === "success" ? "var(--success-bg, #dcfce7)" : "var(--danger-bg, #fef2f2)",
-            color: toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)",
-            border: `1px solid ${toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)"}`,
-            zIndex: 1000, fontSize: "0.875rem",
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
-
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>Soft Blacklist</h1>
         <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.875rem" }}>

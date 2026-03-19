@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { AdminSidebar } from "@/components/SidebarLayout";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { MAP_COLORS } from "@/lib/map-colors";
+import { useToast } from "@/components/feedback/Toast";
 
 interface ConfigRow {
   key: string;
@@ -36,19 +37,14 @@ function MapColorsContent() {
   const [loading, setLoading] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editColors, setEditColors] = useState<Record<string, string>>({});
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
+  const { success: showSuccess, error: showError } = useToast();
 
   async function loadConfigs() {
     try {
       const data = await fetchApi<{ configs: ConfigRow[] }>("/api/admin/config?category=map");
       setConfigs(data.configs);
     } catch {
-      showToast("Failed to load map colors", "error");
+      showError("Failed to load map colors");
     } finally {
       setLoading(false);
     }
@@ -83,9 +79,9 @@ function MapColorsContent() {
       }, { method: "PUT" });
       setEditingKey(null);
       await loadConfigs();
-      showToast("Colors saved", "success");
+      showSuccess("Colors saved");
     } catch {
-      showToast("Failed to save", "error");
+      showError("Failed to save");
     }
   }
 
@@ -98,9 +94,9 @@ function MapColorsContent() {
         value: defaults,
       }, { method: "PUT" });
       await loadConfigs();
-      showToast("Reset to defaults", "success");
+      showSuccess("Reset to defaults");
     } catch {
-      showToast("Failed to reset", "error");
+      showError("Failed to reset");
     }
   }
 
@@ -112,12 +108,6 @@ function MapColorsContent() {
 
   return (
     <div style={{ maxWidth: "900px" }}>
-      {toast && (
-        <div style={{ position: "fixed", top: "1rem", right: "1rem", padding: "0.75rem 1.25rem", borderRadius: "8px", background: toast.type === "success" ? "var(--success-bg, #dcfce7)" : "var(--danger-bg, #fef2f2)", color: toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)", border: `1px solid ${toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)"}`, zIndex: 1000, fontSize: "0.875rem" }}>
-          {toast.message}
-        </div>
-      )}
-
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>Map Colors</h1>
         <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.875rem" }}>

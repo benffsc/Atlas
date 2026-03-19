@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { AdminSidebar } from "@/components/SidebarLayout";
 import Link from "next/link";
+import { useToast } from "@/components/feedback/Toast";
 
 const VALID_KEYS = ["help_request", "tnr_call_sheet", "trapper_sheet"];
 
@@ -75,13 +76,8 @@ function TemplateEditor({ templateKey }: { templateKey: string }) {
   const [editing, setEditing] = useState(false);
   const [editFields, setEditFields] = useState<TemplateField[]>([]);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const { success: showSuccess, error: showError } = useToast();
   const [editingOptions, setEditingOptions] = useState<string | null>(null); // field id being edited
-
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
 
   const loadFields = useCallback(async () => {
     try {
@@ -139,9 +135,9 @@ function TemplateEditor({ templateKey }: { templateKey: string }) {
       await loadFields();
       setEditing(false);
       setEditingOptions(null);
-      showToast(`Saved ${updates.length} field${updates.length !== 1 ? "s" : ""}`, "success");
+      showSuccess(`Saved ${updates.length} field${updates.length !== 1 ? "s" : ""}`);
     } catch {
-      showToast("Failed to save changes", "error");
+      showError("Failed to save changes");
     } finally {
       setSaving(false);
     }
@@ -201,20 +197,6 @@ function TemplateEditor({ templateKey }: { templateKey: string }) {
 
   return (
     <div style={{ maxWidth: "1000px" }}>
-      {toast && (
-        <div
-          style={{
-            position: "fixed", top: "1rem", right: "1rem", padding: "0.75rem 1.25rem",
-            borderRadius: "8px", zIndex: 1000, fontSize: "0.875rem",
-            background: toast.type === "success" ? "var(--success-bg, #dcfce7)" : "var(--danger-bg, #fef2f2)",
-            color: toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)",
-            border: `1px solid ${toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)"}`,
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
-
       {/* Breadcrumb */}
       <div style={{ marginBottom: "1rem" }}>
         <Link href="/admin/forms" style={{ fontSize: "0.8rem", color: "var(--text-muted, #666)", textDecoration: "none" }}>
