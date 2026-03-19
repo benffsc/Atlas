@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import {
   COUNT_CONFIDENCE_OPTIONS,
   COLONY_DURATION_OPTIONS,
+  AWARENESS_DURATION_OPTIONS,
   EARTIP_ESTIMATE_OPTIONS,
 } from "@/lib/form-options";
 
@@ -261,7 +262,7 @@ export function CatDetailsSection({
                 onChange={(e) => update({ awarenessDuration: e.target.value })}
                 style={inputStyle}
               >
-                {COLONY_DURATION_OPTIONS.map((opt) => (
+                {AWARENESS_DURATION_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
