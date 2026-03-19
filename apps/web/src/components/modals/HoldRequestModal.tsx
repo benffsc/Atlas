@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { postApi } from "@/lib/api-client";
+import { useAsyncForm } from "@/hooks/useAsyncForm";
 import { ReasonSelectionForm } from "@/components/forms/ReasonSelectionForm";
 
 interface HoldRequestModalProps {
@@ -32,58 +33,48 @@ export default function HoldRequestModal({
 }: HoldRequestModalProps) {
   const [selectedReason, setSelectedReason] = useState<string>("");
   const [holdNotes, setHoldNotes] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setSelectedReason("");
       setHoldNotes("");
-      setError(null);
+      clearError();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const requiresNotes = selectedReason === "other";
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  const submitFn = useCallback(async () => {
+    if (!selectedReason) throw new Error("Please select a pause reason");
+    if (requiresNotes && !holdNotes.trim()) throw new Error("Please provide notes for 'Other' reason");
 
-    // Validation
-    if (!selectedReason) {
-      setError("Please select a pause reason");
-      return;
-    }
-    if (requiresNotes && !holdNotes.trim()) {
-      setError("Please provide notes for 'Other' reason");
-      return;
-    }
+    await postApi(`/api/requests/${requestId}`, {
+      status: "paused",
+      hold_reason: selectedReason,
+      hold_reason_notes: holdNotes || null,
+    }, { method: "PATCH" });
+  }, [selectedReason, holdNotes, requiresNotes, requestId]);
 
-    setLoading(true);
-
-    try {
-      await postApi(`/api/requests/${requestId}`, {
-        status: "paused",  // MIG_2530: using 'paused' instead of 'on_hold'
-        hold_reason: selectedReason,
-        hold_reason_notes: holdNotes || null,
-      }, { method: "PATCH" });
-
+  const { loading, error, clearError, handleSubmit: doSubmit } = useAsyncForm({
+    onSubmit: submitFn,
+    onSuccess: () => {
       onSuccess?.();
       handleClose();
-    } catch (err) {
-      console.error("Error pausing request:", err);
-      setError(err instanceof Error ? err.message : "Failed to pause request");
-    } finally {
-      setLoading(false);
-    }
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    doSubmit();
   }
 
   function handleClose() {
     if (!loading) {
       setSelectedReason("");
       setHoldNotes("");
-      setError(null);
+      clearError();
       onClose();
     }
   }

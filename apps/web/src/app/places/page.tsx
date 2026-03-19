@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useEntityDetail } from "@/hooks/useEntityDetail";
-import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
+import { useListData } from "@/hooks/useListData";
 import { formatPlaceKind } from "@/lib/display-labels";
 import { formatRelativeTime } from "@/lib/formatters";
 import { PlaceRiskBadges } from "@/components/badges";
@@ -33,11 +33,17 @@ interface Place {
   disease_flags?: DiseaseFlag[];
 }
 
-interface PlacesResponse {
-  places: Place[];
-  total: number;
-  limit: number;
-  offset: number;
+function buildPlaceParams(filters: Record<string, string>, apiParams: { limit: number; offset: number; sort?: string }) {
+  const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
+  if (filters.kind) params.set("place_kind", filters.kind);
+  if (filters.has_cats) params.set("has_cats", filters.has_cats);
+  if (filters.disease_risk) params.set("disease_risk", filters.disease_risk);
+  if (filters.watch_list) params.set("watch_list", filters.watch_list);
+  if (apiParams.sort) params.set("sort", apiParams.sort);
+  params.set("limit", String(apiParams.limit));
+  params.set("offset", String(apiParams.offset));
+  return params;
 }
 
 const KIND_COLORS: Record<string, string> = {
@@ -175,48 +181,20 @@ function PlacesPageContent() {
     useDataTable(filters, setFilters, { defaultPageSize: 25 });
 
   const [searchInput, setSearchInput] = useState(filters.q);
-  const [data, setData] = useState<PlacesResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const { items: places, total, loading, error } = useListData<Place>({
+    endpoint: "/api/places",
+    filters,
+    apiParams,
+    buildParams: buildPlaceParams,
+    dataKey: "places",
+  });
 
   // Panel preview
   const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
     filters.selected ? "place" : null,
     filters.selected || null,
   );
-
-  const fetchPlaces = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    const params = new URLSearchParams();
-    if (filters.q) params.set("q", filters.q);
-    if (filters.kind) params.set("place_kind", filters.kind);
-    if (filters.has_cats) params.set("has_cats", filters.has_cats);
-    if (filters.disease_risk) params.set("disease_risk", filters.disease_risk);
-    if (filters.watch_list) params.set("watch_list", filters.watch_list);
-    if (apiParams.sort) params.set("sort", apiParams.sort);
-    params.set("limit", String(apiParams.limit));
-    params.set("offset", String(apiParams.offset));
-
-    try {
-      const result = await fetchApiWithMeta<{ places: Place[] }>(`/api/places?${params.toString()}`);
-      setData({
-        places: result.data.places || [],
-        total: result.meta?.total || 0,
-        limit: result.meta?.limit || apiParams.limit,
-        offset: result.meta?.offset || 0,
-      });
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.q, filters.kind, filters.has_cats, filters.disease_risk, filters.watch_list, apiParams.sort, apiParams.limit, apiParams.offset]);
-
-  useEffect(() => {
-    fetchPlaces();
-  }, [fetchPlaces]);
 
   // Sync search input on external clear
   useEffect(() => {
@@ -289,9 +267,9 @@ function PlacesPageContent() {
       {!error && (
         <DataTable<Place>
           columns={placeColumns}
-          data={data?.places ?? []}
+          data={places}
           getRowId={(place) => place.place_id}
-          total={data?.total ?? 0}
+          total={total}
           pageIndex={pageIndex}
           pageSize={pageSize}
           onPaginationChange={handlePaginationChange}

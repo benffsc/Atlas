@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
-import { requireValidUUID, parseBody } from "@/lib/api-validation";
-import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
+import { requireValidUUID, parseBody, withErrorHandling, ApiError } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound } from "@/lib/api-response";
 import { UpdatePlaceSchema } from "@/lib/schemas";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
@@ -62,378 +62,359 @@ interface VerificationInfo {
   verified_by_name: string | null;
 }
 
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
+  requireValidUUID(id, "place");
 
-  try {
-    requireValidUUID(id, "place");
-    // First check if this place was merged into another
-    const mergeCheck = await queryOne<{ merged_into_place_id: string | null }>(
-      `SELECT merged_into_place_id FROM sot.places WHERE place_id = $1`,
-      [id]
-    );
+  // First check if this place was merged into another
+  const mergeCheck = await queryOne<{ merged_into_place_id: string | null }>(
+    `SELECT merged_into_place_id FROM sot.places WHERE place_id = $1`,
+    [id]
+  );
 
-    // If place was merged, use the canonical place ID
-    const placeId = mergeCheck?.merged_into_place_id || id;
+  // If place was merged, use the canonical place ID
+  const placeId = mergeCheck?.merged_into_place_id || id;
 
-    const sql = `
+  const sql = `
+    SELECT
+      v.place_id,
+      v.display_name,
+      v.original_display_name,
+      v.formatted_address,
+      v.place_kind,
+      v.is_address_backed,
+      v.has_cat_activity,
+      sa.city AS locality,
+      sa.postal_code,
+      sa.state AS state_province,
+      v.coordinates,
+      p.original_created_at::text AS original_created_at,
+      v.created_at,
+      v.updated_at,
+      v.cats,
+      v.people,
+      v.place_relationships,
+      v.cat_count,
+      v.person_count
+    FROM sot.v_place_detail_v2 v
+    LEFT JOIN sot.places p ON p.place_id = v.place_id
+    LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
+    WHERE v.place_id = $1
+  `;
+
+  let place = await queryOne<PlaceDetailRow>(sql, [placeId]);
+
+  // Fallback: v_place_detail_v2 filters is_address_backed=true.
+  // Places with coordinates but no geocoded address (2,494 places) would
+  // 404 without this fallback. Query the places table directly.
+  // V2: Uses sot.cat_place and sot.person_place (not *_relationships suffix)
+  if (!place) {
+    const fallbackSql = `
       SELECT
-        v.place_id,
-        v.display_name,
-        v.original_display_name,
-        v.formatted_address,
-        v.place_kind,
-        v.is_address_backed,
-        v.has_cat_activity,
+        p.place_id,
+        COALESCE(p.display_name, p.formatted_address, 'Unknown Place') AS display_name,
+        p.formatted_address,
+        p.place_kind::text AS place_kind,
+        p.is_address_backed,
+        EXISTS(SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id) AS has_cat_activity,
         sa.city AS locality,
         sa.postal_code,
         sa.state AS state_province,
-        v.coordinates,
+        CASE WHEN p.location IS NOT NULL THEN
+          json_build_object('lat', ST_Y(p.location::geometry), 'lng', ST_X(p.location::geometry))
+        ELSE NULL END AS coordinates,
         p.original_created_at::text AS original_created_at,
-        v.created_at,
-        v.updated_at,
-        v.cats,
-        v.people,
-        v.place_relationships,
-        v.cat_count,
-        v.person_count
-      FROM sot.v_place_detail_v2 v
-      LEFT JOIN sot.places p ON p.place_id = v.place_id
+        p.created_at::text AS created_at,
+        p.updated_at::text AS updated_at,
+        COALESCE((
+          SELECT json_agg(json_build_object(
+            'cat_id', c.cat_id, 'cat_name', c.name, 'sex', c.sex,
+            'microchip', c.microchip, 'source_system', c.source_system
+          ))
+          FROM sot.cat_place cp
+          JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+          WHERE cp.place_id = p.place_id
+        ), '[]'::json) AS cats,
+        COALESCE((
+          SELECT json_agg(json_build_object(
+            'person_id', per.person_id,
+            'display_name', per.display_name,
+            'role', pp.relationship_type::text
+          ))
+          FROM sot.person_place pp
+          JOIN sot.people per ON per.person_id = pp.person_id
+          WHERE pp.place_id = p.place_id
+            AND per.merged_into_person_id IS NULL
+            AND per.display_name IS NOT NULL
+        ), '[]'::json) AS people,
+        '[]'::json AS place_relationships,
+        COALESCE((SELECT COUNT(DISTINCT cp.cat_id) FROM sot.cat_place cp WHERE cp.place_id = p.place_id), 0) AS cat_count,
+        COALESCE((SELECT COUNT(DISTINCT pp.person_id) FROM sot.person_place pp JOIN sot.people per ON per.person_id = pp.person_id WHERE pp.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL), 0) AS person_count
+      FROM sot.places p
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
-      WHERE v.place_id = $1
+      WHERE p.place_id = $1
+        AND p.merged_into_place_id IS NULL
     `;
+    place = await queryOne<PlaceDetailRow>(fallbackSql, [placeId]);
+  }
 
-    let place = await queryOne<PlaceDetailRow>(sql, [placeId]);
+  if (!place) {
+    return apiNotFound("Place", id);
+  }
 
-    // Fallback: v_place_detail_v2 filters is_address_backed=true.
-    // Places with coordinates but no geocoded address (2,494 places) would
-    // 404 without this fallback. Query the places table directly.
-    // V2: Uses sot.cat_place and sot.person_place (not *_relationships suffix)
-    if (!place) {
-      const fallbackSql = `
-        SELECT
-          p.place_id,
-          COALESCE(p.display_name, p.formatted_address, 'Unknown Place') AS display_name,
-          p.formatted_address,
-          p.place_kind::text AS place_kind,
-          p.is_address_backed,
-          EXISTS(SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id) AS has_cat_activity,
-          sa.city AS locality,
-          sa.postal_code,
-          sa.state AS state_province,
-          CASE WHEN p.location IS NOT NULL THEN
-            json_build_object('lat', ST_Y(p.location::geometry), 'lng', ST_X(p.location::geometry))
-          ELSE NULL END AS coordinates,
-          p.original_created_at::text AS original_created_at,
-          p.created_at::text AS created_at,
-          p.updated_at::text AS updated_at,
-          COALESCE((
-            SELECT json_agg(json_build_object(
-              'cat_id', c.cat_id, 'cat_name', c.name, 'sex', c.sex,
-              'microchip', c.microchip, 'source_system', c.source_system
-            ))
-            FROM sot.cat_place cp
-            JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
-            WHERE cp.place_id = p.place_id
-          ), '[]'::json) AS cats,
-          COALESCE((
-            SELECT json_agg(json_build_object(
-              'person_id', per.person_id,
-              'display_name', per.display_name,
-              'role', pp.relationship_type::text
-            ))
-            FROM sot.person_place pp
-            JOIN sot.people per ON per.person_id = pp.person_id
-            WHERE pp.place_id = p.place_id
-              AND per.merged_into_person_id IS NULL
-              AND per.display_name IS NOT NULL
-          ), '[]'::json) AS people,
-          '[]'::json AS place_relationships,
-          COALESCE((SELECT COUNT(DISTINCT cp.cat_id) FROM sot.cat_place cp WHERE cp.place_id = p.place_id), 0) AS cat_count,
-          COALESCE((SELECT COUNT(DISTINCT pp.person_id) FROM sot.person_place pp JOIN sot.people per ON per.person_id = pp.person_id WHERE pp.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL), 0) AS person_count
-        FROM sot.places p
-        LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
-        WHERE p.place_id = $1
-          AND p.merged_into_place_id IS NULL
-      `;
-      place = await queryOne<PlaceDetailRow>(fallbackSql, [placeId]);
+  // Fetch activity stats
+  const activityStats = await queryOne<{ last_appointment_date: string | null; active_request_count: number }>(
+    `SELECT
+      (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.place_id = $1 OR a.inferred_place_id = $1) AS last_appointment_date,
+      (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = $1 AND r.merged_into_request_id IS NULL AND r.status NOT IN ${TERMINAL_PAIR_SQL}) AS active_request_count`,
+    [placeId]
+  );
+  place.last_appointment_date = activityStats?.last_appointment_date || null;
+  place.active_request_count = activityStats?.active_request_count || 0;
+
+  // Fetch verification info from places table
+  const verification = await queryOne<VerificationInfo>(
+    `SELECT
+       p.verified_at,
+       p.verified_by,
+       s.display_name AS verified_by_name
+     FROM sot.places p
+     LEFT JOIN ops.staff s ON p.verified_by = s.staff_id::text
+     WHERE p.place_id = $1`,
+    [placeId]
+  );
+
+  // Fetch place contexts (colony_site, foster_home, etc.)
+  const contextsResult = await query<PlaceContext>(
+    `SELECT
+       pc.id AS context_id,
+       pc.context_type,
+       pct.display_label AS context_label,
+       pc.valid_from,
+       pc.evidence_type,
+       pc.confidence,
+       pc.is_verified,
+       pc.created_at AS assigned_at,
+       pc.source_system
+     FROM sot.place_contexts pc
+     JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
+     WHERE pc.place_id = $1
+       AND pc.valid_to IS NULL
+     ORDER BY pct.sort_order, pc.created_at DESC`,
+    [placeId]
+  );
+  const contexts = contextsResult?.rows || [];
+
+  // Partner organizations table doesn't exist in V2 yet
+  // When it's created, update this query to use the correct schema
+  const partnerOrg: PartnerOrgInfo | null = null;
+
+  const response = {
+    ...place,
+    verified_at: verification?.verified_at || null,
+    verified_by: verification?.verified_by || null,
+    verified_by_name: verification?.verified_by_name || null,
+    contexts,
+    partner_org: partnerOrg || null,
+  };
+
+  // Include redirect info if the original ID was merged
+  if (mergeCheck?.merged_into_place_id) {
+    return apiSuccess({
+      ...response,
+      _merged_from: id,
+      _canonical_id: placeId,
+    });
+  }
+
+  return apiSuccess(response);
+});
+
+export const PATCH = withErrorHandling(async (
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) => {
+  const { id } = await params;
+  requireValidUUID(id, "place");
+
+  // Validate request body with Zod schema
+  const parsed = await parseBody(request, UpdatePlaceSchema);
+  if ("error" in parsed) return parsed.error;
+  const body = parsed.data;
+
+  const changed_by = body.changed_by || "web_user";
+  const change_reason = body.change_reason || "manual_update";
+  const change_notes = body.change_notes || null;
+
+  // Validate display_name if provided (null clears the label, empty string rejected)
+  if (body.display_name !== undefined && body.display_name !== null && body.display_name.trim() === "") {
+    throw new ApiError("display_name cannot be empty string. Pass null to clear.", 400);
+  }
+
+  // Fields that require audit tracking
+  const auditedFields = ["formatted_address", "locality", "postal_code", "state_province"];
+  const simpleFields = ["display_name", "place_kind"];
+
+  // Build dynamic update query
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  let paramIndex = 1;
+
+  // Simple fields (no audit needed for display_name and place_kind changes)
+  if (body.display_name !== undefined) {
+    if (body.display_name === null) {
+      // Explicitly clearing the label
+      updates.push(`display_name = NULL`);
+    } else {
+      updates.push(`display_name = $${paramIndex}`);
+      values.push(body.display_name.trim());
+      paramIndex++;
     }
+  }
 
-    if (!place) {
+  if (body.place_kind !== undefined) {
+    updates.push(`place_kind = $${paramIndex}`);
+    values.push(body.place_kind);
+    paramIndex++;
+  }
+
+  // Address fields - with audit tracking
+  // First, get current values for audit log
+  if (body.formatted_address !== undefined || body.locality !== undefined ||
+      body.postal_code !== undefined || body.state_province !== undefined ||
+      body.latitude !== undefined || body.longitude !== undefined) {
+
+    // Get current place data for audit comparison (V2: addresses use city/state not locality/state_province)
+    const currentSql = `
+      SELECT p.formatted_address, a.city AS locality, a.postal_code, a.state AS state_province,
+             ST_Y(p.location::geometry) as lat, ST_X(p.location::geometry) as lng
+      FROM sot.places p
+      LEFT JOIN sot.addresses a ON a.address_id = p.sot_address_id AND a.merged_into_address_id IS NULL
+      WHERE p.place_id = $1
+    `;
+    const current = await queryOne<{
+      formatted_address: string | null;
+      locality: string | null;
+      postal_code: string | null;
+      state_province: string | null;
+      lat: number | null;
+      lng: number | null;
+    }>(currentSql, [id]);
+
+    if (!current) {
       return apiNotFound("Place", id);
     }
 
-    // Fetch activity stats
-    const activityStats = await queryOne<{ last_appointment_date: string | null; active_request_count: number }>(
-      `SELECT
-        (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a WHERE a.place_id = $1 OR a.inferred_place_id = $1) AS last_appointment_date,
-        (SELECT COUNT(*)::INT FROM ops.requests r WHERE r.place_id = $1 AND r.merged_into_request_id IS NULL AND r.status NOT IN ${TERMINAL_PAIR_SQL}) AS active_request_count`,
-      [placeId]
-    );
-    place.last_appointment_date = activityStats?.last_appointment_date || null;
-    place.active_request_count = activityStats?.active_request_count || 0;
+    // Log changes to place_changes table using parameterized queries (prevents SQL injection)
+    const auditChanges: { field: string; oldVal: string | null; newVal: string }[] = [];
 
-    // Fetch verification info from places table
-    const verification = await queryOne<VerificationInfo>(
-      `SELECT
-         p.verified_at,
-         p.verified_by,
-         s.display_name AS verified_by_name
-       FROM sot.places p
-       LEFT JOIN ops.staff s ON p.verified_by = s.staff_id::text
-       WHERE p.place_id = $1`,
-      [placeId]
-    );
-
-    // Fetch place contexts (colony_site, foster_home, etc.)
-    const contextsResult = await query<PlaceContext>(
-      `SELECT
-         pc.id AS context_id,
-         pc.context_type,
-         pct.display_label AS context_label,
-         pc.valid_from,
-         pc.evidence_type,
-         pc.confidence,
-         pc.is_verified,
-         pc.created_at AS assigned_at,
-         pc.source_system
-       FROM sot.place_contexts pc
-       JOIN sot.place_context_types pct ON pct.context_type = pc.context_type
-       WHERE pc.place_id = $1
-         AND pc.valid_to IS NULL
-       ORDER BY pct.sort_order, pc.created_at DESC`,
-      [placeId]
-    );
-    const contexts = contextsResult?.rows || [];
-
-    // Partner organizations table doesn't exist in V2 yet
-    // When it's created, update this query to use the correct schema
-    const partnerOrg: PartnerOrgInfo | null = null;
-
-    const response = {
-      ...place,
-      verified_at: verification?.verified_at || null,
-      verified_by: verification?.verified_by || null,
-      verified_by_name: verification?.verified_by_name || null,
-      contexts,
-      partner_org: partnerOrg || null,
-    };
-
-    // Include redirect info if the original ID was merged
-    if (mergeCheck?.merged_into_place_id) {
-      return apiSuccess({
-        ...response,
-        _merged_from: id,
-        _canonical_id: placeId,
+    if (body.formatted_address !== undefined && body.formatted_address !== current.formatted_address) {
+      auditChanges.push({
+        field: 'formatted_address',
+        oldVal: current.formatted_address,
+        newVal: body.formatted_address
       });
-    }
-
-    return apiSuccess(response);
-  } catch (error) {
-    // Handle validation errors from requireValidUUID
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiError(error.message, (error as { status?: number }).status || 400);
-    }
-    console.error("Error fetching place detail:", error);
-    return apiServerError("Failed to fetch place detail");
-  }
-}
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-
-  try {
-    requireValidUUID(id, "place");
-
-    // Validate request body with Zod schema
-    const parsed = await parseBody(request, UpdatePlaceSchema);
-    if ("error" in parsed) return parsed.error;
-    const body = parsed.data;
-
-    const changed_by = body.changed_by || "web_user";
-    const change_reason = body.change_reason || "manual_update";
-    const change_notes = body.change_notes || null;
-
-    // Validate display_name if provided (null clears the label, empty string rejected)
-    if (body.display_name !== undefined && body.display_name !== null && body.display_name.trim() === "") {
-      return apiBadRequest("display_name cannot be empty string. Pass null to clear.");
-    }
-
-    // Fields that require audit tracking
-    const auditedFields = ["formatted_address", "locality", "postal_code", "state_province"];
-    const simpleFields = ["display_name", "place_kind"];
-
-    // Build dynamic update query
-    const updates: string[] = [];
-    const values: unknown[] = [];
-    let paramIndex = 1;
-
-    // Simple fields (no audit needed for display_name and place_kind changes)
-    if (body.display_name !== undefined) {
-      if (body.display_name === null) {
-        // Explicitly clearing the label
-        updates.push(`display_name = NULL`);
-      } else {
-        updates.push(`display_name = $${paramIndex}`);
-        values.push(body.display_name.trim());
-        paramIndex++;
-      }
-    }
-
-    if (body.place_kind !== undefined) {
-      updates.push(`place_kind = $${paramIndex}`);
-      values.push(body.place_kind);
+      updates.push(`formatted_address = $${paramIndex}`);
+      values.push(body.formatted_address);
       paramIndex++;
     }
 
-    // Address fields - with audit tracking
-    // First, get current values for audit log
-    if (body.formatted_address !== undefined || body.locality !== undefined ||
-        body.postal_code !== undefined || body.state_province !== undefined ||
-        body.latitude !== undefined || body.longitude !== undefined) {
+    // V2: locality, postal_code, state_province are on addresses table, not places
+    // DEFERRED: Address component updates (locality, postal_code, state_province)
+    // Reason: These fields live on sot.addresses, not sot.places. Updating them requires:
+    // 1. Checking if place has a linked sot_address_id
+    // 2. Updating the address record (or creating one if missing)
+    // 3. Handling shared addresses (multiple places pointing to same address)
+    // For now, only audit the requested changes. Use AddressAutocomplete for full corrections.
+    if (body.locality !== undefined && body.locality !== current.locality) {
+      auditChanges.push({
+        field: 'locality',
+        oldVal: current.locality,
+        newVal: body.locality
+      });
+    }
 
-      // Get current place data for audit comparison (V2: addresses use city/state not locality/state_province)
-      const currentSql = `
-        SELECT p.formatted_address, a.city AS locality, a.postal_code, a.state AS state_province,
-               ST_Y(p.location::geometry) as lat, ST_X(p.location::geometry) as lng
-        FROM sot.places p
-        LEFT JOIN sot.addresses a ON a.address_id = p.sot_address_id AND a.merged_into_address_id IS NULL
-        WHERE p.place_id = $1
-      `;
-      const current = await queryOne<{
-        formatted_address: string | null;
-        locality: string | null;
-        postal_code: string | null;
-        state_province: string | null;
-        lat: number | null;
-        lng: number | null;
-      }>(currentSql, [id]);
+    if (body.postal_code !== undefined && body.postal_code !== current.postal_code) {
+      auditChanges.push({
+        field: 'postal_code',
+        oldVal: current.postal_code,
+        newVal: body.postal_code
+      });
+    }
 
-      if (!current) {
-        return apiNotFound("Place", id);
-      }
+    if (body.state_province !== undefined && body.state_province !== current.state_province) {
+      auditChanges.push({
+        field: 'state_province',
+        oldVal: current.state_province,
+        newVal: body.state_province
+      });
+    }
 
-      // Log changes to place_changes table using parameterized queries (prevents SQL injection)
-      const auditChanges: { field: string; oldVal: string | null; newVal: string }[] = [];
-
-      if (body.formatted_address !== undefined && body.formatted_address !== current.formatted_address) {
+    // Update coordinates if provided
+    if (body.latitude !== undefined && body.longitude !== undefined) {
+      const coordChanged = current.lat !== body.latitude || current.lng !== body.longitude;
+      if (coordChanged) {
         auditChanges.push({
-          field: 'formatted_address',
-          oldVal: current.formatted_address,
-          newVal: body.formatted_address
+          field: 'coordinates',
+          oldVal: current.lat !== null && current.lng !== null ? `${current.lat},${current.lng}` : null,
+          newVal: `${body.latitude},${body.longitude}`
         });
-        updates.push(`formatted_address = $${paramIndex}`);
-        values.push(body.formatted_address);
-        paramIndex++;
+        updates.push(`location = ST_SetSRID(ST_MakePoint($${paramIndex}, $${paramIndex + 1}), 4326)`);
+        values.push(body.longitude, body.latitude);
+        paramIndex += 2;
       }
+    }
 
-      // V2: locality, postal_code, state_province are on addresses table, not places
-      // DEFERRED: Address component updates (locality, postal_code, state_province)
-      // Reason: These fields live on sot.addresses, not sot.places. Updating them requires:
-      // 1. Checking if place has a linked sot_address_id
-      // 2. Updating the address record (or creating one if missing)
-      // 3. Handling shared addresses (multiple places pointing to same address)
-      // For now, only audit the requested changes. Use AddressAutocomplete for full corrections.
-      if (body.locality !== undefined && body.locality !== current.locality) {
-        auditChanges.push({
-          field: 'locality',
-          oldVal: current.locality,
-          newVal: body.locality
-        });
-      }
-
-      if (body.postal_code !== undefined && body.postal_code !== current.postal_code) {
-        auditChanges.push({
-          field: 'postal_code',
-          oldVal: current.postal_code,
-          newVal: body.postal_code
-        });
-      }
-
-      if (body.state_province !== undefined && body.state_province !== current.state_province) {
-        auditChanges.push({
-          field: 'state_province',
-          oldVal: current.state_province,
-          newVal: body.state_province
-        });
-      }
-
-      // Update coordinates if provided
-      if (body.latitude !== undefined && body.longitude !== undefined) {
-        const coordChanged = current.lat !== body.latitude || current.lng !== body.longitude;
-        if (coordChanged) {
-          auditChanges.push({
-            field: 'coordinates',
-            oldVal: current.lat !== null && current.lng !== null ? `${current.lat},${current.lng}` : null,
-            newVal: `${body.latitude},${body.longitude}`
-          });
-          updates.push(`location = ST_SetSRID(ST_MakePoint($${paramIndex}, $${paramIndex + 1}), 4326)`);
-          values.push(body.longitude, body.latitude);
-          paramIndex += 2;
+    // Log changes to centralized entity_edits table
+    if (auditChanges.length > 0) {
+      await logFieldEdits(
+        "place",
+        id,
+        auditChanges.map((c) => ({
+          field: c.field,
+          oldValue: c.oldVal,
+          newValue: c.newVal,
+        })),
+        {
+          editedBy: changed_by,
+          reason: change_reason,
+          editSource: "web_ui",
         }
-      }
-
-      // Log changes to centralized entity_edits table
-      if (auditChanges.length > 0) {
-        await logFieldEdits(
-          "place",
-          id,
-          auditChanges.map((c) => ({
-            field: c.field,
-            oldValue: c.oldVal,
-            newValue: c.newVal,
-          })),
-          {
-            editedBy: changed_by,
-            reason: change_reason,
-            editSource: "web_ui",
-          }
-        );
-      }
+      );
     }
-
-    if (updates.length === 0) {
-      return apiBadRequest("No valid fields to update");
-    }
-
-    // Add updated_at
-    updates.push(`updated_at = NOW()`);
-
-    // Add place_id to values
-    values.push(id);
-
-    const sql = `
-      UPDATE sot.places
-      SET ${updates.join(", ")}
-      WHERE place_id = $${paramIndex}
-      RETURNING place_id, display_name, place_kind, is_address_backed, formatted_address
-    `;
-
-    const result = await queryOne<{
-      place_id: string;
-      display_name: string;
-      place_kind: string;
-      is_address_backed: boolean;
-      formatted_address: string | null;
-    }>(sql, values);
-
-    if (!result) {
-      return apiNotFound("Place", id);
-    }
-
-    return apiSuccess({ place: result });
-  } catch (error) {
-    // Handle validation errors from requireValidUUID
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiError(error.message, (error as { status?: number }).status || 400);
-    }
-    console.error("Error updating place:", error);
-    return apiServerError("Failed to update place");
   }
-}
+
+  if (updates.length === 0) {
+    throw new ApiError("No valid fields to update", 400);
+  }
+
+  // Add updated_at
+  updates.push(`updated_at = NOW()`);
+
+  // Add place_id to values
+  values.push(id);
+
+  const sql = `
+    UPDATE sot.places
+    SET ${updates.join(", ")}
+    WHERE place_id = $${paramIndex}
+    RETURNING place_id, display_name, place_kind, is_address_backed, formatted_address
+  `;
+
+  const result = await queryOne<{
+    place_id: string;
+    display_name: string;
+    place_kind: string;
+    is_address_backed: boolean;
+    formatted_address: string | null;
+  }>(sql, values);
+
+  if (!result) {
+    return apiNotFound("Place", id);
+  }
+
+  return apiSuccess({ place: result });
+});

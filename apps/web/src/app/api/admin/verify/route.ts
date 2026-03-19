@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
-import { apiSuccess, apiError } from "@/lib/api-response";
+import { withErrorHandling, ApiError } from "@/lib/api-validation";
+import { apiSuccess } from "@/lib/api-response";
 import { logFieldEdits, type EntityType } from "@/lib/audit";
 
 interface VerifyRequest {
@@ -43,26 +44,26 @@ const ENTITY_TYPE_MAP: Record<string, EntityType> = {
 };
 
 // POST - Mark a record as verified
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const body: VerifyRequest = await request.json();
+  const { table, record_id, staff_id } = body;
+
+  if (!table || !record_id) {
+    throw new ApiError("table and record_id are required", 400);
+  }
+
+  const tableName = ALLOWED_TABLES[table];
+  if (!tableName) {
+    throw new ApiError(`Invalid table: ${table}. Allowed: ${Object.keys(ALLOWED_TABLES).join(", ")}`, 400);
+  }
+
+  const idColumn = ID_COLUMNS[tableName];
+
+  // Determine staff_id - use provided or null (for now until auth is integrated)
+  const staffIdValue = staff_id || null;
+
+  // Update the record with verification timestamp
   try {
-    const body: VerifyRequest = await request.json();
-    const { table, record_id, staff_id } = body;
-
-    if (!table || !record_id) {
-      return apiError("table and record_id are required", 400);
-    }
-
-    const tableName = ALLOWED_TABLES[table];
-    if (!tableName) {
-      return apiError(`Invalid table: ${table}. Allowed: ${Object.keys(ALLOWED_TABLES).join(", ")}`, 400);
-    }
-
-    const idColumn = ID_COLUMNS[tableName];
-
-    // Determine staff_id - use provided or null (for now until auth is integrated)
-    const staffIdValue = staff_id || null;
-
-    // Update the record with verification timestamp
     const result = await queryOne<{ verified_at: string }>(
       `UPDATE ${tableName}
        SET verified_at = NOW(),
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!result) {
-      return apiError("Record not found", 404);
+      throw new ApiError("Record not found", 404);
     }
 
     // Audit trail for verification
@@ -90,33 +91,32 @@ export async function POST(request: NextRequest) {
       verified_at: result.verified_at,
     });
   } catch (error: any) {
+    if (error instanceof ApiError) throw error;
     if (error?.code === '42P01') {
-      // Table doesn't exist yet
-      return apiError("Table not yet available", 501);
+      throw new ApiError("Table not yet available", 501);
     }
-    console.error("Error verifying record:", error);
-    return apiError("Failed to verify record", 500);
+    throw error;
   }
-}
+});
 
 // DELETE - Unverify a record (remove verification)
-export async function DELETE(request: NextRequest) {
+export const DELETE = withErrorHandling(async (request: NextRequest) => {
+  const { searchParams } = new URL(request.url);
+  const table = searchParams.get("table");
+  const record_id = searchParams.get("record_id");
+
+  if (!table || !record_id) {
+    throw new ApiError("table and record_id are required", 400);
+  }
+
+  const tableName = ALLOWED_TABLES[table];
+  if (!tableName) {
+    throw new ApiError(`Invalid table: ${table}`, 400);
+  }
+
+  const idColumn = ID_COLUMNS[tableName];
+
   try {
-    const { searchParams } = new URL(request.url);
-    const table = searchParams.get("table");
-    const record_id = searchParams.get("record_id");
-
-    if (!table || !record_id) {
-      return apiError("table and record_id are required", 400);
-    }
-
-    const tableName = ALLOWED_TABLES[table];
-    if (!tableName) {
-      return apiError(`Invalid table: ${table}`, 400);
-    }
-
-    const idColumn = ID_COLUMNS[tableName];
-
     // Fetch old values before clearing
     const oldValues = await queryOne<{ verified_at: string; verified_by_staff_id: string }>(
       `SELECT verified_at, verified_by_staff_id FROM ${tableName} WHERE ${idColumn} = $1`,
@@ -134,7 +134,7 @@ export async function DELETE(request: NextRequest) {
     );
 
     if (!result) {
-      return apiError("Record not found", 404);
+      throw new ApiError("Record not found", 404);
     }
 
     // Audit trail for unverification
@@ -148,24 +148,23 @@ export async function DELETE(request: NextRequest) {
 
     return apiSuccess({ success: true });
   } catch (error: any) {
+    if (error instanceof ApiError) throw error;
     if (error?.code === '42P01') {
-      // Table doesn't exist yet
-      return apiError("Table not yet available", 501);
+      throw new ApiError("Table not yet available", 501);
     }
-    console.error("Error unverifying record:", error);
-    return apiError("Failed to unverify record", 500);
+    throw error;
   }
-}
+});
 
 // GET - Get verification status for records
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const table = searchParams.get("table");
-    const record_ids = searchParams.get("record_ids"); // comma-separated
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { searchParams } = new URL(request.url);
+  const table = searchParams.get("table");
+  const record_ids = searchParams.get("record_ids"); // comma-separated
 
-    if (!table) {
-      // Return unverified counts summary
+  if (!table) {
+    // Return unverified counts summary
+    try {
       const counts = await queryRows<{
         data_type: string;
         unverified_count: number;
@@ -214,18 +213,26 @@ export async function GET(request: NextRequest) {
       );
 
       return apiSuccess({ counts });
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        // Table doesn't exist yet — return empty results
+        return apiSuccess({ counts: [], unverified: [], records: [] });
+      }
+      throw error;
     }
+  }
 
-    const tableName = ALLOWED_TABLES[table];
-    if (!tableName) {
-      return apiError(`Invalid table: ${table}`, 400);
-    }
+  const tableName = ALLOWED_TABLES[table];
+  if (!tableName) {
+    throw new ApiError(`Invalid table: ${table}`, 400);
+  }
 
-    const idColumn = ID_COLUMNS[tableName];
+  const idColumn = ID_COLUMNS[tableName];
 
-    if (record_ids) {
-      // Get verification status for specific records
-      const ids = record_ids.split(",").map((id) => id.trim());
+  if (record_ids) {
+    // Get verification status for specific records
+    const ids = record_ids.split(",").map((id) => id.trim());
+    try {
       const records = await queryRows<{
         id: string;
         verified_at: string | null;
@@ -244,9 +251,16 @@ export async function GET(request: NextRequest) {
       );
 
       return apiSuccess({ records });
+    } catch (error: any) {
+      if (error?.code === '42P01') {
+        return apiSuccess({ counts: [], unverified: [], records: [] });
+      }
+      throw error;
     }
+  }
 
-    // Return unverified records for this table
+  // Return unverified records for this table
+  try {
     const unverified = await queryRows<{
       id: string;
       created_at: string;
@@ -266,10 +280,8 @@ export async function GET(request: NextRequest) {
     return apiSuccess({ unverified });
   } catch (error: any) {
     if (error?.code === '42P01') {
-      // Table doesn't exist yet — return empty results
       return apiSuccess({ counts: [], unverified: [], records: [] });
     }
-    console.error("Error getting verification status:", error);
-    return apiError("Failed to get verification status", 500);
+    throw error;
   }
-}
+});

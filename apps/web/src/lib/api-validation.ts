@@ -134,20 +134,39 @@ export function validateEnumIfProvided<T extends string>(
  * Error handler wrapper for API routes.
  * Catches ApiError and other errors, returns standardized responses.
  *
+ * Supports two signatures:
+ * 1. Routes with params: withErrorHandling(async (request, { params }) => { ... })
+ * 2. Routes without params: withErrorHandling(async (request) => { ... })
+ *
  * @example
+ * // Route with [id] param
  * export const GET = withErrorHandling(async (request, { params }) => {
  *   const { id } = await params;
  *   requireValidUUID(id, "cat");
- *   // ... handler logic
  *   return NextResponse.json(data);
  * });
+ *
+ * // Route without params
+ * export const POST = withErrorHandling(async (request) => {
+ *   const body = await request.json();
+ *   return NextResponse.json(result);
+ * });
  */
+// Overload 1: routes with params ([id] routes)
 export function withErrorHandling<
   TContext extends { params: Promise<Record<string, string>> }
 >(
   handler: (request: NextRequest, context: TContext) => Promise<NextResponse>
-): (request: NextRequest, context: TContext) => Promise<NextResponse> {
-  return async (request: NextRequest, context: TContext) => {
+): (request: NextRequest, context: TContext) => Promise<NextResponse>;
+// Overload 2: routes without params
+export function withErrorHandling(
+  handler: (request: NextRequest) => Promise<NextResponse>
+): (request: NextRequest) => Promise<NextResponse>;
+// Implementation
+export function withErrorHandling(
+  handler: (request: NextRequest, context?: unknown) => Promise<NextResponse>
+): (request: NextRequest, context?: unknown) => Promise<NextResponse> {
+  return async (request: NextRequest, context?: unknown) => {
     try {
       return await handler(request, context);
     } catch (error) {
@@ -224,7 +243,7 @@ export function requireNonEmptyString(
 export async function parseBody<T>(
   request: Request,
   schema: ZodSchema<T>
-): Promise<{ data: T } | { error: Response }> {
+): Promise<{ data: T } | { error: NextResponse }> {
   let json: unknown;
   try {
     json = await request.json();

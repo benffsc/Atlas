@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { queryOne, query } from "@/lib/db";
+import { queryOne, query, withTransaction } from "@/lib/db";
 import { logFieldEdits, type FieldChange } from "@/lib/audit";
 import { validatePersonName } from "@/lib/validation";
-import { requireValidUUID, parseBody } from "@/lib/api-validation";
-import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
+import { withErrorHandling, requireValidUUID, parseBody, ApiError } from "@/lib/api-validation";
+import { apiSuccess } from "@/lib/api-response";
 import { UpdatePersonSchema } from "@/lib/schemas";
 
 interface PartnerOrg {
@@ -56,14 +56,12 @@ interface PersonDetailRow {
   }> | null;
 }
 
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
-
-  try {
-    requireValidUUID(id, "person");
+  requireValidUUID(id, "person");
     // V2: Use v_person_detail view with correct column names
     const sql = `
       SELECT
@@ -196,7 +194,7 @@ export async function GET(
     const person = await queryOne<PersonDetailRow>(sql, [id]);
 
     if (!person) {
-      return apiNotFound("Person", id);
+      throw new ApiError(`Person with ID ${id} not found`, 404);
     }
 
     // Fetch last appointment date
@@ -207,15 +205,7 @@ export async function GET(
     person.last_appointment_date = lastAppt?.last_appointment_date || null;
 
     return apiSuccess(person);
-  } catch (error) {
-    // Handle validation errors from requireValidUUID
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiError(error.message, (error as { status?: number }).status || 400);
-    }
-    console.error("Error fetching person detail:", error);
-    return apiServerError("Failed to fetch person detail");
-  }
-}
+});
 
 interface CurrentPersonData {
   display_name: string | null;
@@ -224,49 +214,41 @@ interface CurrentPersonData {
   trapping_skill_notes: string | null;
 }
 
-export async function PATCH(
+export const PATCH = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
+  requireValidUUID(id, "person");
 
-  try {
-    requireValidUUID(id, "person");
+  const parsed = await parseBody(request, UpdatePersonSchema);
+  if ("error" in parsed) return parsed.error;
+  const body = parsed.data;
 
-    // Validate request body with Zod schema
-    const parsed = await parseBody(request, UpdatePersonSchema);
-    if ("error" in parsed) return parsed.error;
-    const body = parsed.data;
+  const changed_by = body.changed_by || "web_user";
+  const change_reason = body.change_reason || "manual_update";
 
-    const changed_by = body.changed_by || "web_user";
-    const change_reason = body.change_reason || "manual_update";
-
-    // Validate display_name if provided
-    if (body.display_name !== undefined) {
-      const validation = validatePersonName(body.display_name);
-      if (!validation.valid) {
-        return apiBadRequest(validation.error || "Invalid name");
-      }
+  if (body.display_name !== undefined) {
+    const validation = validatePersonName(body.display_name);
+    if (!validation.valid) {
+      throw new ApiError(validation.error || "Invalid name", 400);
     }
+  }
 
-    // Get current values for audit comparison
-    const currentSql = `
-      SELECT display_name, entity_type, trapping_skill, trapping_skill_notes
-      FROM sot.people
-      WHERE person_id = $1
-    `;
-    const current = await queryOne<CurrentPersonData>(currentSql, [id]);
+  const result = await withTransaction(async (tx) => {
+    const current = await tx.queryOne<CurrentPersonData>(
+      `SELECT display_name, entity_type, trapping_skill, trapping_skill_notes
+       FROM sot.people WHERE person_id = $1`,
+      [id]
+    );
 
     if (!current) {
-      return apiNotFound("Person", id);
+      throw new ApiError(`Person with ID ${id} not found`, 404);
     }
 
-    // Build dynamic update query
     const updates: string[] = [];
     const values: unknown[] = [];
     let paramIndex = 1;
-
-    // Track changes for audit logging
     const auditChanges: FieldChange[] = [];
 
     if (body.display_name !== undefined) {
@@ -275,23 +257,23 @@ export async function PATCH(
         // Preserve old name as alias (if it's a real name, not garbage)
         if (current.display_name) {
           try {
-            const isGarbage = await queryOne<{ is_garbage: boolean }>(
+            const isGarbage = await tx.queryOne<{ is_garbage: boolean }>(
               `SELECT sot.is_garbage_name($1) AS is_garbage`,
               [current.display_name]
             );
             if (!isGarbage?.is_garbage) {
-              const nameKey = await queryOne<{ key: string }>(
+              const nameKey = await tx.queryOne<{ key: string }>(
                 `SELECT sot.norm_name_key($1) AS key`,
                 [current.display_name]
               );
               if (nameKey?.key) {
-                const existing = await queryOne<{ alias_id: string }>(
+                const existing = await tx.queryOne<{ alias_id: string }>(
                   `SELECT alias_id FROM sot.person_aliases
                    WHERE person_id = $1 AND name_key = $2 LIMIT 1`,
                   [id, nameKey.key]
                 );
                 if (!existing) {
-                  await query(
+                  await tx.query(
                     `INSERT INTO sot.person_aliases
                      (person_id, name_raw, name_key, source_system, source_table)
                      VALUES ($1, $2, $3, 'atlas_ui', 'name_change')`,
@@ -302,7 +284,6 @@ export async function PATCH(
             }
           } catch (aliasErr) {
             console.error("Failed to create name alias:", aliasErr);
-            // Don't block the name update if alias creation fails
           }
         }
 
@@ -340,7 +321,6 @@ export async function PATCH(
         updates.push(`trapping_skill = $${paramIndex}`);
         values.push(body.trapping_skill);
         paramIndex++;
-        // Also update the timestamp
         updates.push(`trapping_skill_updated_at = NOW()`);
       }
     }
@@ -359,10 +339,10 @@ export async function PATCH(
     }
 
     if (updates.length === 0) {
-      return apiBadRequest("No valid fields to update");
+      throw new ApiError("No valid fields to update", 400);
     }
 
-    // Log changes to centralized entity_edits table
+    // Log changes within the transaction
     if (auditChanges.length > 0) {
       await logFieldEdits("person", id, auditChanges, {
         editedBy: changed_by,
@@ -371,38 +351,29 @@ export async function PATCH(
       });
     }
 
-    // Add updated_at
     updates.push(`updated_at = NOW()`);
-
-    // Add person_id to values
     values.push(id);
 
-    const sql = `
-      UPDATE sot.people
-      SET ${updates.join(", ")}
-      WHERE person_id = $${paramIndex}
-      RETURNING person_id, display_name, entity_type, trapping_skill, trapping_skill_notes
-    `;
-
-    const result = await queryOne<{
+    const updated = await tx.queryOne<{
       person_id: string;
       display_name: string;
       entity_type: string | null;
       trapping_skill: string | null;
       trapping_skill_notes: string | null;
-    }>(sql, values);
+    }>(
+      `UPDATE sot.people
+       SET ${updates.join(", ")}
+       WHERE person_id = $${paramIndex}
+       RETURNING person_id, display_name, entity_type, trapping_skill, trapping_skill_notes`,
+      values
+    );
 
-    if (!result) {
-      return apiNotFound("Person", id);
+    if (!updated) {
+      throw new ApiError(`Person with ID ${id} not found`, 404);
     }
 
-    return apiSuccess({ person: result });
-  } catch (error) {
-    // Handle validation errors from requireValidUUID
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiError(error.message, (error as { status?: number }).status || 400);
-    }
-    console.error("Error updating person:", error);
-    return apiServerError("Failed to update person");
-  }
-}
+    return updated;
+  });
+
+  return apiSuccess({ person: result });
+});

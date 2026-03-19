@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { postApi } from "@/lib/api-client";
+import { useAsyncForm } from "@/hooks/useAsyncForm";
 import { ReasonSelectionForm } from "@/components/forms/ReasonSelectionForm";
 
 interface ArchiveRequestModalProps {
@@ -27,41 +28,26 @@ export default function ArchiveRequestModal({
   onComplete,
   onCancel,
 }: ArchiveRequestModalProps) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
 
   const selectedReason = ARCHIVE_REASONS.find(r => r.value === reason);
   const notesRequired = selectedReason?.requiresNotes ?? false;
 
-  const handleSubmit = async () => {
-    if (!reason) {
-      setError("Please select an archive reason");
-      return;
-    }
+  const submitFn = useCallback(async () => {
+    if (!reason) throw new Error("Please select an archive reason");
+    if (notesRequired && !notes.trim()) throw new Error(`Notes are required for "${selectedReason?.label}"`);
 
-    if (notesRequired && !notes.trim()) {
-      setError(`Notes are required for "${selectedReason?.label}"`);
-      return;
-    }
+    await postApi(`/api/requests/${requestId}/archive`, {
+      reason,
+      notes: notes.trim() || null,
+    });
+  }, [reason, notes, notesRequired, selectedReason, requestId]);
 
-    setSaving(true);
-    setError(null);
-
-    try {
-      await postApi(`/api/requests/${requestId}/archive`, {
-        reason,
-        notes: notes.trim() || null,
-      });
-
-      onComplete();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error - please try again");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { loading: saving, error, handleSubmit } = useAsyncForm({
+    onSubmit: submitFn,
+    onSuccess: onComplete,
+  });
 
   return (
     <div

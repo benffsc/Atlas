@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useEntityDetail } from "@/hooks/useEntityDetail";
-import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
+import { useListData } from "@/hooks/useListData";
 import { formatRelativeTime } from "@/lib/formatters";
 import { PersonStatusBadges } from "@/components/badges";
 import type { PersonDetail } from "@/hooks/useEntityDetail";
@@ -38,11 +38,13 @@ interface Person {
   entity_type?: string | null;
 }
 
-interface PeopleResponse {
-  people: Person[];
-  total: number;
-  limit: number;
-  offset: number;
+function buildPeopleParams(filters: Record<string, string>, apiParams: { limit: number; offset: number; sort?: string }) {
+  const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
+  if (filters.deep === "true") params.set("deep_search", "true");
+  params.set("limit", String(apiParams.limit));
+  params.set("offset", String(apiParams.offset));
+  return params;
 }
 
 const FILTER_DEFAULTS = {
@@ -164,44 +166,20 @@ function PeoplePageContent() {
     useDataTable(filters, setFilters, { defaultPageSize: 25 });
 
   const [searchInput, setSearchInput] = useState(filters.q);
-  const [data, setData] = useState<PeopleResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const { items: people, total, loading, error, refetch: refetchPeople } = useListData<Person>({
+    endpoint: "/api/people",
+    filters,
+    apiParams,
+    buildParams: buildPeopleParams,
+    dataKey: "people",
+  });
 
   // Panel preview
   const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
     filters.selected ? "person" : null,
     filters.selected || null,
   );
-
-  const fetchPeople = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    const params = new URLSearchParams();
-    if (filters.q) params.set("q", filters.q);
-    if (filters.deep === "true") params.set("deep_search", "true");
-    params.set("limit", String(apiParams.limit));
-    params.set("offset", String(apiParams.offset));
-
-    try {
-      const result = await fetchApiWithMeta<{ people: Person[] }>(`/api/people?${params.toString()}`);
-      setData({
-        people: result.data.people || [],
-        total: result.meta?.total || 0,
-        limit: result.meta?.limit || apiParams.limit,
-        offset: result.meta?.offset || 0,
-      });
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.q, filters.deep, apiParams.limit, apiParams.offset]);
-
-  useEffect(() => {
-    fetchPeople();
-  }, [fetchPeople]);
 
   // Sync search input on external clear
   useEffect(() => {
@@ -275,9 +253,9 @@ function PeoplePageContent() {
 
       <DataTable<Person>
         columns={personColumns}
-        data={data?.people ?? []}
+        data={people}
         getRowId={(row) => row.person_id}
-        total={data?.total ?? 0}
+        total={total}
         pageIndex={pageIndex}
         pageSize={pageSize}
         onPaginationChange={handlePaginationChange}

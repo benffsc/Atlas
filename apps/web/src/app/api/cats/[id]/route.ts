@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows, query } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
-import { requireValidUUID, parseBody } from "@/lib/api-validation";
-import { apiSuccess, apiError, apiNotFound, apiServerError } from "@/lib/api-response";
+import { requireValidUUID, parseBody, withErrorHandling } from "@/lib/api-validation";
+import { apiSuccess, apiNotFound } from "@/lib/api-response";
 import { UpdateCatSchema } from "@/lib/schemas";
 
 interface CatDetailRow {
@@ -158,15 +158,14 @@ interface EnhancedClinicAppointment {
   partner_org_short: string | null;
 }
 
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
+  requireValidUUID(id, "cat");
 
-  try {
-    requireValidUUID(id, "cat");
-    // Primary query using v_cat_detail view
+  // Primary query using v_cat_detail view
     // V2: Fixed column names to match actual view columns
     const sql = `
       SELECT
@@ -654,25 +653,15 @@ export async function GET(
       has_field_conflicts: fieldSourcesData?.has_conflicts || false,
       field_source_count: fieldSourcesData?.source_count || 0,
     });
-  } catch (error) {
-    // Handle validation errors from requireValidUUID
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiError(error.message, (error as { status?: number }).status || 400);
-    }
-    console.error("Error fetching cat detail:", error);
-    return apiServerError("Failed to fetch cat detail");
-  }
-}
+});
 
 // PATCH - Update cat info with audit tracking
-export async function PATCH(
+export const PATCH = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
-
-  try {
-    requireValidUUID(id, "cat");
+  requireValidUUID(id, "cat");
 
     // Validate request body with Zod schema
     const parsed = await parseBody(request, UpdateCatSchema);
@@ -806,12 +795,4 @@ export async function PATCH(
     }
 
     return apiSuccess({ cat: result });
-  } catch (error) {
-    // Handle validation errors from requireValidUUID
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiError(error.message, (error as { status?: number }).status || 400);
-    }
-    console.error("Error updating cat:", error);
-    return apiServerError("Failed to update cat");
-  }
-}
+});

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
-import { requireValidUUID } from "@/lib/api-validation";
-import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
+import { requireValidUUID, withErrorHandling, ApiError } from "@/lib/api-validation";
+import { apiSuccess } from "@/lib/api-response";
 
 /**
  * Cat Birth API Endpoint
@@ -54,74 +54,65 @@ interface Sibling {
   microchip: string | null;
 }
 
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
+  requireValidUUID(id, "cat");
 
-  try {
-    requireValidUUID(id, "cat");
+  // Get birth event
+  const birthSql = `
+    SELECT
+      be.birth_event_id,
+      be.litter_id,
+      be.cat_id,
+      be.mother_cat_id,
+      mc.display_name AS mother_name,
+      be.birth_date::TEXT,
+      be.birth_date_precision::TEXT,
+      be.birth_year,
+      be.birth_month,
+      be.birth_season,
+      be.place_id,
+      p.display_name AS place_name,
+      be.kitten_count_in_litter,
+      be.survived_to_weaning,
+      be.litter_survived_count,
+      be.source_system,
+      be.notes,
+      be.created_at::TEXT
+    FROM sot.cat_birth_events be
+    LEFT JOIN sot.cats mc ON mc.cat_id = be.mother_cat_id
+    LEFT JOIN sot.places p ON p.place_id = be.place_id
+    WHERE be.cat_id = $1
+      AND be.deleted_at IS NULL
+  `;
+  const birthEvent = await queryOne<BirthEvent>(birthSql, [id]);
 
-    // Get birth event
-    const birthSql = `
+  // Get siblings if part of a litter
+  let siblings: Sibling[] = [];
+  if (birthEvent?.litter_id) {
+    const siblingsSql = `
       SELECT
-        be.birth_event_id,
-        be.litter_id,
-        be.cat_id,
-        be.mother_cat_id,
-        mc.display_name AS mother_name,
-        be.birth_date::TEXT,
-        be.birth_date_precision::TEXT,
-        be.birth_year,
-        be.birth_month,
-        be.birth_season,
-        be.place_id,
-        p.display_name AS place_name,
-        be.kitten_count_in_litter,
-        be.survived_to_weaning,
-        be.litter_survived_count,
-        be.source_system,
-        be.notes,
-        be.created_at::TEXT
+        c.cat_id,
+        c.display_name,
+        c.sex,
+        c.microchip
       FROM sot.cat_birth_events be
-      LEFT JOIN sot.cats mc ON mc.cat_id = be.mother_cat_id
-      LEFT JOIN sot.places p ON p.place_id = be.place_id
-      WHERE be.cat_id = $1
+      JOIN sot.cats c ON c.cat_id = be.cat_id
+      WHERE be.litter_id = $1 AND be.cat_id != $2
         AND be.deleted_at IS NULL
+      LIMIT 10
     `;
-    const birthEvent = await queryOne<BirthEvent>(birthSql, [id]);
-
-    // Get siblings if part of a litter
-    let siblings: Sibling[] = [];
-    if (birthEvent?.litter_id) {
-      const siblingsSql = `
-        SELECT
-          c.cat_id,
-          c.display_name,
-          c.sex,
-          c.microchip
-        FROM sot.cat_birth_events be
-        JOIN sot.cats c ON c.cat_id = be.cat_id
-        WHERE be.litter_id = $1 AND be.cat_id != $2
-          AND be.deleted_at IS NULL
-        LIMIT 10
-      `;
-      siblings = await queryRows<Sibling>(siblingsSql, [birthEvent.litter_id, id]);
-    }
-
-    return apiSuccess({
-      birth_event: birthEvent ?? null,
-      siblings,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiBadRequest(error.message);
-    }
-    console.error("Error fetching birth info:", error);
-    return apiServerError("Failed to fetch birth information");
+    siblings = await queryRows<Sibling>(siblingsSql, [birthEvent.litter_id, id]);
   }
-}
+
+  return apiSuccess({
+    birth_event: birthEvent ?? null,
+    siblings,
+  });
+});
 
 interface RegisterBirthBody {
   mother_cat_id?: string;
@@ -138,124 +129,63 @@ interface RegisterBirthBody {
   notes?: string;
 }
 
-export async function POST(
+export const POST = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
+  requireValidUUID(id, "cat");
+  const body: RegisterBirthBody = await request.json();
 
-  try {
-    requireValidUUID(id, "cat");
-    const body: RegisterBirthBody = await request.json();
+  // Validate date precision if provided
+  if (body.birth_date_precision && !VALID_DATE_PRECISIONS.includes(body.birth_date_precision as typeof VALID_DATE_PRECISIONS[number])) {
+    throw new ApiError(`Invalid birth_date_precision. Must be one of: ${VALID_DATE_PRECISIONS.join(", ")}`, 400);
+  }
 
-    // Validate date precision if provided
-    if (body.birth_date_precision && !VALID_DATE_PRECISIONS.includes(body.birth_date_precision as typeof VALID_DATE_PRECISIONS[number])) {
-      return apiBadRequest(`Invalid birth_date_precision. Must be one of: ${VALID_DATE_PRECISIONS.join(", ")}`);
-    }
+  // Validate season if provided
+  if (body.birth_season && !VALID_SEASONS.includes(body.birth_season as typeof VALID_SEASONS[number])) {
+    throw new ApiError(`Invalid birth_season. Must be one of: ${VALID_SEASONS.join(", ")}`, 400);
+  }
 
-    // Validate season if provided
-    if (body.birth_season && !VALID_SEASONS.includes(body.birth_season as typeof VALID_SEASONS[number])) {
-      return apiBadRequest(`Invalid birth_season. Must be one of: ${VALID_SEASONS.join(", ")}`);
-    }
+  // Validate month if provided
+  if (body.birth_month !== undefined && (body.birth_month < 1 || body.birth_month > 12)) {
+    throw new ApiError("birth_month must be between 1 and 12", 400);
+  }
 
-    // Validate month if provided
-    if (body.birth_month !== undefined && (body.birth_month < 1 || body.birth_month > 12)) {
-      return apiBadRequest("birth_month must be between 1 and 12");
-    }
+  // Validate kitten count if provided
+  if (body.kitten_count_in_litter !== undefined && body.kitten_count_in_litter < 1) {
+    throw new ApiError("kitten_count_in_litter must be at least 1", 400);
+  }
 
-    // Validate kitten count if provided
-    if (body.kitten_count_in_litter !== undefined && body.kitten_count_in_litter < 1) {
-      return apiBadRequest("kitten_count_in_litter must be at least 1");
-    }
+  // Check if cat already has birth event
+  const existing = await queryOne<{ birth_event_id: string }>(
+    "SELECT birth_event_id FROM sot.cat_birth_events WHERE cat_id = $1 AND deleted_at IS NULL",
+    [id]
+  );
 
-    // Check if cat already has birth event
-    const existing = await queryOne<{ birth_event_id: string }>(
-      "SELECT birth_event_id FROM sot.cat_birth_events WHERE cat_id = $1 AND deleted_at IS NULL",
-      [id]
-    );
-
-    if (existing) {
-      // Update existing record
-      const updateSql = `
-        UPDATE sot.cat_birth_events
-        SET
-          mother_cat_id = COALESCE($2::UUID, mother_cat_id),
-          birth_date = COALESCE($3::DATE, birth_date),
-          birth_date_precision = COALESCE($4, birth_date_precision),
-          birth_year = COALESCE($5, birth_year),
-          birth_month = COALESCE($6, birth_month),
-          birth_season = COALESCE($7, birth_season),
-          place_id = COALESCE($8::UUID, place_id),
-          kitten_count_in_litter = COALESCE($9, kitten_count_in_litter),
-          survived_to_weaning = COALESCE($10, survived_to_weaning),
-          litter_survived_count = COALESCE($11, litter_survived_count),
-          litter_id = COALESCE($12::UUID, litter_id),
-          notes = COALESCE($13, notes),
-          updated_at = NOW()
-        WHERE cat_id = $1
-        RETURNING birth_event_id
-      `;
-
-      const result = await queryOne<{ birth_event_id: string }>(updateSql, [
-        id,
-        body.mother_cat_id || null,
-        body.birth_date || null,
-        body.birth_date_precision || null,
-        body.birth_year ?? null,
-        body.birth_month ?? null,
-        body.birth_season || null,
-        body.place_id || null,
-        body.kitten_count_in_litter ?? null,
-        body.survived_to_weaning ?? null,
-        body.litter_survived_count ?? null,
-        body.litter_id || null,
-        body.notes || null,
-      ]);
-
-      return apiSuccess({
-        message: "Birth event updated",
-        birth_event_id: result?.birth_event_id,
-        is_update: true,
-      });
-    }
-
-    // Create new birth event
-    const insertSql = `
-      INSERT INTO sot.cat_birth_events (
-        cat_id,
-        mother_cat_id,
-        birth_date,
-        birth_date_precision,
-        birth_year,
-        birth_month,
-        birth_season,
-        place_id,
-        kitten_count_in_litter,
-        survived_to_weaning,
-        litter_survived_count,
-        litter_id,
-        notes,
-        source_system
-      ) VALUES (
-        $1,
-        $2::UUID,
-        $3::DATE,
-        COALESCE($4, 'estimated'),
-        $5,
-        $6,
-        $7,
-        $8::UUID,
-        $9,
-        $10,
-        $11,
-        COALESCE($12::UUID, gen_random_uuid()),
-        $13,
-        'atlas_ui'
-      )
-      RETURNING birth_event_id, litter_id
+  if (existing) {
+    // Update existing record
+    const updateSql = `
+      UPDATE sot.cat_birth_events
+      SET
+        mother_cat_id = COALESCE($2::UUID, mother_cat_id),
+        birth_date = COALESCE($3::DATE, birth_date),
+        birth_date_precision = COALESCE($4, birth_date_precision),
+        birth_year = COALESCE($5, birth_year),
+        birth_month = COALESCE($6, birth_month),
+        birth_season = COALESCE($7, birth_season),
+        place_id = COALESCE($8::UUID, place_id),
+        kitten_count_in_litter = COALESCE($9, kitten_count_in_litter),
+        survived_to_weaning = COALESCE($10, survived_to_weaning),
+        litter_survived_count = COALESCE($11, litter_survived_count),
+        litter_id = COALESCE($12::UUID, litter_id),
+        notes = COALESCE($13, notes),
+        updated_at = NOW()
+      WHERE cat_id = $1
+      RETURNING birth_event_id
     `;
 
-    const result = await queryOne<{ birth_event_id: string; litter_id: string }>(insertSql, [
+    const result = await queryOne<{ birth_event_id: string }>(updateSql, [
       id,
       body.mother_cat_id || null,
       body.birth_date || null,
@@ -271,53 +201,96 @@ export async function POST(
       body.notes || null,
     ]);
 
-    if (!result) {
-      return apiServerError("Failed to create birth event");
-    }
-
     return apiSuccess({
-      message: "Birth event recorded",
-      birth_event_id: result.birth_event_id,
-      litter_id: result.litter_id,
-      is_update: false,
+      message: "Birth event updated",
+      birth_event_id: result?.birth_event_id,
+      is_update: true,
     });
-  } catch (error) {
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiBadRequest(error.message);
-    }
-    console.error("Error recording birth:", error);
-    return apiServerError("Failed to record birth event");
   }
-}
 
-export async function DELETE(
+  // Create new birth event
+  const insertSql = `
+    INSERT INTO sot.cat_birth_events (
+      cat_id,
+      mother_cat_id,
+      birth_date,
+      birth_date_precision,
+      birth_year,
+      birth_month,
+      birth_season,
+      place_id,
+      kitten_count_in_litter,
+      survived_to_weaning,
+      litter_survived_count,
+      litter_id,
+      notes,
+      source_system
+    ) VALUES (
+      $1,
+      $2::UUID,
+      $3::DATE,
+      COALESCE($4, 'estimated'),
+      $5,
+      $6,
+      $7,
+      $8::UUID,
+      $9,
+      $10,
+      $11,
+      COALESCE($12::UUID, gen_random_uuid()),
+      $13,
+      'atlas_ui'
+    )
+    RETURNING birth_event_id, litter_id
+  `;
+
+  const result = await queryOne<{ birth_event_id: string; litter_id: string }>(insertSql, [
+    id,
+    body.mother_cat_id || null,
+    body.birth_date || null,
+    body.birth_date_precision || null,
+    body.birth_year ?? null,
+    body.birth_month ?? null,
+    body.birth_season || null,
+    body.place_id || null,
+    body.kitten_count_in_litter ?? null,
+    body.survived_to_weaning ?? null,
+    body.litter_survived_count ?? null,
+    body.litter_id || null,
+    body.notes || null,
+  ]);
+
+  if (!result) {
+    throw new ApiError("Failed to create birth event", 500);
+  }
+
+  return apiSuccess({
+    message: "Birth event recorded",
+    birth_event_id: result.birth_event_id,
+    litter_id: result.litter_id,
+    is_update: false,
+  });
+});
+
+export const DELETE = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
+  requireValidUUID(id, "cat");
 
-  try {
-    requireValidUUID(id, "cat");
+  const deleteSql = `
+    UPDATE sot.cat_birth_events
+    SET deleted_at = NOW(), deleted_by = 'web_user'
+    WHERE cat_id = $1 AND deleted_at IS NULL
+    RETURNING birth_event_id
+  `;
 
-    const deleteSql = `
-      UPDATE sot.cat_birth_events
-      SET deleted_at = NOW(), deleted_by = 'web_user'
-      WHERE cat_id = $1 AND deleted_at IS NULL
-      RETURNING birth_event_id
-    `;
+  const result = await queryOne<{ birth_event_id: string }>(deleteSql, [id]);
 
-    const result = await queryOne<{ birth_event_id: string }>(deleteSql, [id]);
-
-    if (!result) {
-      return apiNotFound("Birth event", id);
-    }
-
-    return apiSuccess({ message: "Birth event removed" });
-  } catch (error) {
-    if (error instanceof Error && error.name === "ApiError") {
-      return apiBadRequest(error.message);
-    }
-    console.error("Error removing birth record:", error);
-    return apiServerError("Failed to remove birth record");
+  if (!result) {
+    throw new ApiError(`Birth event with ID ${id} not found`, 404);
   }
-}
+
+  return apiSuccess({ message: "Birth event removed" });
+});

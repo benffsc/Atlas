@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { postApi } from "@/lib/api-client";
+import { useAsyncForm } from "@/hooks/useAsyncForm";
 import { ReasonSelectionForm } from "@/components/forms/ReasonSelectionForm";
 
 interface DeclineIntakeModalProps {
@@ -40,38 +41,27 @@ export default function DeclineIntakeModal({
   onComplete,
   onCancel,
 }: DeclineIntakeModalProps) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [referralOrg, setReferralOrg] = useState("");
   const [sendEmail, setSendEmail] = useState(true);
 
-  const handleSubmit = async () => {
-    if (!reason) {
-      setError("Please select a decline reason");
-      return;
-    }
+  const submitFn = useCallback(async () => {
+    if (!reason) throw new Error("Please select a decline reason");
 
-    setSaving(true);
-    setError(null);
+    await postApi("/api/intake/decline", {
+      submission_id: submissionId,
+      reason_code: reason,
+      reason_notes: notes || null,
+      referred_to_org: reason === "referred_to_other_org" ? referralOrg : null,
+      send_notification: sendEmail,
+    });
+  }, [reason, notes, referralOrg, sendEmail, submissionId]);
 
-    try {
-      await postApi("/api/intake/decline", {
-        submission_id: submissionId,
-        reason_code: reason,
-        reason_notes: notes || null,
-        referred_to_org: reason === "referred_to_other_org" ? referralOrg : null,
-        send_notification: sendEmail,
-      });
-
-      onComplete();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error - please try again");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { loading: saving, error, handleSubmit } = useAsyncForm({
+    onSubmit: submitFn,
+    onSuccess: onComplete,
+  });
 
   const selectedReason = DECLINE_REASONS.find(r => r.value === reason);
 

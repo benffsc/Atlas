@@ -299,6 +299,7 @@ export interface PersonDetailData {
   // State
   loading: boolean;
   error: string | null;
+  partialErrors: Record<string, string>;
 
   // Derived
   primaryEmail: string | undefined;
@@ -350,6 +351,7 @@ export function usePersonDetail(
   // State
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [partialErrors, setPartialErrors] = useState<Record<string, string>>({});
 
   // ---- Base Fetchers ----
 
@@ -370,8 +372,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ entries: JournalEntry[] }>(`/api/journal?person_id=${id}&limit=50&include_related=true`);
       setJournal(data.entries || []);
+      setPartialErrors(prev => { const { journal: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch journal:", err);
+      setPartialErrors(prev => ({ ...prev, journal: err instanceof Error ? err.message : "Failed to load journal" }));
     }
   }, [id]);
 
@@ -379,8 +383,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ requests: RelatedRequest[] }>(`/api/requests?person_id=${id}&limit=10`);
       setRequests(data.requests || []);
+      setPartialErrors(prev => { const { requests: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch requests:", err);
+      setPartialErrors(prev => ({ ...prev, requests: err instanceof Error ? err.message : "Failed to load requests" }));
     }
   }, [id]);
 
@@ -388,6 +394,7 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ trapper_type: string; is_ffsc_trapper: boolean }>(`/api/people/${id}/trapper-stats`);
       setTrapperInfo({ trapper_type: data.trapper_type, is_ffsc_trapper: data.is_ffsc_trapper });
+      setPartialErrors(prev => { const { trapperInfo: _, ...rest } = prev; return rest; });
     } catch {
       setTrapperInfo(null);
     }
@@ -401,8 +408,10 @@ export function usePersonDetail(
       } else {
         setVolunteerRoles(null);
       }
-    } catch {
+      setPartialErrors(prev => { const { volunteerRoles: _, ...rest } = prev; return rest; });
+    } catch (err) {
       setVolunteerRoles(null);
+      setPartialErrors(prev => ({ ...prev, volunteerRoles: err instanceof Error ? err.message : "Failed to load roles" }));
     }
   }, [id]);
 
@@ -412,8 +421,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<TrapperStats>(`/api/people/${id}/trapper-stats`);
       setTrapperStats(data);
-    } catch {
+      setPartialErrors(prev => { const { trapperStats: _, ...rest } = prev; return rest; });
+    } catch (err) {
       setTrapperStats(null);
+      setPartialErrors(prev => ({ ...prev, trapperStats: err instanceof Error ? err.message : "Failed to load trapper stats" }));
     }
   }, [id]);
 
@@ -421,8 +432,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ catches: ManualCatch[] }>(`/api/people/${id}/trapper-cats`);
       setManualCatches(data.catches || []);
+      setPartialErrors(prev => { const { manualCatches: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch manual catches:", err);
+      setPartialErrors(prev => ({ ...prev, manualCatches: err instanceof Error ? err.message : "Failed to load catches" }));
     }
   }, [id]);
 
@@ -430,8 +443,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ areas: ServiceArea[] }>(`/api/people/${id}/service-areas`);
       setServiceAreas(data.areas || []);
+      setPartialErrors(prev => { const { serviceAreas: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch service areas:", err);
+      setPartialErrors(prev => ({ ...prev, serviceAreas: err instanceof Error ? err.message : "Failed to load service areas" }));
     }
   }, [id]);
 
@@ -439,8 +454,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ profile: TrapperProfile | null }>(`/api/people/${id}/trapper-profile`);
       setTrapperProfile(data.profile);
+      setPartialErrors(prev => { const { trapperProfile: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch trapper profile:", err);
+      setPartialErrors(prev => ({ ...prev, trapperProfile: err instanceof Error ? err.message : "Failed to load profile" }));
     }
   }, [id]);
 
@@ -448,8 +465,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ assignments: Assignment[] }>(`/api/people/${id}/assignments`);
       setAssignments(data.assignments || []);
+      setPartialErrors(prev => { const { assignments: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch assignments:", err);
+      setPartialErrors(prev => ({ ...prev, assignments: err instanceof Error ? err.message : "Failed to load assignments" }));
     }
   }, [id]);
 
@@ -457,8 +476,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ history: ChangeHistoryEntry[] }>(`/api/entities/person/${id}/history?limit=20`);
       setChangeHistory(data.history || []);
+      setPartialErrors(prev => { const { changeHistory: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch change history:", err);
+      setPartialErrors(prev => ({ ...prev, changeHistory: err instanceof Error ? err.message : "Failed to load history" }));
     }
   }, [id]);
 
@@ -466,8 +487,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ contracts: Contract[] }>(`/api/people/${id}/contracts`);
       setContracts(data.contracts || []);
+      setPartialErrors(prev => { const { contracts: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch contracts:", err);
+      setPartialErrors(prev => ({ ...prev, contracts: err instanceof Error ? err.message : "Failed to load contracts" }));
     }
   }, [id]);
 
@@ -503,8 +526,10 @@ export function usePersonDetail(
         };
       });
       setFosterCats(cats);
+      setPartialErrors(prev => { const { fosterCats: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch foster cats:", err);
+      setPartialErrors(prev => ({ ...prev, fosterCats: err instanceof Error ? err.message : "Failed to load foster cats" }));
     }
   }, [id]);
 
@@ -512,8 +537,10 @@ export function usePersonDetail(
     try {
       const data = await fetchApi<{ agreements: FosterAgreement[] }>(`/api/people/${id}/foster-agreements`);
       setFosterAgreements(data.agreements || []);
+      setPartialErrors(prev => { const { fosterAgreements: _, ...rest } = prev; return rest; });
     } catch (err) {
       console.error("Failed to fetch foster agreements:", err);
+      setPartialErrors(prev => ({ ...prev, fosterAgreements: err instanceof Error ? err.message : "Failed to load agreements" }));
     }
   }, [id]);
 
@@ -617,6 +644,7 @@ export function usePersonDetail(
     fosterAgreements,
     loading,
     error,
+    partialErrors,
     primaryEmail,
     primaryPhone,
     isTrapper,

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useAsyncForm } from "@/hooks/useAsyncForm";
 import { Modal } from "@/components/ui";
 import { COLORS, SPACING, BORDERS } from "@/lib/design-tokens";
 import {
@@ -58,9 +59,7 @@ export function CloseRequestModal({
   // Simple cat counts — feeds into record_completion_observation via PATCH
   const [catsSeen, setCatsSeen] = useState<number | "">("");
   const [eartipsSeen, setEartipsSeen] = useState<number | "">("");
-  const [loading, setLoading] = useState(false);
   const [loadingReasons, setLoadingReasons] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Fetch reasons when outcome is selected
   useEffect(() => {
@@ -107,36 +106,31 @@ export function CloseRequestModal({
     }
   }
 
-  async function handleSubmit() {
-    if (!selectedOutcome) return;
-    setError(null);
-    setLoading(true);
+  const submitFn = useCallback(async () => {
+    if (!selectedOutcome) throw new Error("Please select an outcome");
 
-    try {
-      // Close the request — cat counts go through PATCH → record_completion_observation
-      const catsSeenNum = typeof catsSeen === "number" ? catsSeen : null;
-      const eartipsSeenNum = typeof eartipsSeen === "number" ? eartipsSeen : null;
+    const catsSeenNum = typeof catsSeen === "number" ? catsSeen : null;
+    const eartipsSeenNum = typeof eartipsSeen === "number" ? eartipsSeen : null;
 
-      await postApi(`/api/requests/${requestId}`, {
-        status: "completed",
-        resolution_outcome: selectedOutcome,
-        resolution_reason: selectedReason || null,
-        resolution_notes: resolutionNotes || null,
-        skip_trip_report_check: true,
-        observation_cats_seen: catsSeenNum,
-        observation_eartips_seen: eartipsSeenNum,
-        observation_notes: resolutionNotes || null,
-      }, { method: "PATCH" });
+    await postApi(`/api/requests/${requestId}`, {
+      status: "completed",
+      resolution_outcome: selectedOutcome,
+      resolution_reason: selectedReason || null,
+      resolution_notes: resolutionNotes || null,
+      skip_trip_report_check: true,
+      observation_cats_seen: catsSeenNum,
+      observation_eartips_seen: eartipsSeenNum,
+      observation_notes: resolutionNotes || null,
+    }, { method: "PATCH" });
+  }, [selectedOutcome, catsSeen, eartipsSeen, requestId, selectedReason, resolutionNotes]);
 
+  const { loading, error, clearError, handleSubmit } = useAsyncForm({
+    onSubmit: submitFn,
+    onSuccess: () => {
       onSuccess?.();
       handleClose();
-    } catch (err) {
-      console.error("Error closing request:", err);
-      setError(err instanceof Error ? err.message : "Failed to close request");
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+  });
 
   function handleClose() {
     if (loading) return;
@@ -146,7 +140,7 @@ export function CloseRequestModal({
     setResolutionNotes("");
     setCatsSeen("");
     setEartipsSeen("");
-    setError(null);
+    clearError();
     onClose();
   }
 

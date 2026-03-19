@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatDateLocal } from "@/lib/formatters";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useEntityDetail } from "@/hooks/useEntityDetail";
-import { fetchApiWithMeta, ApiError } from "@/lib/api-client";
+import { useListData } from "@/hooks/useListData";
 import { CatHealthBadges } from "@/components/badges";
 import type { HealthFlag } from "@/components/badges/CatHealthBadges";
 import type { CatDetail } from "@/hooks/useEntityDetail";
@@ -40,11 +40,21 @@ interface Cat {
   health_flags?: HealthFlag[];
 }
 
-interface CatsResponse {
-  cats: Cat[];
-  total: number;
-  limit: number;
-  offset: number;
+function buildCatParams(filters: Record<string, string>, apiParams: { limit: number; offset: number; sort?: string }) {
+  const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
+  if (filters.sex) params.set("sex", filters.sex);
+  if (filters.altered) params.set("altered_status", filters.altered);
+  if (filters.has_place) params.set("has_place", filters.has_place);
+  if (filters.has_origin) params.set("has_origin", filters.has_origin);
+  if (filters.partner_org) params.set("partner_org", filters.partner_org);
+  if (filters.disease) params.set("disease", filters.disease);
+  if (filters.condition) params.set("condition", filters.condition);
+  if (filters.is_deceased) params.set("is_deceased", filters.is_deceased);
+  if (apiParams.sort) params.set("sort", apiParams.sort);
+  params.set("limit", String(apiParams.limit));
+  params.set("offset", String(apiParams.offset));
+  return params;
 }
 
 const FILTER_DEFAULTS = {
@@ -161,52 +171,20 @@ function CatsPageContent() {
     useDataTable(filters, setFilters, { defaultPageSize: 25, defaultSort: "quality", defaultSortDir: "desc" });
 
   const [searchInput, setSearchInput] = useState(filters.q);
-  const [data, setData] = useState<CatsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const { items: cats, total, loading, error } = useListData<Cat>({
+    endpoint: "/api/cats",
+    filters,
+    apiParams,
+    buildParams: buildCatParams,
+    dataKey: "cats",
+  });
 
   // Panel preview
   const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
     filters.selected ? "cat" : null,
     filters.selected || null,
   );
-
-  const fetchCats = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    const params = new URLSearchParams();
-    if (filters.q) params.set("q", filters.q);
-    if (filters.sex) params.set("sex", filters.sex);
-    if (filters.altered) params.set("altered_status", filters.altered);
-    if (filters.has_place) params.set("has_place", filters.has_place);
-    if (filters.has_origin) params.set("has_origin", filters.has_origin);
-    if (filters.partner_org) params.set("partner_org", filters.partner_org);
-    if (filters.disease) params.set("disease", filters.disease);
-    if (filters.condition) params.set("condition", filters.condition);
-    if (filters.is_deceased) params.set("is_deceased", filters.is_deceased);
-    if (apiParams.sort) params.set("sort", apiParams.sort);
-    params.set("limit", String(apiParams.limit));
-    params.set("offset", String(apiParams.offset));
-
-    try {
-      const result = await fetchApiWithMeta<{ cats: Cat[] }>(`/api/cats?${params.toString()}`);
-      setData({
-        cats: result.data.cats || [],
-        total: result.meta?.total || 0,
-        limit: result.meta?.limit || apiParams.limit,
-        offset: result.meta?.offset || 0,
-      });
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.q, filters.sex, filters.altered, filters.has_place, filters.has_origin, filters.partner_org, filters.disease, filters.condition, filters.is_deceased, apiParams.sort, apiParams.limit, apiParams.offset]);
-
-  useEffect(() => {
-    fetchCats();
-  }, [fetchCats]);
 
   // Sync search input on external clear
   useEffect(() => {
@@ -311,9 +289,9 @@ function CatsPageContent() {
       {!error && (
         <DataTable<Cat>
           columns={catColumns}
-          data={data?.cats ?? []}
+          data={cats}
           getRowId={(cat) => cat.cat_id}
-          total={data?.total ?? 0}
+          total={total}
           pageIndex={pageIndex}
           pageSize={pageSize}
           onPaginationChange={handlePaginationChange}
