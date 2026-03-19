@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { TabBar } from "@/components/ui/TabBar";
 
 // ============================================================================
 // Types
@@ -772,42 +773,11 @@ function DataHubContent() {
       </div>
 
       {/* Main Tabs */}
-      <div style={{ display: "flex", gap: "0.25rem", marginBottom: "1.5rem", borderBottom: "1px solid var(--border)", paddingBottom: "0" }}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "0.75rem 1.25rem",
-              border: "none",
-              borderBottom: activeTab === tab.id ? "3px solid #3b82f6" : "3px solid transparent",
-              background: "transparent",
-              cursor: "pointer",
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              color: activeTab === tab.id ? "#1d4ed8" : "#6b7280",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            {tab.label}
-            {tab.count !== null && tab.count > 0 && (
-              <span
-                style={{
-                  padding: "0.1rem 0.4rem",
-                  borderRadius: "9999px",
-                  background: activeTab === tab.id ? "#dbeafe" : "#f3f4f6",
-                  color: activeTab === tab.id ? "#1d4ed8" : "#6b7280",
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                }}
-              >
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={tabs.map((t) => ({ id: t.id, label: t.label, count: t.count ?? undefined }))}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabId)}
+      />
 
       {/* Tab Content */}
       <div style={{ background: "var(--bg-secondary, #f9fafb)", padding: "1.5rem", borderRadius: "8px", minHeight: "400px" }}>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { TabBar } from "@/components/ui/TabBar";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -300,35 +301,11 @@ export default function RoleAuditPage() {
       </div>
 
       {/* ---- Tab bar ---- */}
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1.25rem",
-          flexWrap: "wrap",
-          borderBottom: "1px solid var(--card-border, #e5e7eb)",
-          paddingBottom: "0.5rem",
-        }}
-      >
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "6px 6px 0 0",
-              border: "none",
-              background: activeTab === tab.key ? "var(--accent, #0d6efd)" : "transparent",
-              color: activeTab === tab.key ? "#fff" : "var(--foreground)",
-              cursor: "pointer",
-              fontWeight: activeTab === tab.key ? 600 : 400,
-              fontSize: "0.875rem",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={TABS.map((t) => ({ id: t.key, label: t.label }))}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabKey)}
+      />
 
       {/* ---- Tab content ---- */}
       {activeTab === "stale_roles" && (

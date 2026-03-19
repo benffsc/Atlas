@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { TabBar } from "@/components/ui/TabBar";
 
 type TabType = "dashboard" | "alerts" | "trends";
 
@@ -238,50 +239,11 @@ export default function DataQualityPage() {
       </div>
 
       {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1.5rem",
-          borderBottom: "1px solid var(--border)",
-          paddingBottom: "0.5rem",
-        }}
-      >
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: "0.5rem 1rem",
-              background: activeTab === tab.key ? "var(--accent)" : "transparent",
-              color: activeTab === tab.key ? "#fff" : "inherit",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              fontWeight: activeTab === tab.key ? 600 : 400,
-            }}
-          >
-            {tab.label}
-            {tab.badge !== undefined && tab.badge > 0 && (
-              <span
-                style={{
-                  background: activeTab === tab.key ? "rgba(255,255,255,0.2)" : "#ef4444",
-                  color: activeTab === tab.key ? "#fff" : "#fff",
-                  fontSize: "0.75rem",
-                  padding: "0.125rem 0.375rem",
-                  borderRadius: "9999px",
-                  fontWeight: 600,
-                }}
-              >
-                {tab.badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={tabs.map((t) => ({ id: t.key, label: t.label, count: t.badge }))}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabType)}
+      />
 
       {/* Tab Content */}
       {activeTab === "alerts" && <AlertsPanel alerts={alerts} />}

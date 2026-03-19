@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { CatCard } from "@/components/cards";
 import type { CatCardData } from "@/components/cards";
+import { TabBar } from "@/components/ui/TabBar";
 import { MediaUploader } from "@/components/media";
 import { fetchApi, postApi } from "@/lib/api-client";
 
@@ -1004,76 +1005,15 @@ export default function ClinicDaysPage() {
           )}
 
           {/* Tab Navigation */}
-          <div style={{
-            display: "flex",
-            gap: "0",
-            marginBottom: "16px",
-            borderBottom: "2px solid var(--card-border)",
-          }}>
-            <button
-              onClick={() => setActiveTab("overview")}
-              style={{
-                padding: "12px 24px",
-                background: "none",
-                border: "none",
-                borderBottom: activeTab === "overview" ? "2px solid var(--primary)" : "2px solid transparent",
-                marginBottom: "-2px",
-                color: activeTab === "overview" ? "var(--primary)" : "var(--muted)",
-                fontWeight: activeTab === "overview" ? 600 : 400,
-                cursor: "pointer",
-                fontSize: "0.95rem",
-              }}
-            >
-              Overview & Entries
-            </button>
-            <button
-              onClick={() => setActiveTab("gallery")}
-              style={{
-                padding: "12px 24px",
-                background: "none",
-                border: "none",
-                borderBottom: activeTab === "gallery" ? "2px solid var(--primary)" : "2px solid transparent",
-                marginBottom: "-2px",
-                color: activeTab === "gallery" ? "var(--primary)" : "var(--muted)",
-                fontWeight: activeTab === "gallery" ? 600 : 400,
-                cursor: "pointer",
-                fontSize: "0.95rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              Cat Gallery
-              {catGalleryStats && catGalleryStats.total_cats > 0 && (
-                <span style={{
-                  padding: "2px 8px",
-                  background: activeTab === "gallery" ? "var(--primary)" : "var(--section-bg)",
-                  color: activeTab === "gallery" ? "var(--primary-foreground)" : "var(--muted)",
-                  borderRadius: "12px",
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                }}>
-                  {catGalleryStats.total_cats}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("upload")}
-              style={{
-                padding: "12px 24px",
-                background: "none",
-                border: "none",
-                borderBottom: activeTab === "upload" ? "2px solid var(--primary)" : "2px solid transparent",
-                marginBottom: "-2px",
-                color: activeTab === "upload" ? "var(--primary)" : "var(--muted)",
-                fontWeight: activeTab === "upload" ? 600 : 400,
-                cursor: "pointer",
-                fontSize: "0.95rem",
-              }}
-            >
-              Upload Photos
-            </button>
-          </div>
+          <TabBar
+            tabs={[
+              { id: "overview", label: "Overview & Entries" },
+              { id: "gallery", label: "Cat Gallery", count: catGalleryStats?.total_cats || undefined },
+              { id: "upload", label: "Upload Photos" },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id as "overview" | "gallery" | "upload")}
+          />
 
           {/* Overview Tab */}
           {activeTab === "overview" && (

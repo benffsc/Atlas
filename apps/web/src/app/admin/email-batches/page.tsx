@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { BackButton } from "@/components/common";
+import { TabBar } from "@/components/ui/TabBar";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface ReadyRequest {
@@ -287,31 +288,16 @@ export default function EmailBatchesPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700">
-        {[
-          { key: "ready" as const, label: "Ready to Email", count: readyCount },
-          { key: "draft" as const, label: "Drafts", count: counts.draft },
-          { key: "sent" as const, label: "Sent", count: counts.sent },
-          { key: "failed" as const, label: "Failed", count: counts.failed },
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === tab.key
-                ? "border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400"
-                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-            }`}
-          >
-            {tab.label}
-            {tab.count > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-700">
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={[
+          { id: "ready", label: "Ready to Email", count: readyCount || undefined },
+          { id: "draft", label: "Drafts", count: counts.draft || undefined },
+          { id: "sent", label: "Sent", count: counts.sent || undefined },
+          { id: "failed", label: "Failed", count: counts.failed || undefined },
+        ]}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabStatus)}
+      />
 
       {loading ? (
         <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading...</div>

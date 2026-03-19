@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { TabBar } from "@/components/ui/TabBar";
 
 interface UnansweredQuestion {
   question_id: string;
@@ -164,25 +165,11 @@ export default function TippyGapsPage() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "6px",
-              border: "none",
-              background: activeTab === tab.value ? "var(--primary)" : "var(--section-bg)",
-              color: activeTab === tab.value ? "white" : "var(--foreground)",
-              cursor: "pointer",
-              fontWeight: activeTab === tab.value ? 600 : 400,
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={STATUS_TABS.map((t) => ({ id: t.value, label: t.label }))}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
       {/* List */}
       {loading ? (

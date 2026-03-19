@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { TabBar } from "@/components/ui/TabBar";
 
 interface DataImprovement {
   improvement_id: string;
@@ -207,49 +208,15 @@ export default function DataImprovementsPage() {
       </div>
 
       {/* Status Tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: "8px",
-          marginBottom: "24px",
-          borderBottom: "1px solid var(--border)",
-          paddingBottom: "12px",
-        }}
-      >
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            style={{
-              padding: "8px 16px",
-              background: activeTab === tab.value ? "var(--primary)" : "transparent",
-              color: activeTab === tab.value ? "var(--primary-foreground)" : "var(--foreground)",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            {tab.label}
-            {counts && tab.value !== "all" && (
-              <span
-                style={{
-                  background: activeTab === tab.value ? "rgba(255,255,255,0.2)" : "var(--section-bg)",
-                  padding: "2px 6px",
-                  borderRadius: "10px",
-                  fontSize: "0.75rem",
-                }}
-              >
-                {counts[tab.value as keyof ImprovementCounts] || 0}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={STATUS_TABS.map((t) => ({
+          id: t.value,
+          label: t.label,
+          count: t.value !== "all" && counts ? (counts[t.value as keyof ImprovementCounts] as number) || 0 : undefined,
+        }))}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
       {/* Error */}
       {error && (
