@@ -6,6 +6,7 @@ import Link from "next/link";
 import { GlobalSearch, CommandPaletteProvider, useCommandPalette } from "@/components/search";
 import { mainSidebarSections, type NavSection } from "@/components/SidebarLayout";
 import { usePermission } from "@/hooks/usePermission";
+import { ToastProvider } from "@/components/feedback/Toast";
 
 interface Staff {
   staff_id: string;
@@ -63,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // No chrome for these routes
   if (isPrintRoute || isLoginPage || isMapPage) {
-    return <>{children}</>;
+    return <ToastProvider>{children}</ToastProvider>;
   }
 
   const isAdmin = usePermission("admin.access");
@@ -364,7 +365,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <main className="container">{children}</main>
+      <main className="container"><ToastProvider>{children}</ToastProvider></main>
     </CommandPaletteProvider>
   );
 }
