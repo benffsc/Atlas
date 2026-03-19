@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { postApi } from "@/lib/api-client";
+import { ReasonSelectionForm } from "@/components/forms/ReasonSelectionForm";
 
 interface HoldRequestModalProps {
   isOpen: boolean;
@@ -43,7 +44,6 @@ export default function HoldRequestModal({
     }
   }, [isOpen]);
 
-  const selectedReasonObj = HOLD_REASONS.find((r) => r.value === selectedReason);
   const requiresNotes = selectedReason === "other";
 
   async function handleSubmit(e: React.FormEvent) {
@@ -154,75 +154,16 @@ export default function HoldRequestModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ padding: "20px 24px" }}>
-          {/* Hold Reason */}
-          <div style={{ marginBottom: "16px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                marginBottom: "6px",
-              }}
-            >
-              Pause Reason <span style={{ color: "#dc3545" }}>*</span>
-            </label>
-            <select
-              value={selectedReason}
-              onChange={(e) => setSelectedReason(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                fontSize: "0.9rem",
-                background: "var(--input-bg, #fff)",
-              }}
-              required
-            >
-              <option value="">Select a reason...</option>
-              {HOLD_REASONS.map((reason) => (
-                <option key={reason.value} value={reason.value}>
-                  {reason.label}
-                </option>
-              ))}
-            </select>
-            {selectedReasonObj?.description && (
-              <p style={{ margin: "6px 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                {selectedReasonObj.description}
-              </p>
-            )}
-          </div>
-
-          {/* Hold Notes */}
-          <div style={{ marginBottom: "16px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: 500,
-                marginBottom: "6px",
-              }}
-            >
-              Notes
-              {requiresNotes && <span style={{ color: "#dc3545" }}> *</span>}
-            </label>
-            <textarea
-              value={holdNotes}
-              onChange={(e) => setHoldNotes(e.target.value)}
-              rows={3}
-              placeholder="Additional details about why this is paused..."
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                fontSize: "0.9rem",
-                resize: "vertical",
-                background: "var(--input-bg, #fff)",
-              }}
-              required={requiresNotes}
-            />
-          </div>
+          <ReasonSelectionForm
+            reasons={HOLD_REASONS}
+            selectedReason={selectedReason}
+            onReasonChange={setSelectedReason}
+            notes={holdNotes}
+            onNotesChange={setHoldNotes}
+            notesRequired={requiresNotes}
+            notesPlaceholder="Additional details about why this is paused..."
+            variant="select"
+          />
 
           {/* Error message */}
           {error && (

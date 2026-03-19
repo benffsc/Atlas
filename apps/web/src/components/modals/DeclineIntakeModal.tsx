@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { postApi } from "@/lib/api-client";
+import { ReasonSelectionForm } from "@/components/forms/ReasonSelectionForm";
 
 interface DeclineIntakeModalProps {
   submissionId: string;
@@ -133,80 +134,40 @@ export default function DeclineIntakeModal({
           )}
 
           <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Reason for Declining</h3>
-          <div style={{ display: "grid", gap: "0.5rem", marginBottom: "1.5rem" }}>
-            {DECLINE_REASONS.map((r) => (
-              <label
-                key={r.value}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "0.75rem",
-                  padding: "0.75rem",
-                  border: `2px solid ${reason === r.value ? "#dc2626" : "var(--border)"}`,
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  background: reason === r.value ? "rgba(220, 38, 38, 0.05)" : "transparent",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="reason"
-                  value={r.value}
-                  checked={reason === r.value}
-                  onChange={(e) => setReason(e.target.value)}
-                  style={{ marginTop: "0.2rem" }}
-                />
-                <div>
-                  <div style={{ fontWeight: 600 }}>{r.label}</div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{r.description}</div>
-                </div>
-              </label>
-            ))}
-          </div>
-
-          {/* Referral org selection (shown when referred_to_other_org) */}
-          {reason === "referred_to_other_org" && (
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.9rem" }}>
-                Referred To
-              </label>
-              <select
-                value={referralOrg}
-                onChange={(e) => setReferralOrg(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <option value="">Select organization...</option>
-                {REFERRAL_ORGS.map((org) => (
-                  <option key={org} value={org}>{org}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Notes */}
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.9rem" }}>
-              Notes (optional)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Additional details about the decline..."
-              rows={3}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                borderRadius: "6px",
-                border: "1px solid var(--border)",
-                resize: "vertical",
-              }}
-            />
-          </div>
+          <ReasonSelectionForm
+            reasons={DECLINE_REASONS}
+            selectedReason={reason}
+            onReasonChange={setReason}
+            notes={notes}
+            onNotesChange={setNotes}
+            notesRequired={false}
+            notesPlaceholder="Additional details about the decline..."
+            accentColor="#dc2626"
+          >
+            {/* Referral org selection (shown when referred_to_other_org) */}
+            {reason === "referred_to_other_org" && (
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.9rem" }}>
+                  Referred To
+                </label>
+                <select
+                  value={referralOrg}
+                  onChange={(e) => setReferralOrg(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    borderRadius: "6px",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <option value="">Select organization...</option>
+                  {REFERRAL_ORGS.map((org) => (
+                    <option key={org} value={org}>{org}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </ReasonSelectionForm>
 
           {/* Email notification toggle */}
           <label

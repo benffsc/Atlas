@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { postApi } from "@/lib/api-client";
+import { ReasonSelectionForm } from "@/components/forms/ReasonSelectionForm";
 
 interface ArchiveRequestModalProps {
   requestId: string;
@@ -128,67 +129,15 @@ export default function ArchiveRequestModal({
           </p>
 
           <h3 style={{ margin: "0 0 1rem", fontSize: "1rem" }}>Reason for Archiving</h3>
-          <div style={{ display: "grid", gap: "0.5rem", marginBottom: "1.5rem" }}>
-            {ARCHIVE_REASONS.map((r) => (
-              <label
-                key={r.value}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "0.75rem",
-                  padding: "0.75rem",
-                  border: `2px solid ${reason === r.value ? "#6b7280" : "var(--border)"}`,
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  background: reason === r.value ? "rgba(107, 114, 128, 0.05)" : "transparent",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="reason"
-                  value={r.value}
-                  checked={reason === r.value}
-                  onChange={(e) => setReason(e.target.value)}
-                  style={{ marginTop: "0.2rem" }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    {r.label}
-                    {r.requiresNotes && (
-                      <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 400 }}>
-                        (notes required)
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{r.description}</div>
-                </div>
-              </label>
-            ))}
-          </div>
-
-          {/* Notes */}
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.9rem" }}>
-              Notes {notesRequired ? "(required)" : "(optional)"}
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={
-                notesRequired
-                  ? "Please provide details..."
-                  : "Additional details about archiving this request..."
-              }
-              rows={3}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                borderRadius: "6px",
-                border: `1px solid ${notesRequired && !notes.trim() && reason ? "#dc3545" : "var(--border)"}`,
-                resize: "vertical",
-              }}
-            />
-          </div>
+          <ReasonSelectionForm
+            reasons={ARCHIVE_REASONS}
+            selectedReason={reason}
+            onReasonChange={setReason}
+            notes={notes}
+            onNotesChange={setNotes}
+            notesPlaceholder="Additional details about archiving this request..."
+            accentColor="#6b7280"
+          />
 
           {/* Info message */}
           <div

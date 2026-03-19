@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { Modal } from "@/components/ui";
 import { COLORS, SPACING, BORDERS } from "@/lib/design-tokens";
+import { ReasonSelectionForm } from "@/components/forms/ReasonSelectionForm";
 
 interface ResolutionReason {
   reason_code: string;
@@ -214,83 +215,22 @@ export default function CompleteRequestModal({
       )}
 
       <form id="complete-request-form" onSubmit={handleSubmit}>
-        {/* Resolution Reason */}
-        <div style={{ marginBottom: SPACING.lg }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              marginBottom: SPACING.xs,
-            }}
-          >
-            {statusLabel === "Complete" ? "Completion" : "Cancellation"} Reason{" "}
-            <span style={{ color: COLORS.error }}>*</span>
-          </label>
-          {loadingReasons ? (
-            <div style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-              Loading reasons...
-            </div>
-          ) : (
-            <select
-              value={selectedReason}
-              onChange={(e) => setSelectedReason(e.target.value)}
-              style={{
-                width: "100%",
-                padding: `${SPACING.sm} ${SPACING.md}`,
-                border: "1px solid var(--border)",
-                borderRadius: BORDERS.radius.lg,
-                fontSize: "0.9rem",
-                background: "var(--input-bg, #fff)",
-              }}
-              required
-            >
-              <option value="">Select a reason...</option>
-              {reasons.map((reason) => (
-                <option key={reason.reason_code} value={reason.reason_code}>
-                  {reason.reason_label}
-                </option>
-              ))}
-            </select>
-          )}
-          {selectedReasonObj?.reason_description && (
-            <p style={{ margin: `${SPACING.xs} 0 0`, fontSize: "0.8rem", color: "var(--muted)" }}>
-              {selectedReasonObj.reason_description}
-            </p>
-          )}
-        </div>
-
-        {/* Resolution Notes */}
-        <div style={{ marginBottom: SPACING.lg }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              marginBottom: SPACING.xs,
-            }}
-          >
-            Resolution Notes
-            {requiresNotes && <span style={{ color: COLORS.error }}> *</span>}
-          </label>
-          <textarea
-            value={resolutionNotes}
-            onChange={(e) => setResolutionNotes(e.target.value)}
-            rows={3}
-            placeholder="Additional details about the resolution..."
-            style={{
-              width: "100%",
-              padding: `${SPACING.sm} ${SPACING.md}`,
-              border: "1px solid var(--border)",
-              borderRadius: BORDERS.radius.lg,
-              fontSize: "0.9rem",
-              resize: "vertical",
-              background: "var(--input-bg, #fff)",
-              boxSizing: "border-box",
-            }}
-            required={requiresNotes}
-          />
-        </div>
+        <ReasonSelectionForm
+          reasons={reasons.map((r) => ({
+            value: r.reason_code,
+            label: r.reason_label,
+            description: r.reason_description ?? undefined,
+            requiresNotes: r.requires_notes,
+          }))}
+          selectedReason={selectedReason}
+          onReasonChange={setSelectedReason}
+          notes={resolutionNotes}
+          onNotesChange={setResolutionNotes}
+          notesLabel="Resolution Notes"
+          notesPlaceholder="Additional details about the resolution..."
+          variant="select"
+          loading={loadingReasons}
+        />
 
         {/* Final Site Visit Observation (optional, only for completed) */}
         {targetStatus === "completed" && placeId && (
