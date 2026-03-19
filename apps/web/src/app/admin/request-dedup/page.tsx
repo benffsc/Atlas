@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { fetchApi, postApi } from "@/lib/api-client";
+import { DedupPageLayout } from "@/components/admin/dedup";
+import type { DedupConfig } from "@/components/admin/dedup";
+import { postApi } from "@/lib/api-client";
 
 interface RequestDedupCandidate {
   candidate_id: string;
@@ -23,34 +24,6 @@ interface RequestDedupCandidate {
   duplicate_created: string;
   canonical_trip_reports: number;
   duplicate_trip_reports: number;
-}
-
-interface RequestDedupSummary {
-  match_tier: number;
-  tier_label: string;
-  pair_count: number;
-}
-
-interface RequestDedupResponse {
-  candidates: RequestDedupCandidate[];
-  summary: RequestDedupSummary[];
-  pagination: { tier: number; limit: number; offset: number; hasMore: boolean };
-  note?: string;
-}
-
-const TIER_TABS = [
-  { tier: 0, label: "All", color: "#6c757d" },
-  { tier: 1, label: "Same Source Reimport", color: "#dc3545" },
-  { tier: 2, label: "Cross-Source", color: "#fd7e14" },
-  { tier: 3, label: "Place Family", color: "#6f42c1" },
-];
-
-function tierColor(tier: number): string {
-  return TIER_TABS.find((t) => t.tier === tier)?.color || "#6c757d";
-}
-
-function tierLabel(tier: number): string {
-  return TIER_TABS.find((t) => t.tier === tier)?.label || `Tier ${tier}`;
 }
 
 function statusBadge(status: string) {
@@ -132,7 +105,9 @@ function RequestInfo({
       >
         {label}
       </div>
-      <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.25rem", lineHeight: 1.3 }}>
+      <div
+        style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.25rem", lineHeight: 1.3 }}
+      >
         {summary || "(no summary)"}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontSize: "0.8rem" }}>
@@ -145,7 +120,9 @@ function RequestInfo({
           {statusBadge(status)}
           <span className="text-muted">{source}</span>
           {catCount != null && <span>{catCount} cats</span>}
-          <span>{tripReports} trip report{tripReports !== 1 ? "s" : ""}</span>
+          <span>
+            {tripReports} trip report{tripReports !== 1 ? "s" : ""}
+          </span>
         </div>
         <span className="text-muted" style={{ fontSize: "0.75rem" }}>
           Created: {formatDate(created)}
@@ -168,369 +145,126 @@ function matchReasonsLabel(reasons: Record<string, unknown>): string {
   return parts.join(" | ");
 }
 
-export default function RequestDedupPage() {
-  const [data, setData] = useState<RequestDedupResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [tierFilter, setTierFilter] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [resolving, setResolving] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [batchAction, setBatchAction] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+const TIER_TABS = [
+  { value: "0", label: "All", color: "#6c757d" },
+  { value: "1", label: "Same Source Reimport", color: "#dc3545" },
+  { value: "2", label: "Cross-Source", color: "#fd7e14" },
+  { value: "3", label: "Place Family", color: "#6f42c1" },
+];
 
-  const limit = 30;
+const config: DedupConfig<RequestDedupCandidate> = {
+  entityName: "Request",
+  apiPath: "/api/admin/request-dedup",
+  description: "Deduplicate TNR requests by place, source system, and date proximity.",
 
-  const fetchCandidates = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await fetchApi<RequestDedupResponse>(
-        `/api/admin/request-dedup?tier=${tierFilter}&limit=${limit}&offset=${offset}`
-      );
-      setData(result);
-    } catch (error) {
-      console.error("Failed to fetch request dedup candidates:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [tierFilter, offset]);
+  tabs: TIER_TABS,
+  filterParamName: "tier",
+  defaultFilterValue: "0",
+  summaryGroupKey: "match_tier",
 
-  useEffect(() => {
-    fetchCandidates();
-  }, [fetchCandidates]);
+  getPairKey: (c) => `${c.canonical_request_id}|${c.duplicate_request_id}`,
+  getSinglePayload: (c) => ({
+    canonical_request_id: c.canonical_request_id,
+    duplicate_request_id: c.duplicate_request_id,
+    candidate_id: c.candidate_id,
+  }),
+  getBatchPairPayload: (key, candidates) => {
+    const [canonical_request_id, duplicate_request_id] = key.split("|");
+    const candidate = candidates.find(
+      (c) =>
+        c.canonical_request_id === canonical_request_id &&
+        c.duplicate_request_id === duplicate_request_id
+    );
+    return {
+      canonical_request_id,
+      duplicate_request_id,
+      candidate_id: candidate?.candidate_id || "",
+    };
+  },
 
-  useEffect(() => {
-    setOffset(0);
-    setSelected(new Set());
-  }, [tierFilter]);
+  actions: [
+    { key: "keep_separate", label: "Keep Separate", batchLabel: "Keep Separate All", color: "#198754" },
+    { key: "merge", label: "Merge", batchLabel: "Merge All", color: "#fd7e14" },
+  ],
 
-  const pairKey = (c: RequestDedupCandidate) =>
-    `${c.canonical_request_id}|${c.duplicate_request_id}`;
-
-  const handleResolve = async (c: RequestDedupCandidate, action: string) => {
-    const key = pairKey(c);
-    setResolving(key);
-    try {
-      await postApi("/api/admin/request-dedup", {
-        canonical_request_id: c.canonical_request_id,
-        duplicate_request_id: c.duplicate_request_id,
-        candidate_id: c.candidate_id,
-        action,
-      });
-      fetchCandidates();
-      setSelected((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    } catch (error) {
-      console.error("Failed to resolve:", error);
-      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
-      setResolving(null);
-    }
-  };
-
-  const handleBatchResolve = async (action: string) => {
-    if (!selected.size || !data) return;
-    if (!confirm(`${action === "merge" ? "Merge" : "Keep separate"} ${selected.size} selected pair(s)?`))
-      return;
-
-    setBatchAction(true);
-    const pairs = Array.from(selected).map((key) => {
-      const [canonical_request_id, duplicate_request_id] = key.split("|");
-      const candidate = data.candidates.find(
-        (c) => c.canonical_request_id === canonical_request_id && c.duplicate_request_id === duplicate_request_id
-      );
-      return { canonical_request_id, duplicate_request_id, candidate_id: candidate?.candidate_id || "" };
-    });
-
-    try {
-      const result = await postApi<{
-        success: number;
-        errors: number;
-        results: Array<{ success: boolean; error?: string }>;
-      }>("/api/admin/request-dedup", { action, pairs });
-      if (result.errors > 0) {
-        const failed = result.results
-          .filter((r) => !r.success)
-          .map((r) => r.error)
-          .join(", ");
-        alert(`${result.success} succeeded, ${result.errors} failed: ${failed}`);
-      }
-      setSelected(new Set());
-      fetchCandidates();
-    } catch (error) {
-      console.error("Batch resolve failed:", error);
-    } finally {
-      setBatchAction(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    if (!confirm("Refresh request dedup candidates? This rescans all requests.")) return;
-    setRefreshing(true);
-    try {
-      const result = await postApi<{
-        tier1_count: number;
-        tier2_count: number;
-        tier3_count: number;
-        total: number;
-      }>("/api/admin/request-dedup", { action: "refresh_candidates" });
-      alert(`Refresh complete: ${result.tier1_count} same-source, ${result.tier2_count} cross-source, ${result.tier3_count} place family (${result.total} total)`);
-      fetchCandidates();
-    } catch (error) {
-      console.error("Refresh failed:", error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const toggleSelect = (key: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const selectAll = () => {
-    if (!data) return;
-    if (selected.size === data.candidates.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(data.candidates.map(pairKey)));
-    }
-  };
-
-  const totalPairs = data?.summary.reduce((sum, s) => sum + s.pair_count, 0) || 0;
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-        <h1 style={{ margin: 0 }}>Request Dedup Review</h1>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          style={{
-            padding: "0.5rem 1rem",
-            background: "#0d6efd",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            cursor: refreshing ? "default" : "pointer",
-            opacity: refreshing ? 0.6 : 1,
-            fontSize: "0.85rem",
-          }}
-        >
-          {refreshing ? "Scanning..." : "Refresh Candidates"}
-        </button>
-      </div>
-      <p className="text-muted" style={{ marginBottom: "1.5rem" }}>
-        Deduplicate TNR requests by place, source system, and date proximity.
-      </p>
-
-      {data?.note && (
-        <div style={{ padding: "1rem", background: "#fff3cd", border: "1px solid #ffc107", borderRadius: "6px", marginBottom: "1.5rem" }}>
-          {data.note}
-        </div>
-      )}
-
-      {/* Dashboard summary */}
-      {data?.summary && data.summary.length > 0 && (
-        <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-          <div style={{ padding: "0.75rem 1rem", background: "var(--bg-muted, #f8f9fa)", borderRadius: "8px", textAlign: "center", minWidth: "80px" }}>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{totalPairs}</div>
-            <div className="text-muted text-sm">Total Pairs</div>
-          </div>
-          {data.summary.map((s) => (
-            <div
-              key={s.match_tier}
-              style={{
-                padding: "0.75rem 1rem",
-                background: "var(--bg-muted, #f8f9fa)",
-                borderRadius: "8px",
-                textAlign: "center",
-                minWidth: "80px",
-                borderLeft: `3px solid ${tierColor(s.match_tier)}`,
-              }}
-            >
-              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{s.pair_count}</div>
-              <div className="text-muted text-sm">{s.tier_label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tier filter tabs */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-        {TIER_TABS.map((tab) => {
-          const count = tab.tier === 0
-            ? totalPairs
-            : data?.summary.find((s) => s.match_tier === tab.tier)?.pair_count || 0;
-          return (
-            <button
-              key={tab.tier}
-              onClick={() => setTierFilter(tab.tier)}
-              style={{
-                padding: "0.5rem 1rem",
-                borderRadius: "6px",
-                border: "1px solid var(--border)",
-                background: tierFilter === tab.tier ? tab.color : "transparent",
-                color: tierFilter === tab.tier ? "#fff" : "var(--foreground)",
-                cursor: "pointer",
-              }}
-            >
-              {tab.label}
-              <span style={{ marginLeft: "0.5rem", background: tierFilter === tab.tier ? "rgba(255,255,255,0.2)" : "var(--bg-muted)", padding: "0.15rem 0.4rem", borderRadius: "4px", fontSize: "0.8rem" }}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Batch actions bar */}
-      {selected.size > 0 && (
-        <div style={{ display: "flex", gap: "0.5rem", padding: "0.75rem 1rem", background: "var(--bg-muted, #f8f9fa)", borderRadius: "8px", marginBottom: "1rem", alignItems: "center" }}>
-          <span style={{ fontWeight: 500, marginRight: "0.5rem" }}>{selected.size} selected</span>
-          <button onClick={() => handleBatchResolve("merge")} disabled={batchAction} style={{ padding: "0.4rem 0.75rem", background: "#fd7e14", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
-            Merge All
-          </button>
-          <button onClick={() => handleBatchResolve("keep_separate")} disabled={batchAction} style={{ padding: "0.4rem 0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
-            Keep Separate All
-          </button>
-          <button onClick={() => setSelected(new Set())} style={{ padding: "0.4rem 0.75rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
-            Clear Selection
-          </button>
-        </div>
-      )}
-
-      {loading && <div className="loading">Loading candidates...</div>}
-
-      {!loading && data?.candidates.length === 0 && (
-        <div className="empty">
-          No {tierFilter > 0 ? tierLabel(tierFilter).toLowerCase() : ""} candidates remaining.
-        </div>
-      )}
-
-      {/* Select all checkbox */}
-      {!loading && data && data.candidates.length > 0 && (
-        <div style={{ marginBottom: "0.5rem" }}>
-          <label style={{ cursor: "pointer", fontSize: "0.85rem" }}>
-            <input type="checkbox" checked={selected.size === data.candidates.length} onChange={selectAll} style={{ marginRight: "0.5rem" }} />
-            Select all on this page
-          </label>
-        </div>
-      )}
-
-      {/* Candidate cards */}
-      {!loading && data?.candidates.map((c) => {
-        const key = pairKey(c);
-        const isSelected = selected.has(key);
-        const isResolving = resolving === key;
-
-        return (
-          <div
-            key={key}
-            className="card"
-            style={{
-              padding: "1.25rem",
-              marginBottom: "0.75rem",
-              borderLeft: `4px solid ${tierColor(c.match_tier)}`,
-              opacity: isResolving ? 0.6 : 1,
-              background: isSelected ? "rgba(13, 110, 253, 0.05)" : undefined,
-            }}
-          >
-            {/* Header row */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(key)} />
-                <span style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", background: tierColor(c.match_tier), color: "#fff", borderRadius: "4px" }}>
-                  {tierLabel(c.match_tier)}
-                </span>
-                <span className="text-muted text-sm">
-                  {matchReasonsLabel(c.match_reasons)}
-                </span>
-              </div>
-            </div>
-
-            {/* Side-by-side comparison */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: "1rem", alignItems: "stretch" }}>
-              <RequestInfo
-                summary={c.canonical_summary}
-                placeAddress={c.canonical_place_address}
-                status={c.canonical_status}
-                source={c.canonical_source}
-                catCount={c.canonical_cat_count}
-                created={c.canonical_created}
-                tripReports={c.canonical_trip_reports}
-                label="Canonical"
-                labelColor="#198754"
-              />
-
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minWidth: "50px" }}>
-                <div style={{ fontSize: "1.2rem", fontWeight: 700, color: tierColor(c.match_tier) }}>
-                  T{c.match_tier}
-                </div>
-              </div>
-
-              <RequestInfo
-                summary={c.duplicate_summary}
-                placeAddress={c.duplicate_place_address}
-                status={c.duplicate_status}
-                source={c.duplicate_source}
-                catCount={c.duplicate_cat_count}
-                created={c.duplicate_created}
-                tripReports={c.duplicate_trip_reports}
-                label="Duplicate"
-                labelColor="#6c757d"
-              />
-            </div>
-
-            {/* Action buttons */}
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem", justifyContent: "flex-end" }}>
-              <button
-                onClick={() => handleResolve(c, "keep_separate")}
-                disabled={isResolving}
-                style={{ padding: "0.4rem 0.75rem", background: "#198754", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.85rem" }}
-              >
-                Keep Separate
-              </button>
-              <button
-                onClick={() => handleResolve(c, "merge")}
-                disabled={isResolving}
-                style={{ padding: "0.4rem 0.75rem", background: "#fd7e14", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.85rem" }}
-              >
-                Merge
-              </button>
-            </div>
-          </div>
+  headerActions: [
+    {
+      key: "refresh",
+      label: "Refresh Candidates",
+      loadingLabel: "Scanning...",
+      color: "#0d6efd",
+      confirmMessage: "Refresh request dedup candidates? This rescans all requests.",
+      handler: async () => {
+        const result = await postApi<{
+          tier1_count: number;
+          tier2_count: number;
+          tier3_count: number;
+          total: number;
+        }>("/api/admin/request-dedup", { action: "refresh_candidates" });
+        alert(
+          `Refresh complete: ${result.tier1_count} same-source, ${result.tier2_count} cross-source, ${result.tier3_count} place family (${result.total} total)`
         );
-      })}
+      },
+    },
+  ],
 
-      {/* Pagination */}
-      {!loading && data && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1.5rem" }}>
-          <button
-            onClick={() => setOffset(Math.max(0, offset - limit))}
-            disabled={offset === 0}
-            style={{ padding: "0.5rem 1rem", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: offset === 0 ? "default" : "pointer", opacity: offset === 0 ? 0.5 : 1 }}
-          >
-            Previous
-          </button>
-          <span className="text-muted text-sm">
-            Showing {offset + 1}–{Math.min(offset + limit, offset + (data.candidates.length || 0))}
-          </span>
-          <button
-            onClick={() => setOffset(offset + limit)}
-            disabled={!data.pagination.hasMore}
-            style={{ padding: "0.5rem 1rem", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: !data.pagination.hasMore ? "default" : "pointer", opacity: !data.pagination.hasMore ? 0.5 : 1 }}
-          >
-            Next
-          </button>
-        </div>
-      )}
+  getTierValue: (c) => String(c.match_tier),
+
+  renderCanonical: (c) => (
+    <RequestInfo
+      summary={c.canonical_summary}
+      placeAddress={c.canonical_place_address}
+      status={c.canonical_status}
+      source={c.canonical_source}
+      catCount={c.canonical_cat_count}
+      created={c.canonical_created}
+      tripReports={c.canonical_trip_reports}
+      label="Canonical"
+      labelColor="#198754"
+    />
+  ),
+
+  renderDuplicate: (c) => (
+    <RequestInfo
+      summary={c.duplicate_summary}
+      placeAddress={c.duplicate_place_address}
+      status={c.duplicate_status}
+      source={c.duplicate_source}
+      catCount={c.duplicate_cat_count}
+      created={c.duplicate_created}
+      tripReports={c.duplicate_trip_reports}
+      label="Duplicate"
+      labelColor="#6c757d"
+    />
+  ),
+
+  renderCenter: (c) => (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: "50px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "1.2rem",
+          fontWeight: 700,
+          color: TIER_TABS.find((t) => t.value === String(c.match_tier))?.color || "#6c757d",
+        }}
+      >
+        T{c.match_tier}
+      </div>
     </div>
-  );
+  ),
+
+  renderHeaderMeta: (c) => (
+    <span className="text-muted text-sm">{matchReasonsLabel(c.match_reasons)}</span>
+  ),
+};
+
+export default function RequestDedupPage() {
+  return <DedupPageLayout config={config} />;
 }

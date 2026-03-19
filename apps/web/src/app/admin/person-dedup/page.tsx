@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { fetchApi, postApi } from "@/lib/api-client";
+import { DedupPageLayout } from "@/components/admin/dedup";
+import type { DedupConfig } from "@/components/admin/dedup";
 
 interface DedupCandidate {
   canonical_person_id: string;
@@ -25,42 +25,6 @@ interface DedupCandidate {
   shared_place_count: number;
 }
 
-interface DedupSummary {
-  match_tier: number;
-  tier_label: string;
-  pair_count: number;
-}
-
-interface DedupResponse {
-  candidates: DedupCandidate[];
-  summary: DedupSummary[];
-  pagination: {
-    tier: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
-  };
-  note?: string;
-}
-
-const TIER_TABS = [
-  { tier: 0, label: "All", color: "#6c757d" },
-  { tier: 1, label: "Email Match", color: "#198754" },
-  { tier: 2, label: "Phone + Name", color: "#0d6efd" },
-  { tier: 3, label: "Phone Only", color: "#fd7e14" },
-  { tier: 4, label: "Name + Place", color: "#6f42c1" },
-  { tier: 5, label: "Name Only", color: "#dc3545" },
-  { tier: 6, label: "Phonetic + Address", color: "#20c997" },
-];
-
-function tierColor(tier: number): string {
-  return TIER_TABS.find((t) => t.tier === tier)?.color || "#6c757d";
-}
-
-function tierLabel(tier: number): string {
-  return TIER_TABS.find((t) => t.tier === tier)?.label || `Tier ${tier}`;
-}
-
 function PersonStats({
   identifiers,
   places,
@@ -82,647 +46,158 @@ function PersonStats({
   );
 }
 
-export default function PersonDedupPage() {
-  const [data, setData] = useState<DedupResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [tier, setTier] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [resolving, setResolving] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [batchAction, setBatchAction] = useState(false);
+const TIER_TABS = [
+  { value: "0", label: "All", color: "#6c757d" },
+  { value: "1", label: "Email Match", color: "#198754" },
+  { value: "2", label: "Phone + Name", color: "#0d6efd" },
+  { value: "3", label: "Phone Only", color: "#fd7e14" },
+  { value: "4", label: "Name + Place", color: "#6f42c1" },
+  { value: "5", label: "Name Only", color: "#dc3545" },
+  { value: "6", label: "Phonetic + Address", color: "#20c997" },
+];
 
-  const limit = 30;
+const config: DedupConfig<DedupCandidate> = {
+  entityName: "Person",
+  apiPath: "/api/admin/person-dedup",
+  description:
+    "Comprehensive duplicate detection across email, phone, and name signals. Review and resolve candidate pairs.",
 
-  const fetchCandidates = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await fetchApi<DedupResponse>(
-        `/api/admin/person-dedup?tier=${tier}&limit=${limit}&offset=${offset}`
-      );
-      setData(result);
-    } catch (error) {
-      console.error("Failed to fetch dedup candidates:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [tier, offset]);
+  tabs: TIER_TABS,
+  filterParamName: "tier",
+  defaultFilterValue: "0",
+  summaryGroupKey: "match_tier",
 
-  useEffect(() => {
-    fetchCandidates();
-  }, [fetchCandidates]);
+  getPairKey: (c) => `${c.canonical_person_id}|${c.duplicate_person_id}`,
+  getSinglePayload: (c) => ({
+    canonical_person_id: c.canonical_person_id,
+    duplicate_person_id: c.duplicate_person_id,
+  }),
+  getBatchPairPayload: (key) => {
+    const [canonical_person_id, duplicate_person_id] = key.split("|");
+    return { canonical_person_id, duplicate_person_id };
+  },
 
-  useEffect(() => {
-    setOffset(0);
-    setSelected(new Set());
-  }, [tier]);
+  actions: [
+    { key: "keep_separate", label: "Keep Separate", batchLabel: "Keep Separate All", color: "#198754" },
+    { key: "merge", label: "Merge", batchLabel: "Merge All", color: "#fd7e14" },
+    { key: "dismiss", label: "Skip", batchLabel: "Dismiss All", color: "#6c757d" },
+  ],
 
-  const pairKey = (c: DedupCandidate) =>
-    `${c.canonical_person_id}|${c.duplicate_person_id}`;
+  getTierValue: (c) => String(c.match_tier),
 
-  const handleResolve = async (
-    canonical_person_id: string,
-    duplicate_person_id: string,
-    action: string
-  ) => {
-    const key = `${canonical_person_id}|${duplicate_person_id}`;
-    setResolving(key);
-    try {
-      await postApi("/api/admin/person-dedup", { canonical_person_id, duplicate_person_id, action });
-      fetchCandidates();
-      setSelected((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    } catch (error) {
-      console.error("Failed to resolve:", error);
-      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
-      setResolving(null);
-    }
-  };
-
-  const handleBatchResolve = async (action: string) => {
-    if (!selected.size) return;
-    if (
-      !confirm(
-        `${action === "merge" ? "Merge" : action === "keep_separate" ? "Keep separate" : "Dismiss"} ${selected.size} selected pair(s)?`
-      )
-    )
-      return;
-
-    setBatchAction(true);
-    const pairs = Array.from(selected).map((key) => {
-      const [canonical_person_id, duplicate_person_id] = key.split("|");
-      return { canonical_person_id, duplicate_person_id };
-    });
-
-    try {
-      const result = await postApi<{ success: number; errors: number; results: Array<{ success: boolean; error?: string }> }>("/api/admin/person-dedup", { action, pairs });
-      if (result.errors > 0) {
-        const failed = result.results
-          .filter((r) => !r.success)
-          .map((r) => r.error)
-          .join(", ");
-        alert(`${result.success} succeeded, ${result.errors} failed: ${failed}`);
-      }
-      setSelected(new Set());
-      fetchCandidates();
-    } catch (error) {
-      console.error("Batch resolve failed:", error);
-    } finally {
-      setBatchAction(false);
-    }
-  };
-
-  const toggleSelect = (key: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const selectAll = () => {
-    if (!data) return;
-    if (selected.size === data.candidates.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(data.candidates.map(pairKey)));
-    }
-  };
-
-  const totalPairs =
-    data?.summary.reduce((sum, s) => sum + s.pair_count, 0) || 0;
-
-  return (
-    <div>
-      <h1 style={{ marginBottom: "0.5rem" }}>Person Dedup Review</h1>
-      <p className="text-muted" style={{ marginBottom: "1.5rem" }}>
-        Comprehensive duplicate detection across email, phone, and name
-        signals. Review and resolve candidate pairs.
-      </p>
-
-      {data?.note && (
-        <div
-          style={{
-            padding: "1rem",
-            background: "#fff3cd",
-            border: "1px solid #ffc107",
-            borderRadius: "6px",
-            marginBottom: "1.5rem",
-          }}
-        >
-          {data.note}
-        </div>
-      )}
-
-      {/* Dashboard summary */}
-      {data?.summary && data.summary.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "1rem",
-            marginBottom: "1.5rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <div
-            style={{
-              padding: "0.75rem 1rem",
-              background: "var(--bg-muted, #f8f9fa)",
-              borderRadius: "8px",
-              textAlign: "center",
-              minWidth: "80px",
-            }}
-          >
-            <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{totalPairs}</div>
-            <div className="text-muted text-sm">Total Pairs</div>
-          </div>
-          {data.summary.map((s) => (
-            <div
-              key={s.match_tier}
-              style={{
-                padding: "0.75rem 1rem",
-                background: "var(--bg-muted, #f8f9fa)",
-                borderRadius: "8px",
-                textAlign: "center",
-                minWidth: "80px",
-                borderLeft: `3px solid ${tierColor(s.match_tier)}`,
-              }}
-            >
-              <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
-                {s.pair_count}
-              </div>
-              <div className="text-muted text-sm">{s.tier_label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tier filter tabs */}
+  renderCanonical: (c) => (
+    <div
+      style={{
+        padding: "0.75rem",
+        background: "rgba(25, 135, 84, 0.08)",
+        borderRadius: "8px",
+        border: "1px solid rgba(25, 135, 84, 0.2)",
+      }}
+    >
       <div
         style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1.5rem",
-          flexWrap: "wrap",
+          fontSize: "0.65rem",
+          textTransform: "uppercase",
+          color: "#198754",
+          marginBottom: "0.25rem",
+          fontWeight: 600,
         }}
       >
-        {TIER_TABS.map((tab) => {
-          const count =
-            tab.tier === 0
-              ? totalPairs
-              : data?.summary.find((s) => s.match_tier === tab.tier)
-                  ?.pair_count || 0;
-          return (
-            <button
-              key={tab.tier}
-              onClick={() => setTier(tab.tier)}
-              style={{
-                padding: "0.5rem 1rem",
-                borderRadius: "6px",
-                border: "1px solid var(--border)",
-                background:
-                  tier === tab.tier ? tab.color : "transparent",
-                color: tier === tab.tier ? "#fff" : "var(--foreground)",
-                cursor: "pointer",
-              }}
-            >
-              {tab.label}
-              <span
-                style={{
-                  marginLeft: "0.5rem",
-                  background:
-                    tier === tab.tier
-                      ? "rgba(255,255,255,0.2)"
-                      : "var(--bg-muted)",
-                  padding: "0.15rem 0.4rem",
-                  borderRadius: "4px",
-                  fontSize: "0.8rem",
-                }}
-              >
-                {count}
-              </span>
-            </button>
-          );
-        })}
+        Keep (Canonical)
       </div>
-
-      {/* Batch actions bar */}
-      {selected.size > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            padding: "0.75rem 1rem",
-            background: "var(--bg-muted, #f8f9fa)",
-            borderRadius: "8px",
-            marginBottom: "1rem",
-            alignItems: "center",
-          }}
-        >
-          <span style={{ fontWeight: 500, marginRight: "0.5rem" }}>
-            {selected.size} selected
-          </span>
-          <button
-            onClick={() => handleBatchResolve("merge")}
-            disabled={batchAction}
-            style={{
-              padding: "0.4rem 0.75rem",
-              background: "#fd7e14",
-              color: "#fff",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-            }}
-          >
-            Merge All
-          </button>
-          <button
-            onClick={() => handleBatchResolve("keep_separate")}
-            disabled={batchAction}
-            style={{
-              padding: "0.4rem 0.75rem",
-              background: "#198754",
-              color: "#fff",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-            }}
-          >
-            Keep Separate All
-          </button>
-          <button
-            onClick={() => handleBatchResolve("dismiss")}
-            disabled={batchAction}
-            style={{
-              padding: "0.4rem 0.75rem",
-              background: "#6c757d",
-              color: "#fff",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-            }}
-          >
-            Dismiss All
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            style={{
-              padding: "0.4rem 0.75rem",
-              background: "transparent",
-              border: "1px solid var(--border)",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-            }}
-          >
-            Clear Selection
-          </button>
-        </div>
-      )}
-
-      {loading && <div className="loading">Loading candidates...</div>}
-
-      {!loading && data?.candidates.length === 0 && (
-        <div className="empty">
-          No {tier > 0 ? tierLabel(tier).toLowerCase() : ""} candidates
-          remaining. All pairs have been resolved.
-        </div>
-      )}
-
-      {/* Select all checkbox */}
-      {!loading && data && data.candidates.length > 0 && (
-        <div style={{ marginBottom: "0.5rem" }}>
-          <label style={{ cursor: "pointer", fontSize: "0.85rem" }}>
-            <input
-              type="checkbox"
-              checked={selected.size === data.candidates.length}
-              onChange={selectAll}
-              style={{ marginRight: "0.5rem" }}
-            />
-            Select all on this page
-          </label>
-        </div>
-      )}
-
-      {/* Candidate cards */}
-      {!loading &&
-        data?.candidates.map((c) => {
-          const key = pairKey(c);
-          const isSelected = selected.has(key);
-          const isResolving = resolving === key;
-
-          return (
-            <div
-              key={key}
-              className="card"
-              style={{
-                padding: "1.25rem",
-                marginBottom: "0.75rem",
-                borderLeft: `4px solid ${tierColor(c.match_tier)}`,
-                opacity: isResolving ? 0.6 : 1,
-                background: isSelected
-                  ? "rgba(13, 110, 253, 0.05)"
-                  : undefined,
-              }}
-            >
-              {/* Header row */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "1rem",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelect(key)}
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      padding: "0.2rem 0.5rem",
-                      background: tierColor(c.match_tier),
-                      color: "#fff",
-                      borderRadius: "4px",
-                    }}
-                  >
-                    {tierLabel(c.match_tier)}
-                  </span>
-                  {c.shared_email && (
-                    <span className="text-muted text-sm">
-                      Email: {c.shared_email}
-                    </span>
-                  )}
-                  {c.shared_phone && (
-                    <span className="text-muted text-sm">
-                      Phone: {c.shared_phone}
-                    </span>
-                  )}
-                  {c.shared_place_count > 0 && (
-                    <span className="text-muted text-sm">
-                      {c.shared_place_count} shared place
-                      {c.shared_place_count !== 1 ? "s" : ""}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Side-by-side comparison */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto 1fr",
-                  gap: "1rem",
-                  alignItems: "stretch",
-                }}
-              >
-                {/* Canonical person (keep) */}
-                <div
-                  style={{
-                    padding: "0.75rem",
-                    background: "rgba(25, 135, 84, 0.08)",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(25, 135, 84, 0.2)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.65rem",
-                      textTransform: "uppercase",
-                      color: "#198754",
-                      marginBottom: "0.25rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Keep (Canonical)
-                  </div>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: "1rem",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <a href={`/people/${c.canonical_person_id}`}>
-                      {c.canonical_name || "(no name)"}
-                    </a>
-                  </div>
-                  <PersonStats
-                    identifiers={c.canonical_identifiers}
-                    places={c.canonical_places}
-                    cats={c.canonical_cats}
-                    requests={c.canonical_requests}
-                  />
-                  <div className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                    Created{" "}
-                    {new Date(c.canonical_created_at).toLocaleDateString()}
-                  </div>
-                </div>
-
-                {/* Similarity indicator */}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: "60px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "1.4rem",
-                      fontWeight: 700,
-                      color:
-                        c.name_similarity >= 0.8
-                          ? "#198754"
-                          : c.name_similarity >= 0.5
-                            ? "#fd7e14"
-                            : "#dc3545",
-                    }}
-                  >
-                    {Math.round(c.name_similarity * 100)}%
-                  </div>
-                  <div className="text-muted" style={{ fontSize: "0.7rem" }}>
-                    name match
-                  </div>
-                </div>
-
-                {/* Duplicate person (absorb) */}
-                <div
-                  style={{
-                    padding: "0.75rem",
-                    background: "rgba(108, 117, 125, 0.08)",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(108, 117, 125, 0.2)",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.65rem",
-                      textTransform: "uppercase",
-                      color: "#6c757d",
-                      marginBottom: "0.25rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Merge Into Canonical
-                  </div>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: "1rem",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <a href={`/people/${c.duplicate_person_id}`}>
-                      {c.duplicate_name || "(no name)"}
-                    </a>
-                  </div>
-                  <PersonStats
-                    identifiers={c.duplicate_identifiers}
-                    places={c.duplicate_places}
-                    cats={c.duplicate_cats}
-                    requests={c.duplicate_requests}
-                  />
-                  <div className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
-                    Created{" "}
-                    {new Date(c.duplicate_created_at).toLocaleDateString()}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  marginTop: "0.75rem",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <button
-                  onClick={() =>
-                    handleResolve(
-                      c.canonical_person_id,
-                      c.duplicate_person_id,
-                      "keep_separate"
-                    )
-                  }
-                  disabled={isResolving}
-                  style={{
-                    padding: "0.4rem 0.75rem",
-                    background: "#198754",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  Keep Separate
-                </button>
-                <button
-                  onClick={() =>
-                    handleResolve(
-                      c.canonical_person_id,
-                      c.duplicate_person_id,
-                      "merge"
-                    )
-                  }
-                  disabled={isResolving}
-                  style={{
-                    padding: "0.4rem 0.75rem",
-                    background: "#fd7e14",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  Merge
-                </button>
-                <button
-                  onClick={() =>
-                    handleResolve(
-                      c.canonical_person_id,
-                      c.duplicate_person_id,
-                      "dismiss"
-                    )
-                  }
-                  disabled={isResolving}
-                  style={{
-                    padding: "0.4rem 0.75rem",
-                    background: "#6c757d",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  Skip
-                </button>
-              </div>
-            </div>
-          );
-        })}
-
-      {/* Pagination */}
-      {!loading && data && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: "1.5rem",
-          }}
-        >
-          <button
-            onClick={() => setOffset(Math.max(0, offset - limit))}
-            disabled={offset === 0}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              border: "1px solid var(--border)",
-              background: "transparent",
-              cursor: offset === 0 ? "default" : "pointer",
-              opacity: offset === 0 ? 0.5 : 1,
-            }}
-          >
-            Previous
-          </button>
-          <span className="text-muted text-sm">
-            Showing {offset + 1}–
-            {Math.min(offset + limit, offset + (data.candidates.length || 0))}
-          </span>
-          <button
-            onClick={() => setOffset(offset + limit)}
-            disabled={!data.pagination.hasMore}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "6px",
-              border: "1px solid var(--border)",
-              background: "transparent",
-              cursor: !data.pagination.hasMore ? "default" : "pointer",
-              opacity: !data.pagination.hasMore ? 0.5 : 1,
-            }}
-          >
-            Next
-          </button>
-        </div>
-      )}
+      <div style={{ fontWeight: 600, fontSize: "1rem", marginBottom: "0.5rem" }}>
+        <a href={`/people/${c.canonical_person_id}`}>{c.canonical_name || "(no name)"}</a>
+      </div>
+      <PersonStats
+        identifiers={c.canonical_identifiers}
+        places={c.canonical_places}
+        cats={c.canonical_cats}
+        requests={c.canonical_requests}
+      />
+      <div className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+        Created {new Date(c.canonical_created_at).toLocaleDateString()}
+      </div>
     </div>
-  );
+  ),
+
+  renderDuplicate: (c) => (
+    <div
+      style={{
+        padding: "0.75rem",
+        background: "rgba(108, 117, 125, 0.08)",
+        borderRadius: "8px",
+        border: "1px solid rgba(108, 117, 125, 0.2)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.65rem",
+          textTransform: "uppercase",
+          color: "#6c757d",
+          marginBottom: "0.25rem",
+          fontWeight: 600,
+        }}
+      >
+        Merge Into Canonical
+      </div>
+      <div style={{ fontWeight: 600, fontSize: "1rem", marginBottom: "0.5rem" }}>
+        <a href={`/people/${c.duplicate_person_id}`}>{c.duplicate_name || "(no name)"}</a>
+      </div>
+      <PersonStats
+        identifiers={c.duplicate_identifiers}
+        places={c.duplicate_places}
+        cats={c.duplicate_cats}
+        requests={c.duplicate_requests}
+      />
+      <div className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>
+        Created {new Date(c.duplicate_created_at).toLocaleDateString()}
+      </div>
+    </div>
+  ),
+
+  renderCenter: (c) => (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: "60px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "1.4rem",
+          fontWeight: 700,
+          color:
+            c.name_similarity >= 0.8
+              ? "#198754"
+              : c.name_similarity >= 0.5
+                ? "#fd7e14"
+                : "#dc3545",
+        }}
+      >
+        {Math.round(c.name_similarity * 100)}%
+      </div>
+      <div className="text-muted" style={{ fontSize: "0.7rem" }}>
+        name match
+      </div>
+    </div>
+  ),
+
+  renderHeaderMeta: (c) => (
+    <>
+      {c.shared_email && <span className="text-muted text-sm">Email: {c.shared_email}</span>}
+      {c.shared_phone && <span className="text-muted text-sm">Phone: {c.shared_phone}</span>}
+      {c.shared_place_count > 0 && (
+        <span className="text-muted text-sm">
+          {c.shared_place_count} shared place{c.shared_place_count !== 1 ? "s" : ""}
+        </span>
+      )}
+    </>
+  ),
+};
+
+export default function PersonDedupPage() {
+  return <DedupPageLayout config={config} />;
 }
