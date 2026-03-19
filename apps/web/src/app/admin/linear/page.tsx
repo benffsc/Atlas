@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { COLORS, SPACING, TYPOGRAPHY, BORDERS, getStatusColor } from "@/lib/design-tokens";
+import { StatCard } from "@/components/ui/StatCard";
 
 // ============================================================================
 // Types
@@ -116,49 +117,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  subtext,
-  color,
-  href,
-}: {
-  label: string;
-  value: number | string;
-  subtext?: string;
-  color: string;
-  href?: string;
-}) {
-  const content = (
-    <div
-      style={{
-        padding: SPACING.lg,
-        background: COLORS.bgPrimary,
-        borderRadius: BORDERS.radius.lg,
-        border: `${BORDERS.width.default} solid ${COLORS.border}`,
-        borderLeft: `4px solid ${color}`,
-        cursor: href ? "pointer" : "default",
-        transition: "box-shadow 0.15s",
-      }}
-      onMouseEnter={(e) => href && (e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0,0,0,0.1)")}
-      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
-    >
-      <div style={{ fontSize: TYPOGRAPHY.size.xs, color: COLORS.textSecondary, marginBottom: SPACING.xs }}>{label}</div>
-      <div style={{ fontSize: "1.75rem", fontWeight: TYPOGRAPHY.weight.bold, color: COLORS.textPrimary }}>
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </div>
-      {subtext && <div style={{ fontSize: TYPOGRAPHY.size['2xs'], color: COLORS.textMuted, marginTop: SPACING.xs }}>{subtext}</div>}
-    </div>
-  );
-
-  return href ? (
-    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
-      {content}
-    </Link>
-  ) : (
-    content
-  );
-}
 
 function ProgressBar({ progress, label }: { progress: number; label?: string }) {
   return (
@@ -722,12 +680,12 @@ export default function LinearDashboardPage() {
 
       {/* Quick Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Total Issues" value={data.totals.issues} color="#3b82f6" href="/admin/linear/issues" />
-        <StatCard label="Projects" value={data.totals.projects} color="#8b5cf6" />
-        <StatCard label="Cycles" value={data.totals.cycles} color="#f59e0b" />
-        <StatCard label="Team Members" value={data.totals.team_members} color="#10b981" />
-        <StatCard label="Labels" value={data.totals.labels} color="#ec4899" />
-        <StatCard label="Active Sessions" value={data.totals.active_sessions} color="#6366f1" href="/admin/linear/sessions" />
+        <StatCard label="Total Issues" value={data.totals.issues} accentColor="#3b82f6" href="/admin/linear/issues" />
+        <StatCard label="Projects" value={data.totals.projects} accentColor="#8b5cf6" />
+        <StatCard label="Cycles" value={data.totals.cycles} accentColor="#f59e0b" />
+        <StatCard label="Team Members" value={data.totals.team_members} accentColor="#10b981" />
+        <StatCard label="Labels" value={data.totals.labels} accentColor="#ec4899" />
+        <StatCard label="Active Sessions" value={data.totals.active_sessions} accentColor="#6366f1" href="/admin/linear/sessions" />
       </div>
 
       {/* Sync Status */}

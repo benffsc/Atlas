@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
+import { StatCard } from "@/components/ui/StatCard";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
@@ -248,19 +249,6 @@ export default function OrganizationsPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={{
-      padding: "0.75rem",
-      background: "var(--card-bg, rgba(0,0,0,0.05))",
-      borderRadius: "8px",
-      textAlign: "center",
-    }}>
-      <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>{value.toLocaleString()}</div>
-      <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{label}</div>
-    </div>
-  );
-}
 
 function OrgCard({ org, onClick }: { org: Org; onClick: () => void }) {
   return (

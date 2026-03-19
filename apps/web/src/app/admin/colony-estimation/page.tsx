@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { BackButton } from "@/components/common";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { TabBar } from "@/components/ui/TabBar";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface SourceConfidence {
   source_type: string;
@@ -192,32 +194,22 @@ export default function ColonyEstimationPage() {
           }}
         >
           <StatCard label="Total Estimates" value={stats.total_estimates} />
-          <StatCard label="Active" value={stats.active_estimates} color="#10b981" />
-          <StatCard label="Superseded" value={stats.superseded_estimates} color="#6b7280" />
-          <StatCard label="Excluded" value={stats.excluded_estimates} color="#ef4444" />
+          <StatCard label="Active" value={stats.active_estimates} valueColor="#10b981" />
+          <StatCard label="Superseded" value={stats.superseded_estimates} valueColor="#6b7280" />
+          <StatCard label="Excluded" value={stats.excluded_estimates} valueColor="#ef4444" />
         </div>
       )}
 
       {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: "1.5rem",
-          borderBottom: "1px solid var(--border-color)",
-          paddingBottom: "0.5rem",
-        }}
-      >
-        <TabButton active={activeTab === "sources"} onClick={() => setActiveTab("sources")}>
-          Source Confidence
-        </TabButton>
-        <TabButton active={activeTab === "supersession"} onClick={() => setActiveTab("supersession")}>
-          Supersession Tiers
-        </TabButton>
-        <TabButton active={activeTab === "precision"} onClick={() => setActiveTab("precision")}>
-          Count Precision
-        </TabButton>
-      </div>
+      <TabBar
+        tabs={[
+          { id: "sources", label: "Source Confidence" },
+          { id: "supersession", label: "Supersession Tiers" },
+          { id: "precision", label: "Count Precision" },
+        ]}
+        activeTab={activeTab}
+        onTabChange={(id) => setActiveTab(id as TabType)}
+      />
 
       {/* Source Confidence Tab */}
       {activeTab === "sources" && (
@@ -673,50 +665,3 @@ export default function ColonyEstimationPage() {
   );
 }
 
-// Helper components
-function StatCard({ label, value, color }: { label: string; value: number; color?: string }) {
-  return (
-    <div
-      style={{
-        background: "var(--section-bg)",
-        border: "1px solid var(--border-color)",
-        borderRadius: "8px",
-        padding: "1rem",
-        textAlign: "center",
-      }}
-    >
-      <div style={{ fontSize: "1.5rem", fontWeight: 600, color: color || "var(--foreground)" }}>
-        {value.toLocaleString()}
-      </div>
-      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{label}</div>
-    </div>
-  );
-}
-
-function TabButton({
-  children,
-  active,
-  onClick,
-}: {
-  children: React.ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "0.5rem 1rem",
-        border: "none",
-        background: active ? "var(--primary)" : "transparent",
-        color: active ? "#fff" : "var(--text-muted)",
-        borderRadius: "4px",
-        cursor: "pointer",
-        fontWeight: active ? 600 : 400,
-        fontSize: "0.9rem",
-      }}
-    >
-      {children}
-    </button>
-  );
-}

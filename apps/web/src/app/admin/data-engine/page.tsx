@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface OverallStats {
   total_decisions: number;
@@ -138,37 +139,37 @@ export default function DataEnginePage() {
       {/* Stats Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
         <StatCard
-          title="Total Decisions"
+          label="Total Decisions"
           value={overall?.total_decisions || 0}
           subtitle="All time"
         />
         <StatCard
-          title="Auto Matches"
+          label="Auto Matches"
           value={overall?.total_auto_matches || 0}
           subtitle={`${overall?.total_decisions ? Math.round((overall.total_auto_matches / overall.total_decisions) * 100) : 0}% of decisions`}
-          accent="#10b981"
+          accentColor="#10b981"
         />
         <StatCard
-          title="New Entities"
+          label="New Entities"
           value={overall?.total_new_entities || 0}
           subtitle="Created fresh"
-          accent="#3b82f6"
+          accentColor="#3b82f6"
         />
         <StatCard
-          title="Pending Reviews"
+          label="Pending Reviews"
           value={reviewQueue?.pending || 0}
           subtitle="Need human decision"
-          accent="#f59e0b"
+          accentColor="#f59e0b"
           href="/admin/data-engine/review"
         />
         <StatCard
-          title="Households"
+          label="Households"
           value={overall?.total_households || 0}
           subtitle={`${overall?.total_household_members || 0} members`}
           href="/admin/data-engine/households"
         />
         <StatCard
-          title="Avg Processing"
+          label="Avg Processing"
           value={`${overall?.avg_processing_ms || 0}ms`}
           subtitle="Per decision"
         />
@@ -332,43 +333,6 @@ export default function DataEnginePage() {
   );
 }
 
-function StatCard({
-  title,
-  value,
-  subtitle,
-  accent,
-  href,
-}: {
-  title: string;
-  value: string | number;
-  subtitle: string;
-  accent?: string;
-  href?: string;
-}) {
-  const content = (
-    <div
-      className="card"
-      style={{
-        padding: "1rem",
-        borderLeft: accent ? `4px solid ${accent}` : undefined,
-      }}
-    >
-      <div className="text-muted text-sm" style={{ marginBottom: "0.25rem" }}>{title}</div>
-      <div style={{ fontSize: "1.75rem", fontWeight: 700, lineHeight: 1 }}>{value}</div>
-      <div className="text-muted text-sm" style={{ marginTop: "0.25rem" }}>{subtitle}</div>
-    </div>
-  );
-
-  if (href) {
-    return (
-      <a href={href} style={{ textDecoration: "none", color: "inherit" }}>
-        {content}
-      </a>
-    );
-  }
-
-  return content;
-}
 
 function DecisionBadge({ type }: { type: string }) {
   const colors: Record<string, { bg: string; text: string }> = {

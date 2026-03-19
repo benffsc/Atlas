@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface AuthStats {
   total_staff: number;
@@ -216,17 +217,17 @@ export default function AdminAuthPage() {
           <StatCard
             label="With Password"
             value={stats.with_password}
-            color="var(--success-text)"
+            valueColor="var(--success-text)"
           />
           <StatCard
             label="Without Password"
             value={stats.without_password}
-            color={stats.without_password > 0 ? "var(--warning-text)" : "var(--muted)"}
+            valueColor={stats.without_password > 0 ? "var(--warning-text)" : "var(--muted)"}
           />
           <StatCard
             label="Change Required"
             value={stats.password_change_required}
-            color={stats.password_change_required > 0 ? "var(--info-text)" : "var(--muted)"}
+            valueColor={stats.password_change_required > 0 ? "var(--info-text)" : "var(--muted)"}
           />
           <StatCard label="Admins" value={stats.admins} />
           <StatCard label="Staff" value={stats.staff_role} />
@@ -364,38 +365,6 @@ export default function AdminAuthPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color?: string;
-}) {
-  return (
-    <div
-      style={{
-        padding: "16px",
-        background: "var(--card-bg)",
-        border: "1px solid var(--card-border)",
-        borderRadius: "8px",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "2rem",
-          fontWeight: 600,
-          color: color || "var(--foreground)",
-          marginBottom: "4px",
-        }}
-      >
-        {value}
-      </div>
-      <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{label}</div>
-    </div>
-  );
-}
 
 const thStyle: React.CSSProperties = {
   padding: "12px 16px",
