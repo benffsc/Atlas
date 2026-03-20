@@ -169,7 +169,10 @@ export default function TrapperSheetPage() {
   const permDenied = data.permission_status === "denied" || data.permission_status === "no";
   const permPending = data.permission_status === "pending";
 
-  const importantNotes = (data.important_notes || []).map(n => n.toLowerCase());
+  const importantNotes = [
+    ...(data.important_notes || []),
+    ...(data.urgency_reasons || []),
+  ].map(n => n.toLowerCase());
   const hasWithholdFood = importantNotes.some(n => n.includes("withhold"));
   const hasOtherFeeders = importantNotes.some(n => n.includes("other feeder"));
   const hasCrossPropLines = importantNotes.some(n => n.includes("cross") || n.includes("property line"));
