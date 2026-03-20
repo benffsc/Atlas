@@ -6,6 +6,7 @@ import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/common";
 import { postApi } from "@/lib/api-client";
+import { useGeoConfig } from "@/hooks/useGeoConfig";
 import {
   PersonSection,
   KittenAssessmentSection,
@@ -157,7 +158,11 @@ const INTAKE_KITTEN_BEHAVIOR_OPTIONS = toSelectOptions(KITTEN_BEHAVIOR_INTAKE_OP
 
 export default function NewIntakeEntryPage() {
   const router = useRouter();
-  const [form, setForm] = useState<IntakeFormData>(initialFormData);
+  const { defaultCounty } = useGeoConfig();
+  const [form, setForm] = useState<IntakeFormData>(() => ({
+    ...initialFormData,
+    county: defaultCounty || initialFormData.county,
+  }));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

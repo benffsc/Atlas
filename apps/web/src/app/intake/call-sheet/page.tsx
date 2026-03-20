@@ -7,6 +7,7 @@ import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { BackButton } from "@/components/common";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { COUNTY_OPTIONS } from "@/lib/form-options";
 
 /**
@@ -300,7 +301,11 @@ const pageHeader: React.CSSProperties = {
 // ─── Component ──────────────────────────────────────────────────
 export default function CallSheetEntryPage() {
   const router = useRouter();
-  const [form, setForm] = useState<CallSheetForm>(initialForm);
+  const { defaultCounty } = useGeoConfig();
+  const [form, setForm] = useState<CallSheetForm>(() => ({
+    ...initialForm,
+    county: defaultCounty || initialForm.county,
+  }));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS } from "@/lib/design-tokens";
 import { MB_LG, MB_XL, SECTION_DIVIDER } from "../styles";
 import {
@@ -59,6 +60,7 @@ const EMPTY_PERSON_VALUE: PersonSectionValue = {
 function NewRequestForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { defaultCounty } = useGeoConfig();
 
   // Entry Mode (phone intake, paper entry, quick complete)
   const [entryMode, setEntryMode] = useState<EntryMode>("phone");
@@ -135,8 +137,8 @@ function NewRequestForm() {
   // FFS-298: Requester relationship to location (non-third-party)
   const [requesterRole, setRequesterRole] = useState("resident");
 
-  // MIG_2532: Service area
-  const [county, setCounty] = useState("Sonoma");
+  // MIG_2532: Service area (FFS-685: default from config)
+  const [county, setCounty] = useState(defaultCounty || "Sonoma");
 
   // Kittens
   const [hasKittens, setHasKittens] = useState(false);
@@ -576,7 +578,7 @@ function NewRequestForm() {
         // third_party_relationship stores the site contact's role separately
         requester_role_at_submission: requesterRole,
         // MIG_2532: Service area
-        county: county || "Sonoma",
+        county: county || defaultCounty || "Sonoma",
         // Kittens
         has_kittens: hasKittens,
         kitten_count: hasKittens ? (kittenCount !== "" ? kittenCount : null) : null,
