@@ -78,10 +78,10 @@ export async function POST(request: NextRequest) {
       ? `${existingNotes}\n\n---\n${declineNote}`
       : declineNote;
 
-    // Update submission status to declined
+    // Update submission status to rejected
     const updated = await queryOne<{ submission_id: string }>(
       `UPDATE ops.intake_submissions
-       SET submission_status = 'declined',
+       SET submission_status = 'rejected',
            status = 'declined',
            review_notes = $2,
            updated_at = NOW()
