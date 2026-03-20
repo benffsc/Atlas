@@ -336,7 +336,9 @@ export const CAN_BRING_IN_OPTIONS = [
 export const KITTEN_OUTCOME_OPTIONS = [
   { value: "foster_intake", label: "Foster intake", shortLabel: "Foster intake" },
   { value: "ffr_candidate", label: "FFR candidate", shortLabel: "FFR candidate" },
+  { value: "tnr_candidate", label: "FFR candidate (unhandleable/older)", shortLabel: "FFR candidate" },
   { value: "pending_space", label: "Pending space", shortLabel: "Pending space" },
+  { value: "return_to_colony", label: "Return to colony", shortLabel: "Return to colony" },
   { value: "declined", label: "Declined", shortLabel: "Declined" },
 ] as const satisfies readonly FormOption[];
 
@@ -396,6 +398,7 @@ export const URGENT_SITUATION_LABEL = "This is an urgent situation";
 // =============================================================================
 
 export const PRIORITY_OPTIONS = [
+  { value: "urgent", label: "Urgent", shortLabel: "Urgent" },
   { value: "high", label: "High", shortLabel: "High" },
   { value: "normal", label: "Normal", shortLabel: "Normal" },
   { value: "low", label: "Low", shortLabel: "Low" },
@@ -474,6 +477,267 @@ export const TRAP_DAY_CHECKLIST_OPTIONS = [
   { value: "contact_notified", label: "Contact notified", shortLabel: "Contact notified" },
   { value: "clinic_confirmed", label: "Clinic confirmed", shortLabel: "Clinic confirmed" },
   { value: "equip_ready", label: "Equip ready", shortLabel: "Equip ready" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// CALL TYPE → OWNERSHIP MAPPING
+// =============================================================================
+
+// =============================================================================
+// KITTEN ASSESSMENT (staff detail page)
+// =============================================================================
+
+export const KITTEN_ASSESSMENT_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending Assessment", shortLabel: "Pending" },
+  { value: "assessed", label: "Assessed", shortLabel: "Assessed" },
+  { value: "follow_up", label: "Needs Follow-up", shortLabel: "Follow-up" },
+  { value: "not_assessing", label: "Not Assessing", shortLabel: "Not assessing" },
+  { value: "placed", label: "Placed in foster", shortLabel: "Placed" },
+] as const satisfies readonly FormOption[];
+
+export const NOT_ASSESSING_REASON_OPTIONS = [
+  { value: "older_kittens", label: "Older kittens (6+ months) - no capacity" },
+  { value: "no_foster_capacity", label: "No foster capacity currently" },
+  { value: "feral_unsuitable", label: "Feral/unsocialized - unsuitable for foster" },
+  { value: "health_concerns", label: "Health concerns preclude foster" },
+  { value: "owner_keeping", label: "Owner plans to keep" },
+  { value: "already_altered", label: "Already altered - no intervention needed" },
+  { value: "other", label: "Other (specify in notes)" },
+] as const satisfies readonly FormOption[];
+
+export const KITTEN_URGENCY_FACTOR_OPTIONS = [
+  { value: "very_young", label: "Very young (bottle babies)" },
+  { value: "medical_concern", label: "Medical concern" },
+  { value: "exposed_danger", label: "Exposed to danger" },
+  { value: "cold_weather", label: "Cold weather risk" },
+  { value: "hot_weather", label: "Hot weather risk" },
+  { value: "mom_missing", label: "Mom missing/dead" },
+  { value: "construction", label: "Construction/demolition" },
+  { value: "eviction", label: "Eviction/displacement" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// KITTEN AGE (coarse ranges for intake/assessment — different from granular KITTEN_AGE_OPTIONS)
+// =============================================================================
+
+export const KITTEN_AGE_COARSE_OPTIONS = [
+  { value: "under_4_weeks", label: "Under 4 weeks (bottle babies)", shortLabel: "Under 4 wks" },
+  { value: "4_8_weeks", label: "4-8 weeks (weaning)", shortLabel: "4-8 wks" },
+  { value: "8_12_weeks", label: "8-12 weeks (ideal foster)", shortLabel: "8-12 wks" },
+  { value: "12_16_weeks", label: "12-16 weeks (socialization critical)", shortLabel: "12-16 wks" },
+  { value: "over_16_weeks", label: "Over 16 weeks / 4+ months", shortLabel: "4+ months" },
+  { value: "mixed_ages", label: "Mixed ages", shortLabel: "Mixed" },
+  { value: "unknown", label: "Unknown / Not sure", shortLabel: "Unknown" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// KITTEN SOCIALIZATION (simplified for public intake)
+// =============================================================================
+
+export const KITTEN_SOCIALIZATION_OPTIONS = [
+  { value: "friendly", label: "Friendly - can be handled" },
+  { value: "shy_handleable", label: "Shy but handleable" },
+  { value: "unhandleable", label: "Shy/scared - hard to handle" },
+  { value: "unknown", label: "Unknown" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// SINGLE CAT FIXED STATUS (for single stray path)
+// =============================================================================
+
+export const SINGLE_CAT_FIXED_STATUS_OPTIONS = [
+  { value: "yes_eartip", label: "Yes (ear-tipped)" },
+  { value: "no", label: "No / Not fixed" },
+  { value: "unknown", label: "Don't know" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// COLONY HANDLEABILITY (simplified for colony path)
+// =============================================================================
+
+export const COLONY_HANDLEABILITY_OPTIONS = [
+  { value: "some_friendly", label: "Some are friendly (can be carried)" },
+  { value: "all_unhandleable", label: "All unhandleable (need traps)" },
+  { value: "unknown", label: "Unknown / varies" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// TIME OF DAY
+// =============================================================================
+
+export const TIME_OF_DAY_OPTIONS = [
+  { value: "morning", label: "Morning (6am-12pm)" },
+  { value: "afternoon", label: "Afternoon (12pm-5pm)" },
+  { value: "evening", label: "Evening (5pm-9pm)" },
+  { value: "night", label: "Night (9pm-6am)" },
+] as const satisfies readonly FormOption[];
+
+export const TIME_OF_DAY_DETAILED_OPTIONS = [
+  { value: "dawn", label: "Dawn (5-7am)" },
+  { value: "morning", label: "Morning (7am-12pm)" },
+  { value: "midday", label: "Midday (12-2pm)" },
+  { value: "afternoon", label: "Afternoon (2-5pm)" },
+  { value: "dusk", label: "Dusk (5-7pm)" },
+  { value: "evening", label: "Evening (7-9pm)" },
+  { value: "night", label: "Night (9pm-5am)" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// DEATH / MORTALITY
+// =============================================================================
+
+export const DEATH_CAUSE_OPTIONS = [
+  { value: "unknown", label: "Unknown" },
+  { value: "natural", label: "Natural causes (old age)" },
+  { value: "vehicle", label: "Hit by vehicle" },
+  { value: "predator", label: "Predator (dog, coyote, etc.)" },
+  { value: "disease", label: "Disease / Illness" },
+  { value: "euthanasia", label: "Euthanasia (humane)" },
+  { value: "injury", label: "Injury (non-vehicle trauma)" },
+  { value: "starvation", label: "Starvation / Malnutrition" },
+  { value: "weather", label: "Weather exposure (heat/cold)" },
+  { value: "other", label: "Other (specify in notes)" },
+] as const satisfies readonly FormOption[];
+
+export const DATE_PRECISION_OPTIONS = [
+  { value: "exact", label: "Exact date known" },
+  { value: "week", label: "Within a week" },
+  { value: "month", label: "Within a month" },
+  { value: "estimated", label: "Approximate / Estimated" },
+] as const satisfies readonly FormOption[];
+
+export const AGE_CATEGORY_OPTIONS = [
+  { value: "", label: "Unknown" },
+  { value: "kitten", label: "Kitten (under 6 months)" },
+  { value: "juvenile", label: "Juvenile (6-12 months)" },
+  { value: "young_adult", label: "Young adult (1-3 years)" },
+  { value: "adult", label: "Adult (3-7 years)" },
+  { value: "senior", label: "Senior (7+ years)" },
+] as const satisfies readonly FormOption[];
+
+/** Maps age category to approximate age in months (for mortality calculations) */
+export const AGE_CATEGORY_MONTHS: Record<string, number | null> = {
+  "": null,
+  kitten: 3,
+  juvenile: 9,
+  young_adult: 24,
+  adult: 60,
+  senior: 96,
+};
+
+// =============================================================================
+// REQUEST PURPOSE (staff call-sheet)
+// =============================================================================
+
+export const REQUEST_PURPOSE_OPTIONS = [
+  { value: "tnr", label: "Cats need spay/neuter" },
+  { value: "wellness", label: "Check on altered cats" },
+  { value: "relocation", label: "Trapping to move cats" },
+  { value: "rescue", label: "Emergency assistance" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// RESOLUTION
+// =============================================================================
+
+export const RESOLUTION_OUTCOME_OPTIONS = [
+  { value: "successful", label: "Successful" },
+  { value: "partial", label: "Partial" },
+  { value: "unable_to_complete", label: "Unable to Complete" },
+  { value: "no_longer_needed", label: "No Longer Needed" },
+  { value: "referred_out", label: "Referred Out" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// REDIRECT
+// =============================================================================
+
+export const REDIRECT_REASON_OPTIONS = [
+  { value: "different_address", label: "Cats are at a different address" },
+  { value: "different_contact", label: "Different person is responsible" },
+  { value: "location_changed", label: "Colony location changed" },
+  { value: "duplicate_area", label: "Duplicate - combine with existing request" },
+  { value: "property_access", label: "Cannot access original property" },
+  { value: "other", label: "Other reason" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// CONTACT / RELATIONSHIPS
+// =============================================================================
+
+export const THIRD_PARTY_RELATIONSHIP_OPTIONS = [
+  { value: "neighbor", label: "Neighbor" },
+  { value: "family_member", label: "Family member" },
+  { value: "concerned_citizen", label: "Concerned citizen" },
+  { value: "volunteer", label: "FFSC Volunteer" },
+  { value: "other", label: "Other" },
+] as const satisfies readonly FormOption[];
+
+export const REQUESTER_RELATIONSHIP_OPTIONS = [
+  { value: "resident", label: "I live here" },
+  { value: "property_owner", label: "I own this property" },
+  { value: "colony_caretaker", label: "Colony caretaker" },
+  { value: "neighbor", label: "Neighbor" },
+  { value: "concerned_citizen", label: "Concerned citizen" },
+  { value: "other", label: "Other" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// PROPERTY (simplified for public intake)
+// =============================================================================
+
+export const IS_PROPERTY_OWNER_SIMPLE_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "unsure", label: "Unsure" },
+] as const satisfies readonly FormOption[];
+
+export const HAS_PROPERTY_ACCESS_SIMPLE_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "unsure", label: "Unsure" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// REFERRAL (simplified for public intake — fewer options than REFERRAL_SOURCE_OPTIONS)
+// =============================================================================
+
+export const REFERRAL_SOURCE_SIMPLE_OPTIONS = [
+  { value: "search", label: "Online search" },
+  { value: "social", label: "Social media" },
+  { value: "friend", label: "Friend/family" },
+  { value: "shelter", label: "Animal shelter" },
+  { value: "vet", label: "Veterinarian" },
+  { value: "repeat", label: "Previous experience" },
+  { value: "other", label: "Other" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// FEEDING SITUATION (for colony intake path)
+// =============================================================================
+
+export const FEEDING_SITUATION_OPTIONS = [
+  { value: "caller_feeds_daily", label: "Caller feeds daily" },
+  { value: "caller_feeds_sometimes", label: "Caller feeds sometimes" },
+  { value: "someone_else_feeds", label: "Someone else feeds them" },
+  { value: "no_feeding", label: "No regular feeding" },
+  { value: "unknown", label: "Unknown" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// SITE VISIT ISSUES
+// =============================================================================
+
+export const SITE_VISIT_ISSUE_OPTIONS = [
+  { value: "no_access", label: "Could not access property" },
+  { value: "cat_hiding", label: "Cat(s) hiding" },
+  { value: "trap_shy", label: "Trap shy cat(s)" },
+  { value: "bad_weather", label: "Bad weather" },
+  { value: "equipment_issue", label: "Equipment issue" },
+  { value: "owner_absent", label: "Owner/contact not available" },
+  { value: "aggressive_cat", label: "Aggressive cat" },
+  { value: "cats_not_present", label: "No cats present" },
+  { value: "other", label: "Other issue" },
 ] as const satisfies readonly FormOption[];
 
 // =============================================================================

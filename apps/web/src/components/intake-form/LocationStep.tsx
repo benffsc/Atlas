@@ -1,6 +1,14 @@
 import { PlaceResolver } from "@/components/forms";
-import { COUNTY_OPTIONS } from "@/lib/form-options";
+import {
+  COUNTY_OPTIONS,
+  IS_PROPERTY_OWNER_SIMPLE_OPTIONS,
+  HAS_PROPERTY_ACCESS_SIMPLE_OPTIONS,
+  toSelectOptions,
+} from "@/lib/form-options";
 import type { LocationStepProps } from "./types";
+
+const IS_OWNER_RADIO = toSelectOptions(IS_PROPERTY_OWNER_SIMPLE_OPTIONS);
+const HAS_ACCESS_RADIO = toSelectOptions(HAS_PROPERTY_ACCESS_SIMPLE_OPTIONS);
 
 export default function LocationStep({
   formData,
@@ -220,16 +228,16 @@ export default function LocationStep({
         <div style={{ marginBottom: "1rem" }}>
           <label>Is caller the property owner?</label>
           <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-            {["yes", "no", "unsure"].map((v) => (
-              <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+            {IS_OWNER_RADIO.map((opt) => (
+              <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
                 <input
                   type="radio"
                   name="is_property_owner"
-                  value={v}
-                  checked={formData.is_property_owner === v}
+                  value={opt.value}
+                  checked={formData.is_property_owner === opt.value}
                   onChange={(e) => updateField("is_property_owner", e.target.value)}
                 />
-                {v.charAt(0).toUpperCase() + v.slice(1)}
+                {opt.label}
               </label>
             ))}
           </div>
@@ -237,16 +245,16 @@ export default function LocationStep({
         <div>
           <label>Do they have access to trap/catch the cats?</label>
           <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-            {["yes", "no", "unsure"].map((v) => (
-              <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+            {HAS_ACCESS_RADIO.map((opt) => (
+              <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
                 <input
                   type="radio"
                   name="has_property_access"
-                  value={v}
-                  checked={formData.has_property_access === v}
+                  value={opt.value}
+                  checked={formData.has_property_access === opt.value}
                   onChange={(e) => updateField("has_property_access", e.target.value)}
                 />
-                {v.charAt(0).toUpperCase() + v.slice(1)}
+                {opt.label}
               </label>
             ))}
           </div>

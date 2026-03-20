@@ -2,6 +2,13 @@
 
 import { AlterationStatsCard } from "@/components/cards";
 import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
+import {
+  KITTEN_ASSESSMENT_STATUS_OPTIONS,
+  NOT_ASSESSING_REASON_OPTIONS,
+  KITTEN_OUTCOME_OPTIONS,
+  KITTEN_READINESS_OPTIONS as FOSTER_READINESS_OPTIONS,
+  KITTEN_URGENCY_FACTOR_OPTIONS as URGENCY_FACTOR_OPTIONS,
+} from "@/lib/form-options";
 import type { RequestDetail } from "../types";
 
 interface KittenForm {
@@ -31,47 +38,7 @@ interface DetailsTabProps {
   onShowUpgradeWizard: () => void;
 }
 
-const KITTEN_ASSESSMENT_STATUS_OPTIONS = [
-  { value: "pending", label: "Pending Assessment" },
-  { value: "assessed", label: "Assessed" },
-  { value: "follow_up", label: "Needs Follow-up" },
-  { value: "not_assessing", label: "Not Assessing" },
-];
-
-const NOT_ASSESSING_REASON_OPTIONS = [
-  { value: "older_kittens", label: "Older kittens (6+ months) - no capacity" },
-  { value: "no_foster_capacity", label: "No foster capacity currently" },
-  { value: "feral_unsuitable", label: "Feral/unsocialized - unsuitable for foster" },
-  { value: "health_concerns", label: "Health concerns preclude foster" },
-  { value: "owner_keeping", label: "Owner plans to keep" },
-  { value: "already_altered", label: "Already altered - no intervention needed" },
-  { value: "other", label: "Other (specify in notes)" },
-];
-
-const KITTEN_OUTCOME_OPTIONS = [
-  { value: "foster_intake", label: "Foster Intake" },
-  { value: "tnr_candidate", label: "FFR Candidate (unhandleable/older)" },
-  { value: "pending_space", label: "Pending Foster Space" },
-  { value: "return_to_colony", label: "Return to Colony" },
-  { value: "declined", label: "Declined / Not Suitable" },
-];
-
-const FOSTER_READINESS_OPTIONS = [
-  { value: "high", label: "High - Ready for foster" },
-  { value: "medium", label: "Medium - Some concerns" },
-  { value: "low", label: "Low - Not ready / needs intervention" },
-];
-
-const URGENCY_FACTOR_OPTIONS = [
-  { value: "very_young", label: "Very young (bottle babies)" },
-  { value: "medical_concern", label: "Medical concern" },
-  { value: "exposed_danger", label: "Exposed to danger" },
-  { value: "cold_weather", label: "Cold weather risk" },
-  { value: "hot_weather", label: "Hot weather risk" },
-  { value: "mom_missing", label: "Mom missing/dead" },
-  { value: "construction", label: "Construction/demolition" },
-  { value: "eviction", label: "Eviction/displacement" },
-];
+// Options imported from @/lib/form-options (FFS-692)
 
 export function DetailsTab({
   request,

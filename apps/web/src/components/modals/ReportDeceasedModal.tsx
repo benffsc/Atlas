@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { postApi } from '@/lib/api-client';
+import {
+  DEATH_CAUSE_OPTIONS as DEATH_CAUSES,
+  DATE_PRECISION_OPTIONS as DATE_PRECISIONS,
+  AGE_CATEGORY_OPTIONS as AGE_CATEGORIES,
+  AGE_CATEGORY_MONTHS,
+} from '@/lib/form-options';
 
 interface ReportDeceasedModalProps {
   isOpen: boolean;
@@ -12,35 +18,6 @@ interface ReportDeceasedModalProps {
   // Optional: pre-populate from cat's linked places
   linkedPlaces?: Array<{ place_id: string; label: string }>;
 }
-
-const DEATH_CAUSES = [
-  { value: 'unknown', label: 'Unknown' },
-  { value: 'natural', label: 'Natural causes (old age)' },
-  { value: 'vehicle', label: 'Hit by vehicle' },
-  { value: 'predator', label: 'Predator (dog, coyote, etc.)' },
-  { value: 'disease', label: 'Disease / Illness' },
-  { value: 'euthanasia', label: 'Euthanasia (humane)' },
-  { value: 'injury', label: 'Injury (non-vehicle trauma)' },
-  { value: 'starvation', label: 'Starvation / Malnutrition' },
-  { value: 'weather', label: 'Weather exposure (heat/cold)' },
-  { value: 'other', label: 'Other (specify in notes)' },
-] as const;
-
-const DATE_PRECISIONS = [
-  { value: 'exact', label: 'Exact date known' },
-  { value: 'week', label: 'Within a week' },
-  { value: 'month', label: 'Within a month' },
-  { value: 'estimated', label: 'Approximate / Estimated' },
-] as const;
-
-const AGE_CATEGORIES = [
-  { value: '', label: 'Unknown', months: null },
-  { value: 'kitten', label: 'Kitten (under 6 months)', months: 3 },
-  { value: 'juvenile', label: 'Juvenile (6-12 months)', months: 9 },
-  { value: 'young_adult', label: 'Young adult (1-3 years)', months: 24 },
-  { value: 'adult', label: 'Adult (3-7 years)', months: 60 },
-  { value: 'senior', label: 'Senior (7+ years)', months: 96 },
-] as const;
 
 export default function ReportDeceasedModal({
   isOpen,
@@ -83,8 +60,7 @@ export default function ReportDeceasedModal({
 
     try {
       // Find estimated age in months from category
-      const ageCat = AGE_CATEGORIES.find(a => a.value === ageCategory);
-      const estimatedAgeMonths = ageCat?.months ?? null;
+      const estimatedAgeMonths = AGE_CATEGORY_MONTHS[ageCategory] ?? null;
 
       await postApi(`/api/cats/${catId}/mortality`, {
         death_date: deathDate || null,

@@ -20,6 +20,8 @@ import {
   URGENCY_REASON_OPTIONS,
   TRIAGE_CATEGORY_OPTIONS,
   COUNT_CONFIDENCE_OPTIONS,
+  PRIORITY_OPTIONS,
+  RESOLUTION_OUTCOME_OPTIONS,
 } from "@/lib/form-options";
 
 /**
@@ -44,12 +46,7 @@ export const REQUEST_SECTIONS: RequestSectionConfig[] = [
         key: "priority",
         label: "Priority",
         type: "select",
-        options: [
-          { value: "urgent", label: "Urgent" },
-          { value: "high", label: "High" },
-          { value: "normal", label: "Normal" },
-          { value: "low", label: "Low" },
-        ],
+        options: PRIORITY_OPTIONS,
       },
       {
         key: "triage_category",
@@ -431,13 +428,7 @@ export const REQUEST_SECTIONS: RequestSectionConfig[] = [
         key: "resolution_outcome",
         label: "Outcome",
         type: "select",
-        options: [
-          { value: "successful", label: "Successful" },
-          { value: "partial", label: "Partial" },
-          { value: "unable_to_complete", label: "Unable to Complete" },
-          { value: "no_longer_needed", label: "No Longer Needed" },
-          { value: "referred_out", label: "Referred Out" },
-        ],
+        options: RESOLUTION_OUTCOME_OPTIONS,
       },
       {
         key: "resolution_reason",

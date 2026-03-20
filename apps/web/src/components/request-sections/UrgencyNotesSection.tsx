@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { URGENCY_REASON_OPTIONS } from "@/lib/form-options";
+import { URGENCY_REASON_OPTIONS, PRIORITY_OPTIONS } from "@/lib/form-options";
 
 // --- Types ---
 
@@ -24,13 +24,6 @@ export interface UrgencyNotesSectionProps {
 }
 
 // --- Constants ---
-
-const PRIORITY_OPTIONS = [
-  { value: "low", label: "Low" },
-  { value: "normal", label: "Normal" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
-];
 
 export const EMPTY_URGENCY_NOTES: UrgencyNotesValue = {
   priority: "normal",

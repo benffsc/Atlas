@@ -17,14 +17,11 @@ interface RedirectRequestModalProps {
   onSuccess?: (newRequestId: string) => void;
 }
 
-const REDIRECT_REASONS = [
-  { value: "different_address", label: "Cats are at a different address" },
-  { value: "different_contact", label: "Different person is responsible" },
-  { value: "location_changed", label: "Colony location changed" },
-  { value: "duplicate_area", label: "Duplicate - combine with existing request" },
-  { value: "property_access", label: "Cannot access original property" },
-  { value: "other", label: "Other reason" },
-];
+import {
+  REDIRECT_REASON_OPTIONS as REDIRECT_REASONS,
+  KITTEN_ASSESSMENT_STATUS_OPTIONS,
+  KITTEN_OUTCOME_OPTIONS,
+} from "@/lib/form-options";
 
 export function RedirectRequestModal({
   isOpen,
@@ -538,10 +535,9 @@ export function RedirectRequestModal({
                     }}
                   >
                     <option value="">Not assessed</option>
-                    <option value="not_needed">Assessment not needed</option>
-                    <option value="pending">Pending</option>
-                    <option value="assessed">Assessed</option>
-                    <option value="placed">Placed in foster</option>
+                    {KITTEN_ASSESSMENT_STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
                 {kittenAssessmentStatus === "not_needed" && (
@@ -592,10 +588,9 @@ export function RedirectRequestModal({
                     }}
                   >
                     <option value="">Not decided</option>
-                    <option value="tnr_candidate">TNR candidate (8+ weeks)</option>
-                    <option value="foster_intake">Foster intake</option>
-                    <option value="pending_space">Pending foster space</option>
-                    <option value="declined">Declined</option>
+                    {KITTEN_OUTCOME_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>

@@ -1,6 +1,14 @@
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
+import {
+  THIRD_PARTY_RELATIONSHIP_OPTIONS,
+  REQUESTER_RELATIONSHIP_OPTIONS,
+  toSelectOptions,
+} from "@/lib/form-options";
 import type { ContactStepProps } from "./types";
+
+const THIRD_PARTY_SELECT = toSelectOptions(THIRD_PARTY_RELATIONSHIP_OPTIONS);
+const REQUESTER_SELECT = toSelectOptions(REQUESTER_RELATIONSHIP_OPTIONS);
 
 export default function ContactStep({
   formData,
@@ -54,11 +62,9 @@ export default function ContactStep({
                 onChange={(e) => updateField("third_party_relationship", e.target.value)}
               >
                 <option value="">Select...</option>
-                <option value="neighbor">Neighbor</option>
-                <option value="family_member">Family member</option>
-                <option value="concerned_citizen">Concerned citizen</option>
-                <option value="volunteer">FFSC Volunteer</option>
-                <option value="other">Other</option>
+                {THIRD_PARTY_SELECT.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
             <p style={{ fontSize: "0.85rem", marginBottom: "0.5rem" }}><strong>Property owner (if known):</strong></p>
@@ -91,12 +97,9 @@ export default function ContactStep({
             onChange={(e) => updateField("requester_relationship", e.target.value)}
             style={{ width: "100%", maxWidth: "300px" }}
           >
-            <option value="resident">I live here</option>
-            <option value="property_owner">I own this property</option>
-            <option value="colony_caretaker">Colony caretaker</option>
-            <option value="neighbor">Neighbor</option>
-            <option value="concerned_citizen">Concerned citizen</option>
-            <option value="other">Other</option>
+            {REQUESTER_SELECT.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
           </select>
         </div>
       )}

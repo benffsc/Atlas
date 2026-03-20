@@ -1,372 +1,99 @@
 /**
- * Standardized intake form options
+ * Intake Options — Re-export layer
  *
- * These values are used across:
- * - Digital intake form (/intake/page.tsx)
- * - Quick intake form (/intake/queue/new/page.tsx)
- * - Print forms (/intake/print/*)
- * - Jotform (update manually to match)
+ * This file re-exports from the canonical form-options.ts registry.
+ * Preserved for backward compatibility with:
+ *   - Digital intake form (/intake/page.tsx)
+ *   - Quick intake form (/intake/queue/new/page.tsx)
+ *   - Print forms (/intake/print/*) — PROTECTED, Jami's daily workflow
+ *   - Jotform (update manually to match)
  *
- * When changing wording here, also update Jotform to match.
+ * FFS-692: Converted from standalone definitions to re-exports.
+ * @see form-options.ts for the single source of truth.
  */
 
+import {
+  CALL_TYPE_OPTIONS as _CALL_TYPE_OPTIONS,
+  OWNERSHIP_OPTIONS as _OWNERSHIP_OPTIONS,
+  FIXED_STATUS_OPTIONS as _FIXED_STATUS_OPTIONS,
+  HANDLEABILITY_OPTIONS as _HANDLEABILITY_OPTIONS,
+  AWARENESS_DURATION_OPTIONS as _AWARENESS_DURATION_OPTIONS,
+  FEEDING_FREQUENCY_OPTIONS as _FEEDING_FREQUENCY_OPTIONS,
+  FEEDING_DURATION_OPTIONS as _FEEDING_DURATION_OPTIONS,
+  CAT_INSIDE_OPTIONS as _CAT_INSIDE_OPTIONS,
+  KITTEN_AGE_OPTIONS as _KITTEN_AGE_OPTIONS,
+  KITTEN_BEHAVIOR_OPTIONS as _KITTEN_BEHAVIOR_OPTIONS,
+  MOM_PRESENT_OPTIONS as _MOM_PRESENT_OPTIONS,
+  MOM_FIXED_OPTIONS as _MOM_FIXED_OPTIONS,
+  COUNT_CONFIDENCE_OPTIONS as _COUNT_CONFIDENCE_OPTIONS,
+  COLONY_DURATION_OPTIONS as _COLONY_DURATION_OPTIONS,
+  REFERRAL_SOURCE_OPTIONS as _REFERRAL_SOURCE_OPTIONS,
+  URGENT_SITUATION_EXAMPLES as _URGENT_SITUATION_EXAMPLES,
+  URGENT_SITUATION_LABEL as _URGENT_SITUATION_LABEL,
+  IMPORTANT_NOTE_OPTIONS as _IMPORTANT_NOTE_OPTIONS,
+  URGENCY_REASON_OPTIONS as _URGENCY_REASON_OPTIONS,
+  getLabel,
+} from "./form-options";
+
 // =============================================================================
-// CALL TYPE - What kind of help does the caller need?
+// RE-EXPORTS (values from canonical form-options.ts)
 // =============================================================================
-export const CALL_TYPE_OPTIONS = [
-  {
-    value: "pet_spay_neuter",
-    label: "Pet Spay/Neuter",
-    desc: "Caller's own cat needs to be fixed",
-  },
-  {
-    value: "wellness_check",
-    label: "Wellness / Already Fixed",
-    desc: "Cat is already fixed, needs medical attention",
-  },
-  {
-    value: "single_stray",
-    label: "Single Stray or Newcomer",
-    desc: "One unfamiliar cat showed up recently",
-  },
-  {
-    value: "colony_tnr",
-    label: "Colony / FFR Request",
-    desc: "Multiple outdoor cats needing FFR",
-  },
-  {
-    value: "kitten_rescue",
-    label: "Kitten Situation",
-    desc: "Kittens found, may need foster",
-  },
-  {
-    value: "medical_concern",
-    label: "Medical Concern / Injured",
-    desc: "Cat appears injured or sick",
-  },
-] as const;
+
+export const CALL_TYPE_OPTIONS = _CALL_TYPE_OPTIONS;
+export const OWNERSHIP_OPTIONS = _OWNERSHIP_OPTIONS;
+export const FIXED_STATUS_OPTIONS = _FIXED_STATUS_OPTIONS;
+export const HANDLEABILITY_OPTIONS = _HANDLEABILITY_OPTIONS;
+export const AWARENESS_DURATION_OPTIONS = _AWARENESS_DURATION_OPTIONS;
+export const FEEDING_FREQUENCY_OPTIONS = _FEEDING_FREQUENCY_OPTIONS;
+export const FEEDING_DURATION_OPTIONS = _FEEDING_DURATION_OPTIONS;
+export const CAT_INSIDE_OPTIONS = _CAT_INSIDE_OPTIONS;
+export const KITTEN_AGE_OPTIONS = _KITTEN_AGE_OPTIONS;
+export const KITTEN_BEHAVIOR_OPTIONS = _KITTEN_BEHAVIOR_OPTIONS;
+export const MOM_PRESENT_OPTIONS = _MOM_PRESENT_OPTIONS;
+export const MOM_FIXED_OPTIONS = _MOM_FIXED_OPTIONS;
+export const COUNT_CONFIDENCE_OPTIONS = _COUNT_CONFIDENCE_OPTIONS;
+export const COLONY_DURATION_OPTIONS = _COLONY_DURATION_OPTIONS;
+export const REFERRAL_SOURCE_OPTIONS = _REFERRAL_SOURCE_OPTIONS;
+export const URGENT_SITUATION_EXAMPLES = _URGENT_SITUATION_EXAMPLES;
+export const URGENT_SITUATION_LABEL = _URGENT_SITUATION_LABEL;
+export const IMPORTANT_NOTE_OPTIONS = _IMPORTANT_NOTE_OPTIONS;
+export const URGENCY_REASON_OPTIONS = _URGENCY_REASON_OPTIONS;
+
+// =============================================================================
+// DERIVED TYPES (preserved for backward compatibility)
+// =============================================================================
 
 export type CallType = (typeof CALL_TYPE_OPTIONS)[number]["value"];
-
-// =============================================================================
-// OWNERSHIP STATUS - What is the caller's relationship to the cat?
-// =============================================================================
-export const OWNERSHIP_OPTIONS = [
-  {
-    value: "unknown_stray",
-    label: "Stray cat (no apparent owner)",
-    shortLabel: "Stray (no owner)",
-  },
-  {
-    value: "community_colony",
-    label: "Community cat I/someone feeds",
-    shortLabel: "Outdoor cat I/someone feeds",
-  },
-  {
-    value: "newcomer",
-    label: "Newcomer (just showed up recently)",
-    shortLabel: "Newcomer (just appeared)",
-  },
-  {
-    value: "neighbors_cat",
-    label: "Neighbor's cat",
-    shortLabel: "Neighbor's cat",
-  },
-  {
-    value: "my_cat",
-    label: "My own pet",
-    shortLabel: "My pet",
-  },
-] as const;
-
 export type OwnershipStatus = (typeof OWNERSHIP_OPTIONS)[number]["value"];
-
-// Helper to get label from value
-export function getOwnershipLabel(value: string): string {
-  return OWNERSHIP_OPTIONS.find((o) => o.value === value)?.label || value;
-}
-
-// =============================================================================
-// FIXED STATUS - How many cats appear to be fixed?
-// =============================================================================
-export const FIXED_STATUS_OPTIONS = [
-  {
-    value: "none_fixed",
-    label: "None appear fixed",
-    shortLabel: "None fixed",
-  },
-  {
-    value: "some_fixed",
-    label: "Some are fixed (ear-tipped)",
-    shortLabel: "Some fixed",
-  },
-  {
-    value: "most_fixed",
-    label: "Most or all are fixed",
-    shortLabel: "Most/all fixed",
-  },
-  {
-    value: "unknown",
-    label: "Unknown / Can't tell",
-    shortLabel: "Unknown",
-  },
-] as const;
-
 export type FixedStatus = (typeof FIXED_STATUS_OPTIONS)[number]["value"];
-
-export function getFixedStatusLabel(value: string): string {
-  return FIXED_STATUS_OPTIONS.find((o) => o.value === value)?.label || value;
-}
-
-// =============================================================================
-// HANDLEABILITY - Can the caller handle the cat?
-// =============================================================================
-export const HANDLEABILITY_OPTIONS = [
-  {
-    value: "friendly_carrier",
-    label: "Friendly - can use a carrier",
-    desc: "Cat can be picked up or put in a carrier by caller",
-  },
-  {
-    value: "shy_handleable",
-    label: "Shy but handleable",
-    desc: "Nervous but can be approached and contained with patience",
-  },
-  {
-    value: "unhandleable_trap",
-    label: "Unhandleable - will need trap",
-    desc: "Cannot be touched, runs away, will require humane trap",
-  },
-] as const;
-
 export type Handleability = (typeof HANDLEABILITY_OPTIONS)[number]["value"];
-
-// =============================================================================
-// AWARENESS DURATION - How long has caller known about the cats?
-// =============================================================================
-export const AWARENESS_DURATION_OPTIONS = [
-  { value: "days", label: "Days" },
-  { value: "weeks", label: "Weeks" },
-  { value: "months", label: "Months" },
-  { value: "years", label: "Years" },
-] as const;
-
-// =============================================================================
-// FEEDING FREQUENCY - How often does caller feed the cats?
-// =============================================================================
-export const FEEDING_FREQUENCY_OPTIONS = [
-  { value: "daily", label: "Daily" },
-  { value: "few_times_week", label: "A few times a week" },
-  { value: "occasionally", label: "Occasionally" },
-  { value: "rarely", label: "Rarely / Not at all" },
-] as const;
-
-// =============================================================================
-// FEEDING DURATION - How long has caller been feeding?
-// =============================================================================
-export const FEEDING_DURATION_OPTIONS = [
-  { value: "just_started", label: "Just started (days)" },
-  { value: "few_weeks", label: "A few weeks" },
-  { value: "few_months", label: "A few months" },
-  { value: "over_year", label: "Over a year" },
-] as const;
-
-// =============================================================================
-// CAT COMES INSIDE - Does the cat come inside?
-// =============================================================================
-export const CAT_INSIDE_OPTIONS = [
-  { value: "yes_regularly", label: "Yes, regularly" },
-  { value: "sometimes", label: "Sometimes" },
-  { value: "never", label: "Never / Outdoor only" },
-] as const;
-
-// =============================================================================
-// KITTEN AGE ESTIMATE
-// =============================================================================
-export const KITTEN_AGE_OPTIONS = [
-  { value: "newborn", label: "Newborn (eyes closed)" },
-  { value: "2_3_weeks", label: "2-3 weeks (eyes open, wobbly)" },
-  { value: "4_5_weeks", label: "4-5 weeks (walking, playing)" },
-  { value: "6_8_weeks", label: "6-8 weeks (weaning age)" },
-  { value: "8_12_weeks", label: "8-12 weeks (ready for adoption)" },
-  { value: "over_12_weeks", label: "Over 12 weeks" },
-  { value: "mixed_ages", label: "Mixed ages" },
-  { value: "unknown", label: "Unknown / Not sure" },
-] as const;
-
-// =============================================================================
-// KITTEN BEHAVIOR
-// =============================================================================
-export const KITTEN_BEHAVIOR_OPTIONS = [
-  { value: "friendly", label: "Friendly - approaches people" },
-  { value: "shy", label: "Shy - hides but can be approached" },
-  { value: "feral", label: "Feral - hisses, runs away" },
-  { value: "mixed", label: "Mixed behaviors" },
-  { value: "unknown", label: "Unknown" },
-] as const;
-
-// =============================================================================
-// MOM CAT STATUS
-// =============================================================================
-export const MOM_PRESENT_OPTIONS = [
-  { value: "yes_present", label: "Yes, mom is present" },
-  { value: "comes_goes", label: "Comes and goes" },
-  { value: "not_seen", label: "Haven't seen mom" },
-  { value: "unknown", label: "Unknown" },
-] as const;
-
-export const MOM_FIXED_OPTIONS = [
-  { value: "yes", label: "Yes (ear-tipped)" },
-  { value: "no", label: "No / Don't think so" },
-  { value: "unknown", label: "Unknown" },
-] as const;
-
-// =============================================================================
-// COUNT CONFIDENCE - Is the cat count exact or an estimate? (MIG_534)
-// Critical for classification - exact counts suggest individual_cats
-// =============================================================================
-export const COUNT_CONFIDENCE_OPTIONS = [
-  {
-    value: "exact",
-    label: "Exact count - I've counted specific cats",
-    desc: "Caller knows exactly how many cats there are",
-  },
-  {
-    value: "good_estimate",
-    label: "Good estimate - pretty sure about the number",
-    desc: "Caller has a reliable estimate based on regular observation",
-  },
-  {
-    value: "rough_guess",
-    label: "Rough guess - could be more or fewer",
-    desc: "Caller is uncertain, number could vary significantly",
-  },
-  {
-    value: "unknown",
-    label: "Unknown - hard to count",
-    desc: "Caller can't estimate with any confidence",
-  },
-] as const;
-
 export type CountConfidence = (typeof COUNT_CONFIDENCE_OPTIONS)[number]["value"];
-
-export function getCountConfidenceLabel(value: string): string {
-  return COUNT_CONFIDENCE_OPTIONS.find((o) => o.value === value)?.label || value;
-}
-
-// =============================================================================
-// COLONY DURATION - How long have cats been at this location?
-// Critical for classification - established sites suggest colony
-// =============================================================================
-export const COLONY_DURATION_OPTIONS = [
-  {
-    value: "under_1_month",
-    label: "Less than a month",
-    desc: "New situation, cats recently appeared",
-  },
-  {
-    value: "1_to_6_months",
-    label: "1-6 months",
-    desc: "Relatively recent, cats have been around a while",
-  },
-  {
-    value: "6_to_24_months",
-    label: "6 months to 2 years",
-    desc: "Established situation",
-  },
-  {
-    value: "over_2_years",
-    label: "Over 2 years",
-    desc: "Long-established colony or ongoing situation",
-  },
-  {
-    value: "unknown",
-    label: "Unknown / Not sure",
-    desc: "Caller doesn't know how long cats have been there",
-  },
-] as const;
-
 export type ColonyDuration = (typeof COLONY_DURATION_OPTIONS)[number]["value"];
-
-export function getColonyDurationLabel(value: string): string {
-  return COLONY_DURATION_OPTIONS.find((o) => o.value === value)?.label || value;
-}
-
-// =============================================================================
-// REFERRAL SOURCES - How did caller hear about FFSC?
-// =============================================================================
-export const REFERRAL_SOURCE_OPTIONS = [
-  { value: "website", label: "FFSC Website" },
-  { value: "google", label: "Google search" },
-  { value: "facebook", label: "Facebook" },
-  { value: "nextdoor", label: "Nextdoor" },
-  { value: "friend_family", label: "Friend or family" },
-  { value: "vet", label: "Veterinarian" },
-  { value: "shelter", label: "Shelter / Animal services" },
-  { value: "repeat_caller", label: "Have called before" },
-  { value: "other", label: "Other" },
-] as const;
-
-// =============================================================================
-// URGENT SITUATION DEFINITION
-// This text should be consistent across all forms and print materials.
-// =============================================================================
-export const URGENT_SITUATION_EXAMPLES =
-  "pregnant female, cat safety at risk, stray cat needs non-immediate medical attention";
-
-export const URGENT_SITUATION_LABEL = "This is an urgent situation";
-
-// =============================================================================
-// IMPORTANT NOTES - Trapping logistics checkboxes (call sheet + request form)
-// =============================================================================
-export const IMPORTANT_NOTE_OPTIONS = [
-  { value: "withhold_food_24hr", label: "Withhold food 24hr before" },
-  { value: "other_feeders", label: "Other feeders in area" },
-  { value: "cats_cross_property", label: "Cats cross property lines" },
-  { value: "pregnant_cat", label: "Pregnant cat suspected" },
-  { value: "injured_sick_priority", label: "Injured/sick cat priority" },
-  { value: "caller_can_help_trap", label: "Caller can help trap" },
-  { value: "wildlife_concerns", label: "Wildlife concerns (raccoons etc.)" },
-  { value: "neighbor_issues", label: "Neighbor issues / complaints" },
-  { value: "urgent_time_sensitive", label: "Urgent / time-sensitive" },
-] as const;
-
 export type ImportantNote = (typeof IMPORTANT_NOTE_OPTIONS)[number]["value"];
-
-// =============================================================================
-// URGENCY REASONS - Why this request is urgent (call sheet + request form)
-// =============================================================================
-export const URGENCY_REASON_OPTIONS = [
-  { value: "kittens", label: "Young kittens present" },
-  { value: "sick_injured", label: "Sick or injured cat(s)" },
-  { value: "threat", label: "Cats at risk (neighbor threat, etc.)" },
-  { value: "poison", label: "Poison risk" },
-  { value: "eviction", label: "Eviction/property issue" },
-  { value: "moving", label: "Requester moving soon" },
-  { value: "pregnant", label: "Pregnant cat(s)" },
-  { value: "weather", label: "Weather concerns" },
-] as const;
-
 export type UrgencyReason = (typeof URGENCY_REASON_OPTIONS)[number]["value"];
 
 // =============================================================================
-// HELPER: Map call type to default ownership status
+// LABEL HELPERS (thin wrappers around canonical getLabel)
 // =============================================================================
-export function callTypeToOwnership(callType: string): OwnershipStatus {
-  switch (callType) {
-    case "pet_spay_neuter":
-      return "my_cat";
-    case "colony_tnr":
-      return "community_colony";
-    case "single_stray":
-      return "unknown_stray";
-    case "kitten_rescue":
-      return "unknown_stray";
-    case "medical_concern":
-      return "unknown_stray";
-    case "wellness_check":
-      return "my_cat";
-    default:
-      return "unknown_stray";
-  }
+
+export function getOwnershipLabel(value: string): string {
+  return getLabel(OWNERSHIP_OPTIONS, value);
 }
+
+export function getFixedStatusLabel(value: string): string {
+  return getLabel(FIXED_STATUS_OPTIONS, value);
+}
+
+export function getCountConfidenceLabel(value: string): string {
+  return getLabel(COUNT_CONFIDENCE_OPTIONS, value);
+}
+
+export function getColonyDurationLabel(value: string): string {
+  return getLabel(COLONY_DURATION_OPTIONS, value);
+}
+
+// =============================================================================
+// LEGACY HELPER (preserved for backward compatibility)
+// =============================================================================
+
+export { callTypeToOwnership } from "./form-options";

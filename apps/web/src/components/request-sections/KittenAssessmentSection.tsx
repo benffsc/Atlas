@@ -1,6 +1,14 @@
 "use client";
 
 import { useCallback } from "react";
+import {
+  KITTEN_AGE_COARSE_OPTIONS,
+  KITTEN_BEHAVIOR_INTAKE_OPTIONS,
+  MOM_PRESENT_OPTIONS,
+  MOM_FIXED_OPTIONS,
+  CAN_BRING_IN_OPTIONS,
+  toSelectOptions,
+} from "@/lib/form-options";
 
 // --- Types ---
 
@@ -28,37 +36,17 @@ export interface KittenAssessmentSectionProps {
   compact?: boolean;
 }
 
-// --- Constants ---
+// --- Constants (derived from canonical form-options.ts) ---
 
 const AGE_ESTIMATE_OPTIONS = [
   { value: "", label: "Select age range..." },
-  { value: "under_4_weeks", label: "Under 4 weeks (bottle babies)" },
-  { value: "4_8_weeks", label: "4-8 weeks (weaning)" },
-  { value: "8_12_weeks", label: "8-12 weeks (ideal foster)" },
-  { value: "12_16_weeks", label: "12-16 weeks (socialization critical)" },
-  { value: "over_16_weeks", label: "Over 16 weeks / 4+ months" },
-  { value: "mixed", label: "Mixed ages" },
+  ...toSelectOptions(KITTEN_AGE_COARSE_OPTIONS),
 ];
 
-const BEHAVIOR_OPTIONS = [
-  {
-    value: "friendly_handleable",
-    label: "Friendly - can be handled, approaches people",
-  },
-  {
-    value: "shy_can_pick_up",
-    label: "Shy but handleable - scared but can be picked up",
-  },
-  {
-    value: "shy_hissy_young",
-    label: "Shy/hissy (young) - may be socializable",
-  },
-  {
-    value: "unhandleable_older",
-    label: "Unhandleable (older) - very scared, hard to handle",
-  },
-  { value: "unknown", label: "Unknown - haven't been able to assess" },
-];
+const BEHAVIOR_OPTIONS = toSelectOptions(KITTEN_BEHAVIOR_INTAKE_OPTIONS);
+const MOM_PRESENT_RADIO = toSelectOptions(MOM_PRESENT_OPTIONS);
+const MOM_FIXED_RADIO = toSelectOptions(MOM_FIXED_OPTIONS);
+const CAN_BRING_IN_RADIO = toSelectOptions(CAN_BRING_IN_OPTIONS);
 
 export const EMPTY_KITTEN_ASSESSMENT: KittenAssessmentValue = {
   hasKittens: false,
@@ -298,42 +286,34 @@ export function KittenAssessmentSection({
             <div>
               <label style={labelStyle}>Mom cat present?</label>
               <div style={radioGroupStyle}>
-                {[
-                  { v: "yes", l: "Yes" },
-                  { v: "no", l: "No" },
-                  { v: "unsure", l: "Unsure" },
-                ].map((opt) => (
-                  <label key={opt.v} style={radioLabelStyle}>
+                {MOM_PRESENT_RADIO.map((opt) => (
+                  <label key={opt.value} style={radioLabelStyle}>
                     <input
                       type="radio"
                       name="momPresent"
-                      checked={value.momPresent === opt.v}
-                      onChange={() => update({ momPresent: opt.v })}
+                      checked={value.momPresent === opt.value}
+                      onChange={() => update({ momPresent: opt.value })}
                     />
-                    {opt.l}
+                    {opt.label}
                   </label>
                 ))}
               </div>
             </div>
 
             {/* Mom fixed — only when mom present */}
-            {value.momPresent === "yes" && (
+            {(value.momPresent === "yes_present" || value.momPresent === "yes" || value.momPresent === "comes_goes") && (
               <div>
                 <label style={labelStyle}>Mom fixed (ear-tipped)?</label>
                 <div style={radioGroupStyle}>
-                  {[
-                    { v: "yes", l: "Yes" },
-                    { v: "no", l: "No" },
-                    { v: "unsure", l: "Unsure" },
-                  ].map((opt) => (
-                    <label key={opt.v} style={radioLabelStyle}>
+                  {MOM_FIXED_RADIO.map((opt) => (
+                    <label key={opt.value} style={radioLabelStyle}>
                       <input
                         type="radio"
                         name="momFixed"
-                        checked={value.momFixed === opt.v}
-                        onChange={() => update({ momFixed: opt.v })}
+                        checked={value.momFixed === opt.value}
+                        onChange={() => update({ momFixed: opt.value })}
                       />
-                      {opt.l}
+                      {opt.label}
                     </label>
                   ))}
                 </div>
@@ -344,19 +324,15 @@ export function KittenAssessmentSection({
             <div>
               <label style={labelStyle}>Can bring them in?</label>
               <div style={radioGroupStyle}>
-                {[
-                  { v: "yes", l: "Yes" },
-                  { v: "need_help", l: "Need help" },
-                  { v: "no", l: "No" },
-                ].map((opt) => (
-                  <label key={opt.v} style={radioLabelStyle}>
+                {CAN_BRING_IN_RADIO.map((opt) => (
+                  <label key={opt.value} style={radioLabelStyle}>
                     <input
                       type="radio"
                       name="canBringIn"
-                      checked={value.canBringIn === opt.v}
-                      onChange={() => update({ canBringIn: opt.v })}
+                      checked={value.canBringIn === opt.value}
+                      onChange={() => update({ canBringIn: opt.value })}
                     />
-                    {opt.l}
+                    {opt.label}
                   </label>
                 ))}
               </div>

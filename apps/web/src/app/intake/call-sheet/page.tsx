@@ -197,9 +197,14 @@ const initialForm: CallSheetForm = {
   reviewed_by: "",
 };
 
-// IMPORTANT_NOTE_OPTIONS and URGENCY_REASON_OPTIONS imported from @/lib/intake-options
+import {
+  PROPERTY_TYPE_OPTIONS as _PROPERTY_TYPE_OPTIONS,
+  TRIAGE_CATEGORY_OPTIONS,
+  toSelectOptions,
+} from "@/lib/form-options";
 
-const PROPERTY_TYPE_OPTIONS = ["house", "apartment", "business", "rural", "other"];
+const PROPERTY_TYPE_RADIO = toSelectOptions(_PROPERTY_TYPE_OPTIONS);
+const TRIAGE_SELECT = toSelectOptions(TRIAGE_CATEGORY_OPTIONS);
 
 // ─── Person Search ──────────────────────────────────────────────
 interface PersonSuggestion {
@@ -674,10 +679,10 @@ export default function CallSheetEntryPage() {
             <div style={{ marginTop: "10px" }}>
               <label style={fieldLabel}>Property Type</label>
               <div style={radioGroup}>
-                {PROPERTY_TYPE_OPTIONS.map(pt => (
-                  <label key={pt} style={radioLabel}>
-                    <input type="radio" name="property_type" value={pt} checked={form.property_type === pt} onChange={() => updateForm({ property_type: pt })} />
-                    {pt.charAt(0).toUpperCase() + pt.slice(1)}
+                {PROPERTY_TYPE_RADIO.map(opt => (
+                  <label key={opt.value} style={radioLabel}>
+                    <input type="radio" name="property_type" value={opt.value} checked={form.property_type === opt.value} onChange={() => updateForm({ property_type: opt.value })} />
+                    {opt.label}
                   </label>
                 ))}
               </div>
@@ -998,12 +1003,9 @@ export default function CallSheetEntryPage() {
                 <label style={fieldLabel}>Triage</label>
                 <select style={fieldInput} value={form.final_category} onChange={e => updateForm({ final_category: e.target.value })}>
                   <option value="">Select...</option>
-                  <option value="high_priority_tnr">FFR</option>
-                  <option value="standard_tnr">Standard TNR</option>
-                  <option value="wellness_only">Wellness</option>
-                  <option value="owned_cat_low">Owned cat</option>
-                  <option value="out_of_county">Out of area</option>
-                  <option value="needs_review">Needs review</option>
+                  {TRIAGE_SELECT.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
               <div>

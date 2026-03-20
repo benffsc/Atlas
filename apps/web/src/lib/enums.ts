@@ -29,6 +29,9 @@ import {
   FEEDING_FREQUENCY_OPTIONS as _FEEDING_FREQUENCY_OPTIONS,
   PERMISSION_STATUS_OPTIONS as _PERMISSION_STATUS_OPTIONS,
   KITTEN_ASSESSMENT_OUTCOME_OPTIONS as _KITTEN_ASSESSMENT_OUTCOME_OPTIONS,
+  PRIORITY_OPTIONS as _PRIORITY_OPTIONS,
+  DEATH_CAUSE_OPTIONS as _DEATH_CAUSE_OPTIONS,
+  KITTEN_ASSESSMENT_STATUS_OPTIONS as _KITTEN_ASSESSMENT_STATUS_OPTIONS,
   getValues,
 } from "./form-options";
 
@@ -36,7 +39,8 @@ import {
 // See @/lib/request-status.ts for the full status system documentation
 export const REQUEST_STATUS = ALL_STATUSES;
 
-export const REQUEST_PRIORITY = ["urgent", "high", "normal", "low"] as const;
+// Derived from centralized form-options.ts registry (FFS-692)
+export const REQUEST_PRIORITY = getValues(_PRIORITY_OPTIONS) as unknown as readonly ["urgent", "high", "normal", "low"];
 
 export const HOLD_REASON = [
   "weather",
@@ -174,16 +178,10 @@ export const PLACE_KIND = [
 // CAT ENUMS
 // =============================================================================
 
-export const DEATH_CAUSE = [
-  "natural",
-  "illness",
-  "injury",
-  "euthanasia",
-  "hit_by_car",
-  "predator",
-  "unknown",
-  "other",
-] as const;
+// Derived from centralized form-options.ts registry (FFS-692)
+export const DEATH_CAUSE = getValues(_DEATH_CAUSE_OPTIONS) as unknown as readonly ["unknown", "natural", "vehicle", "predator", "disease", "euthanasia", "injury", "starvation", "weather", "other"];
+
+export const KITTEN_ASSESSMENT_STATUS = getValues(_KITTEN_ASSESSMENT_STATUS_OPTIONS) as unknown as readonly ["pending", "assessed", "follow_up", "not_assessing", "placed"];
 
 export const DATE_PRECISION = [
   "exact",
@@ -242,6 +240,7 @@ export const ENTITY_ENUMS = {
 
   // Cat
   DEATH_CAUSE,
+  KITTEN_ASSESSMENT_STATUS,
   DATE_PRECISION,
   SEASON,
   ALTERED_STATUS,
@@ -278,6 +277,7 @@ export type PersonPlaceRole = (typeof PERSON_PLACE_ROLE)[number];
 export type PlaceKind = (typeof PLACE_KIND)[number];
 
 export type DeathCause = (typeof DEATH_CAUSE)[number];
+export type KittenAssessmentStatus = (typeof KITTEN_ASSESSMENT_STATUS)[number];
 export type DatePrecision = (typeof DATE_PRECISION)[number];
 export type Season = (typeof SEASON)[number];
 export type AlteredStatus = (typeof ALTERED_STATUS)[number];

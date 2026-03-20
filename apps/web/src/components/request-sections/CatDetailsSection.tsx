@@ -6,6 +6,7 @@ import {
   COLONY_DURATION_OPTIONS,
   AWARENESS_DURATION_OPTIONS,
   EARTIP_ESTIMATE_OPTIONS,
+  REQUEST_PURPOSE_OPTIONS,
 } from "@/lib/form-options";
 
 // --- Types ---
@@ -33,13 +34,6 @@ export interface CatDetailsSectionProps {
 }
 
 // --- Constants ---
-
-const REQUEST_PURPOSE_OPTIONS = [
-  { value: "tnr", label: "Cats need spay/neuter" },
-  { value: "wellness", label: "Check on altered cats" },
-  { value: "relocation", label: "Trapping to move cats" },
-  { value: "rescue", label: "Emergency assistance" },
-];
 
 export const EMPTY_CAT_DETAILS: CatDetailsSectionValue = {
   estimatedCatCount: "",

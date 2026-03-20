@@ -2,6 +2,13 @@
 
 import { useState } from 'react';
 import { postApi } from '@/lib/api-client';
+import { TIME_OF_DAY_OPTIONS as _TIME_OF_DAY_OPTIONS } from '@/lib/form-options';
+
+// Prepend "Not specified" placeholder for select usage
+const TIME_OF_DAY_OPTIONS = [
+  { value: '', label: 'Not specified' },
+  ..._TIME_OF_DAY_OPTIONS,
+];
 
 interface LogObservationModalProps {
   isOpen: boolean;
@@ -24,14 +31,6 @@ interface ObservationResult {
   chapman_estimate: number | null;
   message: string;
 }
-
-const TIME_OF_DAY_OPTIONS = [
-  { value: '', label: 'Not specified' },
-  { value: 'morning', label: 'Morning (6am-12pm)' },
-  { value: 'afternoon', label: 'Afternoon (12pm-5pm)' },
-  { value: 'evening', label: 'Evening (5pm-9pm)' },
-  { value: 'night', label: 'Night (9pm-6am)' },
-];
 
 export default function LogObservationModal({
   isOpen,

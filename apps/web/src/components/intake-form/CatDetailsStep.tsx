@@ -1,13 +1,24 @@
 import {
-  HANDLEABILITY_OPTIONS as BASE_HANDLEABILITY_OPTIONS,
+  HANDLEABILITY_OPTIONS,
   URGENT_SITUATION_EXAMPLES,
 } from "@/lib/intake-options";
+import {
+  SINGLE_CAT_FIXED_STATUS_OPTIONS,
+  COLONY_HANDLEABILITY_OPTIONS,
+  KITTEN_SOCIALIZATION_OPTIONS,
+  MOM_PRESENT_OPTIONS,
+  FEEDING_SITUATION_OPTIONS,
+  KITTEN_AGE_COARSE_OPTIONS,
+  toSelectOptions,
+} from "@/lib/form-options";
 import type { CatDetailsStepProps, CustomField } from "./types";
 
-const HANDLEABILITY_OPTIONS = [
-  ...BASE_HANDLEABILITY_OPTIONS,
-  { value: "unknown", label: "Unknown / Haven't tried", desc: "Caller doesn't know if cat is approachable" },
-];
+const FIXED_STATUS_RADIO = toSelectOptions(SINGLE_CAT_FIXED_STATUS_OPTIONS);
+const COLONY_HANDLEABILITY_RADIO = toSelectOptions(COLONY_HANDLEABILITY_OPTIONS);
+const KITTEN_SOCIALIZATION_RADIO = toSelectOptions(KITTEN_SOCIALIZATION_OPTIONS);
+const MOM_PRESENT_RADIO = toSelectOptions(MOM_PRESENT_OPTIONS);
+const FEEDING_SITUATION_SELECT = toSelectOptions(FEEDING_SITUATION_OPTIONS);
+const KITTEN_AGE_SELECT = toSelectOptions(KITTEN_AGE_COARSE_OPTIONS);
 
 function renderCustomField(
   field: CustomField,
@@ -274,20 +285,16 @@ export default function CatDetailsStep({
           <div style={{ marginBottom: "1rem" }}>
             <label>Fixed status</label>
             <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-              {[
-                { v: "yes_eartip", l: "Yes (ear-tipped)" },
-                { v: "no", l: "No / Not fixed" },
-                { v: "unknown", l: "Don't know" },
-              ].map(({ v, l }) => (
-                <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+              {FIXED_STATUS_RADIO.map((opt) => (
+                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
                   <input
                     type="radio"
                     name="fixed_status"
-                    value={v}
-                    checked={formData.fixed_status === v}
+                    value={opt.value}
+                    checked={formData.fixed_status === opt.value}
                     onChange={(e) => updateField("fixed_status", e.target.value)}
                   />
-                  {l}
+                  {opt.label}
                 </label>
               ))}
             </div>
@@ -323,7 +330,7 @@ export default function CatDetailsStep({
                   />
                   <span>
                     <strong>{opt.label}</strong>
-                    <span style={{ display: "block", fontSize: "0.8rem", color: "var(--muted)" }}>{opt.desc}</span>
+                    <span style={{ display: "block", fontSize: "0.8rem", color: "var(--muted)" }}>{opt.description}</span>
                   </span>
                 </label>
               ))}
@@ -416,11 +423,9 @@ export default function CatDetailsStep({
               onChange={(e) => updateField("feeding_situation", e.target.value)}
             >
               <option value="">Select...</option>
-              <option value="caller_feeds_daily">Caller feeds daily</option>
-              <option value="caller_feeds_sometimes">Caller feeds sometimes</option>
-              <option value="someone_else_feeds">Someone else feeds them</option>
-              <option value="no_feeding">No regular feeding</option>
-              <option value="unknown">Unknown</option>
+              {FEEDING_SITUATION_SELECT.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </div>
 
@@ -428,20 +433,16 @@ export default function CatDetailsStep({
           <div style={{ marginBottom: "1rem", background: "#f0f9ff", padding: "1rem", borderRadius: "8px" }}>
             <label><strong>Are any cats handleable?</strong></label>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
-              {[
-                { v: "some_friendly", l: "Some are friendly (can be carried)" },
-                { v: "all_unhandleable", l: "All unhandleable (need traps)" },
-                { v: "unknown", l: "Unknown / varies" },
-              ].map(({ v, l }) => (
-                <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+              {COLONY_HANDLEABILITY_RADIO.map((opt) => (
+                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
                   <input
                     type="radio"
                     name="handleability"
-                    value={v}
-                    checked={formData.handleability === v}
+                    value={opt.value}
+                    checked={formData.handleability === opt.value}
                     onChange={(e) => updateField("handleability", e.target.value)}
                   />
-                  {l}
+                  {opt.label}
                 </label>
               ))}
             </div>
@@ -490,11 +491,9 @@ export default function CatDetailsStep({
                 onChange={(e) => updateField("kitten_age", e.target.value)}
               >
                 <option value="">Select...</option>
-                <option value="under_4_weeks">Under 4 weeks (bottle babies)</option>
-                <option value="4_to_8_weeks">4-8 weeks (weaning)</option>
-                <option value="8_to_12_weeks">8-12 weeks</option>
-                <option value="over_12_weeks">Over 12 weeks</option>
-                <option value="unknown">Unknown</option>
+                {KITTEN_AGE_SELECT.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -502,21 +501,16 @@ export default function CatDetailsStep({
           <div style={{ marginBottom: "1rem" }}>
             <label>Socialization</label>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
-              {[
-                { v: "friendly", l: "Friendly - can be handled" },
-                { v: "shy_handleable", l: "Shy but handleable" },
-                { v: "unhandleable", l: "Shy/scared - hard to handle" },
-                { v: "unknown", l: "Unknown" },
-              ].map(({ v, l }) => (
-                <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+              {KITTEN_SOCIALIZATION_RADIO.map((opt) => (
+                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
                   <input
                     type="radio"
                     name="kitten_socialization"
-                    value={v}
-                    checked={formData.kitten_socialization === v}
+                    value={opt.value}
+                    checked={formData.kitten_socialization === opt.value}
                     onChange={(e) => updateField("kitten_socialization", e.target.value)}
                   />
-                  {l}
+                  {opt.label}
                 </label>
               ))}
             </div>
@@ -525,16 +519,16 @@ export default function CatDetailsStep({
           <div style={{ marginBottom: "1rem" }}>
             <label>Is mom cat present?</label>
             <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-              {["yes", "no", "unsure"].map((v) => (
-                <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+              {MOM_PRESENT_RADIO.map((opt) => (
+                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
                   <input
                     type="radio"
                     name="mom_present"
-                    value={v}
-                    checked={formData.mom_present === v}
+                    value={opt.value}
+                    checked={formData.mom_present === opt.value}
                     onChange={(e) => updateField("mom_present", e.target.value)}
                   />
-                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                  {opt.label}
                 </label>
               ))}
             </div>

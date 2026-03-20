@@ -52,7 +52,7 @@ export default function CallTypeStep({ formData, updateField, errors }: BaseStep
             <span style={{ fontSize: "1.5rem" }}>{opt.icon}</span>
             <span>
               <strong>{opt.label}</strong>
-              <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)" }}>{opt.desc}</span>
+              <span style={{ display: "block", fontSize: "0.85rem", color: "var(--muted)" }}>{opt.description}</span>
             </span>
           </label>
         ))}

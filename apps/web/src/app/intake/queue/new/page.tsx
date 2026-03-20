@@ -108,7 +108,7 @@ const initialFormData: IntakeFormData = {
   cats_address: "",
   cats_city: "",
   cats_zip: "",
-  county: "sonoma",
+  county: "Sonoma",
   ownership_status: "",
   cat_count_estimate: "",
   count_confidence: "",
@@ -145,23 +145,15 @@ const initialFormData: IntakeFormData = {
   review_notes: "",
 };
 
-// Kitten option overrides — match intake form values (different from KittenAssessmentSection defaults)
-const INTAKE_KITTEN_AGE_OPTIONS = [
-  { value: "under_4_weeks", label: "Under 4 wks" },
-  { value: "4_to_8_weeks", label: "4-8 wks" },
-  { value: "8_to_12_weeks", label: "8-12 wks" },
-  { value: "12_to_16_weeks", label: "12-16 wks" },
-  { value: "over_16_weeks", label: "4+ months" },
-  { value: "mixed", label: "Mixed ages" },
-] as const;
+import {
+  KITTEN_AGE_COARSE_OPTIONS,
+  KITTEN_BEHAVIOR_INTAKE_OPTIONS,
+  toSelectOptions,
+} from "@/lib/form-options";
 
-const INTAKE_KITTEN_BEHAVIOR_OPTIONS = [
-  { value: "friendly", label: "Friendly (handleable)" },
-  { value: "shy_handleable", label: "Shy but can pick up" },
-  { value: "shy_young", label: "Shy/hissy (young)" },
-  { value: "unhandleable_older", label: "Unhandleable (older)" },
-  { value: "unknown", label: "Unknown" },
-] as const;
+// Kitten option overrides — canonical from form-options.ts (FFS-692)
+const INTAKE_KITTEN_AGE_OPTIONS = toSelectOptions(KITTEN_AGE_COARSE_OPTIONS);
+const INTAKE_KITTEN_BEHAVIOR_OPTIONS = toSelectOptions(KITTEN_BEHAVIOR_INTAKE_OPTIONS);
 
 export default function NewIntakeEntryPage() {
   const router = useRouter();

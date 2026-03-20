@@ -29,28 +29,19 @@ interface ObservationResult {
   is_final_visit: boolean;
 }
 
+import {
+  TIME_OF_DAY_DETAILED_OPTIONS as _TIME_OF_DAY_DETAILED_OPTIONS,
+  SITE_VISIT_ISSUE_OPTIONS,
+} from "@/lib/form-options";
+
+// Prepend "Not specified" placeholder for select usage
 const TIME_OF_DAY_OPTIONS = [
   { value: "", label: "Not specified" },
-  { value: "dawn", label: "Dawn (5-7am)" },
-  { value: "morning", label: "Morning (7am-12pm)" },
-  { value: "midday", label: "Midday (12-2pm)" },
-  { value: "afternoon", label: "Afternoon (2-5pm)" },
-  { value: "dusk", label: "Dusk (5-7pm)" },
-  { value: "evening", label: "Evening (7-9pm)" },
-  { value: "night", label: "Night (9pm-5am)" },
+  ..._TIME_OF_DAY_DETAILED_OPTIONS,
 ];
 
-const ISSUE_OPTIONS = [
-  { code: "no_access", label: "Could not access property" },
-  { code: "cat_hiding", label: "Cat(s) hiding" },
-  { code: "trap_shy", label: "Trap shy cat(s)" },
-  { code: "bad_weather", label: "Bad weather" },
-  { code: "equipment_issue", label: "Equipment issue" },
-  { code: "owner_absent", label: "Owner/contact not available" },
-  { code: "aggressive_cat", label: "Aggressive cat" },
-  { code: "cats_not_present", label: "No cats present" },
-  { code: "other", label: "Other issue" },
-];
+// Map to {code, label} shape expected by the toggle UI
+const ISSUE_OPTIONS = SITE_VISIT_ISSUE_OPTIONS.map((o) => ({ code: o.value, label: o.label }));
 
 export function LogSiteVisitModal({
   isOpen,

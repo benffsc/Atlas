@@ -1,4 +1,14 @@
+import {
+  HAS_PROPERTY_ACCESS_OPTIONS,
+  REFERRAL_SOURCE_SIMPLE_OPTIONS,
+  YES_NO_OPTIONS,
+  toSelectOptions,
+} from "@/lib/form-options";
 import type { BaseStepProps } from "./types";
+
+const YES_NO_RADIO = toSelectOptions(YES_NO_OPTIONS);
+const ACCESS_RADIO = toSelectOptions(HAS_PROPERTY_ACCESS_OPTIONS);
+const REFERRAL_SELECT = toSelectOptions(REFERRAL_SOURCE_SIMPLE_OPTIONS);
 
 export default function SituationStep({ formData, updateField }: BaseStepProps) {
   return (
@@ -8,16 +18,16 @@ export default function SituationStep({ formData, updateField }: BaseStepProps) 
       <div style={{ marginBottom: "1rem" }}>
         <label>Is caller the property owner?</label>
         <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-          {["yes", "no"].map((v) => (
-            <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+          {YES_NO_RADIO.map((opt) => (
+            <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
               <input
                 type="radio"
                 name="is_property_owner_2"
-                value={v}
-                checked={formData.is_property_owner === v}
+                value={opt.value}
+                checked={formData.is_property_owner === opt.value}
                 onChange={(e) => updateField("is_property_owner", e.target.value)}
               />
-              {v.charAt(0).toUpperCase() + v.slice(1)}
+              {opt.label}
             </label>
           ))}
         </div>
@@ -26,16 +36,16 @@ export default function SituationStep({ formData, updateField }: BaseStepProps) 
       <div style={{ marginBottom: "1rem" }}>
         <label>Do they have access to where cats congregate?</label>
         <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
-          {["yes", "no", "need_permission"].map((v) => (
-            <label key={v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+          {ACCESS_RADIO.map((opt) => (
+            <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
               <input
                 type="radio"
                 name="has_property_access_2"
-                value={v}
-                checked={formData.has_property_access === v}
+                value={opt.value}
+                checked={formData.has_property_access === opt.value}
                 onChange={(e) => updateField("has_property_access", e.target.value)}
               />
-              {v === "need_permission" ? "Need permission" : v.charAt(0).toUpperCase() + v.slice(1)}
+              {opt.label}
             </label>
           ))}
         </div>
@@ -48,13 +58,9 @@ export default function SituationStep({ formData, updateField }: BaseStepProps) 
           onChange={(e) => updateField("referral_source", e.target.value)}
         >
           <option value="">Select...</option>
-          <option value="search">Online search</option>
-          <option value="social">Social media</option>
-          <option value="friend">Friend/family</option>
-          <option value="shelter">Animal shelter</option>
-          <option value="vet">Veterinarian</option>
-          <option value="repeat">Previous experience</option>
-          <option value="other">Other</option>
+          {REFERRAL_SELECT.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
       </div>
     </div>
