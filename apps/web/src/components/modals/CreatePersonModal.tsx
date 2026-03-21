@@ -5,6 +5,7 @@ import { postApi } from "@/lib/api-client";
 import { formatPhoneAsYouType } from "@/lib/formatters";
 import { shouldBePerson } from "@/lib/guards";
 import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
+import { useSoftBlacklist } from "@/hooks/useSoftBlacklist";
 import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 import { PERSON_ENTITY_TYPE } from "@/lib/enums";
 
@@ -58,6 +59,7 @@ export default function CreatePersonModal({
 
   const { suggestions, loading: suggestLoading, dismissed, dismiss, selectPerson, selectedPerson } =
     usePersonSuggestion({ email, phone });
+  const softBlacklist = useSoftBlacklist();
 
   if (!isOpen) return null;
 
@@ -69,7 +71,7 @@ export default function CreatePersonModal({
     setError(null);
 
     // Client-side gate
-    const gate = shouldBePerson(firstName, lastName || null, email || null, phone || null);
+    const gate = shouldBePerson(firstName, lastName || null, email || null, phone || null, softBlacklist);
     if (!gate.valid) {
       setError(gate.reason);
       return;

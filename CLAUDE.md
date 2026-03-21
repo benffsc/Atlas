@@ -484,6 +484,53 @@ The following extractions are tracked in Linear epic FFS-616. **Do not create ne
 | FFS-625 | `EmptyState` — **EXISTS** (`components/feedback/EmptyState.tsx`), needs adoption | Inconsistent empty states across pages |
 | FFS-626 | `FilterBar` — composable filter chips + search | Duplicated filter UI patterns |
 
+## Helix Readiness (Design Principles)
+
+All new development must move toward kernel-extractability. Reference `docs/HELIX_ARCHITECTURE.md` for the full 3-layer mapping (Kernel, Shell, Outer Ring).
+
+### When Adding New Code, Route It Here
+
+| Adding... | Must go to... |
+|-----------|--------------|
+| New form field options | `form-options.ts` → derive in `enums.ts` |
+| New configuration value | `ops.app_config` (admin-editable, NOT hardcoded constant) |
+| New entity creation | `find_or_create_*` centralized function (never direct INSERT) |
+| New UI list page | `DataTable` + `FilterBar` + `ListDetailLayout` |
+| New slide-over form | `ActionDrawer` from `@/components/shared` |
+| New row actions | `RowActionMenu` from `@/components/shared` |
+| New confirmation prompt | `ConfirmDialog` from `@/components/feedback` (not `window.confirm()`) |
+| New empty state | `EmptyState` from `@/components/feedback/EmptyState.tsx` |
+| New toast notification | `useToast` from `@/components/feedback/Toast` (not inline state) |
+| New stat display | `StatCard` from `@/components/ui/StatCard` |
+| New entity preview | `EntityPreviewPanel` + `*PreviewContent.tsx` pattern |
+| New hover popover | `EntityPreview` from `@/components/search` |
+| New breadcrumbs | `Breadcrumbs` + `useNavigationContext` with `?from=` param |
+| New API error | `apiError()` / `apiNotFound()` from `@/lib/api-response` |
+| New enum validation | `ENTITY_ENUMS` from `@/lib/enums` |
+| New pagination | `DataTablePagination` built into `DataTable` |
+| New soft blacklist entry | `sot.soft_blacklist` table (via admin UI or migration) |
+
+### Kernel Layer (must be org-agnostic)
+
+These modules form the extractable core. Changes here must work for ANY TNR org:
+- `lib/guards.ts` — Identity gates (`shouldBePerson`, `classifyOwnerName`)
+- `lib/api-validation.ts` / `lib/api-response.ts` — Request/response helpers
+- `lib/enums.ts` / `lib/form-options.ts` — Option registries
+- `components/data-table/` — DataTable + pagination
+- `components/layouts/ListDetailLayout.tsx` — Split-view pattern
+- `components/shared/` — ActionDrawer, RowActionMenu, Breadcrumbs
+- `components/feedback/` — EmptyState, Toast, ConfirmDialog
+- `components/ui/` — StatCard, TabBar
+- SQL: `sot.*` schema functions, `ops.app_config`
+
+### Don't Do (Helix)
+
+- Don't hardcode form option values inline — add to `form-options.ts`
+- Don't create new config constants — add to `ops.app_config`
+- Don't create bespoke entity creation — use `find_or_create_*` pattern
+- Don't use `window.confirm()` — use `ConfirmDialog`
+- Don't add org-specific logic to kernel-layer modules without a config gate
+
 ## Phone Display (TypeScript)
 
 | Function | Purpose |

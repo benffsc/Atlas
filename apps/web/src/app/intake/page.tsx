@@ -6,6 +6,7 @@ import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
 import { formatPhoneAsYouType } from "@/lib/formatters";
 import { shouldBePerson } from "@/lib/guards";
+import { useSoftBlacklist } from "@/hooks/useSoftBlacklist";
 import { fetchApi, postApi } from "@/lib/api-client";
 import {
   CALL_TYPE_OPTIONS as BASE_CALL_TYPE_OPTIONS,
@@ -82,6 +83,9 @@ function IntakeForm() {
     phone: formData.phone,
     enabled: !selectedPersonId,
   });
+
+  // Soft blacklist from DB (FFS-686)
+  const softBlacklist = useSoftBlacklist();
 
   // Place selection state
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -350,7 +354,8 @@ function IntakeForm() {
         formData.first_name.trim(),
         formData.last_name.trim(),
         formData.email.trim() || null,
-        formData.phone.trim() || null
+        formData.phone.trim() || null,
+        softBlacklist
       );
 
       if (!personCheck.valid) {

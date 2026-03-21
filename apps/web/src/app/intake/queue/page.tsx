@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -20,6 +20,9 @@ import { IntakeQueueRow } from "@/components/intake/IntakeQueueRow";
 import { IntakeDetailPanel } from "@/components/intake/IntakeDetailPanel";
 import { IntakeKanbanBoard, IntakeKanbanBoardMobile } from "@/components/intake/IntakeKanbanBoard";
 import { TabBar } from "@/components/ui/TabBar";
+import { DataTable } from "@/components/data-table";
+import { getIntakeColumns } from "./columns";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
 function IntakeQueueContent() {
@@ -42,7 +45,7 @@ function IntakeQueueContent() {
     view: "table",
   });
   const activeTab = filters.tab as TabType;
-  const setActiveTab = (v: TabType) => setFilter("tab", v);
+  const setActiveTab = (v: TabType) => { setFilter("tab", v); setPageIndex(0); };
   const categoryFilter = filters.category;
   const setCategoryFilter = (v: string) => setFilter("category", v);
   const searchQuery = filters.q;
@@ -123,10 +126,20 @@ function IntakeQueueContent() {
     complete: "Complete",
   };
 
+  // Pagination state (client-side, FFS-674)
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [bulkStatusTarget, setBulkStatusTarget] = useState<string>("");
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    variant: "default" | "danger";
+    onConfirm: () => void;
+  } | null>(null);
 
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -146,10 +159,7 @@ function IntakeQueueContent() {
     }
   };
 
-  const handleBulkStatusUpdate = async () => {
-    if (selectedIds.size === 0 || !bulkStatusTarget) return;
-    if (!confirm(`Update ${selectedIds.size} submissions to "${bulkStatusTarget}"?`)) return;
-
+  const executeBulkStatusUpdate = async () => {
     setBulkUpdating(true);
     try {
       const promises = Array.from(selectedIds).map((id) =>
@@ -159,17 +169,24 @@ function IntakeQueueContent() {
       setSelectedIds(new Set());
       setBulkStatusTarget("");
       await fetchSubmissions();
-    } catch (err) {
-      alert("Error updating submissions");
+    } catch {
+      showErrorToast("Error updating submissions");
     } finally {
       setBulkUpdating(false);
     }
   };
 
-  const handleBulkArchive = async () => {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Archive ${selectedIds.size} submissions?`)) return;
+  const handleBulkStatusUpdate = () => {
+    if (selectedIds.size === 0 || !bulkStatusTarget) return;
+    setConfirmDialog({
+      title: "Update submissions?",
+      message: `Update ${selectedIds.size} submission${selectedIds.size !== 1 ? "s" : ""} to "${bulkStatusTarget}"?`,
+      variant: "default",
+      onConfirm: () => { setConfirmDialog(null); executeBulkStatusUpdate(); },
+    });
+  };
 
+  const executeBulkArchive = async () => {
     setBulkUpdating(true);
     try {
       const promises = Array.from(selectedIds).map((id) =>
@@ -178,11 +195,21 @@ function IntakeQueueContent() {
       await Promise.all(promises);
       setSelectedIds(new Set());
       await fetchSubmissions();
-    } catch (err) {
-      alert("Error archiving submissions");
+    } catch {
+      showErrorToast("Error archiving submissions");
     } finally {
       setBulkUpdating(false);
     }
+  };
+
+  const handleBulkArchive = () => {
+    if (selectedIds.size === 0) return;
+    setConfirmDialog({
+      title: "Archive submissions?",
+      message: `Archive ${selectedIds.size} submission${selectedIds.size !== 1 ? "s" : ""}? You can restore them later.`,
+      variant: "danger",
+      onConfirm: () => { setConfirmDialog(null); executeBulkArchive(); },
+    });
   };
 
   const fetchSubmissions = useCallback(async () => {
@@ -956,42 +983,37 @@ function IntakeQueueContent() {
               ))}
             </div>
           ) : (
-            /* Table layout */
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ width: "40px", textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === sortedSubmissions.length && sortedSubmissions.length > 0}
-                      onChange={() => toggleSelectAll(sortedSubmissions)}
-                    />
-                  </th>
-                  <th style={{ width: "180px" }}>Submitter</th>
-                  <th style={{ width: "200px" }}>Location</th>
-                  <th style={{ width: "80px" }}>Cats</th>
-                  <th style={{ width: "120px" }}>Status</th>
-                  <th style={{ width: "80px" }}>Submitted</th>
-                  <th style={{ width: "200px" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupSubs.map((sub) => (
-                  <IntakeQueueRow
-                    key={sub.submission_id}
-                    submission={sub}
-                    isSelected={selectedIds.has(sub.submission_id)}
-                    onSelect={() => toggleSelect(sub.submission_id)}
-                    onOpenDetail={() => openDetail(sub)}
-                    onOpenContactModal={() => openContactModal(sub)}
-                    onQuickStatus={handleQuickStatus}
-                    onSchedule={() => handleMarkBooked(sub)}
-                    onChangeAppointment={() => handleChangeAppointment(sub)}
-                    saving={saving}
-                  />
-                ))}
-              </tbody>
-            </table>
+            /* Table layout — DataTable (FFS-674) */
+            <DataTable
+              columns={getIntakeColumns({
+                selectedIds,
+                onToggleSelect: toggleSelect,
+                onToggleSelectAll: toggleSelectAll,
+                onOpenDetail: openDetail,
+                onOpenContactModal: openContactModal,
+                onQuickStatus: handleQuickStatus,
+                onSchedule: handleMarkBooked,
+                onChangeAppointment: handleChangeAppointment,
+                saving,
+                allSubmissions: groupSubs,
+              })}
+              data={groupSubs.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize)}
+              getRowId={(row) => row.submission_id}
+              total={groupSubs.length}
+              pageIndex={pageIndex}
+              pageSize={pageSize}
+              onPaginationChange={(page, size) => { setPageIndex(page); setPageSize(size); }}
+              selectedRowId={selectedSubmission?.submission_id}
+              onRowClick={(id) => {
+                const sub = groupSubs.find((s) => s.submission_id === id);
+                if (sub) openDetail(sub);
+              }}
+              getRowStyle={(row) => ({
+                borderLeft: `3px solid ${row.is_emergency ? COLORS.error : row.overdue ? COLORS.warning : "transparent"}`,
+              })}
+              loading={false}
+              aria-label="Intake queue submissions"
+            />
           )}
             </div>
           ))}
@@ -1061,6 +1083,20 @@ function IntakeQueueContent() {
           onBooked={handleConfirmBookingFromModal}
           saving={saving}
           initialDate={bookingDate}
+        />
+      )}
+
+      {/* Confirm Dialog (FFS-622) */}
+      {confirmDialog && (
+        <ConfirmDialog
+          open={!!confirmDialog}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          variant={confirmDialog.variant}
+          confirmLabel={confirmDialog.variant === "danger" ? "Archive" : "Apply"}
+          loading={bulkUpdating}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
         />
       )}
 

@@ -176,12 +176,22 @@ const COMMON_FIRST_NAMES = new Set([
  *   console.log(result.reason); // "Name appears to be an organization"
  * }
  */
+export interface SoftBlacklist {
+  emails: string[];
+  phones: string[];
+}
+
 export function shouldBePerson(
   firstName: string | null,
   lastName: string | null,
   email: string | null,
-  phone: string | null
+  phone: string | null,
+  blacklist?: SoftBlacklist
 ): ShouldBePersonResult {
+  // Use provided blacklist (from DB) or fall back to hardcoded constants
+  const blacklistEmails = blacklist?.emails ?? SOFT_BLACKLIST_EMAILS;
+  const blacklistPhones = blacklist?.phones ?? SOFT_BLACKLIST_PHONES;
+
   // Build full name for pattern matching
   const name = `${firstName || ''} ${lastName || ''}`.trim();
   const nameLower = name.toLowerCase();
@@ -195,7 +205,7 @@ export function shouldBePerson(
   if (email) {
     const emailLower = email.toLowerCase();
 
-    if (SOFT_BLACKLIST_EMAILS.includes(emailLower)) {
+    if (blacklistEmails.includes(emailLower)) {
       return {
         valid: false,
         reason: 'This email belongs to an organization and cannot be used for personal contact',
@@ -220,7 +230,7 @@ export function shouldBePerson(
       ? normalizedPhone.slice(1)
       : normalizedPhone;
 
-    if (SOFT_BLACKLIST_PHONES.includes(phone10)) {
+    if (blacklistPhones.includes(phone10)) {
       return {
         valid: false,
         reason: 'This phone number belongs to FFSC and cannot be used for personal contact',

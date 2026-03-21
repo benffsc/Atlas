@@ -4,6 +4,7 @@ import { withErrorHandling, parsePagination, parseBody, ApiError } from "@/lib/a
 import { apiSuccess } from "@/lib/api-response";
 import { CreatePersonSchema } from "@/lib/schemas";
 import { shouldBePerson } from "@/lib/guards";
+import { loadSoftBlacklist } from "@/lib/soft-blacklist";
 
 interface PersonListRow {
   person_id: string;
@@ -118,7 +119,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const { first_name, last_name, email, phone, entity_type } = parsed.data;
 
-  const gate = shouldBePerson(first_name, last_name || null, email || null, phone || null);
+  const blacklist = await loadSoftBlacklist();
+  const gate = shouldBePerson(first_name, last_name || null, email || null, phone || null, blacklist);
   if (!gate.valid) {
     throw new ApiError(gate.reason, 422);
   }
