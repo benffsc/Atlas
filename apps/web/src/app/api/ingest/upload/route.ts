@@ -83,6 +83,39 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
+    // ClinicHQ column header validation — prevent swapped files (FFS-735)
+    if (sourceSystem === "clinichq") {
+      try {
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.read(buffer, { type: "buffer", sheetRows: 2 });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
+        if (rows.length > 0) {
+          const headers = new Set((rows[0] as string[]).map((h) => String(h).trim()));
+          // Signature columns that uniquely identify each file type
+          const signatures: Record<string, string[]> = {
+            cat_info: ["Breed", "Primary Color", "Secondary Color"],
+            owner_info: ["Owner First Name", "Owner Last Name", "Owner Email"],
+            appointment_info: ["Service / Subsidy", "Vet Name", "Technician"],
+          };
+          // Detect what this file actually is
+          let detectedType: string | null = null;
+          for (const [type, cols] of Object.entries(signatures)) {
+            const matched = cols.filter((c) => headers.has(c)).length;
+            if (matched >= 2) { detectedType = type; break; }
+          }
+          if (detectedType && detectedType !== sourceTable) {
+            return apiBadRequest(
+              `File mismatch: this looks like ${detectedType} (found columns: ${signatures[detectedType].filter((c) => headers.has(c)).join(", ")}), but was uploaded as ${sourceTable}. Please check the file assignment.`
+            );
+          }
+        }
+      } catch (xlsxErr) {
+        console.warn("[UPLOAD] Column header validation skipped:", xlsxErr);
+        // Non-fatal — allow upload to proceed if XLSX parsing fails
+      }
+    }
+
     // Calculate file hash for duplicate detection
     const fileHash = createHash("sha256").update(buffer).digest("hex");
 

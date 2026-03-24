@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchApi, ApiError } from "@/lib/api-client";
+import * as XLSX from "xlsx";
 
 interface ClinicHQUploadModalProps {
   isOpen: boolean;
@@ -9,19 +10,16 @@ interface ClinicHQUploadModalProps {
   onSuccess?: () => void;
 }
 
+interface DetectedFile {
+  file: File;
+  detectedType: FileTypeKey;
+  confidence: "high" | "low";
+  signatureColumns: string[];
+}
+
 interface UploadedFile {
   filename: string;
   uploadId: string;
-}
-
-interface BatchStatus {
-  status: string;
-  files_uploaded: number;
-  has_cat_info: boolean;
-  has_owner_info: boolean;
-  has_appointment_info: boolean;
-  is_complete: boolean;
-  missing_files: string[];
 }
 
 interface ProcessResult {
@@ -46,13 +44,74 @@ interface ProcessingProgress {
   [key: string]: unknown;
 }
 
-const FILE_TYPES = [
-  { key: "cat_info", label: "cat_info", description: "Cat details & sex" },
-  { key: "owner_info", label: "owner_info", description: "Owner contacts" },
-  { key: "appointment_info", label: "appointment_info", description: "Procedures" },
-] as const;
+type FileTypeKey = "cat_info" | "owner_info" | "appointment_info";
 
-type FileTypeKey = (typeof FILE_TYPES)[number]["key"];
+// Column signatures that uniquely identify each ClinicHQ export file.
+// Only need 2+ matches from the signature set to classify with high confidence.
+const FILE_SIGNATURES: Record<FileTypeKey, { columns: string[]; label: string; icon: string }> = {
+  cat_info: {
+    columns: ["Breed", "Primary Color", "Secondary Color", "Sex", "Weight", "Age Years", "Spay Neuter Status"],
+    label: "Cat Info",
+    icon: "🐱",
+  },
+  owner_info: {
+    columns: ["Owner First Name", "Owner Last Name", "Owner Email", "Owner Phone", "Owner Cell Phone", "Owner Address"],
+    label: "Owner Info",
+    icon: "👤",
+  },
+  appointment_info: {
+    columns: ["Service / Subsidy", "Spay", "Neuter", "Vet Name", "Technician", "Felv Test", "Temperature"],
+    label: "Appointment Info",
+    icon: "📋",
+  },
+};
+
+const FILE_TYPE_ORDER: FileTypeKey[] = ["cat_info", "owner_info", "appointment_info"];
+
+/**
+ * Detect file type by reading XLSX/CSV headers and matching against known column signatures.
+ */
+async function detectFileType(file: File): Promise<{ type: FileTypeKey; confidence: "high" | "low"; matched: string[] } | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target!.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array", sheetRows: 2 });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
+
+        if (rows.length === 0) { resolve(null); return; }
+
+        const headers = new Set((rows[0] as string[]).map((h) => String(h).trim()));
+
+        // Score each file type by matching columns
+        let bestType: FileTypeKey | null = null;
+        let bestScore = 0;
+        let bestMatched: string[] = [];
+
+        for (const [fileType, sig] of Object.entries(FILE_SIGNATURES) as [FileTypeKey, typeof FILE_SIGNATURES[FileTypeKey]][]) {
+          const matched = sig.columns.filter((col) => headers.has(col));
+          if (matched.length > bestScore) {
+            bestScore = matched.length;
+            bestType = fileType;
+            bestMatched = matched;
+          }
+        }
+
+        if (bestType && bestScore >= 2) {
+          resolve({ type: bestType, confidence: bestScore >= 3 ? "high" : "low", matched: bestMatched });
+        } else {
+          resolve(null);
+        }
+      } catch {
+        resolve(null);
+      }
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsArrayBuffer(file);
+  });
+}
 
 export default function ClinicHQUploadModal({
   isOpen,
@@ -60,16 +119,22 @@ export default function ClinicHQUploadModal({
   onSuccess,
 }: ClinicHQUploadModalProps) {
   const [batchId, setBatchId] = useState<string | null>(null);
+  const [detectedFiles, setDetectedFiles] = useState<Record<FileTypeKey, DetectedFile | null>>({
+    cat_info: null,
+    owner_info: null,
+    appointment_info: null,
+  });
   const [uploadedFiles, setUploadedFiles] = useState<Record<FileTypeKey, UploadedFile | null>>({
     cat_info: null,
     owner_info: null,
     appointment_info: null,
   });
-  const [uploading, setUploading] = useState<FileTypeKey | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processResult, setProcessResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState<FileTypeKey | null>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   // Progress polling state
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
@@ -77,19 +142,16 @@ export default function ClinicHQUploadModal({
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  const fileInputRefs = useRef<Record<FileTypeKey, HTMLInputElement | null>>({
-    cat_info: null,
-    owner_info: null,
-    appointment_info: null,
-  });
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
       setBatchId(null);
+      setDetectedFiles({ cat_info: null, owner_info: null, appointment_info: null });
       setUploadedFiles({ cat_info: null, owner_info: null, appointment_info: null });
-      setUploading(null);
+      setDetecting(false);
+      setUploading(false);
       setProcessing(false);
       setProcessResult(null);
       setError(null);
@@ -107,75 +169,112 @@ export default function ClinicHQUploadModal({
     };
   }, []);
 
-  const filesUploaded = Object.values(uploadedFiles).filter(Boolean).length;
-  const isComplete = filesUploaded === 3;
-  const missingFiles = FILE_TYPES.filter((ft) => !uploadedFiles[ft.key]).map((ft) => ft.label);
+  const detectedCount = Object.values(detectedFiles).filter(Boolean).length;
+  const uploadedCount = Object.values(uploadedFiles).filter(Boolean).length;
+  const allDetected = detectedCount === 3;
+  const allUploaded = uploadedCount === 3;
 
-  const handleFileUpload = useCallback(async (fileType: FileTypeKey, file: File) => {
+  // Handle files dropped or selected — auto-detect each one
+  const handleFiles = useCallback(async (files: FileList | File[]) => {
     setError(null);
-    setUploading(fileType);
+    setDetecting(true);
+
+    const fileArray = Array.from(files).filter(
+      (f) => f.name.endsWith(".xlsx") || f.name.endsWith(".csv") || f.name.endsWith(".xls")
+    );
+
+    if (fileArray.length === 0) {
+      setError("Please upload .xlsx or .csv files exported from ClinicHQ.");
+      setDetecting(false);
+      return;
+    }
+
+    const newDetected = { ...detectedFiles };
+    const conflicts: string[] = [];
+
+    for (const file of fileArray) {
+      const result = await detectFileType(file);
+      if (!result) {
+        conflicts.push(`"${file.name}" — could not identify file type from column headers`);
+        continue;
+      }
+
+      // Check for duplicate type detection
+      const existing = newDetected[result.type];
+      if (existing && existing.file !== file) {
+        conflicts.push(
+          `"${file.name}" detected as ${FILE_SIGNATURES[result.type].label}, but "${existing.file.name}" was already assigned to that slot`
+        );
+        continue;
+      }
+
+      newDetected[result.type] = {
+        file,
+        detectedType: result.type,
+        confidence: result.confidence,
+        signatureColumns: result.matched,
+      };
+    }
+
+    setDetectedFiles(newDetected);
+    setDetecting(false);
+
+    if (conflicts.length > 0) {
+      setError(conflicts.join("\n"));
+    }
+  }, [detectedFiles]);
+
+  // Upload all detected files
+  const handleUploadAll = useCallback(async () => {
+    if (!allDetected) return;
+    setError(null);
+    setUploading(true);
+
+    let currentBatchId = batchId;
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("source_system", "clinichq");
-      formData.append("source_table", fileType);
-      if (batchId) {
-        formData.append("batch_id", batchId);
+      for (const fileType of FILE_TYPE_ORDER) {
+        const detected = detectedFiles[fileType];
+        if (!detected) continue;
+
+        const formData = new FormData();
+        formData.append("file", detected.file);
+        formData.append("source_system", "clinichq");
+        formData.append("source_table", fileType);
+        if (currentBatchId) {
+          formData.append("batch_id", currentBatchId);
+        }
+
+        const data = await fetchApi<{ batch_id: string; upload_id: string }>("/api/ingest/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (data.batch_id && !currentBatchId) {
+          currentBatchId = data.batch_id;
+          setBatchId(data.batch_id);
+        }
+
+        setUploadedFiles((prev) => ({
+          ...prev,
+          [fileType]: { filename: detected.file.name, uploadId: data.upload_id },
+        }));
       }
-
-      // Note: fetchApi handles apiSuccess unwrapping and error throwing automatically
-      const data = await fetchApi<{ batch_id: string; upload_id: string }>("/api/ingest/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      // Store batch ID from first upload
-      if (data.batch_id && !batchId) {
-        setBatchId(data.batch_id);
-      }
-
-      setUploadedFiles((prev) => ({
-        ...prev,
-        [fileType]: { filename: file.name, uploadId: data.upload_id },
-      }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setUploading(null);
+      setUploading(false);
     }
-  }, [batchId]);
+  }, [allDetected, batchId, detectedFiles]);
 
-  const handleDrop = useCallback((fileType: FileTypeKey, e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(null);
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileUpload(fileType, file);
-    }
-  }, [handleFileUpload]);
-
-  const handleDragOver = useCallback((fileType: FileTypeKey, e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(fileType);
+  // Remove a detected file
+  const removeFile = useCallback((fileType: FileTypeKey) => {
+    setDetectedFiles((prev) => ({ ...prev, [fileType]: null }));
+    setUploadedFiles((prev) => ({ ...prev, [fileType]: null }));
   }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setDragOver(null);
-  }, []);
-
-  const handleFileInputChange = useCallback((fileType: FileTypeKey, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFileUpload(fileType, file);
-    }
-    // Reset input
-    e.target.value = "";
-  }, [handleFileUpload]);
 
   // Poll for processing progress
   const startProgressPolling = useCallback((batchIdToPoll: string) => {
-    // Clear any existing polling
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -183,31 +282,19 @@ export default function ClinicHQUploadModal({
     setProcessingProgress({ _current_step: "Starting batch processing..." });
     setCurrentFileIndex(0);
 
-    // Start elapsed time counter
     timerRef.current = setInterval(() => {
       setElapsedSeconds((s) => s + 1);
     }, 1000);
 
-    // Poll for progress
     pollingRef.current = setInterval(async () => {
       try {
-        // Check batch status for completion
         const batchData = await fetchApi<{ status: string; error?: string; file_results?: Array<{ source_table: string; success: boolean; error?: string; rows_total?: number; rows_inserted?: number; post_processing?: Record<string, unknown> }> }>(`/api/ingest/batch/${batchIdToPoll}`);
 
-        // Also get individual upload statuses for more detail
         try {
           const uploadsData = await fetchApi<{ uploads: Array<{ batch_id?: string; status: string; source_table: string; post_processing_results?: Record<string, unknown> }> }>("/api/ingest/uploads");
-          const batchUploads = uploadsData.uploads?.filter(
-            (u) => u.batch_id === batchIdToPoll
-          ) || [];
-
-          // Find which file is currently processing
-          const processingFile = batchUploads.find(
-            (u) => u.status === "processing"
-          );
-          const completedCount = batchUploads.filter(
-            (u) => u.status === "completed"
-          ).length;
+          const batchUploads = uploadsData.uploads?.filter((u) => u.batch_id === batchIdToPoll) || [];
+          const processingFile = batchUploads.find((u) => u.status === "processing");
+          const completedCount = batchUploads.filter((u) => u.status === "completed").length;
 
           if (processingFile) {
             setCurrentFileIndex(completedCount);
@@ -226,19 +313,10 @@ export default function ClinicHQUploadModal({
           // Ignore upload status errors during polling
         }
 
-        // Check if batch is done
         if (batchData.status === "completed" || batchData.status === "failed") {
-          // Stop polling
-          if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-          }
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
+          if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
 
-          // Fetch final results
           const finalResult = await fetchApi<{ status: string; error?: string; file_results?: Array<{ source_table: string; success: boolean; error?: string; rows_total?: number; rows_inserted?: number; post_processing?: Record<string, unknown> }> }>(`/api/ingest/batch/${batchIdToPoll}`);
 
           setProcessing(false);
@@ -270,31 +348,23 @@ export default function ClinicHQUploadModal({
   }, [onSuccess]);
 
   const handleProcess = async () => {
-    if (!batchId || !isComplete) return;
+    if (!batchId || !allUploaded) return;
 
     setProcessing(true);
     setError(null);
     setProcessResult(null);
-
-    // Start polling for progress
     startProgressPolling(batchId);
 
     try {
-      // Fire-and-forget: kick off processing
-      // Note: We use raw fetch here because this endpoint may return non-JSON
-      // responses (e.g., server timeout returns HTML) which fetchApi can't handle.
-      const res = await fetch(`/api/ingest/batch/${batchId}/process`, {
-        method: "POST",
-      });
+      const res = await fetch(`/api/ingest/batch/${batchId}/process`, { method: "POST" });
 
-      // Handle non-JSON responses (e.g., server timeout returns HTML)
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
         const text = await res.text();
         console.error("Non-JSON response:", text.substring(0, 200));
         throw new Error(
           res.status === 504 || res.status === 502
-            ? "Server timeout. Try processing one file at a time or retry later."
+            ? "Server timeout. Processing continues in the background — check back in a minute."
             : `Server error (${res.status}). Please retry.`
         );
       }
@@ -302,46 +372,24 @@ export default function ClinicHQUploadModal({
       const result = await res.json();
 
       if (!res.ok) {
-        // Stop polling on immediate error
-        if (pollingRef.current) {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-        }
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
+        if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         setProcessing(false);
         setProcessingProgress(null);
-        // Handle both string errors and { message, code } error objects
-        const errorMsg = typeof result.error === 'string'
-          ? result.error
-          : result.error?.message || "Processing failed";
+        const errorMsg = typeof result.error === "string" ? result.error : result.error?.message || "Processing failed";
         throw new Error(errorMsg);
       }
 
-      // Handle apiSuccess wrapper format
       const processData = (result.success === true && "data" in result) ? result.data : result;
 
-      // If we got an immediate response (non-async), use it
       if (processData.success !== undefined) {
-        // Stop polling
-        if (pollingRef.current) {
-          clearInterval(pollingRef.current);
-          pollingRef.current = null;
-        }
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
+        if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         setProcessing(false);
         setProcessingProgress(null);
         setProcessResult(processData);
-        if (processData.success) {
-          onSuccess?.();
-        }
+        if (processData.success) onSuccess?.();
       }
-      // Otherwise let polling handle it
     } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed");
       setProcessing(false);
@@ -351,21 +399,15 @@ export default function ClinicHQUploadModal({
 
   const handleClose = () => {
     if (!uploading && !processing) {
-      // Cleanup polling
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+      if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       onClose();
     }
   };
 
   const handleStartNewBatch = () => {
     setBatchId(null);
+    setDetectedFiles({ cat_info: null, owner_info: null, appointment_info: null });
     setUploadedFiles({ cat_info: null, owner_info: null, appointment_info: null });
     setProcessResult(null);
     setError(null);
@@ -381,6 +423,8 @@ export default function ClinicHQUploadModal({
     const secs = seconds % 60;
     return `${mins}:${String(secs).padStart(2, "0")}`;
   };
+
+  const showDropZone = !allUploaded && !processing && !processResult;
 
   return (
     <div
@@ -401,7 +445,7 @@ export default function ClinicHQUploadModal({
           background: "var(--card-bg, #fff)",
           borderRadius: "12px",
           width: "100%",
-          maxWidth: "640px",
+          maxWidth: "560px",
           maxHeight: "90vh",
           overflow: "auto",
           boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
@@ -419,16 +463,14 @@ export default function ClinicHQUploadModal({
           }}
         >
           <div>
-            <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 600 }}>
-              ClinicHQ Batch Upload
-            </h2>
+            <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 600 }}>ClinicHQ Batch Upload</h2>
             <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--muted, #737373)" }}>
-              Upload all 3 files to process together
+              Drop all 3 files — auto-detected from column headers
             </p>
           </div>
           <button
             onClick={handleClose}
-            disabled={uploading !== null || processing}
+            disabled={uploading || processing}
             style={{
               background: "none",
               border: "none",
@@ -444,115 +486,168 @@ export default function ClinicHQUploadModal({
 
         {/* Body */}
         <div style={{ padding: "20px 24px" }}>
-          {/* File Upload Zones */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "12px",
-              marginBottom: "20px",
-            }}
-          >
-            {FILE_TYPES.map((fileType) => {
-              const uploaded = uploadedFiles[fileType.key];
-              const isUploading = uploading === fileType.key;
-              const isDraggedOver = dragOver === fileType.key;
-
-              return (
-                <div
-                  key={fileType.key}
-                  onDrop={(e) => handleDrop(fileType.key, e)}
-                  onDragOver={(e) => handleDragOver(fileType.key, e)}
-                  onDragLeave={handleDragLeave}
-                  onClick={() => !uploaded && !isUploading && !processing && fileInputRefs.current[fileType.key]?.click()}
-                  style={{
-                    padding: "16px 12px",
-                    borderRadius: "8px",
-                    textAlign: "center",
-                    cursor: uploaded || isUploading || processing ? "default" : "pointer",
-                    transition: "all 0.15s ease",
-                    background: uploaded
-                      ? "var(--success-bg, rgba(40, 167, 69, 0.1))"
-                      : isDraggedOver
-                      ? "var(--primary-bg, rgba(37, 99, 235, 0.1))"
-                      : "var(--bg-secondary, #f3f4f6)",
-                    border: uploaded
-                      ? "2px solid var(--success-text, #28a745)"
-                      : isDraggedOver
-                      ? "2px dashed var(--primary, #2563eb)"
-                      : "2px dashed var(--border, #e5e7eb)",
-                    opacity: processing ? 0.7 : 1,
-                  }}
-                >
-                  <input
-                    type="file"
-                    accept=".csv,.xlsx,.xls"
-                    ref={(el) => { fileInputRefs.current[fileType.key] = el; }}
-                    onChange={(e) => handleFileInputChange(fileType.key, e)}
-                    style={{ display: "none" }}
-                    disabled={processing}
-                  />
-
-                  {/* Status Icon */}
-                  <div style={{ fontSize: "1.5rem", marginBottom: "8px" }}>
-                    {isUploading ? (
-                      <span style={{ color: "var(--primary, #2563eb)" }}>...</span>
-                    ) : uploaded ? (
-                      <span style={{ color: "var(--success-text, #28a745)" }}>&#10003;</span>
-                    ) : (
-                      <span style={{ color: "var(--muted, #737373)" }}>&#9675;</span>
-                    )}
-                  </div>
-
-                  {/* File Type Label */}
-                  <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "4px" }}>
-                    {fileType.label}
-                  </div>
-
-                  {/* Status Text */}
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted, #737373)" }}>
-                    {isUploading ? (
-                      "Uploading..."
-                    ) : uploaded ? (
-                      <span style={{ wordBreak: "break-all" }}>{uploaded.filename}</span>
-                    ) : (
-                      fileType.description
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Status Message */}
-          {!processing && !processResult && (
+          {/* Single Drop Zone */}
+          {showDropZone && (
             <div
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                handleFiles(e.dataTransfer.files);
+              }}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onClick={() => !detecting && !uploading && fileInputRef.current?.click()}
               style={{
-                padding: "12px 16px",
-                borderRadius: "8px",
+                padding: "32px 24px",
+                borderRadius: "10px",
+                textAlign: "center",
+                cursor: detecting || uploading ? "default" : "pointer",
+                transition: "all 0.15s ease",
+                background: dragOver
+                  ? "var(--info-bg, rgba(37, 99, 235, 0.08))"
+                  : "var(--bg-secondary, #f3f4f6)",
+                border: dragOver
+                  ? "2px dashed var(--primary, #2563eb)"
+                  : "2px dashed var(--border, #e5e7eb)",
                 marginBottom: "16px",
-                background: isComplete
-                  ? "var(--success-bg, rgba(40, 167, 69, 0.1))"
-                  : "var(--warning-bg, rgba(255, 193, 7, 0.1))",
-                border: isComplete
-                  ? "1px solid var(--success-text, #28a745)"
-                  : "1px solid var(--warning-text, #d4a106)",
               }}
             >
-              <div
-                style={{
-                  fontSize: "0.9rem",
-                  fontWeight: 500,
-                  color: isComplete
-                    ? "var(--success-text, #28a745)"
-                    : "var(--warning-text, #856404)",
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                multiple
+                ref={fileInputRef}
+                onChange={(e) => {
+                  if (e.target.files) handleFiles(e.target.files);
+                  e.target.value = "";
                 }}
-              >
-                {isComplete
-                  ? "All 3 files uploaded! Ready to process."
-                  : `${filesUploaded}/3 files uploaded. Missing: ${missingFiles.join(", ")}`}
+                style={{ display: "none" }}
+              />
+              <div style={{ fontSize: "2rem", marginBottom: "8px", opacity: 0.6 }}>
+                {detecting ? "..." : "📂"}
+              </div>
+              <div style={{ fontSize: "0.95rem", fontWeight: 500, marginBottom: "4px" }}>
+                {detecting ? "Identifying files..." : "Drop all 3 ClinicHQ exports here"}
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "var(--muted, #737373)" }}>
+                or click to browse — file types are auto-detected from columns
               </div>
             </div>
+          )}
+
+          {/* Detected Files List */}
+          {(detectedCount > 0 || uploadedCount > 0) && !processResult && (
+            <div style={{ marginBottom: "16px" }}>
+              {FILE_TYPE_ORDER.map((fileType) => {
+                const detected = detectedFiles[fileType];
+                const uploaded = uploadedFiles[fileType];
+                const sig = FILE_SIGNATURES[fileType];
+
+                return (
+                  <div
+                    key={fileType}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      marginBottom: "6px",
+                      background: uploaded
+                        ? "var(--success-bg, rgba(40, 167, 69, 0.08))"
+                        : detected
+                        ? "var(--card-bg, #fff)"
+                        : "var(--bg-secondary, #f3f4f6)",
+                      border: uploaded
+                        ? "1px solid var(--success-border, #c3e6cb)"
+                        : detected
+                        ? "1px solid var(--border, #e5e7eb)"
+                        : "1px dashed var(--border, #e5e7eb)",
+                      opacity: !detected && !uploaded ? 0.5 : 1,
+                    }}
+                  >
+                    {/* Icon */}
+                    <span style={{ fontSize: "1.1rem", width: "24px", textAlign: "center" }}>
+                      {uploaded ? <span style={{ color: "var(--success-text, #28a745)" }}>&#10003;</span>
+                        : detected ? sig.icon
+                        : <span style={{ color: "var(--muted, #737373)" }}>&#9675;</span>}
+                    </span>
+
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{sig.label}</div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted, #737373)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {detected
+                          ? detected.file.name
+                          : "Waiting for file..."}
+                      </div>
+                    </div>
+
+                    {/* Confidence badge */}
+                    {detected && !uploaded && (
+                      <span
+                        style={{
+                          fontSize: "0.65rem",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: detected.confidence === "high" ? "var(--success-bg)" : "var(--warning-bg)",
+                          color: detected.confidence === "high" ? "var(--success-text)" : "var(--warning-text)",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {detected.signatureColumns.length} cols matched
+                      </span>
+                    )}
+
+                    {/* Remove button */}
+                    {detected && !uploaded && !uploading && !processing && (
+                      <button
+                        onClick={() => removeFile(fileType)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "var(--muted, #737373)",
+                          fontSize: "1rem",
+                          padding: "2px 6px",
+                          lineHeight: 1,
+                        }}
+                        title="Remove"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Upload + Process Button (combined for simplicity) */}
+          {allDetected && !allUploaded && !processing && !processResult && (
+            <button
+              onClick={handleUploadAll}
+              disabled={uploading}
+              style={{
+                width: "100%",
+                padding: "12px",
+                border: "none",
+                borderRadius: "8px",
+                background: uploading ? "var(--muted, #9ca3af)" : "var(--success-text, #28a745)",
+                color: "#fff",
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                cursor: uploading ? "not-allowed" : "pointer",
+                marginBottom: "16px",
+              }}
+            >
+              {uploading ? "Uploading files..." : "Upload & Process All 3 Files"}
+            </button>
+          )}
+
+          {/* Auto-trigger processing after upload */}
+          {allUploaded && !processing && !processResult && !error && (
+            <AutoProcess onProcess={handleProcess} />
           )}
 
           {/* Processing Progress */}
@@ -562,104 +657,51 @@ export default function ClinicHQUploadModal({
                 padding: "16px",
                 borderRadius: "8px",
                 marginBottom: "16px",
-                background: "var(--primary-bg, rgba(37, 99, 235, 0.08))",
-                border: "1px solid var(--primary, rgba(37, 99, 235, 0.3))",
+                background: "var(--info-bg, rgba(37, 99, 235, 0.08))",
+                border: "1px solid var(--info-border, rgba(37, 99, 235, 0.3))",
               }}
             >
-              {/* Header with timer */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                  Processing...
-                </div>
-                <div
-                  style={{
-                    fontSize: "0.8rem",
-                    color: "var(--muted, #737373)",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>Processing...</div>
+                <div style={{ fontSize: "0.8rem", color: "var(--muted, #737373)", fontVariantNumeric: "tabular-nums" }}>
                   {formatTime(elapsedSeconds)}
                 </div>
               </div>
 
-              {/* Current step */}
               {processingProgress._current_step && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "8px 12px",
-                    background: "var(--card-bg, #fff)",
-                    borderRadius: "6px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div
-                    className="spinner"
-                    style={{
-                      width: "14px",
-                      height: "14px",
-                      borderWidth: "2px",
-                    }}
-                  />
-                  <span style={{ fontSize: "0.85rem" }}>
-                    {processingProgress._current_step}
-                  </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "var(--card-bg, #fff)", borderRadius: "6px", marginBottom: "12px" }}>
+                  <div className="spinner" style={{ width: "14px", height: "14px", borderWidth: "2px" }} />
+                  <span style={{ fontSize: "0.85rem" }}>{processingProgress._current_step}</span>
                 </div>
               )}
 
-              {/* File progress indicator */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: "8px",
-                  marginBottom: "12px",
-                }}
-              >
-                {FILE_TYPES.map((ft, idx) => (
+              {/* File progress bars */}
+              <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                {FILE_TYPE_ORDER.map((ft, idx) => (
                   <div
-                    key={ft.key}
+                    key={ft}
                     style={{
                       flex: 1,
                       height: "4px",
                       borderRadius: "2px",
                       background:
-                        idx < currentFileIndex
-                          ? "var(--success-text, #28a745)"
-                          : idx === currentFileIndex
-                          ? "var(--primary, #2563eb)"
-                          : "var(--border, #e5e7eb)",
+                        idx < currentFileIndex ? "var(--success-text, #28a745)"
+                        : idx === currentFileIndex ? "var(--primary, #2563eb)"
+                        : "var(--border, #e5e7eb)",
                       transition: "background 0.3s ease",
                     }}
                   />
                 ))}
               </div>
 
-              {/* Progress details */}
+              {/* Stats */}
               {Object.keys(processingProgress).filter((k) => !k.startsWith("_")).length > 0 && (
                 <div style={{ fontSize: "0.75rem" }}>
                   {Object.entries(processingProgress)
                     .filter(([k, v]) => !k.startsWith("_") && typeof v !== "object")
                     .map(([key, value]) => (
-                      <div
-                        key={key}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginTop: "4px",
-                        }}
-                      >
-                        <span style={{ color: "var(--muted, #737373)" }}>
-                          {key.replace(/_/g, " ")}
-                        </span>
+                      <div key={key} style={{ display: "flex", justifyContent: "space-between", marginTop: "4px" }}>
+                        <span style={{ color: "var(--muted, #737373)" }}>{key.replace(/_/g, " ")}</span>
                         <strong>{String(value)}</strong>
                       </div>
                     ))}
@@ -670,18 +712,8 @@ export default function ClinicHQUploadModal({
 
           {/* Error */}
           {error && (
-            <div
-              style={{
-                padding: "12px 16px",
-                background: "var(--danger-bg, #f8d7da)",
-                border: "1px solid var(--danger-text, #dc3545)",
-                borderRadius: "8px",
-                marginBottom: "16px",
-              }}
-            >
-              <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--danger-text, #721c24)" }}>
-                {error}
-              </p>
+            <div style={{ padding: "12px 16px", background: "var(--danger-bg, #f8d7da)", border: "1px solid var(--danger-border, #f5c6cb)", borderRadius: "8px", marginBottom: "16px" }}>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--danger-text, #721c24)", whiteSpace: "pre-line" }}>{error}</p>
             </div>
           )}
 
@@ -692,53 +724,31 @@ export default function ClinicHQUploadModal({
                 padding: "16px",
                 borderRadius: "8px",
                 marginBottom: "16px",
-                background: processResult.success
-                  ? "var(--success-bg, rgba(40, 167, 69, 0.1))"
-                  : "var(--danger-bg, rgba(220, 53, 69, 0.1))",
-                border: processResult.success
-                  ? "1px solid var(--success-text, #28a745)"
-                  : "1px solid var(--danger-text, #dc3545)",
+                background: processResult.success ? "var(--success-bg, rgba(40, 167, 69, 0.1))" : "var(--danger-bg, rgba(220, 53, 69, 0.1))",
+                border: processResult.success ? "1px solid var(--success-border, #c3e6cb)" : "1px solid var(--danger-border, #f5c6cb)",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>
-                  {processResult.message}
-                </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>{processResult.message}</div>
                 {elapsedSeconds > 0 && (
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted, #737373)" }}>
-                    Completed in {formatTime(elapsedSeconds)}
-                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted, #737373)" }}>Completed in {formatTime(elapsedSeconds)}</div>
                 )}
               </div>
 
-              {/* File results */}
               <div style={{ fontSize: "0.85rem" }}>
                 {processResult.results.map((r) => (
                   <div key={r.source_table} style={{ marginTop: "8px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      {r.success ? (
-                        <span style={{ color: "var(--success-text, #28a745)" }}>&#10003;</span>
-                      ) : (
-                        <span style={{ color: "var(--danger-text, #dc3545)" }}>&#10007;</span>
-                      )}
+                      {r.success
+                        ? <span style={{ color: "var(--success-text, #28a745)" }}>&#10003;</span>
+                        : <span style={{ color: "var(--danger-text, #dc3545)" }}>&#10007;</span>}
                       <strong>{r.source_table}</strong>
                       {r.rows_inserted !== undefined && (
-                        <span style={{ color: "var(--muted, #737373)", fontSize: "0.8rem" }}>
-                          ({r.rows_inserted} rows)
-                        </span>
+                        <span style={{ color: "var(--muted, #737373)", fontSize: "0.8rem" }}>({r.rows_inserted} rows)</span>
                       )}
                     </div>
                     {r.error && (
-                      <div style={{ color: "var(--danger-text, #dc3545)", marginLeft: "20px", fontSize: "0.8rem" }}>
-                        {r.error}
-                      </div>
+                      <div style={{ color: "var(--danger-text, #dc3545)", marginLeft: "20px", fontSize: "0.8rem" }}>{r.error}</div>
                     )}
                     {r.post_processing && Object.keys(r.post_processing).length > 0 && (
                       <div style={{ marginLeft: "20px", marginTop: "4px", fontSize: "0.75rem" }}>
@@ -768,85 +778,58 @@ export default function ClinicHQUploadModal({
             alignItems: "center",
           }}
         >
-          {/* Left side: Batch ID */}
           <div style={{ fontSize: "0.7rem", color: "var(--muted, #737373)" }}>
             {batchId ? `Batch: ${batchId.slice(0, 8)}...` : ""}
           </div>
 
-          {/* Right side: Actions */}
           <div style={{ display: "flex", gap: "12px" }}>
             {processResult?.success ? (
               <>
                 <button
                   onClick={handleStartNewBatch}
-                  style={{
-                    padding: "10px 20px",
-                    border: "1px solid var(--border, #e5e5e5)",
-                    borderRadius: "8px",
-                    background: "var(--card-bg, #fff)",
-                    fontSize: "0.9rem",
-                    cursor: "pointer",
-                  }}
+                  style={{ padding: "10px 20px", border: "1px solid var(--border, #e5e5e5)", borderRadius: "8px", background: "var(--card-bg, #fff)", fontSize: "0.9rem", cursor: "pointer" }}
                 >
                   New Batch
                 </button>
                 <button
                   onClick={handleClose}
-                  style={{
-                    padding: "10px 20px",
-                    border: "none",
-                    borderRadius: "8px",
-                    background: "var(--primary, #2563eb)",
-                    color: "var(--primary-foreground, #fff)",
-                    fontSize: "0.9rem",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                  }}
+                  style={{ padding: "10px 20px", border: "none", borderRadius: "8px", background: "var(--primary, #2563eb)", color: "var(--primary-foreground, #fff)", fontSize: "0.9rem", fontWeight: 500, cursor: "pointer" }}
                 >
                   Done
                 </button>
               </>
             ) : (
-              <>
-                <button
-                  onClick={handleClose}
-                  disabled={uploading !== null || processing}
-                  style={{
-                    padding: "10px 20px",
-                    border: "1px solid var(--border, #e5e5e5)",
-                    borderRadius: "8px",
-                    background: "var(--card-bg, #fff)",
-                    fontSize: "0.9rem",
-                    cursor: uploading || processing ? "not-allowed" : "pointer",
-                    opacity: uploading || processing ? 0.6 : 1,
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleProcess}
-                  disabled={!isComplete || processing}
-                  style={{
-                    padding: "10px 20px",
-                    border: "none",
-                    borderRadius: "8px",
-                    background: isComplete && !processing
-                      ? "var(--success-text, #28a745)"
-                      : "var(--muted, #9ca3af)",
-                    color: "#fff",
-                    fontSize: "0.9rem",
-                    fontWeight: 500,
-                    cursor: isComplete && !processing ? "pointer" : "not-allowed",
-                    opacity: processing ? 0.6 : 1,
-                  }}
-                >
-                  {processing ? "Processing..." : `Process All Files (${filesUploaded}/3)`}
-                </button>
-              </>
+              <button
+                onClick={handleClose}
+                disabled={uploading || processing}
+                style={{
+                  padding: "10px 20px",
+                  border: "1px solid var(--border, #e5e5e5)",
+                  borderRadius: "8px",
+                  background: "var(--card-bg, #fff)",
+                  fontSize: "0.9rem",
+                  cursor: uploading || processing ? "not-allowed" : "pointer",
+                  opacity: uploading || processing ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
             )}
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+/** Auto-trigger processing after all files are uploaded */
+function AutoProcess({ onProcess }: { onProcess: () => void }) {
+  const triggered = useRef(false);
+  useEffect(() => {
+    if (!triggered.current) {
+      triggered.current = true;
+      onProcess();
+    }
+  }, [onProcess]);
+  return null;
 }
