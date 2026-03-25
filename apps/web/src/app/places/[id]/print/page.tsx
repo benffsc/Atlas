@@ -227,7 +227,7 @@ export default function PlacePrintPage() {
         display: "flex",
         justifyContent: "space-between"
       }}>
-        <span>Printed from Atlas - {nameShort} FFR Management</span>
+        <span>Printed from {nameShort || "Atlas"} - FFR Management</span>
         <span>{new Date().toLocaleString()}</span>
       </div>
 

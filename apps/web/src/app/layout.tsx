@@ -5,7 +5,10 @@ import { AppShell } from "@/components/AppShell";
 import { TippyChat } from "@/components/TippyChat";
 
 export const metadata: Metadata = {
-  title: "Atlas",
+  title: {
+    default: "Atlas",
+    template: "%s | Atlas",
+  },
   description: "Cat tracking and FFR management system",
 };
 

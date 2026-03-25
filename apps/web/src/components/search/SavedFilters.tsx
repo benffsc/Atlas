@@ -96,7 +96,7 @@ const PRESET_FILTERS: SavedFilter[] = [
   },
 ];
 
-const STORAGE_KEY = "atlas-saved-request-filters";
+const STORAGE_KEY = "saved-request-filters";
 
 function filtersEqual(a: RequestFilters, b: RequestFilters): boolean {
   return JSON.stringify(a) === JSON.stringify(b);

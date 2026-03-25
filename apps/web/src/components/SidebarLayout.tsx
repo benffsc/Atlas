@@ -33,13 +33,13 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
   const [isMobile, setIsMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
-    try { return localStorage.getItem("atlas-sidebar-collapsed") === "true"; } catch { return false; }
+    try { return localStorage.getItem("sidebar-collapsed") === "true"; } catch { return false; }
   });
 
   const toggleCollapsed = () => {
     const next = !collapsed;
     setCollapsed(next);
-    try { localStorage.setItem("atlas-sidebar-collapsed", String(next)); } catch { /* ignore */ }
+    try { localStorage.setItem("sidebar-collapsed", String(next)); } catch { /* ignore */ }
   };
 
   // Check if this is a print route - these should have no sidebar
@@ -297,7 +297,7 @@ const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
   {
     title: "Beacon",
     items: [
-      { label: "Atlas Map", href: "/map", icon: "🗺️" },
+      { label: "Map", href: "/map", icon: "🗺️" },
       { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "🐱" },
       { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
       { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
@@ -366,7 +366,7 @@ export const mainSidebarSections: NavSection[] = [
     title: "Operations",
     items: [
       { label: "Dashboard", href: "/", icon: "🏠" },
-      { label: "Atlas Map", href: "/map", icon: "🗺️" },
+      { label: "Map", href: "/map", icon: "🗺️" },
       { label: "Intake Queue", href: "/intake/queue", icon: "📥" },
       { label: "Requests", href: "/requests", icon: "📋" },
       { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
@@ -386,9 +386,10 @@ export const mainSidebarSections: NavSection[] = [
   {
     title: "Beacon",
     items: [
-      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "📊" },
-      { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
-      { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
+      { label: "Beacon Dashboard", href: "/beacon", icon: "📡" },
+      { label: "Compare", href: "/beacon/compare", icon: "📊" },
+      { label: "Scenarios", href: "/beacon/scenarios", icon: "🔮" },
+      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "📆" },
     ],
   },
   {
@@ -404,7 +405,44 @@ export function MainSidebar({ children }: { children: React.ReactNode }) {
   const { sections } = useNavItems("main", mainSidebarSections);
 
   return (
-    <SidebarLayout sections={sections} title="Atlas">
+    <SidebarLayout sections={sections} title="Home">
+      {children}
+    </SidebarLayout>
+  );
+}
+
+// Beacon sidebar sections — used by /beacon/* layout
+export const beaconSidebarSections: NavSection[] = [
+  {
+    title: "Beacon",
+    items: [
+      { label: "Dashboard", href: "/beacon", icon: "📡" },
+      { label: "Compare Locations", href: "/beacon/compare", icon: "📊" },
+      { label: "Scenarios", href: "/beacon/scenarios", icon: "🔮" },
+    ],
+  },
+  {
+    title: "Data",
+    items: [
+      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "📆" },
+      { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "🌡️" },
+    ],
+  },
+  {
+    title: "Atlas",
+    items: [
+      { label: "Operations", href: "/", icon: "🏠" },
+      { label: "Admin", href: "/admin", icon: "⚙️" },
+    ],
+  },
+];
+
+// Pre-configured sidebar for Beacon pages
+export function BeaconSidebar({ children }: { children: React.ReactNode }) {
+  const { sections } = useNavItems("beacon", beaconSidebarSections);
+
+  return (
+    <SidebarLayout sections={sections} title="Beacon" backLink={{ label: "Home", href: "/" }}>
       {children}
     </SidebarLayout>
   );

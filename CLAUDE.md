@@ -412,6 +412,20 @@ A trapper may ALSO run a rescue (e.g., Katie Moore runs "Cat Rescue of Cloverdal
 - Don't create fixed time windows — Use `v_request_alteration_stats` view
 - Don't skip `merged_into_*_id IS NULL` filters in queries
 
+**Beacon Porting (NEW — all new code must follow):**
+- Don't hardcode hex colors in inline styles — Use CSS variables (`var(--primary)`, `var(--success-text)`, etc.) from `globals.css`
+- Don't hardcode "Atlas" in user-visible strings — Use `useProduct().brandName` or `useOrgConfig().nameShort`
+- Don't hardcode product-specific logic without a config gate — Use `useProduct().isBeacon` or `ops.app_config`
+- Don't prefix localStorage/CSS keys with "atlas-" — Use product-neutral names
+- Don't add new pages under `/beacon/*` without ensuring they're wrapped by the beacon layout (ProductProvider + ThemeSyncer)
+
+**Key Files (Beacon Porting):**
+- `@/lib/product-context` — `useProduct()` returns `{ product, brandName, isBeacon, isAtlas }`
+- `@/components/ThemeSyncer` — Syncs admin design tokens → CSS variables, applies product overrides
+- `@/app/beacon/layout.tsx` — Beacon layout with ProductProvider + ThemeSyncer + BeaconSidebar
+- `@/hooks/useDesignTokens` — Admin-configurable theme colors (brand, status, entity)
+- `@/hooks/useOrgConfig` — Org name, phone, website, tagline
+
 **Map/UI:**
 - Don't use `AddressAutocomplete` for place input — Use `PlaceResolver`
 - Don't use `ST_DWithin` for cross-place aggregation — Use `get_place_family()`
@@ -509,6 +523,10 @@ All new development must move toward kernel-extractability. Reference `docs/HELI
 | New enum validation | `ENTITY_ENUMS` from `@/lib/enums` |
 | New pagination | `DataTablePagination` built into `DataTable` |
 | New soft blacklist entry | `sot.soft_blacklist` table (via admin UI or migration) |
+| New inline color | CSS variable from `globals.css` (never raw hex in `style={{}}`) |
+| New user-visible app name | `useProduct().brandName` or `useOrgConfig().nameShort` (never hardcode "Atlas"/"Beacon") |
+| New Beacon page | Under `/beacon/*` route (auto-gets ProductProvider + ThemeSyncer + BeaconSidebar) |
+| New product-specific behavior | Gate with `useProduct().isBeacon` or `ops.app_config` key |
 
 ### Kernel Layer (must be org-agnostic)
 

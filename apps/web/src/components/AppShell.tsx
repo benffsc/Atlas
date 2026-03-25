@@ -6,6 +6,7 @@ import Link from "next/link";
 import { GlobalSearch, CommandPaletteProvider, useCommandPalette } from "@/components/search";
 import { mainSidebarSections, type NavSection } from "@/components/SidebarLayout";
 import { usePermission } from "@/hooks/usePermission";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { ToastProvider } from "@/components/feedback/Toast";
 
 interface Staff {
@@ -17,6 +18,8 @@ interface Staff {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { nameShort } = useOrgConfig();
+  const appName = nameShort || "Atlas";
   const [staff, setStaff] = useState<Staff | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -103,8 +106,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Logo */}
           <a href="/" className="nav-brand" style={{ flexShrink: 0 }}>
-            <img src="/logo.png" alt="Atlas" className="nav-logo" style={{ height: "32px" }} />
-            <span style={{ fontSize: "1.25rem" }}>Atlas</span>
+            <img src="/logo.png" alt={appName} className="nav-logo" style={{ height: "32px" }} />
+            <span style={{ fontSize: "1.25rem" }}>{appName}</span>
           </a>
 
           {/* Search - flex grow to fill center */}

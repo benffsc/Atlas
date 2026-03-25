@@ -57,7 +57,7 @@ function groupIntoSections(items: NavItemRow[]): NavSection[] {
 }
 
 export function useNavItems(
-  sidebar: "main" | "admin",
+  sidebar: "main" | "admin" | "beacon",
   fallback: NavSection[]
 ): {
   sections: NavSection[];
