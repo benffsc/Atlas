@@ -320,7 +320,7 @@ export default function ColonyEstimatesPage() {
                   <td style={{ padding: "0.75rem" }}>
                     <Link
                       href={`/places/${est.place_id}`}
-                      style={{ fontWeight: 500, color: "#3b82f6" }}
+                      style={{ fontWeight: 500, color: "var(--primary, #3b82f6)" }}
                     >
                       {est.place_name || "Unnamed"}
                     </Link>
@@ -533,7 +533,7 @@ export default function ColonyEstimatesPage() {
                   padding: "0.5rem 1rem",
                   border: "none",
                   borderRadius: "6px",
-                  background: "#3b82f6",
+                  background: "var(--primary, #3b82f6)",
                   color: "white",
                   cursor: saving ? "not-allowed" : "pointer",
                   opacity: saving ? 0.6 : 1,

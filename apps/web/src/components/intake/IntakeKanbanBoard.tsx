@@ -158,8 +158,8 @@ function IntakeKanbanCard({
           style={{
             padding: "0.1rem 0.4rem",
             borderRadius: "999px",
-            background: "#dbeafe",
-            color: "#2563eb",
+            background: "var(--info-bg, #dbeafe)",
+            color: "var(--primary, #2563eb)",
             fontSize: "0.7rem",
             fontWeight: 600,
           }}
@@ -213,8 +213,8 @@ function DraggableKanbanCard({
         marginBottom: "0.5rem",
         opacity: isDragging ? 0.4 : 1,
         touchAction: "none",
-        borderLeft: isRecentlyMoved ? "3px solid #3b82f6" : undefined,
-        background: isRecentlyMoved ? "#eff6ff" : undefined,
+        borderLeft: isRecentlyMoved ? "3px solid var(--primary, #3b82f6)" : undefined,
+        background: isRecentlyMoved ? "var(--info-bg, #eff6ff)" : undefined,
         borderRadius: isRecentlyMoved ? "8px" : undefined,
         transition: "background-color 0.5s ease, border-color 0.5s ease",
       }}

@@ -293,7 +293,7 @@ function CycleSection({ cycle }: { cycle: CurrentCycle | null }) {
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "2rem", fontWeight: 700, color: "#3b82f6" }}>{cycle.total_issues}</div>
+            <div style={{ fontSize: "2rem", fontWeight: 700, color: "var(--primary, #3b82f6)" }}>{cycle.total_issues}</div>
             <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>Total Issues</div>
           </div>
         </div>
@@ -306,7 +306,7 @@ function CycleSection({ cycle }: { cycle: CurrentCycle | null }) {
             <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>Completed</div>
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#3b82f6" }}>{cycle.in_progress_issues}</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--primary, #3b82f6)" }}>{cycle.in_progress_issues}</div>
             <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>In Progress</div>
           </div>
           <div style={{ textAlign: "center" }}>
@@ -468,7 +468,7 @@ function TeamWorkloadSection({ data }: { data: TeamWorkload[] }) {
                   </div>
                 </td>
                 <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)" }}>
-                  <span style={{ fontWeight: member.in_progress > 0 ? 600 : 400, color: member.in_progress > 0 ? "#3b82f6" : "#9ca3af" }}>
+                  <span style={{ fontWeight: member.in_progress > 0 ? 600 : 400, color: member.in_progress > 0 ? "var(--primary, #3b82f6)" : "#9ca3af" }}>
                     {member.in_progress}
                   </span>
                 </td>
@@ -503,7 +503,7 @@ function ClaudeSessionsSection({ data }: { data: ClaudeSession[] }) {
           href="/admin/linear/sessions"
           style={{
             fontSize: "0.85rem",
-            color: "#3b82f6",
+            color: "var(--primary, #3b82f6)",
             textDecoration: "none",
           }}
         >
@@ -680,7 +680,7 @@ export default function LinearDashboardPage() {
 
       {/* Quick Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Total Issues" value={data.totals.issues} accentColor="#3b82f6" href="/admin/linear/issues" />
+        <StatCard label="Total Issues" value={data.totals.issues} accentColor="var(--primary, #3b82f6)" href="/admin/linear/issues" />
         <StatCard label="Projects" value={data.totals.projects} accentColor="#8b5cf6" />
         <StatCard label="Cycles" value={data.totals.cycles} accentColor="#f59e0b" />
         <StatCard label="Team Members" value={data.totals.team_members} accentColor="#10b981" />

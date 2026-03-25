@@ -64,7 +64,7 @@ interface ExtractionData {
   recent_jobs: RecentJob[];
 }
 
-function ProgressBar({ value, max, color = "#3b82f6" }: { value: number; max: number; color?: string }) {
+function ProgressBar({ value, max, color = "var(--primary, #3b82f6)" }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -176,7 +176,7 @@ export default function AIExtractionPage() {
             onClick={fetchData}
             style={{
               padding: "6px 12px",
-              background: "#3b82f6",
+              background: "var(--primary, #3b82f6)",
               color: "white",
               border: "none",
               borderRadius: "6px",
@@ -335,7 +335,7 @@ export default function AIExtractionPage() {
           </div>
           <div>
             <div style={{ fontSize: "12px", color: "#6b7280" }}>Processing</div>
-            <div style={{ fontSize: "20px", fontWeight: 600, color: data.queue.processing > 0 ? "#3b82f6" : "#6b7280" }}>
+            <div style={{ fontSize: "20px", fontWeight: 600, color: data.queue.processing > 0 ? "var(--primary, #3b82f6)" : "#6b7280" }}>
               {data.queue.processing}
             </div>
           </div>

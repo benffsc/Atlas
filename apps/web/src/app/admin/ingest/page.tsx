@@ -61,7 +61,7 @@ interface BatchesResponse {
 const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }> = {
   completed: { bg: "rgba(16, 185, 129, 0.1)", color: "#059669", label: "Completed" },
   failed: { bg: "rgba(239, 68, 68, 0.1)", color: "#dc2626", label: "Failed" },
-  processing: { bg: "rgba(59, 130, 246, 0.1)", color: "#2563eb", label: "Processing" },
+  processing: { bg: "rgba(59, 130, 246, 0.1)", color: "var(--primary, #2563eb)", label: "Processing" },
   pending: { bg: "rgba(107, 114, 128, 0.1)", color: "#6b7280", label: "Pending" },
   partial: { bg: "rgba(245, 158, 11, 0.1)", color: "#d97706", label: "Partial" },
 };
@@ -135,7 +135,7 @@ function ProcessingPhaseStepper({ phase, status }: { phase: string; status: stri
                     : isDone
                     ? "#059669"
                     : isCurrent
-                    ? "#2563eb"
+                    ? "var(--primary, #2563eb)"
                     : "var(--border, #d1d5db)",
                   ...(isCurrent && !isFailed ? { boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.2)" } : {}),
                 }}
@@ -358,7 +358,7 @@ function IngestDashboardContent() {
           { label: "Total Batches", value: total, color: "#6b7280" },
           { label: "Completed", value: batches.filter(b => b.batch_status === "completed").length, color: "#059669" },
           { label: "Failed", value: batches.filter(b => b.batch_status === "failed").length, color: "#dc2626" },
-          { label: "Processing", value: batches.filter(b => b.batch_status === "processing").length, color: "#2563eb" },
+          { label: "Processing", value: batches.filter(b => b.batch_status === "processing").length, color: "var(--primary, #2563eb)" },
         ].map(stat => (
           <div
             key={stat.label}

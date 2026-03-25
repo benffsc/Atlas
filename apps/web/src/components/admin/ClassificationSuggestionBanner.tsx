@@ -387,7 +387,7 @@ export function ClassificationSuggestionBanner({
               onClick={handleOverride}
               disabled={loading || !overrideReason.trim()}
               style={{
-                background: "#3b82f6",
+                background: "var(--primary, #3b82f6)",
                 color: "#fff",
                 border: "none",
                 padding: "0.4rem 0.75rem",

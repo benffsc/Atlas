@@ -369,8 +369,8 @@ export default function BeaconPage() {
                 borderRadius: "9999px",
                 fontSize: "0.7rem",
                 fontWeight: 500,
-                background: "#dbeafe",
-                color: "#1e40af",
+                background: "var(--primary-bg, #dbeafe)",
+                color: "var(--primary, #3b82f6)",
               }}>
                 {dateFrom || "start"} — {dateTo || "now"}
               </span>
@@ -407,7 +407,7 @@ export default function BeaconPage() {
               <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1e40af" }}>
                 {countyData.summary.total_places.toLocaleString()}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#3b82f6" }}>Active Sites</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--primary, #3b82f6)" }}>Active Sites</div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}>
@@ -464,7 +464,7 @@ export default function BeaconPage() {
                     <div style={{ width: "45px", textAlign: "right", fontSize: "0.85rem", fontWeight: 700, color: barColor, flexShrink: 0 }}>
                       {rate}%
                     </div>
-                    <div style={{ width: "80px", fontSize: "0.7rem", color: "#3b82f6", textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ width: "80px", fontSize: "0.7rem", color: "var(--primary, #3b82f6)", textAlign: "right", flexShrink: 0 }}>
                       {c.total_cats} cats
                     </div>
                   </div>
@@ -497,7 +497,7 @@ export default function BeaconPage() {
               <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1e40af" }}>
                 {zones.summary.total_places.toLocaleString()}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#3b82f6" }}>Active Sites</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--primary, #3b82f6)" }}>Active Sites</div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}>
@@ -789,7 +789,7 @@ function AnalyticsCard({
         <div
           style={{
             fontSize: "0.75rem",
-            color: "#0d6efd",
+            color: "var(--primary, #3b82f6)",
             marginTop: "auto",
             paddingTop: "0.5rem",
           }}

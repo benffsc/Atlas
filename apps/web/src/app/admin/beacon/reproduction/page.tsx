@@ -327,7 +327,7 @@ export default function ReproductionPage() {
                   <td style={{ padding: "0.75rem" }}>
                     <Link
                       href={`/cats/${rec.cat_id}`}
-                      style={{ fontWeight: 500, color: "#3b82f6" }}
+                      style={{ fontWeight: 500, color: "var(--primary, #3b82f6)" }}
                     >
                       {rec.cat_name || "Unknown"}
                     </Link>
@@ -562,7 +562,7 @@ export default function ReproductionPage() {
                   padding: "0.5rem 1rem",
                   border: "none",
                   borderRadius: "6px",
-                  background: "#3b82f6",
+                  background: "var(--primary, #3b82f6)",
                   color: "white",
                   cursor: saving ? "not-allowed" : "pointer",
                 }}

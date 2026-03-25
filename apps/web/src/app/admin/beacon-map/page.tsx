@@ -23,7 +23,7 @@ const AtlasMap = dynamic(() => import("@/components/map/AtlasMap"), {
             width: 40,
             height: 40,
             border: "3px solid #e5e7eb",
-            borderTopColor: "#3b82f6",
+            borderTopColor: "var(--primary, #3b82f6)",
             borderRadius: "50%",
             animation: "spin 1s linear infinite",
             margin: "0 auto 12px",
@@ -54,7 +54,7 @@ export default function AdminAtlasMapPage() {
             target="_blank"
             style={{
               padding: "0.5rem 1rem",
-              backgroundColor: "#3b82f6",
+              backgroundColor: "var(--primary, #3b82f6)",
               color: "white",
               borderRadius: "0.375rem",
               textDecoration: "none",

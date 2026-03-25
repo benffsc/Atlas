@@ -152,45 +152,45 @@
    ============================================================ */
 
 /* Wrapper for consistent animations */
-.atlas-pin-wrapper {
+.pin-wrapper {
   transition: transform var(--map-transition-fast), filter var(--map-transition-fast);
   transform-origin: center bottom;
   overflow: visible;
 }
 
-.atlas-pin-wrapper svg {
+.pin-wrapper svg {
   overflow: visible;
 }
 
 /* Prevent Leaflet's default marker clipping from cutting off badges */
-.map-marker-atlas-pin {
+.map-marker-pin-main {
   overflow: visible !important;
 }
 
-.leaflet-marker-icon:hover .atlas-pin-wrapper {
+.leaflet-marker-icon:hover .pin-wrapper {
   transform: scale(1.15) translateY(-3px);
   filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.35));
 }
 
 /* Different pin styles */
-.map-marker-atlas-pin.marker-disease .atlas-pin-wrapper {
+.map-marker-pin-main.marker-disease .pin-wrapper {
   animation: map-pulse 3s ease-in-out infinite;
 }
 
-.map-marker-atlas-pin.marker-watch_list .atlas-pin-wrapper {
+.map-marker-pin-main.marker-watch_list .pin-wrapper {
   /* Subtle breathing effect for watch list */
 }
 
-.map-marker-atlas-pin.marker-clustered .atlas-pin-wrapper {
+.map-marker-pin-main.marker-clustered .pin-wrapper {
   /* Slightly larger shadow for clustered pins */
 }
 
 /* Pin entry animation */
-.map-marker-atlas-pin .atlas-pin-wrapper {
-  animation: atlas-pin-drop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+.map-marker-pin-main .pin-wrapper {
+  animation: pin-drop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-@keyframes atlas-pin-drop {
+@keyframes pin-drop {
   0% {
     opacity: 0;
     transform: translateY(-20px) scale(0.3);
@@ -2968,9 +2968,9 @@
    Street View Active: Constrain drawers to map portion (55%)
    ============================================================ */
 
-.atlas-map-sv-active .place-detail-drawer,
-.atlas-map-sv-active .person-detail-drawer,
-.atlas-map-sv-active .cat-detail-drawer {
+.map-sv-active .place-detail-drawer,
+.map-sv-active .person-detail-drawer,
+.map-sv-active .cat-detail-drawer {
   height: 55vh;
   max-height: 55vh;
 }
@@ -3141,7 +3141,7 @@
    Fullscreen Mode — Browser Fullscreen API
    ============================================================ */
 
-.atlas-map-container:fullscreen {
+.map-container:fullscreen {
   width: 100vw !important;
   height: 100vh !important;
   max-width: none;
@@ -3149,12 +3149,12 @@
   background: var(--map-popup-bg, #ffffff);
 }
 
-.atlas-map-container:fullscreen .leaflet-container {
+.map-container:fullscreen .leaflet-container {
   height: 100% !important;
 }
 
 /* Webkit prefix for Safari */
-.atlas-map-container:-webkit-full-screen {
+.map-container:-webkit-full-screen {
   width: 100vw !important;
   height: 100vh !important;
   max-width: none;
@@ -3162,6 +3162,6 @@
   background: var(--map-popup-bg, #ffffff);
 }
 
-.atlas-map-container:-webkit-full-screen .leaflet-container {
+.map-container:-webkit-full-screen .leaflet-container {
   height: 100% !important;
 }

@@ -6,7 +6,7 @@ import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import "@/styles/atlas-map.css";
+import "@/styles/map.css";
 import { useMapData } from "@/hooks/useMapData";
 import { fetchApi } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
@@ -534,7 +534,7 @@ function AtlasMapInner() {
 
   const handleFullscreenToggle = useCallback(() => {
     if (!document.fullscreenElement) {
-      const mapContainer = document.querySelector('.atlas-map-container');
+      const mapContainer = document.querySelector('.map-container');
       if (mapContainer) {
         mapContainer.requestFullscreen().catch(console.error);
       }
@@ -2388,7 +2388,7 @@ function AtlasMapInner() {
 
   return (
     <div
-      className={`atlas-map-container${streetViewCoords && !streetViewConeOnly && !streetViewFullscreen ? " atlas-map-sv-active" : ""}`}
+      className={`map-container${streetViewCoords && !streetViewConeOnly && !streetViewFullscreen ? " map-sv-active" : ""}`}
       style={{ position: "relative", height: "100dvh", width: "100%", display: "flex", flexDirection: "column" }}
     >
       {/* Map container */}
@@ -3038,7 +3038,7 @@ function AtlasMapInner() {
         onClear={handleClearComparison}
       />
 
-      {/* CSS animations are in atlas-map.css */}
+      {/* CSS animations are in map.css */}
 
       {/* Street View Panel (hidden in cone-only mode — drawer handles the panorama) */}
       {streetViewCoords && streetViewUrl && !streetViewConeOnly && (

@@ -14,7 +14,7 @@ interface QueueStats {
 
 // Status badge colors for visual clarity
 const statusColors: Record<string, string> = {
-  new: "#3b82f6",
+  new: "var(--primary, #3b82f6)",
   in_progress: "#f59e0b",
   scheduled: "#8b5cf6",
   complete: "#10b981",

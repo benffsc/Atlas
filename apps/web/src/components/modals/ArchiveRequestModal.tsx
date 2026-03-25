@@ -129,10 +129,10 @@ export default function ArchiveRequestModal({
           <div
             style={{
               padding: "0.75rem",
-              background: "rgba(59, 130, 246, 0.1)",
+              background: "var(--info-bg, rgba(59, 130, 246, 0.1))",
               borderRadius: "8px",
               fontSize: "0.85rem",
-              color: "#2563eb",
+              color: "var(--primary, #2563eb)",
             }}
           >
             This request can be restored at any time from the archived requests view.

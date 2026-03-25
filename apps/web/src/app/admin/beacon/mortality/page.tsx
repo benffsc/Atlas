@@ -370,7 +370,7 @@ export default function MortalityPage() {
                     {evt.cat_id ? (
                       <Link
                         href={`/cats/${evt.cat_id}`}
-                        style={{ fontWeight: 500, color: "#3b82f6" }}
+                        style={{ fontWeight: 500, color: "var(--primary, #3b82f6)" }}
                       >
                         {evt.cat_name || "Unknown"}
                       </Link>
@@ -624,7 +624,7 @@ export default function MortalityPage() {
                   padding: "0.5rem 1rem",
                   border: "none",
                   borderRadius: "6px",
-                  background: "#3b82f6",
+                  background: "var(--primary, #3b82f6)",
                   color: "white",
                   cursor: saving ? "not-allowed" : "pointer",
                 }}

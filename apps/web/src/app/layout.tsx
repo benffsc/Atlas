@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "@/styles/atlas-map.css";
+import "@/styles/map.css";
 import { AppShell } from "@/components/AppShell";
 import { TippyChat } from "@/components/TippyChat";
 

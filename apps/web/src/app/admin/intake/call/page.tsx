@@ -430,7 +430,7 @@ export default function PhoneIntakePage() {
               }}
               style={{
                 padding: "12px 24px",
-                background: "#3b82f6",
+                background: "var(--primary, #3b82f6)",
                 color: "white",
                 border: "none",
                 borderRadius: 8,

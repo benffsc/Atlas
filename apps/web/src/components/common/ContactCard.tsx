@@ -149,7 +149,7 @@ export default function ContactCard({
       <div
         style={{
           padding: "0.75rem 1rem",
-          background: "linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)",
+          background: "linear-gradient(135deg, var(--primary, #3b82f6) 0%, var(--primary-light, #60a5fa) 100%)",
           color: "#fff",
         }}
       >
@@ -279,7 +279,7 @@ export default function ContactCard({
               style={{
                 width: "100%",
                 padding: "0.5rem 0.75rem",
-                border: "1px solid #3b82f6",
+                border: "1px solid var(--primary, #3b82f6)",
                 borderRadius: "6px",
                 fontSize: "0.85rem",
                 outline: "none",
@@ -374,7 +374,7 @@ export default function ContactCard({
                   justifyContent: "center",
                   gap: "0.5rem",
                   padding: "0.625rem 1rem",
-                  background: "#3b82f6",
+                  background: "var(--primary, #3b82f6)",
                   color: "#fff",
                   border: "none",
                   borderRadius: "8px",
@@ -476,7 +476,7 @@ function PersonCard({
             style={{
               fontWeight: 600,
               fontSize: "1rem",
-              color: "#3b82f6",
+              color: "var(--primary, #3b82f6)",
               textDecoration: "none",
             }}
             onClick={onPersonClick ? (e) => onPersonClick(person.personId!, e) : undefined}

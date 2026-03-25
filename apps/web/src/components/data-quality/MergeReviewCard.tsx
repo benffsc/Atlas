@@ -153,9 +153,9 @@ export function MergeReviewCard({
       style={{
         background: "var(--background)",
         borderRadius: 12,
-        border: `1px solid ${isSelected ? "#3b82f6" : "#e5e7eb"}`,
+        border: `1px solid ${isSelected ? "var(--primary, #3b82f6)" : "#e5e7eb"}`,
         boxShadow: isSelected
-          ? "0 0 0 2px rgba(59, 130, 246, 0.2)"
+          ? "0 0 0 2px var(--primary-ring, rgba(59, 130, 246, 0.2))"
           : "0 1px 3px rgba(0, 0, 0, 0.05)",
         overflow: "hidden",
         opacity: isProcessing ? 0.6 : 1,

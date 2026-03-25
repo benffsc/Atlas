@@ -152,7 +152,7 @@ export default function OwnerChangesPage() {
         <ul style={{ margin: 0, paddingLeft: "1.25rem", fontSize: "0.8125rem", color: "#334155" }}>
           <li><strong style={{ color: "#ef4444" }}>Owner Transfer</strong>: Different email AND phone. The original person may no longer care for these cats.</li>
           <li><strong style={{ color: "#f59e0b" }}>Household</strong>: Same phone but different name. Could be spouse, family member, or caretaker change.</li>
-          <li><strong style={{ color: "#3b82f6" }}>Other Change</strong>: Contact info changed but unclear if same person.</li>
+          <li><strong style={{ color: "var(--primary, #3b82f6)" }}>Other Change</strong>: Contact info changed but unclear if same person.</li>
         </ul>
         <div style={{ marginTop: "0.75rem", fontSize: "0.8125rem" }}>
           <strong>Actions:</strong>

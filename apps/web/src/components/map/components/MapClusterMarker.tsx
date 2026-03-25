@@ -61,7 +61,7 @@ function createClusterIcon(
   const { size, fontSize } = SIZE_CONFIG[sizeClass];
 
   return L.divIcon({
-    className: "atlas-cluster-marker",
+    className: "cluster-marker",
     html: `
       <div style="
         width: ${size}px;

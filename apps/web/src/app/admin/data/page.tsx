@@ -158,7 +158,7 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
               label="Tier 1: Email Match"
               value={data.identity.tier1_email}
               href="/admin/person-dedup?tier=1"
-              color="#3b82f6"
+              color="var(--primary, #3b82f6)"
             />
             <StatCard
               label="Tier 2: Phone + Name"
@@ -210,7 +210,7 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
               label="Close Similar"
               value={data.places.close_similar}
               href="/admin/place-dedup?type=similar"
-              color="#3b82f6"
+              color="var(--primary, #3b82f6)"
             />
             <StatCard
               label="Close Different"
@@ -314,7 +314,7 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
                   label="Total Pending"
                   value={data.owner_changes?.total || 0}
                   href="/admin/owner-changes"
-                  color="#3b82f6"
+                  color="var(--primary, #3b82f6)"
                 />
               </div>
               <div style={{
@@ -467,7 +467,7 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
       {/* Entity Linking */}
       <h3 style={{ marginBottom: "1rem" }}>Entity Linking Pipeline</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Appointments Linked" value={data.entity_linking.appointments_linked} color="#3b82f6" />
+        <StatCard label="Appointments Linked" value={data.entity_linking.appointments_linked} color="var(--primary, #3b82f6)" />
         <StatCard label="Cats Linked" value={data.entity_linking.cats_linked} color="#10b981" />
         <StatCard label="Places Inferred" value={data.entity_linking.places_inferred} color="#8b5cf6" />
       </div>
@@ -496,7 +496,7 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
         <StatCard label="Pending" value={data.jobs.pending} color="#f59e0b" />
-        <StatCard label="Running" value={data.jobs.running} color="#3b82f6" />
+        <StatCard label="Running" value={data.jobs.running} color="var(--primary, #3b82f6)" />
         <StatCard label="Completed (24h)" value={data.jobs.completed_24h} color="#10b981" />
         <StatCard label="Failed (24h)" value={data.jobs.failed_24h} color="#ef4444" />
       </div>
@@ -591,12 +591,12 @@ function HealthTab({ health }: { health: HealthData | null }) {
 
       {/* Metrics Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Total Decisions" value={h.total_decisions} color="#3b82f6" />
+        <StatCard label="Total Decisions" value={h.total_decisions} color="var(--primary, #3b82f6)" />
         <StatCard label="Decisions (24h)" value={h.decisions_24h} color="#10b981" />
         <StatCard label="Pending Reviews" value={h.pending_reviews} color="#f59e0b" />
         <StatCard label="Total Households" value={h.total_households} color="#8b5cf6" />
         <StatCard label="Active Rules" value={h.active_rules} color="#6b7280" />
-        <StatCard label="Avg Processing" value={`${h.avg_processing_ms}ms`} color="#3b82f6" />
+        <StatCard label="Avg Processing" value={`${h.avg_processing_ms}ms`} color="var(--primary, #3b82f6)" />
       </div>
 
       {/* Links */}

@@ -48,7 +48,7 @@ interface SearchResult {
 
 const SCENARIO_COLORS = {
   baseline: "#6b7280",
-  optimistic: "#3b82f6",
+  optimistic: "var(--primary, #3b82f6)",
   aggressive: "#16a34a",
 };
 

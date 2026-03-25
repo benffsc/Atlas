@@ -300,7 +300,7 @@ function ConfirmModal({
               padding: "0.4rem 1rem",
               borderRadius: "6px",
               border: "none",
-              background: isDangerous ? "#dc2626" : "#2563eb",
+              background: isDangerous ? "#dc2626" : "var(--primary, #2563eb)",
               color: "#fff",
               cursor: "pointer",
               fontWeight: 500,
@@ -494,7 +494,7 @@ function TrapperCard({
       {shownAssignments.length > 0 && (
         <div style={{ marginBottom: "0.35rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
           {shownAssignments.map((req) => {
-            const statusColor = req.status === "in_progress" ? "#2563eb"
+            const statusColor = req.status === "in_progress" ? "var(--primary, #2563eb)"
               : req.status === "scheduled" ? "#7c3aed"
               : "#6b7280";
             return (
@@ -1129,7 +1129,7 @@ function TrappersPageInner() {
                   padding: "0.4rem 1rem",
                   borderRadius: "6px",
                   border: "none",
-                  background: "#2563eb",
+                  background: "var(--primary, #2563eb)",
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: 500,

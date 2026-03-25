@@ -193,7 +193,7 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
             width: "48px",
             height: "48px",
             borderRadius: "50%",
-            background: "#3b82f6",
+            background: "var(--primary, #3b82f6)",
             color: "#fff",
             border: "none",
             boxShadow: "0 2px 8px rgba(0,0,0,0.25)",

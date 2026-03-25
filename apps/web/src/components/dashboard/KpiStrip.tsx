@@ -18,7 +18,7 @@ export function KpiStrip({ stats }: KpiStripProps) {
         label="Active Requests"
         value={stats?.active_requests ?? null}
         href="/requests"
-        accentColor="#3b82f6"
+        accentColor="var(--primary, #3b82f6)"
       />
       <KpiCard
         label="Pending Intake"

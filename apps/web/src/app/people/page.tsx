@@ -211,7 +211,7 @@ function PeoplePageContent() {
           onClick={() => setShowCreateModal(true)}
           style={{
             fontSize: "0.875rem",
-            background: "#2563eb",
+            background: "var(--primary, #2563eb)",
             color: "#fff",
             border: "none",
             borderRadius: "4px",

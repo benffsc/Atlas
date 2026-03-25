@@ -384,11 +384,11 @@ export function createAtlasPinMarker(
   const svg = `
     <svg width="${size}" height="${svgHeight}" viewBox="0 ${viewBoxTop} 24 ${viewBoxTotalHeight}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="atlas-pin-grad-${uniqueId}" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="pin-grad-${uniqueId}" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="${lighterColor}"/>
           <stop offset="100%" stop-color="${color}"/>
         </linearGradient>
-        <filter id="atlas-pin-shadow-${uniqueId}" x="-30%" y="-10%" width="160%" height="140%">
+        <filter id="pin-shadow-${uniqueId}" x="-30%" y="-10%" width="160%" height="140%">
           <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-opacity="0.35"/>
         </filter>
       </defs>
@@ -396,8 +396,8 @@ export function createAtlasPinMarker(
       <ellipse cx="12" cy="30" rx="5" ry="2" fill="rgba(0,0,0,0.2)"/>
       <!-- Pin body -->
       <path
-        filter="url(#atlas-pin-shadow-${uniqueId})"
-        fill="url(#atlas-pin-grad-${uniqueId})"
+        filter="url(#pin-shadow-${uniqueId})"
+        fill="url(#pin-grad-${uniqueId})"
         stroke="#fff"
         stroke-width="1.5"
         d="M12 0C6.5 0 2 4.5 2 10c0 7 10 20 10 20s10-13 10-20c0-5.5-4.5-10-10-10z"
@@ -419,8 +419,8 @@ export function createAtlasPinMarker(
   const pinTipPixelY = Math.round(((30 - viewBoxTop) / viewBoxTotalHeight) * svgHeight);
 
   return L.divIcon({
-    className: `map-marker-atlas-pin marker-${pinStyle} ${isClustered ? 'marker-clustered' : ''} ${hasDiseaseBadges ? 'marker-has-disease' : ''}`,
-    html: `<div class="atlas-pin-wrapper" data-icon="${innerIcon}">${svg}</div>`,
+    className: `map-marker-pin-main marker-${pinStyle} ${isClustered ? 'marker-clustered' : ''} ${hasDiseaseBadges ? 'marker-has-disease' : ''}`,
+    html: `<div class="pin-wrapper" data-icon="${innerIcon}">${svg}</div>`,
     iconSize: [size, svgHeight],
     iconAnchor: [size / 2, pinTipPixelY],
     popupAnchor: [0, -pinTipPixelY],
@@ -598,8 +598,8 @@ export function createReferencePinMarker(
   `;
 
   return L.divIcon({
-    className: `map-marker-atlas-pin marker-reference marker-${pinStyle}`,
-    html: `<div class="atlas-pin-wrapper" data-icon="reference">${svg}</div>`,
+    className: `map-marker-pin-main marker-reference marker-${pinStyle}`,
+    html: `<div class="pin-wrapper" data-icon="reference">${svg}</div>`,
     iconSize: [size, svgHeight],
     iconAnchor: [size / 2, svgHeight],
     popupAnchor: [0, -Math.round(size * 1.1)],

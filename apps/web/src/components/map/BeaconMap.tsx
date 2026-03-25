@@ -87,7 +87,7 @@ const createCircleIcon = (color: string, size: number = 10) => {
 const PRIORITY_COLORS: Record<string, string> = {
   high: "#ef4444",
   medium: "#f59e0b",
-  low: "#3b82f6",
+  low: "var(--primary, #3b82f6)",
 };
 
 const ZONE_STATUS_COLORS: Record<string, string> = {
@@ -207,7 +207,7 @@ export default function BeaconMap({
     places.forEach((place) => {
       if (!place.lat || !place.lng) return;
 
-      const color = PRIORITY_COLORS[place.priority] || "#3b82f6";
+      const color = PRIORITY_COLORS[place.priority] || "var(--primary, #3b82f6)";
       const size = place.priority === "high" ? 14 : place.priority === "medium" ? 12 : 10;
 
       const marker = L.marker([place.lat, place.lng], {

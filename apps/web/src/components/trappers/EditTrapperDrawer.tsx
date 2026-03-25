@@ -106,7 +106,7 @@ export function EditTrapperDrawer({ isOpen, onClose, trapper, onSaved }: EditTra
             style={{
               padding: "0.5rem 1rem",
               fontSize: "0.875rem",
-              background: hasChanges ? "#2563eb" : "#e5e7eb",
+              background: hasChanges ? "var(--primary, #2563eb)" : "#e5e7eb",
               color: hasChanges ? "#fff" : "#9ca3af",
               border: "none",
               borderRadius: "6px",

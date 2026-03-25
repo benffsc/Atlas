@@ -60,7 +60,7 @@ export function DateRangeFilter({ fromDate, toDate, onDateRangeChange }: DateRan
               cursor: "pointer",
               fontSize: "0.75rem",
               fontWeight: isSelected ? 600 : 400,
-              background: isSelected ? "#3b82f6" : "transparent",
+              background: isSelected ? "var(--primary, #3b82f6)" : "transparent",
               color: isSelected ? "white" : "#6b7280",
             }}
           >
