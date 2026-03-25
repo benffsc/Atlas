@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { queryRows, queryOne, execute } from "@/lib/db";
-import { syncFieldToAirtable, isAirtableSyncConfigured, CustomFieldForSync } from "@/lib/airtable-sync";
+import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiConflict, apiServerError } from "@/lib/api-response";
 
 interface CustomField {
@@ -15,8 +14,6 @@ interface CustomField {
   is_beacon_critical: boolean;
   display_order: number;
   show_for_call_types: string[] | null;
-  airtable_field_name: string | null;
-  airtable_synced_at: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -54,7 +51,6 @@ export async function POST(request: NextRequest) {
       is_beacon_critical,
       display_order,
       show_for_call_types,
-      airtable_field_name,
     } = body;
 
     // Validate required fields
@@ -89,9 +85,8 @@ export async function POST(request: NextRequest) {
         is_required,
         is_beacon_critical,
         display_order,
-        show_for_call_types,
-        airtable_field_name
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        show_for_call_types
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
     `, [
       field_key,
@@ -104,41 +99,9 @@ export async function POST(request: NextRequest) {
       is_beacon_critical || false,
       display_order || 0,
       show_for_call_types || null,
-      airtable_field_name || field_label,
     ]);
 
-    // Auto-sync to Airtable if configured
-    let airtableSync: { success: boolean; error?: string } | null = null;
-    if (result && isAirtableSyncConfigured()) {
-      const fieldForSync: CustomFieldForSync = {
-        field_id: result.field_id,
-        field_key: result.field_key,
-        field_label: result.field_label,
-        field_type: result.field_type,
-        options: result.options,
-        airtable_field_name: result.airtable_field_name,
-      };
-
-      const syncResult = await syncFieldToAirtable(fieldForSync);
-      airtableSync = {
-        success: syncResult.success,
-        error: syncResult.error === "already_exists" ? undefined : syncResult.error,
-      };
-
-      // Update synced timestamp if successful
-      if (syncResult.success && syncResult.error !== "already_exists") {
-        await execute(`
-          UPDATE ops.intake_custom_fields
-          SET airtable_synced_at = NOW()
-          WHERE field_id = $1
-        `, [result.field_id]);
-      }
-    }
-
-    return apiSuccess({
-      field: result,
-      airtable_sync: airtableSync,
-    });
+    return apiSuccess({ field: result });
   } catch (err: unknown) {
     console.error("Error creating custom field:", err);
 

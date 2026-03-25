@@ -327,7 +327,6 @@ const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
       { label: "Theme", href: "/admin/theme", icon: "🖌️" },
       { label: "Blacklist", href: "/admin/blacklist", icon: "🚫" },
       { label: "Triage Flags", href: "/admin/triage-flags", icon: "🏷️" },
-      { label: "Airtable Syncs", href: "/admin/airtable-syncs", icon: "🔄" },
       { label: "Navigation", href: "/admin/nav", icon: "🧭" },
       { label: "Roles", href: "/admin/roles", icon: "🛡️" },
     ],
