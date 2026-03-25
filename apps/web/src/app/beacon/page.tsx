@@ -32,6 +32,29 @@ interface ZonesResponse {
   };
 }
 
+interface CountyRollup {
+  county: string;
+  zone_count: number;
+  place_count: number;
+  total_cats: number;
+  altered_cats: number;
+  alteration_rate_pct: number | null;
+  active_requests: number;
+  alterations_last_90d: number;
+  estimated_population: number;
+}
+
+interface CountyRollupResponse {
+  counties: CountyRollup[];
+  summary: {
+    total_counties: number;
+    total_places: number;
+    total_cats: number;
+    total_altered: number;
+    alteration_rate_pct: number | null;
+  };
+}
+
 interface DateFilteredPlace {
   place_id: string;
   formatted_address: string;
@@ -90,6 +113,8 @@ export default function BeaconPage() {
   const [loading, setLoading] = useState(true);
   const [zones, setZones] = useState<ZonesResponse | null>(null);
   const [zonesLoading, setZonesLoading] = useState(true);
+  const [countyData, setCountyData] = useState<CountyRollupResponse | null>(null);
+  const [countyLoading, setCountyLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [dateFiltered, setDateFiltered] = useState<DateFilteredSummary | null>(null);
@@ -106,6 +131,11 @@ export default function BeaconPage() {
       .then(setZones)
       .catch(() => null)
       .finally(() => setZonesLoading(false));
+
+    fetchApi<CountyRollupResponse>("/api/beacon/county-rollup")
+      .then(setCountyData)
+      .catch(() => null)
+      .finally(() => setCountyLoading(false));
   }, []);
 
   const applyDateFilter = useCallback(() => {
@@ -350,8 +380,8 @@ export default function BeaconPage() {
         )}
       </div>
 
-      {/* County-Level Summary */}
-      {!zonesLoading && zones?.summary && (
+      {/* County-Level Rollup */}
+      {!countyLoading && countyData && countyData.counties.length > 0 && (
         <div
           className="card"
           style={{
@@ -362,7 +392,101 @@ export default function BeaconPage() {
           }}
         >
           <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem", fontWeight: 600, color: "#1e40af" }}>
-            Sonoma County Overview
+            County Impact Overview
+          </h2>
+          {/* Summary totals */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+            gap: "1rem",
+            marginBottom: "1rem",
+            paddingBottom: "1rem",
+            borderBottom: "1px solid #93c5fd40",
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1e40af" }}>
+                {countyData.summary.total_places.toLocaleString()}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#3b82f6" }}>Active Sites</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}>
+                {countyData.summary.total_cats.toLocaleString()}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#8b5cf6" }}>Total Cats</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#16a34a" }}>
+                {countyData.summary.total_altered.toLocaleString()}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#22c55e" }}>Altered</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{
+                fontSize: "1.5rem", fontWeight: 700,
+                color: countyData.summary.alteration_rate_pct !== null && countyData.summary.alteration_rate_pct >= 70
+                  ? "#16a34a"
+                  : countyData.summary.alteration_rate_pct !== null && countyData.summary.alteration_rate_pct >= 50
+                  ? "#f59e0b"
+                  : "#dc2626",
+              }}>
+                {countyData.summary.alteration_rate_pct !== null ? `${countyData.summary.alteration_rate_pct}%` : "—"}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Overall Rate</div>
+            </div>
+          </div>
+          {/* Per-county breakdown */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {countyData.counties
+              .filter(c => c.total_cats > 0)
+              .map(c => {
+                const rate = c.alteration_rate_pct ?? 0;
+                const barColor = rate >= 75 ? "#16a34a" : rate >= 50 ? "#f59e0b" : "#dc2626";
+                return (
+                  <div key={c.county} style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <div style={{ width: "100px", fontSize: "0.85rem", fontWeight: 600, color: "#1e40af", flexShrink: 0 }}>
+                      {c.county}
+                    </div>
+                    <div style={{
+                      flex: 1, height: "22px", background: "rgba(255,255,255,0.6)",
+                      borderRadius: "4px", overflow: "hidden", position: "relative",
+                    }}>
+                      <div style={{
+                        height: "100%", width: `${Math.min(rate, 100)}%`,
+                        background: barColor, borderRadius: "4px",
+                        transition: "width 0.5s ease",
+                      }} />
+                      <div style={{
+                        position: "absolute", top: 0, bottom: 0, left: "75%",
+                        borderLeft: "2px dashed rgba(0,0,0,0.2)",
+                      }} />
+                    </div>
+                    <div style={{ width: "45px", textAlign: "right", fontSize: "0.85rem", fontWeight: 700, color: barColor, flexShrink: 0 }}>
+                      {rate}%
+                    </div>
+                    <div style={{ width: "80px", fontSize: "0.7rem", color: "#3b82f6", textAlign: "right", flexShrink: 0 }}>
+                      {c.total_cats} cats
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Zone-level summary fallback (shows while county data loads or if county view not available) */}
+      {!countyLoading && !countyData && !zonesLoading && zones?.summary && (
+        <div
+          className="card"
+          style={{
+            padding: "1.25rem",
+            marginBottom: "2rem",
+            background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+            border: "1px solid #93c5fd",
+          }}
+        >
+          <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem", fontWeight: 600, color: "#1e40af" }}>
+            Service Area Overview
           </h2>
           <div style={{
             display: "grid",
@@ -398,31 +522,8 @@ export default function BeaconPage() {
               }}>
                 {zones.summary.alteration_rate_pct !== null ? `${zones.summary.alteration_rate_pct}%` : "—"}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>County Rate</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Overall Rate</div>
             </div>
-            {zones.summary.status_breakdown && Object.keys(zones.summary.status_breakdown).length > 0 && (
-              <div style={{ textAlign: "center" }}>
-                <div style={{ display: "flex", gap: "4px", justifyContent: "center", flexWrap: "wrap" }}>
-                  {Object.entries(zones.summary.status_breakdown).map(([status, count]) => {
-                    const cfg = STATUS_COLORS[status] || STATUS_COLORS.no_data;
-                    return (
-                      <span key={status} style={{
-                        display: "inline-block",
-                        padding: "0.1rem 0.4rem",
-                        borderRadius: "9999px",
-                        fontSize: "0.65rem",
-                        fontWeight: 500,
-                        background: cfg.bg,
-                        color: cfg.text,
-                      }}>
-                        {count} {cfg.label}
-                      </span>
-                    );
-                  })}
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>Zone Status</div>
-              </div>
-            )}
           </div>
         </div>
       )}

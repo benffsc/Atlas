@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
@@ -128,6 +128,8 @@ export default function BeaconMap({
   const { mapCenter, mapZoom } = useGeoConfig();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const layersRef = useRef<{
     places?: L.LayerGroup;
     googlePins?: L.LayerGroup;
@@ -135,6 +137,41 @@ export default function BeaconMap({
     zoneBoundaries?: L.LayerGroup;
     tnrPriority?: L.LayerGroup;
   }>({});
+
+  // Fullscreen toggle
+  const handleFullscreenToggle = useCallback(() => {
+    if (!document.fullscreenElement) {
+      wrapperRef.current?.requestFullscreen().catch(console.error);
+    } else {
+      document.exitFullscreen().catch(console.error);
+    }
+  }, []);
+
+  // Sync fullscreen state with browser API
+  useEffect(() => {
+    const handleChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handleChange);
+    return () => document.removeEventListener("fullscreenchange", handleChange);
+  }, []);
+
+  // Invalidate map size on fullscreen toggle
+  useEffect(() => {
+    if (mapRef.current) {
+      setTimeout(() => mapRef.current?.invalidateSize(), 350);
+    }
+  }, [isFullscreen]);
+
+  // F key shortcut for fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "f" || e.key === "F") {
+        handleFullscreenToggle();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleFullscreenToggle]);
 
   // Initialize map
   useEffect(() => {
@@ -522,7 +559,7 @@ export default function BeaconMap({
   }, [tnrPriority]);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={wrapperRef} style={{ position: "relative", background: isFullscreen ? "#fff" : undefined }}>
       <style>{`
         @keyframes pulse {
           0%, 100% { transform: scale(1); opacity: 1; }
@@ -532,11 +569,36 @@ export default function BeaconMap({
       <div
         ref={mapContainerRef}
         style={{
-          height: "600px",
-          borderRadius: "0.5rem",
-          border: "1px solid var(--border)",
+          height: isFullscreen ? "100vh" : "600px",
+          borderRadius: isFullscreen ? 0 : "0.5rem",
+          border: isFullscreen ? "none" : "1px solid var(--border)",
         }}
       />
+      {/* Fullscreen toggle button */}
+      <button
+        onClick={handleFullscreenToggle}
+        title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+        style={{
+          position: "absolute",
+          top: isFullscreen ? "16px" : "10px",
+          right: isFullscreen ? "16px" : "10px",
+          zIndex: 1000,
+          width: "36px",
+          height: "36px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "white",
+          border: "2px solid rgba(0,0,0,0.2)",
+          borderRadius: "4px",
+          cursor: "pointer",
+          fontSize: "16px",
+          lineHeight: 1,
+          boxShadow: "0 1px 5px rgba(0,0,0,0.15)",
+        }}
+      >
+        {isFullscreen ? "\u2715" : "\u26F6"}
+      </button>
       {loading && (
         <div
           style={{
@@ -549,7 +611,7 @@ export default function BeaconMap({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            borderRadius: "0.5rem",
+            borderRadius: isFullscreen ? 0 : "0.5rem",
           }}
         >
           Loading map data...

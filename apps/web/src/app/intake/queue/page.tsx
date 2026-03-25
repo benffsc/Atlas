@@ -16,7 +16,6 @@ import {
 import { ContactLogModal } from "@/components/intake/ContactLogModal";
 import { BookingModal } from "@/components/intake/BookingModal";
 import { DeclineModal } from "@/components/intake/DeclineModal";
-import { IntakeQueueRow } from "@/components/intake/IntakeQueueRow";
 import { IntakeDetailPanel } from "@/components/intake/IntakeDetailPanel";
 import { IntakeKanbanBoard, IntakeKanbanBoardMobile } from "@/components/intake/IntakeKanbanBoard";
 import { TabBar } from "@/components/ui/TabBar";

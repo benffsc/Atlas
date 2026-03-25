@@ -341,6 +341,26 @@ export interface VZoneAlterationRollupRow {
 }
 
 /**
+ * Contract for beacon.v_county_alteration_rollup
+ * @see sql/schema/v2/MIG_2971__beacon_county_rollup.sql
+ * @route /api/beacon/county-rollup
+ */
+export interface VCountyAlterationRollupRow {
+  county: string;
+  zone_count: number;
+  place_count: number;
+  total_cats: number;
+  altered_cats: number;
+  intact_cats: number;
+  unknown_status_cats: number;
+  alteration_rate_pct: number | null;
+  total_requests: number;
+  active_requests: number;
+  alterations_last_90d: number;
+  estimated_population: number;
+}
+
+/**
  * Contract for beacon.place_temporal_trends()
  * @see sql/schema/v2/MIG_2934__beacon_p0_analytics.sql
  * @route /api/beacon/trends/[placeId]

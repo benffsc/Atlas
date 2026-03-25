@@ -369,6 +369,58 @@ export default function ComparisonPage() {
         </div>
       )}
 
+      {/* Alteration Rate Comparison Chart */}
+      {!loading && places.length >= 2 && (
+        <div className="card" style={{ padding: "1.25rem", marginBottom: "2rem" }}>
+          <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", fontWeight: 600 }}>
+            Alteration Rate Comparison
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {places
+              .sort((a, b) => (b.alteration_rate_pct ?? 0) - (a.alteration_rate_pct ?? 0))
+              .map(p => {
+                const rate = p.alteration_rate_pct ?? 0;
+                const barColor = rate >= 75 ? "#16a34a" : rate >= 50 ? "#f59e0b" : "#dc2626";
+                return (
+                  <div key={p.place_id} style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    <div style={{
+                      width: "160px", fontSize: "0.8rem", fontWeight: 500,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      flexShrink: 0,
+                    }}>
+                      {p.display_name || p.formatted_address}
+                    </div>
+                    <div style={{
+                      flex: 1, height: "20px", background: "var(--border, #e5e7eb)",
+                      borderRadius: "4px", overflow: "hidden", position: "relative",
+                    }}>
+                      <div style={{
+                        height: "100%", width: `${Math.min(rate, 100)}%`,
+                        background: barColor, borderRadius: "4px",
+                        transition: "width 0.5s ease",
+                      }} />
+                      {/* 75% threshold marker */}
+                      <div style={{
+                        position: "absolute", top: 0, bottom: 0, left: "75%",
+                        borderLeft: "2px dashed rgba(0,0,0,0.3)",
+                      }} />
+                    </div>
+                    <div style={{
+                      width: "50px", textAlign: "right", fontSize: "0.85rem",
+                      fontWeight: 600, color: barColor, flexShrink: 0,
+                    }}>
+                      {rate}%
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "0.5rem", textAlign: "right" }}>
+            Dashed line = 75% stabilization target
+          </div>
+        </div>
+      )}
+
       {/* Empty state */}
       {!loading && places.length === 0 && (
         <div className="card" style={{

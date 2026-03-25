@@ -249,6 +249,160 @@ export default function ScenariosPage() {
             )}
           </div>
 
+          {/* Intervention Impact Comparison */}
+          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
+            <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", fontWeight: 600 }}>
+              Intervention Impact
+            </h2>
+            <p style={{ margin: "0 0 1rem 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+              Projected outcomes after 10 years under each scenario
+            </p>
+
+            {/* Delta cards: show savings vs baseline */}
+            <div style={{
+              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem",
+            }}>
+              {/* Baseline reference */}
+              <div style={{
+                padding: "1rem", borderRadius: "8px",
+                background: "var(--border, #f3f4f6)",
+              }}>
+                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: SCENARIO_COLORS.baseline, marginBottom: "0.5rem" }}>
+                  IF WE DO NOTHING
+                </div>
+                <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+                  {forecast.scenarios.baseline.description}
+                </div>
+                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#dc2626" }}>
+                  {forecast.scenarios.baseline.final_population.toLocaleString()} cats
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  {forecast.scenarios.baseline.final_alteration_rate}% alteration rate
+                </div>
+              </div>
+
+              {/* Double Effort delta */}
+              {(() => {
+                const baseline = forecast.scenarios.baseline;
+                const optimistic = forecast.scenarios.optimistic;
+                const popDelta = baseline.final_population - optimistic.final_population;
+                const rateDelta = optimistic.final_alteration_rate - baseline.final_alteration_rate;
+                return (
+                  <div style={{
+                    padding: "1rem", borderRadius: "8px",
+                    border: `2px solid ${SCENARIO_COLORS.optimistic}`,
+                    background: `${SCENARIO_COLORS.optimistic}08`,
+                  }}>
+                    <div style={{ fontSize: "0.75rem", fontWeight: 600, color: SCENARIO_COLORS.optimistic, marginBottom: "0.5rem" }}>
+                      DOUBLE EFFORT
+                    </div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+                      {optimistic.description}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Fewer Cats</div>
+                        <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#16a34a" }}>
+                          {popDelta > 0 ? `-${popDelta.toLocaleString()}` : `+${Math.abs(popDelta).toLocaleString()}`}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Rate Gain</div>
+                        <div style={{ fontSize: "1.25rem", fontWeight: 700, color: SCENARIO_COLORS.optimistic }}>
+                          +{rateDelta.toFixed(0)}%
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Final Pop.</div>
+                        <div style={{ fontSize: "1rem", fontWeight: 600 }}>
+                          {optimistic.final_population.toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Time to 75%</div>
+                        <div style={{ fontSize: "1rem", fontWeight: 600 }}>
+                          {optimistic.months_to_75 !== null ? `${optimistic.months_to_75} mo` : "N/A"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Aggressive delta */}
+              {(() => {
+                const baseline = forecast.scenarios.baseline;
+                const aggressive = forecast.scenarios.aggressive;
+                const popDelta = baseline.final_population - aggressive.final_population;
+                const rateDelta = aggressive.final_alteration_rate - baseline.final_alteration_rate;
+                return (
+                  <div style={{
+                    padding: "1rem", borderRadius: "8px",
+                    border: `2px solid ${SCENARIO_COLORS.aggressive}`,
+                    background: `${SCENARIO_COLORS.aggressive}08`,
+                  }}>
+                    <div style={{ fontSize: "0.75rem", fontWeight: 600, color: SCENARIO_COLORS.aggressive, marginBottom: "0.5rem" }}>
+                      MAXIMUM EFFORT
+                    </div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+                      {aggressive.description}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Fewer Cats</div>
+                        <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#16a34a" }}>
+                          {popDelta > 0 ? `-${popDelta.toLocaleString()}` : `+${Math.abs(popDelta).toLocaleString()}`}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Rate Gain</div>
+                        <div style={{ fontSize: "1.25rem", fontWeight: 700, color: SCENARIO_COLORS.aggressive }}>
+                          +{rateDelta.toFixed(0)}%
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Final Pop.</div>
+                        <div style={{ fontSize: "1rem", fontWeight: 600 }}>
+                          {aggressive.final_population.toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Time to 75%</div>
+                        <div style={{ fontSize: "1rem", fontWeight: 600 }}>
+                          {aggressive.months_to_75 !== null ? `${aggressive.months_to_75} mo` : "N/A"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Total procedures comparison */}
+            <div style={{
+              marginTop: "1rem", paddingTop: "1rem",
+              borderTop: "1px solid var(--border)",
+              display: "flex", gap: "1.5rem", flexWrap: "wrap",
+              fontSize: "0.8rem",
+            }}>
+              <span style={{ color: "var(--text-muted)" }}>
+                Procedures needed:
+              </span>
+              <span>
+                <span style={{ color: SCENARIO_COLORS.baseline, fontWeight: 600 }}>Current:</span>{" "}
+                {forecast.scenarios.baseline.total_procedures.toLocaleString()}
+              </span>
+              <span>
+                <span style={{ color: SCENARIO_COLORS.optimistic, fontWeight: 600 }}>Double:</span>{" "}
+                {forecast.scenarios.optimistic.total_procedures.toLocaleString()}
+              </span>
+              <span>
+                <span style={{ color: SCENARIO_COLORS.aggressive, fontWeight: 600 }}>Maximum:</span>{" "}
+                {forecast.scenarios.aggressive.total_procedures.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
           {/* Scientific context */}
           <div className="card" style={{ padding: "1.25rem" }}>
             <h3 style={{ margin: "0 0 0.75rem 0", fontSize: "0.95rem" }}>Model Assumptions</h3>
