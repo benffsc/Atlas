@@ -290,7 +290,7 @@ const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
     title: "Data",
     items: [
       { label: "Data Hub", href: "/admin/data", icon: "📊" },
-      { label: "Upload Data", href: "/admin/data?tab=processing", icon: "📤" },
+      { label: "Ingest Dashboard", href: "/admin/ingest", icon: "📤" },
       { label: "Review Queue", href: "/admin/data?tab=review", icon: "📋" },
     ],
   },
@@ -371,6 +371,7 @@ export const mainSidebarSections: NavSection[] = [
       { label: "Requests", href: "/requests", icon: "📋" },
       { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
       { label: "Trappers", href: "/trappers", icon: "🪤" },
+      { label: "Equipment", href: "/equipment", icon: "🧰" },
     ],
   },
   {
