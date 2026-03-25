@@ -1,6 +1,15 @@
 // Process uploaded files for ClinicHQ, Airtable, and Google Maps data
 import { NextRequest, NextResponse } from "next/server";
-import { query, queryOne, queryRows } from "@/lib/db";
+import { query, queryOne, queryRows, withTransaction } from "@/lib/db";
+import type {
+  BulkStagingRow, BulkStagingChunkResult,
+  LinkCatsToPlacesResult, LinkCatsToAppointmentPlacesResult,
+  LinkAppointmentsToOwnersResult, LinkAppointmentsToPlacesResult,
+  LinkCatsToRequestsResult, RunAppointmentTrapperLinkingResult,
+  QueueUnofficialTrapperCandidatesResult,
+  FlowAppointmentObservationsResult, SyncCatsFromAppointmentsResult,
+  DetectOwnerChangesResult,
+} from "@/lib/types/ingest-types";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 import { getServerConfig } from "@/lib/server-config";
 import { isValidUUID } from "@/lib/validation";
@@ -180,96 +189,97 @@ export async function POST(
       processedRows = aggregated;
     }
 
-    // Process rows into staged_records
+    // Process rows into staged_records using bulk operations (FFS-739)
+    // Pre-process all rows in TypeScript (ID computation, hashing, empty filtering)
+    // then stage in bulk SQL chunks instead of N+1 per-row queries
     let inserted = 0;
     let skipped = 0;
     let updated = 0;
 
+    const stagingRows: BulkStagingRow[] = [];
     for (const row of processedRows) {
-      // Skip empty rows (rows where all values are empty/null)
       const hasData = Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== '');
-      if (!hasData) {
-        skipped++;
-        continue;
-      }
+      if (!hasData) { skipped++; continue; }
 
-      // Find ID field
-      let sourceRowId = null;
+      let sourceRowId: string | null = null;
       for (const field of idFieldCandidates) {
-        if (row[field]) {
-          sourceRowId = String(row[field]);
-          break;
-        }
+        if (row[field]) { sourceRowId = String(row[field]); break; }
       }
-
-      // For appointment_info, use composite key (Number_Date) since same appointment
-      // number can appear on multiple dates (e.g., surgery + follow-up)
       if (sourceRowId && upload.source_table === 'appointment_info' && row['Date']) {
         sourceRowId = `${sourceRowId}_${String(row['Date']).replace(/\//g, '-')}`;
       }
+      if (!sourceRowId) sourceRowId = `row_${processedRows.indexOf(row)}`;
 
-      if (!sourceRowId) {
-        sourceRowId = `row_${processedRows.indexOf(row)}`;
-      }
+      const rowHash = createHash('sha256').update(JSON.stringify(row)).digest('hex').substring(0, 16);
+      stagingRows.push({ sourceRowId, payload: JSON.stringify(row), rowHash });
+    }
 
-      // Calculate row hash
-      const rowHash = createHash('sha256')
-        .update(JSON.stringify(row))
-        .digest('hex')
-        .substring(0, 16);
+    // Bulk stage in chunks of 500 rows (pg parameter limit safety)
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < stagingRows.length; i += CHUNK_SIZE) {
+      const chunk = stagingRows.slice(i, i + CHUNK_SIZE);
+      const sourceRowIds = chunk.map(r => r.sourceRowId);
+      const payloads = chunk.map(r => r.payload);
+      const rowHashes = chunk.map(r => r.rowHash);
 
-      // Step 1: Check if exact content already exists (by hash)
-      // This is the primary dedup — same content = skip regardless of source_row_id
-      const byHash = await queryOne<{ id: string; file_upload_id: string | null }>(
-        `SELECT id, file_upload_id FROM ops.staged_records
-         WHERE source_system = $1 AND source_table = $2 AND row_hash = $3`,
-        [upload.source_system, upload.source_table, rowHash]
-      );
+      const bulkResult = await queryOne<BulkStagingChunkResult>(`
+        WITH incoming AS (
+          SELECT * FROM unnest($1::text[], $2::text[], $3::text[])
+            AS t(source_row_id, payload_text, row_hash)
+        ),
+        -- Step 1: Find existing records by hash (these are skipped)
+        hash_matches AS (
+          SELECT sr.id, sr.row_hash, sr.file_upload_id
+          FROM ops.staged_records sr
+          WHERE sr.source_system = $4 AND sr.source_table = $5
+            AND sr.row_hash = ANY($3::text[])
+        ),
+        -- Claim unclaimed hash matches for this upload
+        claimed AS (
+          UPDATE ops.staged_records sr
+          SET file_upload_id = $6
+          FROM hash_matches hm
+          WHERE sr.id = hm.id AND hm.file_upload_id IS NULL
+          RETURNING sr.id
+        ),
+        -- Step 2: Find existing records by source_row_id with different hash (updates)
+        id_matches AS (
+          SELECT sr.id, sr.source_row_id
+          FROM ops.staged_records sr
+          JOIN incoming i ON i.source_row_id = sr.source_row_id
+          WHERE sr.source_system = $4 AND sr.source_table = $5
+            AND i.row_hash NOT IN (SELECT row_hash FROM hash_matches)
+        ),
+        updates AS (
+          UPDATE ops.staged_records sr
+          SET payload = i.payload_text::jsonb, row_hash = i.row_hash,
+              file_upload_id = $6, updated_at = NOW()
+          FROM incoming i
+          JOIN id_matches im ON im.source_row_id = i.source_row_id
+          WHERE sr.id = im.id
+          RETURNING sr.id
+        ),
+        -- Step 3: Insert truly new records
+        inserts AS (
+          INSERT INTO ops.staged_records
+            (source_system, source_table, source_row_id, payload, row_hash, file_upload_id)
+          SELECT $4, $5, i.source_row_id, i.payload_text::jsonb, i.row_hash, $6
+          FROM incoming i
+          WHERE i.row_hash NOT IN (SELECT row_hash FROM hash_matches)
+            AND i.source_row_id NOT IN (SELECT source_row_id FROM id_matches)
+          ON CONFLICT (source_system, source_table, row_hash) DO NOTHING
+          RETURNING id
+        )
+        SELECT
+          (SELECT COUNT(*) FROM inserts)::text as inserted,
+          (SELECT COUNT(*) FROM updates)::text as updated,
+          (SELECT COUNT(*) FROM hash_matches)::text as skipped
+      `, [sourceRowIds, payloads, rowHashes, upload.source_system, upload.source_table, uploadId]);
 
-      if (byHash) {
-        // Exact same content exists — skip (but claim for this upload if unclaimed)
-        if (!byHash.file_upload_id) {
-          await query(
-            `UPDATE ops.staged_records SET file_upload_id = $1 WHERE id = $2`,
-            [uploadId, byHash.id]
-          );
-        }
-        skipped++;
-        continue;
-      }
-
-      // Step 2: Check if same logical record exists with different content (by source_row_id)
-      // Safe to update row_hash here because Step 1 guarantees the new hash doesn't exist
-      const byRowId = await queryOne<{ id: string }>(
-        `SELECT id FROM ops.staged_records
-         WHERE source_system = $1 AND source_table = $2 AND source_row_id = $3`,
-        [upload.source_system, upload.source_table, sourceRowId]
-      );
-
-      if (byRowId) {
-        // Same logical record, updated content — safe to update hash (no conflict possible)
-        await query(
-          `UPDATE ops.staged_records
-           SET payload = $1, row_hash = $2, file_upload_id = $3, updated_at = NOW()
-           WHERE id = $4`,
-          [JSON.stringify(row), rowHash, uploadId, byRowId.id]
-        );
-        updated++;
-      } else {
-        // New record — INSERT with ON CONFLICT as safety net for race conditions
-        const insertResult = await query(
-          `INSERT INTO ops.staged_records
-           (source_system, source_table, source_row_id, payload, row_hash, file_upload_id)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           ON CONFLICT (source_system, source_table, row_hash) DO NOTHING
-           RETURNING id`,
-          [upload.source_system, upload.source_table, sourceRowId, JSON.stringify(row), rowHash, uploadId]
-        );
-        if (insertResult.rowCount && insertResult.rowCount > 0) {
-          inserted++;
-        } else {
-          skipped++; // Duplicate hash from concurrent insert
-        }
+      if (bulkResult) {
+        inserted += parseInt(bulkResult.inserted || '0');
+        updated += parseInt(bulkResult.updated || '0');
+        skipped += parseInt(bulkResult.skipped || '0');
       }
     }
 
@@ -334,8 +344,20 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
         `UPDATE ops.file_uploads SET post_processing_results = $2 WHERE upload_id = $1`,
         [uploadId, JSON.stringify(results)]
       );
-    } catch { /* best-effort progress saving */ }
+    } catch (err) { console.error('saveProgress failed:', err); }
   }
+
+  // FFS-736: Wrap core post-processing in a transaction for atomicity.
+  // Critical steps throw → ROLLBACK. Supplementary steps catch → continue.
+  // saveProgress() writes via module-level query() so progress persists on rollback.
+  const supplementaryErrors: Array<{ step: string; error: string }> = [];
+  await withTransaction(async (tx) => {
+    // Shadow module-level query/queryOne with transaction-bound versions.
+    // All existing SQL automatically routes through the transaction.
+    // eslint-disable-next-line @typescript-eslint/no-shadow
+    const query = tx.query.bind(tx);
+    // eslint-disable-next-line @typescript-eslint/no-shadow
+    const queryOne = tx.queryOne.bind(tx);
 
   if (sourceTable === 'cat_info') {
     // Step 1: Create cats from microchips using find_or_create_cat_by_microchip
@@ -405,22 +427,28 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.cats_created_or_matched = parseInt(catsCreated.rows?.[0]?.cnt || '0');
 
-    // Step 2: Update sex on existing cats from cat_info records
-    await saveProgress('Updating cat sex data...');
-    const sexUpdates = await query(`
-      UPDATE sot.cats c
-      SET sex = sr.payload->>'Sex'
-      FROM ops.staged_records sr
-      JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
-      WHERE ci.cat_id = c.cat_id
-        AND sr.source_system = 'clinichq'
-        AND sr.source_table = 'cat_info'
-        AND sr.file_upload_id = $1
-        AND sr.payload->>'Sex' IS NOT NULL
-        AND sr.payload->>'Sex' != ''
-        AND LOWER(c.sex) IS DISTINCT FROM LOWER(sr.payload->>'Sex')
-    `, [uploadId]);
-    results.sex_updates = sexUpdates.rowCount || 0;
+    // Step 2: Update sex on existing cats from cat_info records (SUPPLEMENTARY)
+    try {
+      await saveProgress('Updating cat sex data...');
+      const sexUpdates = await query(`
+        UPDATE sot.cats c
+        SET sex = sr.payload->>'Sex'
+        FROM ops.staged_records sr
+        JOIN sot.cat_identifiers ci ON ci.id_value = sr.payload->>'Microchip Number' AND ci.id_type = 'microchip'
+        WHERE ci.cat_id = c.cat_id
+          AND sr.source_system = 'clinichq'
+          AND sr.source_table = 'cat_info'
+          AND sr.file_upload_id = $1
+          AND sr.payload->>'Sex' IS NOT NULL
+          AND sr.payload->>'Sex' != ''
+          AND LOWER(c.sex) IS DISTINCT FROM LOWER(sr.payload->>'Sex')
+      `, [uploadId]);
+      results.sex_updates = sexUpdates.rowCount || 0;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'update_cat_sex', error: msg });
+      console.error('update_cat_sex failed (non-fatal):', err);
+    }
 
     // Step 1b: Handle recheck cases - microchip in Animal Name field
     // DATA_GAP_052: Staff sometimes enters microchip in Animal Name for returning cats
@@ -627,41 +655,46 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `);
     results.appointments_linked_by_animal_id = appointmentsLinkedByAnimalId.rowCount || 0;
 
-    // Step 4: Extract weight from cat_info into cat_vitals
-    // This ensures weight data is captured during real-time ingest, not just via migrations
-    await saveProgress('Extracting weight vitals...');
-    const weightVitals = await query(`
-      INSERT INTO ops.cat_vitals (
-        cat_id, recorded_at, weight_lbs, source_system, source_record_id
-      )
-      SELECT DISTINCT ON (ci.cat_id)
-        ci.cat_id,
-        COALESCE(
-          (sr.payload->>'Date')::timestamp with time zone,
-          NOW()
-        ),
-        (sr.payload->>'Weight')::numeric(5,2),
-        'clinichq',
-        'cat_info_' || sr.source_row_id
-      FROM ops.staged_records sr
-      JOIN sot.cat_identifiers ci ON
-        ci.id_value = sr.payload->>'Microchip Number'
-        AND ci.id_type = 'microchip'
-      WHERE sr.source_system = 'clinichq'
-        AND sr.source_table = 'cat_info'
-        AND sr.file_upload_id = $1
-        AND sr.payload->>'Weight' IS NOT NULL
-        AND sr.payload->>'Weight' ~ '^[0-9]+\\.?[0-9]*$'
-        AND (sr.payload->>'Weight')::numeric > 0
-        AND NOT EXISTS (
-          SELECT 1 FROM ops.cat_vitals cv
-          WHERE cv.cat_id = ci.cat_id
-            AND cv.source_record_id = 'cat_info_' || sr.source_row_id
+    // Step 4: Extract weight from cat_info into cat_vitals (SUPPLEMENTARY)
+    try {
+      await saveProgress('Extracting weight vitals...');
+      const weightVitals = await query(`
+        INSERT INTO ops.cat_vitals (
+          cat_id, recorded_at, weight_lbs, source_system, source_record_id
         )
-      ORDER BY ci.cat_id, (sr.payload->>'Date')::date DESC NULLS LAST
-      ON CONFLICT DO NOTHING
-    `, [uploadId]);
-    results.weight_vitals_created = weightVitals.rowCount || 0;
+        SELECT DISTINCT ON (ci.cat_id)
+          ci.cat_id,
+          COALESCE(
+            (sr.payload->>'Date')::timestamp with time zone,
+            NOW()
+          ),
+          (sr.payload->>'Weight')::numeric(5,2),
+          'clinichq',
+          'cat_info_' || sr.source_row_id
+        FROM ops.staged_records sr
+        JOIN sot.cat_identifiers ci ON
+          ci.id_value = sr.payload->>'Microchip Number'
+          AND ci.id_type = 'microchip'
+        WHERE sr.source_system = 'clinichq'
+          AND sr.source_table = 'cat_info'
+          AND sr.file_upload_id = $1
+          AND sr.payload->>'Weight' IS NOT NULL
+          AND sr.payload->>'Weight' ~ '^[0-9]+\\.?[0-9]*$'
+          AND (sr.payload->>'Weight')::numeric > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM ops.cat_vitals cv
+            WHERE cv.cat_id = ci.cat_id
+              AND cv.source_record_id = 'cat_info_' || sr.source_row_id
+          )
+        ORDER BY ci.cat_id, (sr.payload->>'Date')::date DESC NULLS LAST
+        ON CONFLICT DO NOTHING
+      `, [uploadId]);
+      results.weight_vitals_created = weightVitals.rowCount || 0;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'extract_weight_vitals', error: msg });
+      console.error('extract_weight_vitals failed (non-fatal):', err);
+    }
   }
 
   if (sourceTable === 'owner_info') {
@@ -910,48 +943,52 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `, [uploadId]);
     results.appointments_linked_to_people = personLinks.rowCount || 0;
 
-    // Step 4c: Backfill client_name, owner_email, owner_phone from owner_info
-    // This was previously missing (DATA_GAP) — appointments were created from
-    // appointment_info but owner contact fields were never populated from owner_info
-    await saveProgress('Backfilling appointment owner fields...');
-    const ownerFieldsBackfill = await query(`
-      UPDATE ops.appointments a
-      SET
-        client_name = NULLIF(TRIM(
-          COALESCE(NULLIF(TRIM(sr.payload->>'Owner First Name'), ''), '') || ' ' ||
-          COALESCE(NULLIF(TRIM(sr.payload->>'Owner Last Name'), ''), '')
-        ), ''),
-        owner_email = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''),
-        owner_phone = sot.norm_phone_us(
-          COALESCE(NULLIF(sr.payload->>'Owner Phone', ''), sr.payload->>'Owner Cell Phone')
-        ),
-        -- FFS-114: Populate owner name/address fields for link_appointments_to_places() Step 1
-        owner_first_name = COALESCE(NULLIF(TRIM(sr.payload->>'Owner First Name'), ''), a.owner_first_name),
-        owner_last_name = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Last Name'), ''), a.owner_last_name),
-        owner_address = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Address'), ''), a.owner_address)
-      FROM ops.staged_records sr
-      WHERE sr.source_system = 'clinichq'
-        AND sr.source_table = 'owner_info'
-        AND sr.file_upload_id = $1
-        AND sr.payload->>'Number' = a.appointment_number
-        AND (
-          a.client_name IS NULL
-          OR a.owner_email IS NULL
-          OR a.owner_phone IS NULL
-          OR a.owner_first_name IS NULL
-          OR a.owner_last_name IS NULL
-          OR a.owner_address IS NULL
-        )
-        AND (
-          sr.payload->>'Owner First Name' IS NOT NULL
-          OR sr.payload->>'Owner Last Name' IS NOT NULL
-          OR sr.payload->>'Owner Email' IS NOT NULL
-          OR sr.payload->>'Owner Phone' IS NOT NULL
-          OR sr.payload->>'Owner Cell Phone' IS NOT NULL
-          OR sr.payload->>'Owner Address' IS NOT NULL
-        )
-    `, [uploadId]);
-    results.owner_fields_backfilled = ownerFieldsBackfill.rowCount || 0;
+    // Step 4c: Backfill client_name, owner_email, owner_phone from owner_info (SUPPLEMENTARY)
+    try {
+      await saveProgress('Backfilling appointment owner fields...');
+      const ownerFieldsBackfill = await query(`
+        UPDATE ops.appointments a
+        SET
+          client_name = NULLIF(TRIM(
+            COALESCE(NULLIF(TRIM(sr.payload->>'Owner First Name'), ''), '') || ' ' ||
+            COALESCE(NULLIF(TRIM(sr.payload->>'Owner Last Name'), ''), '')
+          ), ''),
+          owner_email = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''),
+          owner_phone = sot.norm_phone_us(
+            COALESCE(NULLIF(sr.payload->>'Owner Phone', ''), sr.payload->>'Owner Cell Phone')
+          ),
+          -- FFS-114: Populate owner name/address fields for link_appointments_to_places() Step 1
+          owner_first_name = COALESCE(NULLIF(TRIM(sr.payload->>'Owner First Name'), ''), a.owner_first_name),
+          owner_last_name = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Last Name'), ''), a.owner_last_name),
+          owner_address = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Address'), ''), a.owner_address)
+        FROM ops.staged_records sr
+        WHERE sr.source_system = 'clinichq'
+          AND sr.source_table = 'owner_info'
+          AND sr.file_upload_id = $1
+          AND sr.payload->>'Number' = a.appointment_number
+          AND (
+            a.client_name IS NULL
+            OR a.owner_email IS NULL
+            OR a.owner_phone IS NULL
+            OR a.owner_first_name IS NULL
+            OR a.owner_last_name IS NULL
+            OR a.owner_address IS NULL
+          )
+          AND (
+            sr.payload->>'Owner First Name' IS NOT NULL
+            OR sr.payload->>'Owner Last Name' IS NOT NULL
+            OR sr.payload->>'Owner Email' IS NOT NULL
+            OR sr.payload->>'Owner Phone' IS NOT NULL
+            OR sr.payload->>'Owner Cell Phone' IS NOT NULL
+            OR sr.payload->>'Owner Address' IS NOT NULL
+          )
+      `, [uploadId]);
+      results.owner_fields_backfilled = ownerFieldsBackfill.rowCount || 0;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'backfill_owner_fields', error: msg });
+      console.error('backfill_owner_fields failed (non-fatal):', err);
+    }
 
     // Step 4b: Link ALL appointments to clinic_accounts via owner_account_id
     // DATA_GAP_053 fix: Now links ALL appointments (not just pseudo-profiles)
@@ -1065,23 +1102,28 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
       results.owner_change_detection_legacy_error = err instanceof Error ? err.message : String(err);
     }
 
-    // Step 4e: Classify FFSC program bookings (FFS-260)
-    // Runs after Step 4c backfills client_name, ensuring the field is populated
-    await saveProgress('Classifying FFSC program bookings...');
-    const ffscClassification = await query(`
-      UPDATE ops.appointments a
-      SET ffsc_program = ops.classify_ffsc_booking(a.client_name)
-      WHERE a.ffsc_program IS NULL
-        AND a.client_name IS NOT NULL
-        AND ops.classify_ffsc_booking(a.client_name) IS NOT NULL
-        AND EXISTS (
-          SELECT 1 FROM ops.staged_records sr
-          WHERE sr.file_upload_id = $1
-            AND sr.source_table = 'owner_info'
-            AND sr.payload->>'Number' = a.appointment_number
-        )
-    `, [uploadId]);
-    results.ffsc_bookings_classified = ffscClassification.rowCount || 0;
+    // Step 4e: Classify FFSC program bookings (SUPPLEMENTARY)
+    try {
+      await saveProgress('Classifying FFSC program bookings...');
+      const ffscClassification = await query(`
+        UPDATE ops.appointments a
+        SET ffsc_program = ops.classify_ffsc_booking(a.client_name)
+        WHERE a.ffsc_program IS NULL
+          AND a.client_name IS NOT NULL
+          AND ops.classify_ffsc_booking(a.client_name) IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM ops.staged_records sr
+            WHERE sr.file_upload_id = $1
+              AND sr.source_table = 'owner_info'
+              AND sr.payload->>'Number' = a.appointment_number
+          )
+      `, [uploadId]);
+      results.ffsc_bookings_classified = ffscClassification.rowCount || 0;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'classify_ffsc_bookings', error: msg });
+      console.error('classify_ffsc_bookings failed (non-fatal):', err);
+    }
 
     // Step 5: Link cats to people via appointments
     // V2: Uses sot.person_cat instead of sot.person_cat_relationships
@@ -1342,85 +1384,100 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     `);
     results.new_neuters = newNeuters.rowCount || 0;
 
-    // Fix procedures based on cat sex
-    await saveProgress('Fixing procedure types...');
-    const fixedMales = await query(`
-      UPDATE ops.cat_procedures cp
-      SET procedure_type = 'neuter', is_spay = FALSE, is_neuter = TRUE
-      FROM sot.cats c
-      WHERE cp.cat_id = c.cat_id
-        AND cp.is_spay = TRUE
-        AND LOWER(c.sex) = 'male'
-    `);
-    results.fixed_males = fixedMales.rowCount || 0;
+    // Fix procedures based on cat sex (SUPPLEMENTARY)
+    try {
+      await saveProgress('Fixing procedure types...');
+      const fixedMales = await query(`
+        UPDATE ops.cat_procedures cp
+        SET procedure_type = 'neuter', is_spay = FALSE, is_neuter = TRUE
+        FROM sot.cats c
+        WHERE cp.cat_id = c.cat_id
+          AND cp.is_spay = TRUE
+          AND LOWER(c.sex) = 'male'
+      `);
+      results.fixed_males = fixedMales.rowCount || 0;
 
-    const fixedFemales = await query(`
-      UPDATE ops.cat_procedures cp
-      SET procedure_type = 'spay', is_spay = TRUE, is_neuter = FALSE
-      FROM sot.cats c
-      WHERE cp.cat_id = c.cat_id
-        AND cp.is_neuter = TRUE
-        AND LOWER(c.sex) = 'female'
-    `);
-    results.fixed_females = fixedFemales.rowCount || 0;
+      const fixedFemales = await query(`
+        UPDATE ops.cat_procedures cp
+        SET procedure_type = 'spay', is_spay = TRUE, is_neuter = FALSE
+        FROM sot.cats c
+        WHERE cp.cat_id = c.cat_id
+          AND cp.is_neuter = TRUE
+          AND LOWER(c.sex) = 'female'
+      `);
+      results.fixed_females = fixedFemales.rowCount || 0;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'fix_procedure_types', error: msg });
+      console.error('fix_procedure_types failed (non-fatal):', err);
+    }
 
-    // Update altered_status based on spay/neuter procedures
-    // V2 schema uses altered_status instead of altered_by_clinic
-    await saveProgress('Updating cat altered status...');
-    const alteredSpayed = await query(`
-      UPDATE sot.cats c
-      SET altered_status = 'spayed'
-      FROM ops.appointments a
-      WHERE a.cat_id = c.cat_id
-        AND a.is_spay = TRUE
-        AND LOWER(c.sex) = 'female'
-        AND c.altered_status IS DISTINCT FROM 'spayed'
-    `);
-    const alteredNeutered = await query(`
-      UPDATE sot.cats c
-      SET altered_status = 'neutered'
-      FROM ops.appointments a
-      WHERE a.cat_id = c.cat_id
-        AND a.is_neuter = TRUE
-        AND LOWER(c.sex) = 'male'
-        AND c.altered_status IS DISTINCT FROM 'neutered'
-    `);
-    results.marked_altered = (alteredSpayed.rowCount || 0) + (alteredNeutered.rowCount || 0);
+    // Update altered_status based on spay/neuter procedures (SUPPLEMENTARY)
+    try {
+      await saveProgress('Updating cat altered status...');
+      const alteredSpayed = await query(`
+        UPDATE sot.cats c
+        SET altered_status = 'spayed'
+        FROM ops.appointments a
+        WHERE a.cat_id = c.cat_id
+          AND a.is_spay = TRUE
+          AND LOWER(c.sex) = 'female'
+          AND c.altered_status IS DISTINCT FROM 'spayed'
+      `);
+      const alteredNeutered = await query(`
+        UPDATE sot.cats c
+        SET altered_status = 'neutered'
+        FROM ops.appointments a
+        WHERE a.cat_id = c.cat_id
+          AND a.is_neuter = TRUE
+          AND LOWER(c.sex) = 'male'
+          AND c.altered_status IS DISTINCT FROM 'neutered'
+      `);
+      results.marked_altered = (alteredSpayed.rowCount || 0) + (alteredNeutered.rowCount || 0);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'update_altered_status', error: msg });
+      console.error('update_altered_status failed (non-fatal):', err);
+    }
 
-    // Enrich appointments with weight and age from cat_info records
-    // FFS-477 FIX: Look up cat_info upload_id from same batch (not $1 which is appointment_info)
-    // Also accept decimal Age Months (e.g. 4.5, 5.5) with ROUND()
-    await saveProgress('Enriching appointments with weight/age...');
-    const enrichedWithWeight = await query(`
-      UPDATE ops.appointments a
-      SET
-        cat_weight_lbs = CASE
-          WHEN ci.payload->>'Weight' ~ '^[0-9]+\\.?[0-9]*$'
-          THEN (ci.payload->>'Weight')::NUMERIC(5,2)
-          ELSE a.cat_weight_lbs
-        END,
-        cat_age_years = CASE
-          WHEN ci.payload->>'Age Years' ~ '^[0-9]+$'
-          THEN (ci.payload->>'Age Years')::INTEGER
-          ELSE a.cat_age_years
-        END,
-        cat_age_months = CASE
-          WHEN ci.payload->>'Age Months' ~ '^[0-9]+\\.?[0-9]*$'
-          THEN ROUND((ci.payload->>'Age Months')::NUMERIC)::INTEGER
-          ELSE a.cat_age_months
-        END,
-        updated_at = NOW()
-      FROM ops.staged_records ci
-      JOIN ops.file_uploads fu_ci ON fu_ci.upload_id = ci.file_upload_id
-      JOIN ops.file_uploads fu_me ON fu_me.batch_id = fu_ci.batch_id
-      WHERE ci.source_system = 'clinichq'
-        AND ci.source_table = 'cat_info'
-        AND fu_me.upload_id = $1
-        AND ci.payload->>'Microchip Number' = SPLIT_PART(a.clinichq_appointment_id, '_', 2)
-        AND TO_DATE(ci.payload->>'Date', 'MM/DD/YYYY') = a.appointment_date
-        AND (a.cat_weight_lbs IS NULL OR a.cat_age_years IS NULL OR a.cat_age_months IS NULL)
-    `, [uploadId]);
-    results.enriched_with_weight = enrichedWithWeight.rowCount || 0;
+    // Enrich appointments with weight and age from cat_info records (SUPPLEMENTARY)
+    try {
+      await saveProgress('Enriching appointments with weight/age...');
+      const enrichedWithWeight = await query(`
+        UPDATE ops.appointments a
+        SET
+          cat_weight_lbs = CASE
+            WHEN ci.payload->>'Weight' ~ '^[0-9]+\\.?[0-9]*$'
+            THEN (ci.payload->>'Weight')::NUMERIC(5,2)
+            ELSE a.cat_weight_lbs
+          END,
+          cat_age_years = CASE
+            WHEN ci.payload->>'Age Years' ~ '^[0-9]+$'
+            THEN (ci.payload->>'Age Years')::INTEGER
+            ELSE a.cat_age_years
+          END,
+          cat_age_months = CASE
+            WHEN ci.payload->>'Age Months' ~ '^[0-9]+\\.?[0-9]*$'
+            THEN ROUND((ci.payload->>'Age Months')::NUMERIC)::INTEGER
+            ELSE a.cat_age_months
+          END,
+          updated_at = NOW()
+        FROM ops.staged_records ci
+        JOIN ops.file_uploads fu_ci ON fu_ci.upload_id = ci.file_upload_id
+        JOIN ops.file_uploads fu_me ON fu_me.batch_id = fu_ci.batch_id
+        WHERE ci.source_system = 'clinichq'
+          AND ci.source_table = 'cat_info'
+          AND fu_me.upload_id = $1
+          AND ci.payload->>'Microchip Number' = SPLIT_PART(a.clinichq_appointment_id, '_', 2)
+          AND TO_DATE(ci.payload->>'Date', 'MM/DD/YYYY') = a.appointment_date
+          AND (a.cat_weight_lbs IS NULL OR a.cat_age_years IS NULL OR a.cat_age_months IS NULL)
+      `, [uploadId]);
+      results.enriched_with_weight = enrichedWithWeight.rowCount || 0;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'enrich_weight_age', error: msg });
+      console.error('enrich_weight_age failed (non-fatal):', err);
+    }
 
     // Create cat_test_results from FeLV/FIV SNAP test results
     // Format is "FeLV/FIV" like "Negative/Negative" or "Positive/Negative"
@@ -1478,117 +1535,158 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     //
     // See: docs/AUDIT_PLACE_CONSOLIDATION_ISSUE.md
 
-    // Update altered_status
-    await saveProgress('Updating altered status...');
-    await query(`
-      UPDATE sot.cats c SET altered_status = 'spayed'
-      WHERE c.altered_status IS DISTINCT FROM 'spayed'
-        AND EXISTS (SELECT 1 FROM ops.cat_procedures cp WHERE cp.cat_id = c.cat_id AND cp.is_spay = TRUE)
-    `);
-    await query(`
-      UPDATE sot.cats c SET altered_status = 'neutered'
-      WHERE c.altered_status IS DISTINCT FROM 'neutered'
-        AND EXISTS (SELECT 1 FROM ops.cat_procedures cp WHERE cp.cat_id = c.cat_id AND cp.is_neuter = TRUE)
-    `);
-
-    // Link appointments to trappers for accurate trapper stats
-    await saveProgress('Linking appointments to trappers...');
-    const trapperLinks = await query(`
-      SELECT * FROM sot.link_appointments_to_trappers()
-    `);
-    if (trapperLinks.rows?.[0]) {
-      results.appointments_linked_to_trappers = trapperLinks.rows[0].linked || 0;
+    // Update altered_status (SUPPLEMENTARY)
+    try {
+      await saveProgress('Updating altered status...');
+      await query(`
+        UPDATE sot.cats c SET altered_status = 'spayed'
+        WHERE c.altered_status IS DISTINCT FROM 'spayed'
+          AND EXISTS (SELECT 1 FROM ops.cat_procedures cp WHERE cp.cat_id = c.cat_id AND cp.is_spay = TRUE)
+      `);
+      await query(`
+        UPDATE sot.cats c SET altered_status = 'neutered'
+        WHERE c.altered_status IS DISTINCT FROM 'neutered'
+          AND EXISTS (SELECT 1 FROM ops.cat_procedures cp WHERE cp.cat_id = c.cat_id AND cp.is_neuter = TRUE)
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'update_altered_status_2', error: msg });
+      console.error('update_altered_status_2 failed (non-fatal):', err);
     }
 
-    // Link appointments via embedded microchips in Animal Name
-    // ClinicHQ quirk: recaptured cats often have microchip in name field instead of microchip field
-    // Must run AFTER appointments are created so we have records to link
-    await saveProgress('Extracting embedded microchips...');
-    const embeddedChipLinks = await query(`
-      SELECT * FROM ops.extract_and_link_microchips_from_animal_name()
-    `);
-    if (embeddedChipLinks.rows?.[0]) {
-      results.embedded_microchip_cats_created = embeddedChipLinks.rows[0].cats_created || 0;
-      results.embedded_microchip_appointments_linked = embeddedChipLinks.rows[0].appointments_linked || 0;
+    // Link appointments to trappers (SUPPLEMENTARY)
+    try {
+      await saveProgress('Linking appointments to trappers...');
+      const trapperLinks = await query(`
+        SELECT * FROM sot.link_appointments_to_trappers()
+      `);
+      if (trapperLinks.rows?.[0]) {
+        results.appointments_linked_to_trappers = trapperLinks.rows[0].linked || 0;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'link_appointments_to_trappers', error: msg });
+      console.error('link_appointments_to_trappers failed (non-fatal):', err);
     }
 
-    // Create cat_vitals records from appointments with temperature/reproductive data
-    // This ensures vitals are captured during real-time ingest, not just via migrations
-    await saveProgress('Creating appointment vitals...');
-    const appointmentVitals = await query(`
-      INSERT INTO ops.cat_vitals (
-        cat_id, appointment_id, recorded_at,
-        temperature_f, is_pregnant, is_lactating, is_in_heat,
-        source_system, source_record_id
-      )
-      SELECT
-        a.cat_id,
-        a.appointment_id,
-        a.appointment_date::timestamp with time zone,
-        a.temperature,
-        a.is_pregnant,
-        a.is_lactating,
-        a.is_in_heat,
-        'clinichq',
-        'appointment_' || a.appointment_number
-      FROM ops.appointments a
-      WHERE a.cat_id IS NOT NULL
-        AND (
-          a.temperature IS NOT NULL
-          OR a.is_pregnant = TRUE
-          OR a.is_lactating = TRUE
-          OR a.is_in_heat = TRUE
+    // Extract embedded microchips (SUPPLEMENTARY)
+    try {
+      await saveProgress('Extracting embedded microchips...');
+      const embeddedChipLinks = await query(`
+        SELECT * FROM ops.extract_and_link_microchips_from_animal_name()
+      `);
+      if (embeddedChipLinks.rows?.[0]) {
+        results.embedded_microchip_cats_created = embeddedChipLinks.rows[0].cats_created || 0;
+        results.embedded_microchip_appointments_linked = embeddedChipLinks.rows[0].appointments_linked || 0;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'extract_embedded_microchips', error: msg });
+      console.error('extract_embedded_microchips failed (non-fatal):', err);
+    }
+
+    // Create appointment vitals (SUPPLEMENTARY)
+    try {
+      await saveProgress('Creating appointment vitals...');
+      const appointmentVitals = await query(`
+        INSERT INTO ops.cat_vitals (
+          cat_id, appointment_id, recorded_at,
+          temperature_f, is_pregnant, is_lactating, is_in_heat,
+          source_system, source_record_id
         )
-        AND NOT EXISTS (
-          SELECT 1 FROM ops.cat_vitals cv
-          WHERE cv.appointment_id = a.appointment_id
-        )
-      ON CONFLICT DO NOTHING
-    `);
-    results.appointment_vitals_created = appointmentVitals.rowCount || 0;
-
-    // MIG_2901: Flow appointment boolean flags → observation tables
-    // Flows has_uri, has_fleas, is_pregnant, etc. into cat_clinical_observations
-    // and cat_reproductive_observations. NOT EXISTS guards ensure idempotency.
-    await saveProgress('Flowing appointment observations...');
-    const observations = await queryOne<{ clinical_inserted: number; reproductive_inserted: number }>(
-      `SELECT * FROM ops.flow_appointment_observations()`
-    );
-    if (observations) {
-      results.clinical_observations_created = observations.clinical_inserted;
-      results.reproductive_observations_created = observations.reproductive_inserted;
+        SELECT
+          a.cat_id,
+          a.appointment_id,
+          a.appointment_date::timestamp with time zone,
+          a.temperature,
+          a.is_pregnant,
+          a.is_lactating,
+          a.is_in_heat,
+          'clinichq',
+          'appointment_' || a.appointment_number
+        FROM ops.appointments a
+        WHERE a.cat_id IS NOT NULL
+          AND (
+            a.temperature IS NOT NULL
+            OR a.is_pregnant = TRUE
+            OR a.is_lactating = TRUE
+            OR a.is_in_heat = TRUE
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM ops.cat_vitals cv
+            WHERE cv.appointment_id = a.appointment_id
+          )
+        ON CONFLICT DO NOTHING
+      `);
+      results.appointment_vitals_created = appointmentVitals.rowCount || 0;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'create_appointment_vitals', error: msg });
+      console.error('create_appointment_vitals failed (non-fatal):', err);
     }
 
-    // MIG_2902: Sync sot.cats columns from appointment data
-    // Fills weight_lbs, estimated_birth_date, age_group, coat_length where NULL.
-    await saveProgress('Syncing cat attributes from appointments...');
-    const catSync = await queryOne<{ weight_updated: number; age_updated: number; coat_updated: number }>(
-      `SELECT * FROM ops.sync_cats_from_appointments()`
-    );
-    if (catSync) {
-      results.cats_weight_synced = catSync.weight_updated;
-      results.cats_age_synced = catSync.age_updated;
-      results.cats_coat_synced = catSync.coat_updated;
+    // Flow appointment observations (SUPPLEMENTARY)
+    try {
+      await saveProgress('Flowing appointment observations...');
+      const observations = await queryOne<FlowAppointmentObservationsResult>(
+        `SELECT * FROM ops.flow_appointment_observations()`
+      );
+      if (observations) {
+        results.clinical_observations_created = observations.clinical_inserted;
+        results.reproductive_observations_created = observations.reproductive_inserted;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'flow_observations', error: msg });
+      console.error('flow_observations failed (non-fatal):', err);
     }
 
-    // Cat-request linking is handled by link_cats_to_requests_safe() below (line ~1607)
+    // Sync cat attributes from appointments (SUPPLEMENTARY)
+    try {
+      await saveProgress('Syncing cat attributes from appointments...');
+      const catSync = await queryOne<SyncCatsFromAppointmentsResult>(
+        `SELECT * FROM ops.sync_cats_from_appointments()`
+      );
+      if (catSync) {
+        results.cats_weight_synced = catSync.weight_updated;
+        results.cats_age_synced = catSync.age_updated;
+        results.cats_coat_synced = catSync.coat_updated;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'sync_cat_attributes', error: msg });
+      console.error('sync_cat_attributes failed (non-fatal):', err);
+    }
+
+    // Cat-request linking is handled by link_cats_to_requests_safe() below
     // and by Step 4 of run_all_entity_linking() in the cron job.
-    // Removed inline linking (MIG_2825/FFS-164): it had no place family support,
-    // a narrow 1-month pre-window, and a 30-day recency filter that created bad links.
 
-    // Queue new appointments for AI extraction
-    // This ensures recapture detection and other attributes are extracted promptly
-    await saveProgress('Queuing AI extraction...');
-    const aiQueueResult = await query(`
-      SELECT ops.queue_appointment_extraction(100, 10) as queued
-    `);
-    results.ai_extraction_queued = aiQueueResult.rows?.[0]?.queued || 0;
+    // Queue AI extraction (SUPPLEMENTARY)
+    try {
+      await saveProgress('Queuing AI extraction...');
+      const aiQueueResult = await query(`
+        SELECT ops.queue_appointment_extraction(100, 10) as queued
+      `);
+      results.ai_extraction_queued = aiQueueResult.rows?.[0]?.queued || 0;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      supplementaryErrors.push({ step: 'queue_ai_extraction', error: msg });
+      console.error('queue_ai_extraction failed (non-fatal):', err);
+    }
+  }
+
+  }); // END withTransaction — entity linking + beacon enrichment run outside
+
+  if (supplementaryErrors.length > 0) {
+    results._supplementary_errors = supplementaryErrors;
   }
 
   // ================================================================
   // Inline Enrichment — runs after ALL ClinicHQ post-processing
   // so staff see fully linked map data immediately after upload.
   // Each step is non-fatal (crons are safety net).
+  // RUNS OUTSIDE TRANSACTION — entity linking is idempotent and
+  // has the cron safety net if it fails here.
   // ================================================================
 
   // Entity linking: call individual functions
@@ -1598,7 +1696,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
 
   try {
     await saveProgress('Linking appointments to owners...');
-    const owners = await queryOne<{ appointments_updated: number; persons_created: number; persons_linked: number }>(
+    const owners = await queryOne<LinkAppointmentsToOwnersResult>(
       `SELECT * FROM sot.link_appointments_to_owners()`
     );
     if (owners) {
@@ -1613,7 +1711,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
 
   try {
     await saveProgress('Linking cats to places...');
-    const cats = await queryOne<{ cats_linked_home: number; cats_linked_appointment: number; cats_skipped: number; total_edges: number }>(
+    const cats = await queryOne<LinkCatsToPlacesResult>(
       `SELECT * FROM sot.link_cats_to_places()`
     );
     if (cats) {
@@ -1628,7 +1726,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
 
   try {
     await saveProgress('Linking appointments to trappers...');
-    const trappers = await queryOne<{ run_appointment_trapper_linking: number }>(
+    const trappers = await queryOne<RunAppointmentTrapperLinkingResult>(
       `SELECT sot.run_appointment_trapper_linking() as run_appointment_trapper_linking`
     );
     if (trappers) linking.appointments_linked_to_trappers = trappers.run_appointment_trapper_linking;
@@ -1670,7 +1768,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
     // MIG_889: Link cats to places via appointment inferred_place_id
     // Replaces direct INSERT (which bypassed INV-10 gatekeeper and linked to ALL person places)
     await saveProgress('Linking cats to appointment places...');
-    const appointmentPlaces = await queryOne<{ cats_linked: number }>(
+    const appointmentPlaces = await queryOne<LinkCatsToAppointmentPlacesResult>(
       `SELECT * FROM sot.link_cats_to_appointment_places()`
     );
     if (appointmentPlaces) linking.cats_linked_via_appointment_places = appointmentPlaces.cats_linked;
@@ -1700,7 +1798,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   // ALREADY had place links; this catches the rest.
   try {
     await saveProgress('Linking cats to requests (post entity-linking)...');
-    const postLinkResult = await queryOne<{ linked: number; skipped: number }>(
+    const postLinkResult = await queryOne<LinkCatsToRequestsResult>(
       `SELECT * FROM sot.link_cats_to_requests_safe()`
     );
     if (postLinkResult) {
@@ -1719,7 +1817,7 @@ async function runClinicHQPostProcessing(sourceTable: string, uploadId: string):
   // MIG_2908/FFS-449: Detect unofficial trapper candidates after entity linking
   try {
     await saveProgress('Detecting unofficial trapper candidates...');
-    const candidates = await queryOne<{ candidates_found: number; candidates_queued: number; candidates_already_pending: number }>(
+    const candidates = await queryOne<QueueUnofficialTrapperCandidatesResult>(
       `SELECT * FROM sot.queue_unofficial_trapper_candidates()`
     );
     if (candidates) {
