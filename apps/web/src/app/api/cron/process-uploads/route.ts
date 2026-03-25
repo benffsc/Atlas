@@ -38,10 +38,14 @@ export async function GET(request: NextRequest) {
 
   try {
     // Auto-reset stuck uploads (processing > 5 minutes with no progress)
+    // Phase 4 (FFS-740): Also set processing_phase and failed_at_step if columns exist
     const stuckReset = await query(`
       UPDATE ops.file_uploads
       SET status = 'failed',
-          error_message = 'Processing timed out after 5 minutes (auto-reset by cron)'
+          processing_phase = 'failed',
+          error_message = 'Processing timed out after 5 minutes (auto-reset by cron)',
+          last_error = 'Processing timed out after 5 minutes (auto-reset by cron)',
+          failed_at_step = COALESCE(processing_phase, status)
       WHERE status = 'processing'
         AND processed_at < NOW() - INTERVAL '5 minutes'
     `);
@@ -50,10 +54,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Find pending uploads that need processing
+    // Phase 4 (FFS-740): Also pick up files with processing_phase = 'staged'
     const pendingUploads = await queryRows<PendingUpload>(`
       SELECT upload_id, original_filename, source_system, source_table, uploaded_at
       FROM ops.file_uploads
-      WHERE status = 'pending'
+      WHERE (status = 'pending' OR (processing_phase = 'staged' AND status = 'pending'))
         AND file_content IS NOT NULL
       ORDER BY uploaded_at ASC
       LIMIT $1

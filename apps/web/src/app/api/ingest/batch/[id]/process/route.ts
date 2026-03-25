@@ -140,7 +140,9 @@ export async function POST(
       console.error(`[BATCH] Processing ${file.source_table} (${file.upload_id})...`);
 
       try {
-        // Call the existing process endpoint with extended timeout
+        // FFS-736 Phase 3d: After MIG_2975 is deployed, replace this HTTP self-fetch
+        // with a direct call to ops.run_clinichq_post_processing(file.upload_id, file.source_table)
+        // to eliminate the nested timeout cascade.
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min per file
 
