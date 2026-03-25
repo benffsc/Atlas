@@ -34,6 +34,12 @@ const DEFAULTS: Record<string, unknown> = {
   "org.support_email": "admin@forgottenfelinessoco.org",
   "org.email_from": "Forgotten Felines <noreply@forgottenfelines.org>",
   "org.tagline": "Helping community cats since 1990",
+  // Terminology (MIG_2973 / FFS-687)
+  "terminology.trapper_types": { coordinator: "Coordinator", head_trapper: "Head Trapper", ffsc_trapper: "FFSC Trapper", community_trapper: "Community Trapper" },
+  "terminology.program_public": "Find Fix Return (FFR)",
+  "terminology.program_staff": "TNR",
+  "terminology.action_public": "fix",
+  "terminology.action_staff": "alter",
 };
 
 interface ConfigRow {
