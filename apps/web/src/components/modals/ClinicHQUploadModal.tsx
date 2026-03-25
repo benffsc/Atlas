@@ -366,7 +366,7 @@ export default function ClinicHQUploadModal({
         console.error("Non-JSON response:", text.substring(0, 200));
         throw new Error(
           res.status === 504 || res.status === 502
-            ? "Server timeout. Processing continues in the background — check back in a minute."
+            ? "TIMEOUT:Processing continues in the background."
             : `Server error (${res.status}). Please retry.`
         );
       }
@@ -714,8 +714,31 @@ export default function ClinicHQUploadModal({
 
           {/* Error */}
           {error && (
-            <div style={{ padding: "12px 16px", background: "var(--danger-bg, #f8d7da)", border: "1px solid var(--danger-border, #f5c6cb)", borderRadius: "8px", marginBottom: "16px" }}>
-              <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--danger-text, #721c24)", whiteSpace: "pre-line" }}>{error}</p>
+            <div style={{ padding: "12px 16px", background: error.startsWith("TIMEOUT:") ? "var(--info-bg, rgba(37, 99, 235, 0.08))" : "var(--danger-bg, #f8d7da)", border: error.startsWith("TIMEOUT:") ? "1px solid var(--info-border, rgba(37, 99, 235, 0.3))" : "1px solid var(--danger-border, #f5c6cb)", borderRadius: "8px", marginBottom: "16px" }}>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: error.startsWith("TIMEOUT:") ? "var(--text, #111)" : "var(--danger-text, #721c24)" }}>
+                {error.startsWith("TIMEOUT:") ? error.slice(8) : error}
+              </p>
+              {error.startsWith("TIMEOUT:") && batchId && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    router.push(`/admin/ingest?batch=${batchId}`);
+                  }}
+                  style={{
+                    marginTop: "8px",
+                    padding: "6px 14px",
+                    border: "1px solid var(--primary, #2563eb)",
+                    borderRadius: "6px",
+                    background: "var(--card-bg, #fff)",
+                    color: "var(--primary, #2563eb)",
+                    fontSize: "0.8rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  Check Ingest Dashboard
+                </button>
+              )}
             </div>
           )}
 
