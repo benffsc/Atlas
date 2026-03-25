@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 import { isValidUUID } from "@/lib/validation";
+import { processUpload } from "@/app/api/ingest/process/[id]/route";
 
 interface BatchStatus {
   batch_id: string;
@@ -27,11 +28,8 @@ interface BatchFile {
  * 2. cat_info - Creates cats, links them to EXISTING appointments
  * 3. owner_info - Creates people/places, links them to EXISTING appointments
  *
- * The order is enforced by ops.get_batch_files_in_order() and validated here.
- * Appointments must exist before cats and owners can link to them!
- *
- * MIG_971: Added for batch upload processing
- * MIG_2402: Fixed processing order (appointment_info FIRST)
+ * Phase 3d (FFS-736): Calls processUpload() directly instead of HTTP self-fetch.
+ * Eliminates the nested timeout cascade that caused 180s per-file timeouts.
  */
 export async function POST(
   request: NextRequest,
@@ -39,13 +37,8 @@ export async function POST(
 ) {
   const { id: batchId } = await params;
 
-  if (!batchId) {
-    return apiBadRequest("Batch ID is required");
-  }
-
-  if (!isValidUUID(batchId)) {
-    return apiBadRequest("Invalid batch ID format");
-  }
+  if (!batchId) return apiBadRequest("Batch ID is required");
+  if (!isValidUUID(batchId)) return apiBadRequest("Invalid batch ID format");
 
   try {
     // Check batch status
@@ -56,9 +49,7 @@ export async function POST(
       [batchId]
     );
 
-    if (!status) {
-      return apiNotFound("Batch not found");
-    }
+    if (!status) return apiNotFound("Batch not found");
 
     if (!status.is_complete) {
       return apiBadRequest(
@@ -66,13 +57,8 @@ export async function POST(
       );
     }
 
-    if (status.batch_status === "processing") {
-      return apiConflict("Batch is already being processed");
-    }
-
-    if (status.batch_status === "completed") {
-      return apiConflict("Batch has already been processed");
-    }
+    if (status.batch_status === "processing") return apiConflict("Batch is already being processed");
+    if (status.batch_status === "completed") return apiConflict("Batch has already been processed");
 
     // Get files in correct processing order
     const files = await queryRows<BatchFile>(
@@ -84,8 +70,7 @@ export async function POST(
       return apiBadRequest(`Expected 3 files, found ${files.length}`);
     }
 
-    // VALIDATION: Verify processing order is correct (MIG_2402 fix)
-    // appointment_info MUST be first - cats and owners link to appointments
+    // VALIDATION: appointment_info MUST be first (MIG_2402 fix)
     const expectedOrder = ['appointment_info', 'cat_info', 'owner_info'];
     const actualOrder = files.map(f => f.source_table);
 
@@ -99,8 +84,7 @@ export async function POST(
 
     console.error(`[BATCH] Processing order validated: ${actualOrder.join(' → ')}`);
 
-    // Additional validation: If cat_info or owner_info need processing,
-    // appointment_info must be completed (not just pending)
+    // If cat_info/owner_info need processing, appointment_info must not be failed
     const appointmentFile = files.find(f => f.source_table === 'appointment_info');
     const needsAppointments = files.filter(
       f => f.source_table !== 'appointment_info' && f.status === 'pending'
@@ -112,7 +96,7 @@ export async function POST(
       );
     }
 
-    // Process each file in order
+    // Process each file in order via direct function call (Phase 3d)
     const results: Array<{
       source_table: string;
       upload_id: string;
@@ -121,13 +105,8 @@ export async function POST(
       details?: Record<string, unknown>;
     }> = [];
 
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-
     for (const file of files) {
       if (file.status !== "pending") {
-        // Skip already processed files
         results.push({
           source_table: file.source_table,
           upload_id: file.upload_id,
@@ -140,73 +119,22 @@ export async function POST(
       console.error(`[BATCH] Processing ${file.source_table} (${file.upload_id})...`);
 
       try {
-        // FFS-736 Phase 3d: After MIG_2975 is deployed, replace this HTTP self-fetch
-        // with a direct call to ops.run_clinichq_post_processing(file.upload_id, file.source_table)
-        // to eliminate the nested timeout cascade.
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min per file
-
-        const processResponse = await fetch(
-          `${baseUrl}/api/ingest/process/${file.upload_id}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            signal: controller.signal,
-          }
-        );
-        clearTimeout(timeoutId);
-
-        // Handle non-JSON responses (e.g., HTML error pages from timeout)
-        const contentType = processResponse.headers.get("content-type") || "";
-        if (!contentType.includes("application/json")) {
-          const textBody = await processResponse.text();
-          console.error(`[BATCH] Non-JSON response for ${file.source_table}:`, textBody.substring(0, 200));
-          results.push({
-            source_table: file.source_table,
-            upload_id: file.upload_id,
-            success: false,
-            error: `Server error (non-JSON response, status ${processResponse.status})`,
-          });
-          continue;
-        }
-
-        const processResult = await processResponse.json();
-
-        if (!processResponse.ok) {
-          // Extract error from standardized response format
-          const errorMsg = typeof processResult.error === 'object'
-            ? processResult.error?.message
-            : processResult.error || "Processing failed";
-          results.push({
-            source_table: file.source_table,
-            upload_id: file.upload_id,
-            success: false,
-            error: errorMsg,
-          });
-          // Don't stop on failure - continue with other files
-        } else {
-          // Extract data from apiSuccess wrapper
-          const data = processResult.data || processResult;
-          results.push({
-            source_table: file.source_table,
-            upload_id: file.upload_id,
-            success: true,
-            details: data,
-          });
-        }
+        const processResult = await processUpload(file.upload_id);
+        results.push({
+          source_table: file.source_table,
+          upload_id: file.upload_id,
+          success: true,
+          details: processResult as unknown as Record<string, unknown>,
+        });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        const isTimeout = errorMsg.includes('abort') || errorMsg.includes('timeout');
         results.push({
           source_table: file.source_table,
           upload_id: file.upload_id,
           success: false,
-          error: isTimeout
-            ? `Processing timed out for ${file.source_table}. File may be too large.`
-            : `Fetch error: ${errorMsg}`,
+          error: errorMsg,
         });
+        // Don't stop on failure — continue with other files
       }
     }
 
@@ -214,7 +142,7 @@ export async function POST(
     const allSuccess = results.every((r) => r.success);
     const anySuccess = results.some((r) => r.success);
 
-    // Mark batch as ready (all files processed) - optional, for tracking
+    // Mark batch as ready (all files processed)
     await query(
       `UPDATE ops.file_uploads SET batch_ready = TRUE WHERE batch_id = $1`,
       [batchId]
@@ -239,4 +167,4 @@ export async function POST(
   }
 }
 
-export const maxDuration = 300; // 5 minutes max (Vercel Pro limit) - processes files sequentially
+export const maxDuration = 300; // 5 minutes max (Vercel Pro limit)

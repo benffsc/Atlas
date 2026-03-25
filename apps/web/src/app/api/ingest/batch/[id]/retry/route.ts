@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
-import { query, queryOne, queryRows } from "@/lib/db";
+import { query, queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 import { isValidUUID } from "@/lib/validation";
+import { processUpload } from "@/app/api/ingest/process/[id]/route";
 
 /**
  * POST /api/ingest/batch/[id]/retry
- * FFS-740: Re-runs post-processing for failed files in a batch.
- * Resets failed files to 'staged' status and triggers re-processing.
+ * FFS-740: Re-runs processing for failed files in a batch.
+ * Phase 3d: Calls processUpload() directly instead of HTTP self-fetch.
  */
 
 interface FailedFile {
@@ -55,7 +56,7 @@ export async function POST(
       );
     }
 
-    // Reset retriable files to 'staged' for re-processing
+    // Reset retriable files to 'pending' for re-processing
     const resetResult = await query(`
       UPDATE ops.file_uploads
       SET
@@ -73,11 +74,7 @@ export async function POST(
       RETURNING upload_id, source_table, retry_count
     `, [retriable.map(f => f.upload_id), MAX_RETRIES]);
 
-    // Process each reset file by calling the process endpoint directly
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-
+    // Process each reset file via direct function call (Phase 3d)
     const results: Array<{
       upload_id: string;
       source_table: string;
@@ -88,36 +85,13 @@ export async function POST(
 
     for (const file of resetResult.rows) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 180000);
-
-        const response = await fetch(
-          `${baseUrl}/api/ingest/process/${file.upload_id}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: controller.signal,
-          }
-        );
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          results.push({
-            upload_id: file.upload_id,
-            source_table: file.source_table,
-            success: true,
-            retry_number: file.retry_count,
-          });
-        } else {
-          const error = await response.text();
-          results.push({
-            upload_id: file.upload_id,
-            source_table: file.source_table,
-            success: false,
-            retry_number: file.retry_count,
-            error: error.slice(0, 200),
-          });
-        }
+        await processUpload(file.upload_id);
+        results.push({
+          upload_id: file.upload_id,
+          source_table: file.source_table,
+          success: true,
+          retry_number: file.retry_count,
+        });
       } catch (err) {
         results.push({
           upload_id: file.upload_id,
