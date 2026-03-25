@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { ClinicHQUploadModal } from "@/components/modals";
@@ -65,32 +66,192 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
   partial: { bg: "rgba(245, 158, 11, 0.1)", color: "#d97706", label: "Partial" },
 };
 
-const PHASE_LABELS: Record<string, string> = {
-  pending: "Queued",
-  staging: "Staging rows",
-  staged: "Staged",
-  post_processing: "Post-processing",
-  completed: "Done",
-  failed: "Failed",
-};
-
 const SOURCE_TABLE_LABELS: Record<string, { icon: string; label: string }> = {
   appointment_info: { icon: "1", label: "Appointments" },
   cat_info: { icon: "2", label: "Cats" },
   owner_info: { icon: "3", label: "Owners" },
 };
 
+// --- Error Guidance (Part 3) ---
+
+function getErrorGuidance(file: BatchFile, batchId: string): string | null {
+  if (file.status !== "failed") return null;
+  if (file.retry_count >= 3) {
+    return `Failed 3 times. Last error: ${file.last_error || "unknown"}. Contact Ben with batch ID: ${batchId.slice(0, 8)}`;
+  }
+  switch (file.failed_at_step) {
+    case "staging":
+      return "File could not be read. Check that the ClinicHQ export is a valid .xlsx file.";
+    case "post_processing":
+      return "Data was staged but processing failed. Click Retry.";
+    case "processUpload":
+      return "General processing error. Click Retry.";
+    case "entity_linking":
+    case "link_cats_to_places":
+    case "link_cats_to_requests":
+    case "link_persons_to_cats":
+      return "Core data was saved. Entity linking will retry automatically via cron.";
+    default:
+      return file.failed_at_step ? `Failed at "${file.failed_at_step}". Click Retry.` : null;
+  }
+}
+
+// --- Processing Phase Stepper (Part 5) ---
+
+const PHASE_STEPS = ["pending", "staging", "post_processing", "entity_linking", "completed"] as const;
+const PHASE_STEP_LABELS = ["Queued", "Staging", "Processing", "Linking", "Done"];
+
+function ProcessingPhaseStepper({ phase, status }: { phase: string; status: string }) {
+  const isFailed = status === "failed";
+  // Map "staged" to the same index as "staging" (staging complete)
+  const normalizedPhase = phase === "staged" ? "post_processing" : phase;
+  const currentIdx = PHASE_STEPS.indexOf(normalizedPhase as typeof PHASE_STEPS[number]);
+  const activeIdx = currentIdx === -1 ? 0 : currentIdx;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+      {PHASE_STEPS.map((step, idx) => {
+        const isDone = idx < activeIdx || (idx === activeIdx && phase === "completed");
+        const isCurrent = idx === activeIdx && phase !== "completed";
+        const isFailedStep = isCurrent && isFailed;
+
+        return (
+          <div key={step} style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+            {/* Step dot */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+              <div
+                style={{
+                  width: "16px",
+                  height: "16px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.55rem",
+                  fontWeight: 700,
+                  color: "#fff",
+                  background: isFailedStep
+                    ? "#dc2626"
+                    : isDone
+                    ? "#059669"
+                    : isCurrent
+                    ? "#2563eb"
+                    : "var(--border, #d1d5db)",
+                  ...(isCurrent && !isFailed ? { boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.2)" } : {}),
+                }}
+              >
+                {isFailedStep ? "\u2717" : isDone ? "\u2713" : ""}
+              </div>
+              <div style={{
+                fontSize: "0.55rem",
+                color: isDone || isCurrent ? "var(--text, #111)" : "var(--muted, #9ca3af)",
+                fontWeight: isCurrent ? 600 : 400,
+                whiteSpace: "nowrap",
+              }}>
+                {PHASE_STEP_LABELS[idx]}
+              </div>
+            </div>
+            {/* Connector line */}
+            {idx < PHASE_STEPS.length - 1 && (
+              <div style={{
+                width: "16px",
+                height: "2px",
+                background: idx < activeIdx ? "#059669" : "var(--border, #d1d5db)",
+                marginBottom: "14px",
+              }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// --- Health Banner (Part 4) ---
+
+interface IngestHealthData {
+  status: "healthy" | "stale" | "unhealthy";
+  staleness: { hours_since_last_success: number | null; is_stale: boolean };
+  fixes_required: Record<string, string | null> | null;
+}
+
+function IngestHealthBanner() {
+  const [health, setHealth] = useState<IngestHealthData | null>(null);
+
+  useEffect(() => {
+    fetchApi<IngestHealthData>("/api/health/ingest")
+      .then(setHealth)
+      .catch(() => {/* silent — banner just won't show */});
+  }, []);
+
+  if (!health) return null;
+
+  let bg: string, borderColor: string, icon: string, text: string;
+
+  if (health.status === "healthy") {
+    const hours = health.staleness.hours_since_last_success;
+    bg = "rgba(16, 185, 129, 0.08)";
+    borderColor = "rgba(16, 185, 129, 0.3)";
+    icon = "\u2713";
+    text = hours != null
+      ? `Pipeline healthy \u2014 last successful batch ${hours < 1 ? "less than an hour" : `${Math.round(hours)} hour${Math.round(hours) !== 1 ? "s" : ""}`} ago`
+      : "Pipeline healthy";
+  } else if (health.status === "stale") {
+    const hours = health.staleness.hours_since_last_success;
+    bg = "rgba(245, 158, 11, 0.08)";
+    borderColor = "rgba(245, 158, 11, 0.3)";
+    icon = "\u26A0";
+    text = hours != null ? `No uploads in ${Math.round(hours)} hours` : "No recent uploads detected";
+  } else {
+    const fixes = health.fixes_required
+      ? Object.values(health.fixes_required).filter(Boolean).join("; ")
+      : "Unknown issue";
+    bg = "rgba(239, 68, 68, 0.08)";
+    borderColor = "rgba(239, 68, 68, 0.3)";
+    icon = "\u2717";
+    text = `Pipeline unhealthy \u2014 ${fixes}`;
+  }
+
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "10px 16px",
+      borderRadius: "8px",
+      background: bg,
+      border: `1px solid ${borderColor}`,
+      marginBottom: "1.5rem",
+      fontSize: "0.85rem",
+    }}>
+      <span style={{ fontSize: "1rem" }}>{icon}</span>
+      <span>{text}</span>
+    </div>
+  );
+}
+
 // --- Page ---
 
 export default function IngestDashboardPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "2rem" }}>Loading Ingest Dashboard...</div>}>
+      <IngestDashboardContent />
+    </Suspense>
+  );
+}
+
+function IngestDashboardContent() {
+  const searchParams = useSearchParams();
+  const batchParam = searchParams.get("batch");
   const [batches, setBatches] = useState<Batch[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
+  const [expandedBatch, setExpandedBatch] = useState<string | null>(batchParam);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
   const { error: toastError, success: toastSuccess } = useToast();
+  const scrolledToBatch = useRef(false);
 
   const fetchBatches = useCallback(async () => {
     try {
@@ -118,6 +279,17 @@ export default function IngestDashboardPage() {
     const interval = setInterval(fetchBatches, 5000);
     return () => clearInterval(interval);
   }, [batches, fetchBatches]);
+
+  // Scroll to batch from URL param after first load
+  useEffect(() => {
+    if (batchParam && !loading && !scrolledToBatch.current) {
+      scrolledToBatch.current = true;
+      setExpandedBatch(batchParam);
+      setTimeout(() => {
+        document.getElementById(`batch-${batchParam}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [batchParam, loading]);
 
   const handleRetry = async (batchId: string) => {
     setRetrying(batchId);
@@ -176,6 +348,9 @@ export default function IngestDashboardPage() {
           Upload New Batch
         </button>
       </div>
+
+      {/* Health banner */}
+      <IngestHealthBanner />
 
       {/* Summary stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "1.5rem" }}>
@@ -257,10 +432,13 @@ export default function IngestDashboardPage() {
             return (
               <div
                 key={batch.batch_id}
+                id={`batch-${batch.batch_id}`}
                 style={{
                   background: "var(--card-bg, #fff)",
                   borderRadius: "8px",
-                  border: "1px solid var(--border, #e5e7eb)",
+                  border: expandedBatch === batch.batch_id && batchParam === batch.batch_id
+                    ? "2px solid var(--primary, #2563eb)"
+                    : "1px solid var(--border, #e5e7eb)",
                   overflow: "hidden",
                 }}
               >
@@ -345,8 +523,6 @@ export default function IngestDashboardPage() {
                       {batch.files.map((file) => {
                         const stLabel = SOURCE_TABLE_LABELS[file.source_table] || { icon: "?", label: file.source_table };
                         const fileStatus = STATUS_STYLES[file.status] || STATUS_STYLES.pending;
-                        const phase = PHASE_LABELS[file.processing_phase] || file.processing_phase;
-
                         return (
                           <div
                             key={file.upload_id}
@@ -398,25 +574,29 @@ export default function IngestDashboardPage() {
                                 </div>
                               )}
 
+                              {/* Error guidance */}
+                              {(() => {
+                                const guidance = getErrorGuidance(file, batch.batch_id);
+                                return guidance ? (
+                                  <div style={{
+                                    fontSize: "0.75rem", color: "#92400e", marginTop: "4px",
+                                    padding: "6px 8px", background: "rgba(245, 158, 11, 0.08)",
+                                    borderRadius: "4px", borderLeft: "3px solid #f59e0b",
+                                  }}>
+                                    {guidance}
+                                  </div>
+                                ) : null;
+                              })()}
+
                               {/* Post-processing highlights */}
                               {file.post_processing_results && !file.error_message && (
                                 <PostProcessingHighlights results={file.post_processing_results} />
                               )}
                             </div>
 
-                            {/* Phase badge */}
+                            {/* Phase stepper */}
                             <div style={{ textAlign: "right" }}>
-                              <span style={{
-                                display: "inline-block",
-                                padding: "2px 8px",
-                                borderRadius: "10px",
-                                fontSize: "0.65rem",
-                                fontWeight: 600,
-                                background: fileStatus.bg,
-                                color: fileStatus.color,
-                              }}>
-                                {phase}
-                              </span>
+                              <ProcessingPhaseStepper phase={file.processing_phase} status={file.status} />
                               {file.retry_count > 0 && (
                                 <div style={{ fontSize: "0.65rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
                                   Retry {file.retry_count}/3

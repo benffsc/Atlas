@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { fetchApi, ApiError } from "@/lib/api-client";
 import * as XLSX from "xlsx";
 
@@ -118,6 +119,7 @@ export default function ClinicHQUploadModal({
   onClose,
   onSuccess,
 }: ClinicHQUploadModalProps) {
+  const router = useRouter();
   const [batchId, setBatchId] = useState<string | null>(null);
   const [detectedFiles, setDetectedFiles] = useState<Record<FileTypeKey, DetectedFile | null>>({
     cat_info: null,
@@ -791,6 +793,17 @@ export default function ClinicHQUploadModal({
                 >
                   New Batch
                 </button>
+                {batchId && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      router.push(`/admin/ingest?batch=${batchId}`);
+                    }}
+                    style={{ padding: "10px 20px", border: "1px solid var(--primary, #2563eb)", borderRadius: "8px", background: "var(--card-bg, #fff)", color: "var(--primary, #2563eb)", fontSize: "0.9rem", fontWeight: 500, cursor: "pointer" }}
+                  >
+                    View Details
+                  </button>
+                )}
                 <button
                   onClick={handleClose}
                   style={{ padding: "10px 20px", border: "none", borderRadius: "8px", background: "var(--primary, #2563eb)", color: "var(--primary-foreground, #fff)", fontSize: "0.9rem", fontWeight: 500, cursor: "pointer" }}
