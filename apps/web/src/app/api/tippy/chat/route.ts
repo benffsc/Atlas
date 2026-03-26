@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { TIPPY_TOOLS, executeToolCall, ToolContext, ToolResult } from "../tools";
 import { getSession } from "@/lib/auth";
-import { queryOne, execute } from "@/lib/db";
+import { queryOne, queryRows, execute } from "@/lib/db";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 // Domain knowledge modules available for future integration
 // import { DOMAIN_KNOWLEDGE, TNR_SCIENCE, SONOMA_GEOGRAPHY } from "../domain-knowledge";
@@ -69,6 +69,7 @@ Tool selection guide:
 - Cats in a city/region (Santa Rosa, west county, etc.) → use query_cats_altered_in_area
 - Cats from partner orgs (SCAS, shelters) → use query_partner_org_stats
 - Cat by microchip or owner → use lookup_cat_appointment
+- Lost/missing cat by appearance → use run_sql (see LOST/MISSING CAT SEARCH section)
 - Colony size history or discrepancies → use query_colony_estimate_history
 - "Tell [person] that..." or "Message [person] about..." → use send_staff_message
 - "Remind me to..." → use create_reminder
@@ -592,7 +593,48 @@ WHERE h.shared_phone LIKE '%5551234';
 \`\`\`
 
 **Tone for voicemail triage:**
-Be thorough but concise. Staff need to call this person back — give them everything they need to have an informed conversation. Lead with "Here's what I found" not "I searched the database."`;
+Be thorough but concise. Staff need to call this person back — give them everything they need to have an informed conversation. Lead with "Here's what I found" not "I searched the database."
+
+LOST / MISSING CAT SEARCH:
+
+When someone describes a lost or missing cat by appearance (color, sex, location, timeframe):
+1. **Extract key details:** color (map to primary_color values below), sex, approximate age, location/road name, timeframe
+2. **Use run_sql** to search by physical description + location:
+
+\`\`\`sql
+SELECT c.display_name as name, ci.id_value as microchip,
+  c.primary_color, c.secondary_color, c.sex, c.breed,
+  a.appointment_date, p.formatted_address
+FROM sot.cats c
+LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+JOIN sot.cat_place cp ON cp.cat_id = c.cat_id
+JOIN sot.places p ON p.place_id = cp.place_id AND p.merged_into_place_id IS NULL
+LEFT JOIN ops.appointments a ON a.cat_id = c.cat_id
+WHERE c.merged_into_cat_id IS NULL
+  AND c.primary_color ILIKE '%{color}%'
+  AND p.formatted_address ILIKE '%{road_or_location}%'
+ORDER BY a.appointment_date DESC NULLS LAST
+LIMIT 20;
+\`\`\`
+
+3. Add sex filter (\`AND c.sex = 'M'\` or \`'F'\`) if known
+4. Add date filter (\`AND a.appointment_date >= '{date}'\`) if timeframe given
+5. If no matches with exact color, broaden: try without color, or just location
+6. Present matches with **microchip numbers** so they can verify identity
+7. Suggest contacting **SCAS (Sonoma County Animal Services)** as backup — they handle lost & found
+
+**Valid primary_color values (most common first):**
+Black, Brown Tabby, Grey, Brown, Grey Tabby, Orange Tabby, Tortoiseshell, White, Torbie, Calico, Buff, Orange, Lynx Point, Tuxedo, Siamese
+
+**Secondary colors:** With White, White, Black, etc.
+
+**Tips:**
+- "black and white" = primary_color 'Black' + secondary_color 'With White' OR primary_color 'Tuxedo'
+- "orange" = primary_color 'Orange' or 'Orange Tabby'
+- "grey" = primary_color 'Grey' or 'Grey Tabby'
+- "calico" = primary_color 'Calico' or 'Tortoiseshell'
+- If caller describes a "barn cat", search broadly by location — barn cats are often community cats in our system
+- Always check nearby addresses too (cats roam) — use analyze_spatial_context if initial search finds nothing`;
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -621,11 +663,12 @@ interface ChatRequest {
   history?: ChatMessage[];
   conversationId?: string;
   pageContext?: PageContext;
+  stream?: boolean;
 }
 
 // Tools that require write access (read_write or full)
 // Note: lookup_cat_appointment is READ-ONLY (moved out of this list)
-const WRITE_TOOLS = ["log_field_event", "create_reminder", "save_lookup", "log_site_observation", "send_staff_message", "create_draft_request"];
+const WRITE_TOOLS = ["log_field_event", "create_reminder", "save_lookup", "log_site_observation", "send_staff_message", "create_draft_request", "flag_anomaly"];
 
 // Tools that require full access only (admin/engineer level)
 // run_sql allows dynamic SQL queries - powerful but requires understanding of the schema
@@ -755,6 +798,159 @@ async function getOrCreateConversation(
 }
 
 /**
+ * Build ambient pre-flight context (FFS-754, FFS-757)
+ * Injected into system prompt so Tippy always has data quality awareness.
+ * Cached in session_context for 30 minutes to avoid redundant queries.
+ */
+async function buildPreflightContext(
+  conversationId: string
+): Promise<string> {
+  // Check cache in session_context
+  const cached = await queryOne<{ session_context: Record<string, unknown> }>(
+    `SELECT session_context FROM ops.tippy_conversations
+     WHERE conversation_id = $1`,
+    [conversationId]
+  );
+
+  const ctx = cached?.session_context;
+  const preflightAge = ctx?.preflight_computed_at
+    ? Date.now() - new Date(ctx.preflight_computed_at as string).getTime()
+    : Infinity;
+
+  // Return cached if <30 minutes old
+  if (preflightAge < 30 * 60 * 1000 && ctx?.preflight_text) {
+    return ctx.preflight_text as string;
+  }
+
+  // Query all sources in parallel
+  const [qualityAlerts, linkingHealth, batchFreshness, seasonalPhase, diseaseCount] =
+    await Promise.all([
+      queryRows<{ severity: string; message: string }>(
+        `SELECT severity, message FROM ops.v_data_quality_alerts
+         WHERE severity IN ('CRITICAL', 'HIGH') LIMIT 5`
+      ).catch(() => [] as { severity: string; message: string }[]),
+      queryOne<{ clinic_leakage: number; cat_place_coverage: number }>(
+        `SELECT * FROM ops.check_entity_linking_health()`
+      ).catch(() => null),
+      queryOne<{ last_batch: string; status: string }>(
+        `SELECT created_at::text as last_batch, processing_status as status
+         FROM ops.file_uploads WHERE batch_ready = true
+         ORDER BY created_at DESC LIMIT 1`
+      ).catch(() => null),
+      queryOne<{ breeding_phase: string; breeding_intensity: number }>(
+        `SELECT breeding_phase, breeding_intensity
+         FROM ops.v_breeding_season_indicators
+         WHERE month_num = EXTRACT(MONTH FROM CURRENT_DATE) LIMIT 1`
+      ).catch(() => null),
+      queryOne<{ count: number }>(
+        `SELECT COUNT(DISTINCT place_id)::int as count
+         FROM ops.v_place_disease_summary
+         WHERE positive_count > 0`
+      ).catch(() => null),
+    ]);
+
+  // Format compact context string (~200 tokens)
+  let text = '\n\nAMBIENT DATA CONTEXT (auto-refreshed):';
+
+  const critCount = qualityAlerts?.filter(a => a.severity === 'CRITICAL').length ?? 0;
+  const highCount = qualityAlerts?.filter(a => a.severity === 'HIGH').length ?? 0;
+  const healthStatus = critCount > 0 ? 'critical' : highCount > 0 ? 'warning' : 'healthy';
+  text += `\n- Data quality: ${healthStatus}`;
+  if (critCount > 0 || highCount > 0) {
+    text += ` (${critCount} critical, ${highCount} high alerts)`;
+    qualityAlerts?.slice(0, 3).forEach(a => { text += `\n  -> ${a.message}`; });
+  }
+
+  if (linkingHealth) {
+    text += `\n- Entity linking: ${linkingHealth.cat_place_coverage}% cat-place coverage, ${linkingHealth.clinic_leakage} clinic leakage`;
+  }
+
+  if (batchFreshness) {
+    const hoursAgo = Math.round((Date.now() - new Date(batchFreshness.last_batch).getTime()) / 3600000);
+    text += `\n- Latest ClinicHQ batch: ${hoursAgo}h ago (${batchFreshness.status})`;
+    if (hoursAgo > 48) text += ' -- STALE';
+  }
+
+  if (seasonalPhase) {
+    text += `\n- Season: ${seasonalPhase.breeding_phase} (intensity: ${seasonalPhase.breeding_intensity})`;
+  }
+
+  if (diseaseCount?.count) {
+    text += `\n- Disease: ${diseaseCount.count} places with positive cats`;
+  }
+
+  text += '\n\nUse this context to inform responses. If data quality is degraded, mention it. If batches are stale (>48h), caveat freshness. Reference seasonal context when discussing colony planning.';
+
+  // Cache in session_context
+  try {
+    await execute(
+      `UPDATE ops.tippy_conversations
+       SET session_context = COALESCE(session_context, '{}'::jsonb)
+         || jsonb_build_object('preflight_text', $2::text, 'preflight_computed_at', NOW()::text)
+       WHERE conversation_id = $1`,
+      [conversationId, text]
+    );
+  } catch {
+    // Don't fail the chat if caching fails
+  }
+
+  return text;
+}
+
+/**
+ * Assemble briefing data for shift-start (FFS-755)
+ * Returns structured data for Claude to format as a natural briefing.
+ */
+async function assembleBriefingData(staffId: string): Promise<Record<string, unknown>> {
+  const [newIntakes, batchStatus, staleRequests, seasonalPhase, linkingHealth, reminders, qualityAlerts] =
+    await Promise.all([
+      queryOne<{ count: number }>(
+        `SELECT COUNT(*)::int as count FROM ops.intake_submissions
+         WHERE status = 'pending' AND created_at > NOW() - INTERVAL '24 hours'`
+      ).catch(() => ({ count: 0 })),
+      queryOne<{ last_batch: string; status: string }>(
+        `SELECT created_at::text as last_batch, processing_status as status
+         FROM ops.file_uploads WHERE batch_ready = true
+         ORDER BY created_at DESC LIMIT 1`
+      ).catch(() => null),
+      queryOne<{ count: number }>(
+        `SELECT COUNT(*)::int as count FROM ops.requests
+         WHERE status NOT IN ('completed','cancelled','closed')
+         AND updated_at < NOW() - INTERVAL '14 days'`
+      ).catch(() => ({ count: 0 })),
+      queryOne<{ breeding_phase: string; breeding_intensity: number }>(
+        `SELECT breeding_phase, breeding_intensity
+         FROM ops.v_breeding_season_indicators
+         WHERE month_num = EXTRACT(MONTH FROM CURRENT_DATE) LIMIT 1`
+      ).catch(() => null),
+      queryOne<{ clinic_leakage: number; cat_place_coverage: number }>(
+        `SELECT * FROM ops.check_entity_linking_health()`
+      ).catch(() => null),
+      queryRows<{ title: string; due_at: string }>(
+        `SELECT title, due_at::text FROM ops.staff_reminders
+         WHERE staff_id = $1 AND status IN ('pending','due')
+         AND due_at <= NOW() + INTERVAL '24 hours'
+         ORDER BY due_at LIMIT 10`,
+        [staffId]
+      ).catch(() => []),
+      queryRows<{ severity: string; message: string }>(
+        `SELECT severity, message FROM ops.v_data_quality_alerts
+         WHERE severity IN ('CRITICAL', 'HIGH') LIMIT 5`
+      ).catch(() => []),
+    ]);
+
+  return {
+    new_intakes_24h: newIntakes?.count ?? 0,
+    batch_status: batchStatus,
+    stale_requests: staleRequests?.count ?? 0,
+    seasonal_phase: seasonalPhase,
+    linking_health: linkingHealth,
+    pending_reminders: reminders,
+    quality_alerts: qualityAlerts,
+  };
+}
+
+/**
  * Store a message in the conversation
  */
 async function storeMessage(
@@ -808,6 +1004,241 @@ async function updateConversationTools(
   } catch (error) {
     console.error("Failed to update conversation tools:", error);
   }
+}
+
+/**
+ * Streaming chat handler — returns SSE events instead of JSON.
+ * Tool loop runs synchronously (non-streamed), only the final text generation streams.
+ */
+async function handleStreamingChat({
+  client,
+  systemPrompt,
+  messages,
+  availableTools,
+  forcedToolChoice,
+  conversationId,
+  session,
+  userName,
+  aiAccessLevel,
+}: {
+  client: Anthropic;
+  systemPrompt: string;
+  messages: Anthropic.MessageParam[];
+  availableTools: typeof TIPPY_TOOLS;
+  forcedToolChoice: ReturnType<typeof detectIntentAndForceToolChoice>;
+  conversationId: string;
+  session: { staff_id?: string } | null;
+  userName: string | null;
+  aiAccessLevel: string | null;
+}): Promise<Response> {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: Record<string, unknown>) => {
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+        );
+      };
+
+      try {
+        send("status", { phase: "thinking" });
+
+        // Tool context
+        const recentToolResults: ToolResult[] = [];
+        const toolContext: ToolContext = {
+          staffId: session?.staff_id || "",
+          staffName: userName || "Unknown",
+          aiAccessLevel: aiAccessLevel || "read_only",
+          conversationId,
+          recentToolResults,
+        };
+        const toolsUsedInThisRequest: string[] = [];
+
+        // Initial API call (non-streaming, to check for tool use)
+        let response = await client.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages,
+          tools: availableTools.length > 0 ? availableTools : undefined,
+          ...(forcedToolChoice && { tool_choice: forcedToolChoice }),
+        });
+
+        // Tool loop (max 3 iterations)
+        let iterations = 0;
+        const maxIterations = 3;
+
+        while (response.stop_reason === "tool_use" && iterations < maxIterations) {
+          iterations++;
+
+          const toolUseBlocks = response.content.filter(
+            (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+          );
+          if (toolUseBlocks.length === 0) break;
+
+          toolUseBlocks.forEach((toolUse) => {
+            if (!toolsUsedInThisRequest.includes(toolUse.name)) {
+              toolsUsedInThisRequest.push(toolUse.name);
+            }
+          });
+
+          // Execute tools, sending status events for each
+          const toolResultsContent = await Promise.all(
+            toolUseBlocks.map(async (toolUse) => {
+              send("status", { phase: "tool_call", tool: toolUse.name });
+              const result = await executeToolCall(
+                toolUse.name,
+                toolUse.input as Record<string, unknown>,
+                toolContext
+              );
+              recentToolResults.push(result);
+              send("status", {
+                phase: "tool_result",
+                tool: toolUse.name,
+                success: result.success,
+              });
+              return {
+                type: "tool_result" as const,
+                tool_use_id: toolUse.id,
+                content: JSON.stringify(result),
+              };
+            })
+          );
+
+          messages.push({ role: "assistant", content: response.content });
+          messages.push({ role: "user", content: toolResultsContent });
+
+          // Next API call (non-streaming, to check for more tool use)
+          response = await client.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 4096,
+            system: systemPrompt,
+            messages,
+            tools: availableTools.length > 0 ? availableTools : undefined,
+          });
+        }
+
+        // Handle max iterations exceeded (same as non-streaming path)
+        if (response.stop_reason === "tool_use" && iterations >= maxIterations) {
+          const pendingToolUseBlocks = response.content.filter(
+            (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+          );
+
+          pendingToolUseBlocks.forEach((toolUse) => {
+            if (!toolsUsedInThisRequest.includes(toolUse.name)) {
+              toolsUsedInThisRequest.push(toolUse.name);
+            }
+          });
+
+          const pendingToolResults = await Promise.all(
+            pendingToolUseBlocks.map(async (toolUse) => {
+              send("status", { phase: "tool_call", tool: toolUse.name });
+              const result = await executeToolCall(
+                toolUse.name,
+                toolUse.input as Record<string, unknown>,
+                toolContext
+              );
+              recentToolResults.push(result);
+              send("status", {
+                phase: "tool_result",
+                tool: toolUse.name,
+                success: result.success,
+              });
+              return {
+                type: "tool_result" as const,
+                tool_use_id: toolUse.id,
+                content: JSON.stringify(result),
+              };
+            })
+          );
+
+          messages.push({ role: "assistant", content: response.content });
+          messages.push({
+            role: "user",
+            content: [
+              ...pendingToolResults,
+              {
+                type: "text" as const,
+                text: "Please summarize what you found from all the tool results above. Do not call any more tools.",
+              },
+            ],
+          });
+        }
+
+        // Final response: stream the text
+        send("status", { phase: "responding" });
+
+        // If the last response already has text (no more tool use), extract and stream it as deltas
+        const existingText = response.stop_reason !== "tool_use"
+          ? response.content.find((c) => c.type === "text")
+          : null;
+
+        let fullText = "";
+
+        if (existingText && existingText.type === "text" && iterations < maxIterations) {
+          // Response already resolved with text — no need to re-call API
+          // Send the text as a single delta (it's already complete)
+          fullText = existingText.text;
+          send("delta", { text: fullText });
+        } else {
+          // Stream the final text generation
+          const finalStream = client.messages.stream({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 4096,
+            system: systemPrompt,
+            messages,
+            // No tools — forces text-only response
+          });
+
+          for await (const event of finalStream) {
+            if (
+              event.type === "content_block_delta" &&
+              event.delta.type === "text_delta"
+            ) {
+              fullText += event.delta.text;
+              send("delta", { text: event.delta.text });
+            }
+          }
+        }
+
+        // Store complete message after stream ends
+        if (!fullText) {
+          fullText = "I'm not sure how to help with that.";
+        }
+
+        await storeMessage(
+          conversationId,
+          "assistant",
+          fullText,
+          toolsUsedInThisRequest.length > 0 ? { tools: toolsUsedInThisRequest } : undefined,
+          undefined,
+          undefined
+        );
+
+        if (toolsUsedInThisRequest.length > 0) {
+          await updateConversationTools(conversationId, toolsUsedInThisRequest);
+        }
+
+        send("done", { conversationId });
+        controller.close();
+      } catch (error) {
+        console.error("Tippy streaming error:", error);
+        send("error", {
+          message: "I'm having trouble connecting right now. Try asking again.",
+        });
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -993,6 +1424,35 @@ Think: How would a veteran coordinator give an honest assessment?`;
       systemPrompt += mapContextStr;
     }
 
+    // FFS-754: Add pre-flight data quality context
+    if (session?.staff_id && !conversationId.startsWith('conv_')) {
+      try {
+        const preflightContext = await buildPreflightContext(conversationId);
+        systemPrompt += preflightContext;
+      } catch {
+        // Don't fail the chat if pre-flight fails
+      }
+    }
+
+    // FFS-759: Onboarding mode for new staff
+    if (session?.staff_id) {
+      try {
+        const conversationCount = await queryOne<{ count: number }>(
+          `SELECT COUNT(*)::int as count FROM ops.tippy_conversations WHERE staff_id = $1`,
+          [session.staff_id]
+        );
+        if ((conversationCount?.count ?? 0) < 5) {
+          systemPrompt += `\n\nONBOARDING MODE: This staff member is new to Tippy.
+- Define TNR terminology when first used (colony, eartip, alteration rate, etc.)
+- Include links to relevant Atlas pages in your answers (e.g., /requests, /cats, /places)
+- Offer process walkthroughs proactively
+- Be more detailed in explanations`;
+        }
+      } catch {
+        // Don't fail the chat if onboarding check fails
+      }
+    }
+
     // Build messages array
     const messages: Anthropic.MessageParam[] = [
       ...history.map((msg) => ({
@@ -1005,10 +1465,66 @@ Think: How would a veteran coordinator give an honest assessment?`;
     // Detect intent and potentially force tool choice for reliable invocation
     const forcedToolChoice = detectIntentAndForceToolChoice(message, aiAccessLevel || "read_only");
 
+    // FFS-755: Detect shift briefing request
+    if (message === '__shift_briefing__' && body.stream && session?.staff_id) {
+      const briefingData = await assembleBriefingData(session.staff_id);
+
+      const briefingMessages: Anthropic.MessageParam[] = [
+        { role: 'user', content: 'Generate my shift briefing for today.' }
+      ];
+
+      const briefingPrompt = systemPrompt + `\n\nSHIFT BRIEFING DATA:
+The staff member just started their shift. Generate a concise daily briefing using this data.
+Format it naturally — like a colleague giving a handoff, not a dashboard report.
+Lead with what needs attention. Keep it under 250 words.
+
+${JSON.stringify(briefingData, null, 2)}`;
+
+      // Mark this conversation as a briefing
+      try {
+        await execute(
+          `UPDATE ops.tippy_conversations
+           SET session_context = COALESCE(session_context, '{}'::jsonb)
+             || '{"is_briefing": true}'::jsonb
+           WHERE conversation_id = $1`,
+          [conversationId]
+        );
+      } catch {
+        // Don't fail if marker can't be set
+      }
+
+      return handleStreamingChat({
+        client,
+        systemPrompt: briefingPrompt,
+        messages: briefingMessages,
+        availableTools,
+        forcedToolChoice: undefined,
+        conversationId,
+        session,
+        userName,
+        aiAccessLevel,
+      });
+    }
+
+    // === STREAMING PATH ===
+    if (body.stream) {
+      return handleStreamingChat({
+        client,
+        systemPrompt,
+        messages,
+        availableTools,
+        forcedToolChoice,
+        conversationId,
+        session,
+        userName,
+        aiAccessLevel,
+      });
+    }
+
     // Call Claude API with filtered tools
     let response = await client.messages.create({
       model: "claude-sonnet-4-20250514", // Sonnet 4 for better conversation quality
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: systemPrompt,
       messages,
       tools: availableTools.length > 0 ? availableTools : undefined,
@@ -1084,7 +1600,7 @@ Think: How would a veteran coordinator give an honest assessment?`;
       // Call Claude again with tool results
       response = await client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
+        max_tokens: 4096,
         system: systemPrompt,
         messages,
         tools: availableTools.length > 0 ? availableTools : undefined,
@@ -1144,7 +1660,7 @@ Think: How would a veteran coordinator give an honest assessment?`;
 
       response = await client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
+        max_tokens: 4096,
         system: systemPrompt,
         messages,
         // No tools provided — forces text-only response

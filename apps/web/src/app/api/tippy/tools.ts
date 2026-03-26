@@ -1154,6 +1154,45 @@ Example queries:
       required: [],
     },
   },
+  // FFS-756: Flag anomaly tool
+  {
+    name: "flag_anomaly",
+    description:
+      "Flag a data anomaly or quality issue for staff review. Use when you discover inconsistent data, suspicious patterns, or things that don't add up during analysis. Examples: a place showing 500 cats but only 2 appointments, a person linked to 50 different addresses, alteration rates that changed dramatically overnight.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        anomaly_type: {
+          type: "string",
+          enum: ["data_inconsistency", "suspicious_pattern", "coverage_gap", "stale_data", "linking_error", "other"],
+          description: "Category of the anomaly",
+        },
+        description: {
+          type: "string",
+          description: "Clear description of what seems wrong and why it matters",
+        },
+        entity_type: {
+          type: "string",
+          enum: ["place", "cat", "person", "request"],
+          description: "Type of entity the anomaly relates to (optional)",
+        },
+        entity_id: {
+          type: "string",
+          description: "UUID of the entity (optional)",
+        },
+        severity: {
+          type: "string",
+          enum: ["low", "medium", "high", "critical"],
+          description: "How urgent this is. critical = data corruption, high = wrong data shown to staff, medium = inconsistency, low = cosmetic",
+        },
+        evidence: {
+          type: "object",
+          description: "Supporting data — query results, counts, or comparisons that show the anomaly",
+        },
+      },
+      required: ["anomaly_type", "description"],
+    },
+  },
 ];
 
 /**
@@ -1486,6 +1525,17 @@ export async function executeToolCall(
 
       case "demo_coverage_gaps":
         return await callDemoFunction("ops.tippy_demo_coverage_gaps()");
+
+      case "flag_anomaly":
+        return await flagAnomaly(
+          toolInput.anomaly_type as string,
+          toolInput.description as string,
+          toolInput.entity_type as string | undefined,
+          toolInput.entity_id as string | undefined,
+          toolInput.severity as string | undefined,
+          toolInput.evidence as Record<string, unknown> | undefined,
+          context
+        );
 
       default:
         return { success: false, error: `Unknown tool: ${toolName}` };
@@ -2636,6 +2686,9 @@ async function lookupCatAppointment(
     cat_id: string;
     cat_name: string;
     microchip: string | null;
+    primary_color: string | null;
+    secondary_color: string | null;
+    sex: string | null;
     altered_status: string;
     appointment_count: number;
     last_appointment: string | null;
@@ -2682,6 +2735,9 @@ async function lookupCatAppointment(
         c.cat_id,
         c.display_name as cat_name,
         ci.id_value as microchip,
+        c.primary_color,
+        c.secondary_color,
+        c.sex,
         c.altered_status,
         (SELECT COUNT(*) FROM ops.appointments a WHERE a.cat_id = c.cat_id) as appointment_count,
         (SELECT MAX(appointment_date)::text FROM ops.appointments a WHERE a.cat_id = c.cat_id) as last_appointment,
@@ -3038,6 +3094,22 @@ async function createReminder(
   const hasContactInfo = contactInfo && (contactInfo.name || contactInfo.phone || contactInfo.email || contactInfo.address);
   const contactInfoJson = hasContactInfo ? JSON.stringify(contactInfo) : null;
 
+  // FFS-761: Check for similar existing reminders
+  let existingSimilar: { title: string; due_at: string }[] = [];
+  try {
+    // Extract first meaningful word from title for keyword matching
+    const titleKeyword = title.replace(/^(follow up|check|call|email|contact|remind)\s+(on|about|with|re)?\s*/i, '').split(/\s+/)[0];
+    existingSimilar = await queryRows<{ title: string; due_at: string }>(
+      `SELECT title, due_at::text FROM ops.staff_reminders
+       WHERE staff_id = $1 AND status IN ('pending','due')
+       AND (($2::uuid IS NOT NULL AND entity_id = $2) OR title ILIKE '%' || $3 || '%')
+       LIMIT 5`,
+      [context.staffId, entityId, titleKeyword || '']
+    );
+  } catch {
+    // Don't fail if duplicate check fails
+  }
+
   // Create the reminder
   try {
     const result = await queryOne<{ reminder_id: string; due_at: string }>(
@@ -3080,6 +3152,7 @@ async function createReminder(
         title,
         due_at: formattedDate,
         entity_linked: !!entityId,
+        existing_similar: existingSimilar.length > 0 ? existingSimilar : undefined,
         message: `Reminder created: "${title}" for ${formattedDate}.${entityId ? ` Linked to ${entityType}.` : ""} You'll see it on your dashboard.`,
       },
     };
@@ -4499,6 +4572,64 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
     interpretationHints.push(`HISTORY: ${requestHistory.completed} completed request(s) at this location.`);
   }
 
+  // FFS-758: Enrich with Chapman estimate and disease summary
+  let chapmanEstimate = null;
+  let diseaseSummary = null;
+  const placeId = report.place?.place_id;
+
+  if (placeId) {
+    const [chapman, disease] = await Promise.all([
+      queryOne<{
+        estimated_population: number;
+        ci_lower: number;
+        ci_upper: number;
+        sample_adequate: boolean;
+        confidence_level: string;
+      }>(
+        `SELECT estimated_population, ci_lower, ci_upper, sample_adequate, confidence_level
+         FROM beacon.place_chapman_estimates WHERE place_id = $1
+         ORDER BY computed_at DESC LIMIT 1`,
+        [placeId]
+      ).catch(() => null),
+      queryRows<{
+        disease_type: string;
+        positive_count: number;
+        tested_count: number;
+        positivity_rate: number;
+      }>(
+        `SELECT disease_type, positive_count, tested_count, positivity_rate
+         FROM ops.v_place_disease_summary WHERE place_id = $1`,
+        [placeId]
+      ).catch(() => []),
+    ]);
+
+    if (chapman) {
+      chapmanEstimate = {
+        estimate: chapman.estimated_population,
+        ci: [chapman.ci_lower, chapman.ci_upper],
+        adequate: chapman.sample_adequate,
+        confidence: chapman.confidence_level,
+      };
+      interpretationHints.push(
+        `POPULATION ESTIMATE (Chapman): ~${chapman.estimated_population} total cats (${chapman.ci_lower}-${chapman.ci_upper} range, ${chapman.confidence_level} confidence).${
+          !chapman.sample_adequate ? ' Note: sample size may be insufficient for reliable estimate.' : ''
+        }`
+      );
+    }
+
+    if (disease.length > 0) {
+      diseaseSummary = disease;
+      disease.forEach(d => {
+        if (d.positive_count > 0) {
+          const pct = (d.positivity_rate * 100).toFixed(1);
+          interpretationHints.push(
+            `DISEASE (${d.disease_type}): ${d.positive_count} of ${d.tested_count} tested positive (${pct}%).`
+          );
+        }
+      });
+    }
+  }
+
   return {
     success: true,
     data: {
@@ -4513,6 +4644,8 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
       colony_estimate: report.colony_estimate,
       shelterluv_outcomes: report.shelterluv_outcomes,
       related_places: report.related_places,
+      chapman: chapmanEstimate,
+      disease_summary: diseaseSummary,
       // KEY: Interpretation hints for Tippy to use when explaining
       interpretation_hints: interpretationHints,
       // Plain language summary
@@ -5977,6 +6110,61 @@ async function createDraftRequest(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to create draft request",
+    };
+  }
+}
+
+/**
+ * FFS-756: Flag a data anomaly for staff review
+ */
+async function flagAnomaly(
+  anomalyType: string,
+  description: string,
+  entityType?: string,
+  entityId?: string,
+  severity?: string,
+  evidence?: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
+  if (!context?.staffId) {
+    return {
+      success: false,
+      error: "Staff context required to flag anomalies.",
+    };
+  }
+
+  try {
+    const result = await queryOne<{ anomaly_id: string }>(
+      `INSERT INTO ops.tippy_anomaly_log (
+        conversation_id, staff_id, entity_type, entity_id,
+        anomaly_type, description, evidence, severity
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING anomaly_id`,
+      [
+        context.conversationId || null,
+        context.staffId,
+        entityType || null,
+        entityId || null,
+        anomalyType,
+        description,
+        evidence ? JSON.stringify(evidence) : '{}',
+        severity || 'medium',
+      ]
+    );
+
+    return {
+      success: true,
+      data: {
+        message: `Anomaly flagged for review (ID: ${result?.anomaly_id}). A coordinator will investigate.`,
+        anomaly_id: result?.anomaly_id,
+        severity: severity || 'medium',
+      },
+    };
+  } catch (error) {
+    console.error("flagAnomaly error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to flag anomaly",
     };
   }
 }

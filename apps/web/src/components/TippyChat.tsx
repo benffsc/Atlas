@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, FormEvent } from "react";
+import { useState, useRef, useEffect, useCallback, FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import { TippyFeedbackModal } from "@/components/modals";
 
@@ -11,11 +11,78 @@ interface Message {
   timestamp: Date;
 }
 
-interface TippyResponse {
-  message: string;
-  suggestions?: string[];
-  links?: { label: string; href: string }[];
-  conversationId?: string;
+interface StreamPhase {
+  phase: "thinking" | "tool_call" | "tool_result" | "responding";
+  tool?: string;
+  success?: boolean;
+}
+
+/** Human-readable labels for tool names */
+const TOOL_LABELS: Record<string, string> = {
+  run_sql: "Querying database",
+  analyze_place_situation: "Analyzing location",
+  analyze_spatial_context: "Checking nearby activity",
+  comprehensive_place_lookup: "Looking up place",
+  comprehensive_person_lookup: "Looking up person",
+  comprehensive_cat_lookup: "Looking up cat",
+  query_cats_at_place: "Finding cats at address",
+  query_place_colony_status: "Checking colony status",
+  query_request_stats: "Getting request stats",
+  query_ffr_impact: "Getting impact metrics",
+  query_cats_altered_in_area: "Searching area",
+  query_region_stats: "Getting region stats",
+  query_cat_journey: "Tracing cat history",
+  query_trapper_stats: "Looking up trappers",
+  lookup_cat_appointment: "Searching appointments",
+  query_knowledge_base: "Searching knowledge base",
+  create_reminder: "Creating reminder",
+  send_staff_message: "Sending message",
+  log_field_event: "Logging event",
+};
+
+function getPhaseLabel(phase: StreamPhase, isBriefing?: boolean): string {
+  switch (phase.phase) {
+    case "thinking":
+      return isBriefing ? "Preparing your daily briefing..." : "Thinking...";
+    case "tool_call":
+      return TOOL_LABELS[phase.tool || ""] || `Running ${phase.tool}...`;
+    case "tool_result":
+      return phase.success ? "Got results" : "No results found";
+    case "responding":
+      return isBriefing ? "Writing your briefing..." : "Writing response...";
+    default:
+      return "Working...";
+  }
+}
+
+/** Parse SSE events from a text buffer. Returns parsed events and remaining buffer. */
+function parseSSE(buffer: string): { events: { type: string; data: Record<string, unknown> }[]; remaining: string } {
+  const events: { type: string; data: Record<string, unknown> }[] = [];
+  const parts = buffer.split("\n\n");
+  // Last part may be incomplete
+  const remaining = parts.pop() || "";
+
+  for (const part of parts) {
+    if (!part.trim()) continue;
+    let eventType = "message";
+    let dataStr = "";
+    for (const line of part.split("\n")) {
+      if (line.startsWith("event: ")) {
+        eventType = line.slice(7);
+      } else if (line.startsWith("data: ")) {
+        dataStr = line.slice(6);
+      }
+    }
+    if (dataStr) {
+      try {
+        events.push({ type: eventType, data: JSON.parse(dataStr) });
+      } catch {
+        // Skip malformed events
+      }
+    }
+  }
+
+  return { events, remaining };
 }
 
 const QUICK_ACTIONS = [
@@ -41,12 +108,15 @@ export function TippyChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [streamPhase, setStreamPhase] = useState<StreamPhase | null>(null);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [mapContext, setMapContext] = useState<MapContext | null>(null);
+  const [hasBriefed, setHasBriefed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const streamingMsgIdRef = useRef<string | null>(null);
 
   const handleFeedback = (message: Message) => {
     setSelectedMessage(message);
@@ -77,12 +147,9 @@ export function TippyChat() {
     }
   }, [isOpen]);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
-
-    const userMessage = input.trim();
-    setInput("");
+  // Core message sending logic — used by both form submit and auto-briefing
+  const sendMessage = useCallback(async (userMessage: string) => {
+    if (isLoading) return;
 
     // Add user message
     const userMsg: Message = {
@@ -93,14 +160,26 @@ export function TippyChat() {
     };
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
+    setStreamPhase({ phase: "thinking" });
+
+    // Create placeholder assistant message for streaming
+    const msgId = `assistant-${Date.now()}`;
+    streamingMsgIdRef.current = msgId;
+    setMessages((prev) => [
+      ...prev,
+      { id: msgId, role: "assistant", content: "", timestamp: new Date() },
+    ]);
 
     try {
       const res = await fetch("/api/tippy/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           message: userMessage,
-          conversationId, // Pass back for conversation tracking
+          conversationId,
+          stream: true,
           history: messages.slice(-10).map((m) => ({
             role: m.role,
             content: m.content,
@@ -113,35 +192,113 @@ export function TippyChat() {
         }),
       });
 
-      const data: TippyResponse = await res.json();
-
-      // Capture conversationId from response for tracking
-      if (data.conversationId) {
-        setConversationId(data.conversationId);
+      if (!res.body) {
+        throw new Error("No response body");
       }
 
-      // Add assistant response
-      const assistantMsg: Message = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: data.message,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch (error) {
-      // Add error message
-      const errorMsg: Message = {
-        id: `error-${Date.now()}`,
-        role: "assistant",
-        content:
-          "Sorry, I'm having trouble connecting right now. Please try again.",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let assistantContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const { events, remaining } = parseSSE(buffer);
+        buffer = remaining;
+
+        for (const event of events) {
+          if (event.type === "status") {
+            setStreamPhase(event.data as unknown as StreamPhase);
+          } else if (event.type === "delta") {
+            assistantContent += (event.data as { text: string }).text;
+            const content = assistantContent;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === msgId ? { ...m, content } : m
+              )
+            );
+          } else if (event.type === "done") {
+            const doneData = event.data as { conversationId?: string };
+            if (doneData.conversationId) {
+              setConversationId(doneData.conversationId);
+            }
+          } else if (event.type === "error") {
+            const errData = event.data as { message?: string };
+            assistantContent = errData.message || "Sorry, something went wrong. Please try again.";
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === msgId ? { ...m, content: assistantContent } : m
+              )
+            );
+          }
+        }
+      }
+
+      // If we got no content at all, show a fallback
+      if (!assistantContent) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId
+              ? { ...m, content: "I'm not sure how to help with that." }
+              : m
+          )
+        );
+      }
+    } catch {
+      // Update the placeholder message with error
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId
+            ? {
+                ...m,
+                content:
+                  "Sorry, I'm having trouble connecting right now. Please try again.",
+              }
+            : m
+        )
+      );
     } finally {
       setIsLoading(false);
+      setStreamPhase(null);
+      streamingMsgIdRef.current = null;
     }
-  };
+  }, [isLoading, conversationId, messages, mapContext]);
+
+  const handleSubmit = useCallback(async (e: FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    const userMessage = input.trim();
+    setInput("");
+    await sendMessage(userMessage);
+  }, [input, isLoading, sendMessage]);
+
+  // FFS-755: Auto-briefing on first open of the day
+  useEffect(() => {
+    if (!isOpen || messages.length > 0 || hasBriefed || isLoading) return;
+
+    // Check localStorage first (avoid API call if already briefed today)
+    const lastBriefing = localStorage.getItem('tippy-last-briefing');
+    const today = new Date().toISOString().split('T')[0];
+    if (lastBriefing === today) {
+      setHasBriefed(true);
+      return;
+    }
+
+    // Check API
+    fetch('/api/tippy/briefing')
+      .then(res => res.json())
+      .then(data => {
+        if (data.needsBriefing) {
+          sendMessage('__shift_briefing__');
+          localStorage.setItem('tippy-last-briefing', today);
+        }
+        setHasBriefed(true);
+      })
+      .catch(() => setHasBriefed(true));
+  }, [isOpen, messages.length, hasBriefed, isLoading, sendMessage]);
 
   const handleQuickAction = (action: string) => {
     setInput(action);
@@ -311,83 +468,93 @@ export function TippyChat() {
             </div>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: msg.role === "user" ? "flex-end" : "flex-start",
-              }}
-            >
+          messages.filter(m => m.content !== '__shift_briefing__').map((msg) => {
+            const isStreaming = msg.id === streamingMsgIdRef.current;
+            // Hide empty placeholder during streaming (before first delta arrives)
+            if (isStreaming && !msg.content) return null;
+
+            return (
               <div
-                className={msg.role === "assistant" ? "tippy-markdown" : ""}
+                key={msg.id}
                 style={{
-                  maxWidth: "85%",
-                  padding: "10px 14px",
-                  borderRadius:
-                    msg.role === "user"
-                      ? "16px 16px 4px 16px"
-                      : "16px 16px 16px 4px",
-                  background:
-                    msg.role === "user"
-                      ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                      : "var(--card-border, #f3f4f6)",
-                  color: msg.role === "user" ? "#fff" : "inherit",
-                  fontSize: "0.9rem",
-                  lineHeight: 1.5,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: msg.role === "user" ? "flex-end" : "flex-start",
                 }}
               >
-                {msg.role === "assistant" ? (
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                ) : (
-                  msg.content
+                <div
+                  className={msg.role === "assistant" ? "tippy-markdown" : ""}
+                  style={{
+                    maxWidth: "85%",
+                    padding: "10px 14px",
+                    borderRadius:
+                      msg.role === "user"
+                        ? "16px 16px 4px 16px"
+                        : "16px 16px 16px 4px",
+                    background:
+                      msg.role === "user"
+                        ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                        : "var(--card-border, #f3f4f6)",
+                    color: msg.role === "user" ? "#fff" : "inherit",
+                    fontSize: "0.9rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {msg.role === "assistant" ? (
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
+                </div>
+                {/* Feedback button for assistant messages (hide while streaming) */}
+                {msg.role === "assistant" && !isStreaming && (
+                  <button
+                    onClick={() => handleFeedback(msg)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: "4px 8px",
+                      fontSize: "0.7rem",
+                      color: "var(--text-muted, #9ca3af)",
+                      cursor: "pointer",
+                      marginTop: "2px",
+                      opacity: 0.7,
+                      transition: "opacity 0.15s",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+                    title="Report incorrect information"
+                  >
+                    Report incorrect info
+                  </button>
                 )}
               </div>
-              {/* Feedback button for assistant messages */}
-              {msg.role === "assistant" && (
-                <button
-                  onClick={() => handleFeedback(msg)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: "4px 8px",
-                    fontSize: "0.7rem",
-                    color: "var(--text-muted, #9ca3af)",
-                    cursor: "pointer",
-                    marginTop: "2px",
-                    opacity: 0.7,
-                    transition: "opacity 0.15s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
-                  title="Report incorrect information"
-                >
-                  Report incorrect info
-                </button>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
 
-        {isLoading && (
+        {isLoading && streamPhase && (
           <div style={{ display: "flex", justifyContent: "flex-start" }}>
             <div
               style={{
-                padding: "10px 14px",
-                borderRadius: "16px 16px 16px 4px",
+                padding: "6px 12px",
+                borderRadius: "12px",
                 background: "var(--card-border, #f3f4f6)",
-                fontSize: "0.9rem",
+                fontSize: "0.75rem",
+                color: "var(--text-muted, #6b7280)",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                animation: "typing 1.5s infinite",
               }}
             >
-              <span
-                style={{
-                  display: "inline-block",
-                  animation: "typing 1s infinite",
-                }}
-              >
-                Tippy is thinking...
+              <span>
+                {streamPhase.phase === "thinking" && "💭"}
+                {streamPhase.phase === "tool_call" && "🔍"}
+                {streamPhase.phase === "tool_result" && (streamPhase.success ? "✓" : "○")}
+                {streamPhase.phase === "responding" && "✍️"}
               </span>
+              {getPhaseLabel(streamPhase, messages.some(m => m.content === '__shift_briefing__'))}
             </div>
           </div>
         )}
