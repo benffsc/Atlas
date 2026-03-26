@@ -3302,6 +3302,60 @@
 }
 
 /* ============================================================
+   Map Right-Click Context Menu
+   ============================================================ */
+
+.map-context-menu {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  padding: 4px 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.map-context-menu__coords {
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 2px;
+}
+
+.map-context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.map-context-menu__item:hover {
+  background: #f3f4f6;
+}
+
+.map-context-menu__item svg {
+  flex-shrink: 0;
+  color: #6b7280;
+}
+
+.map-context-menu__divider {
+  height: 1px;
+  background: #f3f4f6;
+  margin: 2px 0;
+}
+
+/* ============================================================
    Map Search Container CSS class (Phase 4 polish)
    ============================================================ */
 

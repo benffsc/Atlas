@@ -84,6 +84,15 @@ import type {
   DataFilter,
 } from "@/components/map";
 
+// Inline SVG icons for context menu (14px, matches menu item text size)
+const menuIconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+const RulerMenuIcon = () => <svg {...menuIconProps}><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z" /><path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /></svg>;
+const DirectionsMenuIcon = () => <svg {...menuIconProps}><path d="M3 11l19-9-9 19-2-8-8-2z" /></svg>;
+const StreetViewMenuIcon = () => <svg {...menuIconProps}><circle cx="12" cy="5" r="3" /><path d="M12 8v4" /><path d="M6.5 17.5C6.5 15 9 13 12 13s5.5 2 5.5 4.5" /></svg>;
+const PlacePinMenuIcon = () => <svg {...menuIconProps}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>;
+const NoteMenuIcon = () => <svg {...menuIconProps}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
+const CopyMenuIcon = () => <svg {...menuIconProps}><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>;
+
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -427,6 +436,9 @@ function AtlasMapInner() {
   const [poiResults, setPoiResults] = useState<TextSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null);
   const [navigatedLocation, setNavigatedLocation] = useState<NavigatedLocation | null>(null);
   const navigatedMarkerRef = useRef<L.Marker | null>(null);
   const atlasPinsRef = useRef<AtlasPin[]>([]);
@@ -2395,7 +2407,9 @@ function AtlasMapInner() {
           break;
         case "Escape":
           // Escape cascade: highest-priority UI element closes first
-          if (streetViewFullscreenRef.current) {
+          if (contextMenu) {
+            setContextMenu(null);
+          } else if (streetViewFullscreenRef.current) {
             setStreetViewFullscreen(false);
           } else if (streetViewCoordsRef.current && !streetViewConeOnlyRef.current) {
             setStreetViewCoords(null);
@@ -2465,7 +2479,7 @@ function AtlasMapInner() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [addPointMode, measureActive, selectedPlaceId, selectedPersonId, selectedCatId, selectedAnnotationId, handleFullscreenToggle, handleMeasureToggle]);
+  }, [addPointMode, measureActive, selectedPlaceId, selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu, handleFullscreenToggle, handleMeasureToggle]);
 
   // Add Point mode / Measurement mode: map click handler and cursor
   useEffect(() => {
@@ -2529,6 +2543,89 @@ function AtlasMapInner() {
       return () => { container.style.cursor = ''; };
     }
   }, [streetViewCoords, streetViewFullscreen, streetViewConeOnly, addPointMode]);
+
+  // Right-click context menu
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+
+    const handleContextMenu = (e: L.LeafletMouseEvent) => {
+      e.originalEvent.preventDefault();
+      const containerPoint = map.latLngToContainerPoint(e.latlng);
+      setContextMenu({
+        x: containerPoint.x,
+        y: containerPoint.y,
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+      });
+    };
+
+    const closeContextMenu = () => setContextMenu(null);
+
+    map.on('contextmenu', handleContextMenu);
+    map.on('click', closeContextMenu);
+    map.on('movestart', closeContextMenu);
+
+    return () => {
+      map.off('contextmenu', handleContextMenu);
+      map.off('click', closeContextMenu);
+      map.off('movestart', closeContextMenu);
+    };
+  }, []);
+
+  // Context menu actions
+  const handleContextMeasure = useCallback(() => {
+    if (!contextMenu) return;
+    setMeasureActive(true);
+    setAddPointMode(null);
+    setPendingClick(null);
+    setShowAddPointMenu(false);
+    // Use setTimeout to let the measurement hook activate first
+    setTimeout(() => {
+      measurement.addPoint({ lat: contextMenu.lat, lng: contextMenu.lng });
+    }, 50);
+    setContextMenu(null);
+  }, [contextMenu, measurement]);
+
+  const handleContextAddPlace = useCallback(() => {
+    if (!contextMenu) return;
+    setAddPointMode("place");
+    setMeasureActive(false);
+    setPendingClick({ lat: contextMenu.lat, lng: contextMenu.lng });
+    setContextMenu(null);
+  }, [contextMenu]);
+
+  const handleContextAddNote = useCallback(() => {
+    if (!contextMenu) return;
+    setAddPointMode("annotation");
+    setMeasureActive(false);
+    setPendingClick({ lat: contextMenu.lat, lng: contextMenu.lng });
+    setContextMenu(null);
+  }, [contextMenu]);
+
+  const handleContextDirections = useCallback(() => {
+    if (!contextMenu) return;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${contextMenu.lat},${contextMenu.lng}`;
+    window.open(url, '_blank');
+    setContextMenu(null);
+  }, [contextMenu]);
+
+  const handleContextStreetView = useCallback(() => {
+    if (!contextMenu) return;
+    setStreetViewCoords({ lat: contextMenu.lat, lng: contextMenu.lng });
+    setStreetViewFullscreen(false);
+    setStreetViewConeOnly(false);
+    setContextMenu(null);
+  }, [contextMenu]);
+
+  const handleContextCopyCoords = useCallback(() => {
+    if (!contextMenu) return;
+    const text = `${contextMenu.lat.toFixed(6)}, ${contextMenu.lng.toFixed(6)}`;
+    navigator.clipboard.writeText(text).then(() => {
+      addToast({ type: "success", message: `Copied: ${text}` });
+    });
+    setContextMenu(null);
+  }, [contextMenu, addToast]);
 
   // Annotations: fetch and render
   const fetchAnnotations = useCallback(async () => {
@@ -3322,7 +3419,7 @@ function AtlasMapInner() {
             </div>
             <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Total Places</div>
           </div>
-          <div style={{ borderLeft: "1px solid #e5e7eb", paddingLeft: 24 }}>
+          <div style={{ borderLeft: "1px solid var(--border-default)", paddingLeft: 24 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text-secondary)" }}>
               {summary.total_cats.toLocaleString()}
             </div>
@@ -3410,6 +3507,43 @@ function AtlasMapInner() {
           zIndex: MAP_Z_INDEX.notification,
         }}>
           {error}
+        </div>
+      )}
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <div
+          className="map-context-menu"
+          style={{
+            position: "absolute",
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: MAP_Z_INDEX.controls + 10,
+          }}
+        >
+          <div className="map-context-menu__coords">
+            {contextMenu.lat.toFixed(5)}, {contextMenu.lng.toFixed(5)}
+          </div>
+          <button className="map-context-menu__item" onClick={handleContextMeasure}>
+            <RulerMenuIcon /> Measure from here
+          </button>
+          <button className="map-context-menu__item" onClick={handleContextDirections}>
+            <DirectionsMenuIcon /> Directions to here
+          </button>
+          <button className="map-context-menu__item" onClick={handleContextStreetView}>
+            <StreetViewMenuIcon /> Street View
+          </button>
+          <div className="map-context-menu__divider" />
+          <button className="map-context-menu__item" onClick={handleContextAddPlace}>
+            <PlacePinMenuIcon /> Add place here
+          </button>
+          <button className="map-context-menu__item" onClick={handleContextAddNote}>
+            <NoteMenuIcon /> Add note here
+          </button>
+          <div className="map-context-menu__divider" />
+          <button className="map-context-menu__item" onClick={handleContextCopyCoords}>
+            <CopyMenuIcon /> Copy coordinates
+          </button>
         </div>
       )}
 
