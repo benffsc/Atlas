@@ -773,7 +773,7 @@ export default function KioskEquipmentAddPage() {
           gap: 10,
         }}
       >
-        <Icon name="plus-circle" size={22} color="var(--primary)" />
+        <Icon name="plus" size={22} color="var(--primary)" />
         <h1
           style={{
             fontSize: "1.1rem",
