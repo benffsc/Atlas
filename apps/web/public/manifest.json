@@ -1,0 +1,15 @@
+{
+  "name": "FFSC Equipment Kiosk",
+  "short_name": "Equipment",
+  "start_url": "/kiosk/equipment/scan",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#27ae60",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
