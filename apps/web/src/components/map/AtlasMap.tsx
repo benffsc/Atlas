@@ -53,6 +53,15 @@ import type { BasemapType } from "@/components/map/components/MapControls";
 import type { TextSearchResult } from "@/components/map/types";
 import { decodePolyline } from "@/lib/polyline";
 import { exportPinsToCsv, exportPinsToGeoJson } from "@/lib/map-export";
+import {
+  SYSTEM_VIEWS,
+  loadCustomViews,
+  addCustomView,
+  deleteCustomView,
+  viewToEnabledLayers,
+  enabledLayersToList,
+  type MapView,
+} from "@/lib/map-views";
 import { GroupedLayerControl, type LayerGroup } from "@/components/map/GroupedLayerControl";
 import { useHeatmapLayer } from "@/components/map/hooks/useHeatmapLayer";
 import type {
@@ -241,6 +250,70 @@ function AtlasMapInner() {
   // Admin-configurable map colors (falls back to hardcoded MAP_COLORS)
   const { colors } = useMapColors();
   const { mapCenter, mapZoom } = useGeoConfig();
+
+  // Saved views
+  const [customViews, setCustomViews] = useState<MapView[]>(() => loadCustomViews());
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const allLayerIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const group of ATLAS_MAP_LAYER_GROUPS_BASE) {
+      for (const child of group.children) ids.push(child.id);
+    }
+    for (const l of LEGACY_LAYER_CONFIGS) ids.push(l.id);
+    return ids;
+  }, []);
+
+  const handleApplyView = useCallback((view: MapView) => {
+    const newLayers = viewToEnabledLayers(view, allLayerIds);
+    setEnabledLayers(newLayers);
+    setActiveViewId(view.id);
+    if (view.zone) setSelectedZone(view.zone);
+    if (view.dateFrom !== undefined) setDateFrom(view.dateFrom);
+    if (view.dateTo !== undefined) setDateTo(view.dateTo);
+    if (view.zoom && view.center && mapRef.current) {
+      mapRef.current.setView(view.center, view.zoom);
+    }
+    addToast({ type: "success", message: `View: ${view.name}` });
+  }, [allLayerIds, addToast]);
+
+  const handleSaveView = useCallback((name: string) => {
+    const map = mapRef.current;
+    const newView = addCustomView({
+      name,
+      layers: enabledLayersToList(enabledLayers),
+      zoom: map?.getZoom(),
+      center: map ? [map.getCenter().lat, map.getCenter().lng] : undefined,
+      dateFrom,
+      dateTo,
+      zone: selectedZone !== "All Zones" ? selectedZone : undefined,
+    });
+    setCustomViews(loadCustomViews());
+    setActiveViewId(newView.id);
+    addToast({ type: "success", message: `Saved view: ${name}` });
+  }, [enabledLayers, dateFrom, dateTo, selectedZone, addToast]);
+
+  const handleDeleteView = useCallback((id: string) => {
+    deleteCustomView(id);
+    setCustomViews(loadCustomViews());
+    if (activeViewId === id) setActiveViewId(null);
+  }, [activeViewId]);
+
+  // Clear active view indicator when user manually changes layers
+  const prevLayersRef = useRef(enabledLayers);
+  useEffect(() => {
+    if (prevLayersRef.current !== enabledLayers && activeViewId) {
+      // Check if layers still match the active view
+      const view = [...SYSTEM_VIEWS, ...customViews].find(v => v.id === activeViewId);
+      if (view) {
+        const viewLayers = new Set(view.layers);
+        const currentLayers = new Set(enabledLayersToList(enabledLayers));
+        if (viewLayers.size !== currentLayers.size || ![...viewLayers].every(l => currentLayers.has(l))) {
+          setActiveViewId(null);
+        }
+      }
+    }
+    prevLayersRef.current = enabledLayers;
+  }, [enabledLayers, activeViewId, customViews]);
 
   // Sync layer state to URL
   useEffect(() => {
@@ -3015,6 +3088,57 @@ function AtlasMapInner() {
             <div className="map-layer-panel__subtitle">
               {totalMarkers.toLocaleString()} markers shown
             </div>
+          </div>
+
+          {/* Saved Views */}
+          <div className="map-layer-panel__views">
+            <div className="map-layer-panel__zone-label">Quick Views</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+              {SYSTEM_VIEWS.map((view) => (
+                <button
+                  key={view.id}
+                  onClick={() => handleApplyView(view)}
+                  className="map-view-chip"
+                  data-active={activeViewId === view.id || undefined}
+                >
+                  {view.name}
+                </button>
+              ))}
+            </div>
+            {customViews.length > 0 && (
+              <>
+                <div className="map-layer-panel__zone-label" style={{ marginTop: 4 }}>My Views</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                  {customViews.map((view) => (
+                    <span key={view.id} style={{ display: "inline-flex", alignItems: "center", gap: 0 }}>
+                      <button
+                        onClick={() => handleApplyView(view)}
+                        className="map-view-chip"
+                        data-active={activeViewId === view.id || undefined}
+                      >
+                        {view.name}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteView(view.id)}
+                        className="map-view-chip-delete"
+                        title="Delete view"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+            <button
+              onClick={() => {
+                const name = window.prompt("View name:");
+                if (name?.trim()) handleSaveView(name.trim());
+              }}
+              className="map-view-save-btn"
+            >
+              + Save Current View
+            </button>
           </div>
 
           {/* Zone filter */}
