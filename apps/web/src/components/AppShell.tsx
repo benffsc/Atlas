@@ -30,6 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isLoginPage = pathname === "/login";
   const isMapPage = pathname === "/map";
   const isKioskRoute = pathname?.startsWith("/kiosk");
+  const isChromeless = isPrintRoute || isLoginPage || isMapPage || isKioskRoute;
 
   // Fetch current user on mount
   useEffect(() => {
@@ -67,12 +68,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.location.href = "/login";
   };
 
+  // Must call all hooks before any early return (React rules of hooks)
+  const isAdmin = usePermission("admin.access");
+
   // No chrome for these routes (kiosk has its own layout shell)
-  if (isPrintRoute || isLoginPage || isMapPage || isKioskRoute) {
+  if (isChromeless) {
     return <>{children}</>;
   }
-
-  const isAdmin = usePermission("admin.access");
 
   const isActive = (href: string) => {
     if (href === "/" && pathname === "/") return true;
