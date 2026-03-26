@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DataQualityBadge } from "@/components/badges";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface MortalityEvent {
   mortality_event_id: string;
@@ -75,6 +76,9 @@ export default function MortalityPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  // Confirm dialog state
+  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -127,33 +131,45 @@ export default function MortalityPage() {
     }
   };
 
-  const handleDelete = async (eventId: string) => {
-    if (!confirm("Delete this mortality event? This cannot be undone.")) return;
-    try {
-      await postApi(`/api/admin/beacon/mortality?id=${eventId}`, {}, { method: "DELETE" });
-      await loadData();
-    } catch (err) {
-      alert("Error deleting");
-    }
-  };
+  function handleDelete(eventId: string) {
+    setPendingConfirm({
+      title: "Delete mortality event",
+      message: "Delete this mortality event? This cannot be undone.",
+      onConfirm: async () => {
+        setPendingConfirm(null);
+        try {
+          await postApi(`/api/admin/beacon/mortality?id=${eventId}`, {}, { method: "DELETE" });
+          await loadData();
+        } catch (err) {
+          alert("Error deleting");
+        }
+      },
+    });
+  }
 
-  const handleBulkDelete = async () => {
+  function handleBulkDelete() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} mortality events? This cannot be undone.`)) return;
-    setBulkDeleting(true);
-    try {
-      const promises = Array.from(selectedIds).map((id) =>
-        postApi(`/api/admin/beacon/mortality?id=${id}`, {}, { method: "DELETE" })
-      );
-      await Promise.all(promises);
-      setSelectedIds(new Set());
-      await loadData();
-    } catch (err) {
-      alert("Error during bulk delete");
-    } finally {
-      setBulkDeleting(false);
-    }
-  };
+    setPendingConfirm({
+      title: "Bulk delete",
+      message: `Delete ${selectedIds.size} mortality events? This cannot be undone.`,
+      onConfirm: async () => {
+        setPendingConfirm(null);
+        setBulkDeleting(true);
+        try {
+          const promises = Array.from(selectedIds).map((id) =>
+            postApi(`/api/admin/beacon/mortality?id=${id}`, {}, { method: "DELETE" })
+          );
+          await Promise.all(promises);
+          setSelectedIds(new Set());
+          await loadData();
+        } catch (err) {
+          alert("Error during bulk delete");
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
+  }
 
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -488,6 +504,16 @@ export default function MortalityPage() {
           <li>Events without cat_id are place-level observations (e.g., "found dead cat at colony")</li>
         </ul>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title={pendingConfirm?.title ?? ""}
+        message={pendingConfirm?.message ?? ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={pendingConfirm?.onConfirm ?? (() => {})}
+        onCancel={() => setPendingConfirm(null)}
+      />
 
       {/* Edit Modal */}
       {editEvent && (

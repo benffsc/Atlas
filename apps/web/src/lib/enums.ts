@@ -32,6 +32,16 @@ import {
   PRIORITY_OPTIONS as _PRIORITY_OPTIONS,
   DEATH_CAUSE_OPTIONS as _DEATH_CAUSE_OPTIONS,
   KITTEN_ASSESSMENT_STATUS_OPTIONS as _KITTEN_ASSESSMENT_STATUS_OPTIONS,
+  EQUIPMENT_CUSTODY_STATUS_OPTIONS as _EQUIPMENT_CUSTODY_STATUS_OPTIONS,
+  EQUIPMENT_CONDITION_OPTIONS as _EQUIPMENT_CONDITION_OPTIONS,
+  EQUIPMENT_EVENT_TYPE_OPTIONS as _EQUIPMENT_EVENT_TYPE_OPTIONS,
+  EQUIPMENT_CATEGORY_OPTIONS as _EQUIPMENT_CATEGORY_OPTIONS,
+  EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS as _EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS,
+  EQUIPMENT_ITEM_TYPE_OPTIONS as _EQUIPMENT_ITEM_TYPE_OPTIONS,
+  EQUIPMENT_SIZE_OPTIONS as _EQUIPMENT_SIZE_OPTIONS,
+  EQUIPMENT_COLLECTION_STATUS_OPTIONS as _EQUIPMENT_COLLECTION_STATUS_OPTIONS,
+  EQUIPMENT_CHECKOUT_TYPE_OPTIONS as _EQUIPMENT_CHECKOUT_TYPE_OPTIONS,
+  EQUIPMENT_TRACKING_TIER_OPTIONS as _EQUIPMENT_TRACKING_TIER_OPTIONS,
   getValues,
 } from "./form-options";
 
@@ -172,6 +182,7 @@ export const PLACE_KIND = [
   "neighborhood",
   "outdoor_site",
   "mobile_home_space",
+  "internal_storage",
 ] as const;
 
 // =============================================================================
@@ -201,6 +212,21 @@ export const ALTERED_STATUS = [
 ] as const;
 
 export const CAT_SEX = ["male", "female", "unknown"] as const;
+
+// =============================================================================
+// EQUIPMENT ENUMS
+// =============================================================================
+
+export const EQUIPMENT_CUSTODY_STATUS = getValues(_EQUIPMENT_CUSTODY_STATUS_OPTIONS) as unknown as readonly ["available", "checked_out", "in_field", "maintenance", "missing", "retired"];
+export const EQUIPMENT_CONDITION = getValues(_EQUIPMENT_CONDITION_OPTIONS) as unknown as readonly ["new", "good", "fair", "poor", "damaged", "decommissioned"];
+export const EQUIPMENT_EVENT_TYPE = getValues(_EQUIPMENT_EVENT_TYPE_OPTIONS) as unknown as readonly ["check_out", "check_in", "transfer", "condition_change", "maintenance_start", "maintenance_end", "reported_missing", "found", "retired", "note"];
+export const EQUIPMENT_CATEGORY = getValues(_EQUIPMENT_CATEGORY_OPTIONS) as unknown as readonly ["trap", "cage", "camera", "accessory"];
+export const EQUIPMENT_FUNCTIONAL_STATUS = getValues(_EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS) as unknown as readonly ["functional", "needs_repair", "unknown"];
+export const EQUIPMENT_ITEM_TYPE = getValues(_EQUIPMENT_ITEM_TYPE_OPTIONS) as unknown as readonly ["Trap", "Wire Cage", "Gadget"];
+export const EQUIPMENT_SIZE = getValues(_EQUIPMENT_SIZE_OPTIONS) as unknown as readonly ["Small", "Large", "Extra Large"];
+export const EQUIPMENT_COLLECTION_STATUS = getValues(_EQUIPMENT_COLLECTION_STATUS_OPTIONS) as unknown as readonly ["pending", "contacted", "will_return", "do_not_collect", "no_traps", "collected"];
+export const EQUIPMENT_CHECKOUT_TYPE = getValues(_EQUIPMENT_CHECKOUT_TYPE_OPTIONS) as unknown as readonly ["client", "trapper", "internal", "foster"];
+export const EQUIPMENT_TRACKING_TIER = getValues(_EQUIPMENT_TRACKING_TIER_OPTIONS) as unknown as readonly ["active", "passive", "untracked"];
 
 // =============================================================================
 // GENERAL ENUMS
@@ -246,6 +272,18 @@ export const ENTITY_ENUMS = {
   ALTERED_STATUS,
   CAT_SEX,
 
+  // Equipment
+  EQUIPMENT_CUSTODY_STATUS,
+  EQUIPMENT_CONDITION,
+  EQUIPMENT_EVENT_TYPE,
+  EQUIPMENT_CATEGORY,
+  EQUIPMENT_FUNCTIONAL_STATUS,
+  EQUIPMENT_ITEM_TYPE,
+  EQUIPMENT_SIZE,
+  EQUIPMENT_COLLECTION_STATUS,
+  EQUIPMENT_CHECKOUT_TYPE,
+  EQUIPMENT_TRACKING_TIER,
+
   // General
   ENTITY_TYPE,
 } as const;
@@ -282,5 +320,16 @@ export type DatePrecision = (typeof DATE_PRECISION)[number];
 export type Season = (typeof SEASON)[number];
 export type AlteredStatus = (typeof ALTERED_STATUS)[number];
 export type CatSex = (typeof CAT_SEX)[number];
+
+export type EquipmentCustodyStatus = (typeof EQUIPMENT_CUSTODY_STATUS)[number];
+export type EquipmentCondition = (typeof EQUIPMENT_CONDITION)[number];
+export type EquipmentEventType = (typeof EQUIPMENT_EVENT_TYPE)[number];
+export type EquipmentCategory = (typeof EQUIPMENT_CATEGORY)[number];
+export type EquipmentFunctionalStatus = (typeof EQUIPMENT_FUNCTIONAL_STATUS)[number];
+export type EquipmentItemType = (typeof EQUIPMENT_ITEM_TYPE)[number];
+export type EquipmentSize = (typeof EQUIPMENT_SIZE)[number];
+export type EquipmentCollectionStatus = (typeof EQUIPMENT_COLLECTION_STATUS)[number];
+export type EquipmentCheckoutType = (typeof EQUIPMENT_CHECKOUT_TYPE)[number];
+export type EquipmentTrackingTier = (typeof EQUIPMENT_TRACKING_TIER)[number];
 
 export type EntityType = (typeof ENTITY_TYPE)[number];

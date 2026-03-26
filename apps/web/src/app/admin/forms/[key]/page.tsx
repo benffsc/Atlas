@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import Link from "next/link";
 import { useToast } from "@/components/feedback/Toast";
 
@@ -53,19 +52,13 @@ export default function FormTemplatePage() {
 
   if (!VALID_KEYS.includes(key)) {
     return (
-      <AdminSidebar>
-        <div style={{ padding: "2rem", color: "var(--danger, #e74c3c)" }}>
-          Invalid template key: {key}
-        </div>
-      </AdminSidebar>
+      <div style={{ padding: "2rem", color: "var(--danger, #e74c3c)" }}>
+        Invalid template key: {key}
+      </div>
     );
   }
 
-  return (
-    <AdminSidebar>
-      <TemplateEditor templateKey={key} />
-    </AdminSidebar>
-  );
+  return <TemplateEditor templateKey={key} />;
 }
 
 function TemplateEditor({ templateKey }: { templateKey: string }) {

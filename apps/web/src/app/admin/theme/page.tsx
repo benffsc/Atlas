@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 
@@ -19,11 +18,7 @@ const SECTION_INFO: Record<string, { title: string; description: string }> = {
 };
 
 export default function ThemePage() {
-  return (
-    <AdminSidebar>
-      <ThemeContent />
-    </AdminSidebar>
-  );
+  return <ThemeContent />;
 }
 
 function ThemeContent() {

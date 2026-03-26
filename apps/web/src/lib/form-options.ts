@@ -741,6 +741,92 @@ export const SITE_VISIT_ISSUE_OPTIONS = [
 ] as const satisfies readonly FormOption[];
 
 // =============================================================================
+// EQUIPMENT
+// =============================================================================
+
+export const EQUIPMENT_CUSTODY_STATUS_OPTIONS = [
+  { value: "available", label: "Available", shortLabel: "Avail" },
+  { value: "checked_out", label: "Checked Out", shortLabel: "Out" },
+  { value: "in_field", label: "In Field", shortLabel: "Field" },
+  { value: "maintenance", label: "In Maintenance", shortLabel: "Maint" },
+  { value: "missing", label: "Missing", shortLabel: "Missing" },
+  { value: "retired", label: "Retired", shortLabel: "Retired" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_CONDITION_OPTIONS = [
+  { value: "new", label: "New", shortLabel: "New" },
+  { value: "good", label: "Good", shortLabel: "Good" },
+  { value: "fair", label: "Fair", shortLabel: "Fair" },
+  { value: "poor", label: "Poor", shortLabel: "Poor" },
+  { value: "damaged", label: "Damaged", shortLabel: "Damaged" },
+  { value: "decommissioned", label: "Decommissioned", shortLabel: "Decom" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_EVENT_TYPE_OPTIONS = [
+  { value: "check_out", label: "Check Out", shortLabel: "Out" },
+  { value: "check_in", label: "Check In", shortLabel: "In" },
+  { value: "transfer", label: "Transfer", shortLabel: "Transfer" },
+  { value: "condition_change", label: "Condition Change", shortLabel: "Cond" },
+  { value: "maintenance_start", label: "Maintenance Start", shortLabel: "Maint Start" },
+  { value: "maintenance_end", label: "Maintenance End", shortLabel: "Maint End" },
+  { value: "reported_missing", label: "Reported Missing", shortLabel: "Missing" },
+  { value: "found", label: "Found", shortLabel: "Found" },
+  { value: "retired", label: "Retired", shortLabel: "Retired" },
+  { value: "note", label: "Note", shortLabel: "Note" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_CATEGORY_OPTIONS = [
+  { value: "trap", label: "Trap", shortLabel: "Trap" },
+  { value: "cage", label: "Cage", shortLabel: "Cage" },
+  { value: "camera", label: "Camera", shortLabel: "Cam" },
+  { value: "accessory", label: "Accessory", shortLabel: "Acc" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS = [
+  { value: "functional", label: "Functional", shortLabel: "OK" },
+  { value: "needs_repair", label: "Needs Repair", shortLabel: "Repair" },
+  { value: "unknown", label: "Unknown", shortLabel: "Unknown" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_ITEM_TYPE_OPTIONS = [
+  { value: "Trap", label: "Trap", shortLabel: "Trap" },
+  { value: "Wire Cage", label: "Wire Cage", shortLabel: "Cage" },
+  { value: "Gadget", label: "Gadget", shortLabel: "Gadget" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_SIZE_OPTIONS = [
+  { value: "Small", label: "Small", shortLabel: "S" },
+  { value: "Large", label: "Large", shortLabel: "L" },
+  { value: "Extra Large", label: "Extra Large", shortLabel: "XL" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_COLLECTION_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending", shortLabel: "Pending" },
+  { value: "contacted", label: "Contacted", shortLabel: "Contacted" },
+  { value: "will_return", label: "Will Return", shortLabel: "Will Return" },
+  { value: "do_not_collect", label: "Do Not Collect", shortLabel: "No Collect" },
+  { value: "no_traps", label: "Has No Traps", shortLabel: "No Traps" },
+  { value: "collected", label: "Collected", shortLabel: "Collected" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// EQUIPMENT (Phase 2)
+// =============================================================================
+
+export const EQUIPMENT_CHECKOUT_TYPE_OPTIONS = [
+  { value: "client", label: "Client", shortLabel: "Client" },
+  { value: "trapper", label: "Trapper", shortLabel: "Trapper" },
+  { value: "internal", label: "Internal", shortLabel: "Internal" },
+  { value: "foster", label: "Foster", shortLabel: "Foster" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_TRACKING_TIER_OPTIONS = [
+  { value: "active", label: "Active Tracking", shortLabel: "Active" },
+  { value: "passive", label: "Passive Tracking", shortLabel: "Passive" },
+  { value: "untracked", label: "Untracked", shortLabel: "Untracked" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
 // CALL TYPE → OWNERSHIP MAPPING
 // =============================================================================
 

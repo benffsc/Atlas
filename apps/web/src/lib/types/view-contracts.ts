@@ -476,6 +476,197 @@ export interface BeaconPopulationEstimate {
 }
 
 // =============================================================================
+// EQUIPMENT VIEWS
+// =============================================================================
+
+/**
+ * Contract for ops.v_equipment_inventory
+ * @see sql/schema/v2/MIG_2977__equipment_overhaul.sql
+ * @route /api/equipment
+ */
+export interface VEquipmentInventoryRow {
+  equipment_id: string;
+  barcode: string | null;
+  display_name: string;
+  equipment_type_key: string | null;
+  type_display_name: string | null;
+  type_category: string | null;
+  legacy_type: string;
+  serial_number: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  custody_status: string;
+  condition_status: string;
+  current_custodian_id: string | null;
+  custodian_name: string | null;
+  current_place_id: string | null;
+  current_place_address: string | null;
+  current_request_id: string | null;
+  current_kit_id: string | null;
+  acquired_at: string | null;
+  retired_at: string | null;
+  notes: string | null;
+  source_system: string;
+  created_at: string;
+  updated_at: string;
+  // Enrichment fields (MIG_2982)
+  item_type: string | null;
+  size: string | null;
+  functional_status: string | null;
+  current_holder_name: string | null;
+  expected_return_date: string | null;
+  photo_url: string | null;
+  barcode_image_url: string | null;
+  // Phase 2 enrichment (MIG_2983)
+  checkout_type: string | null;
+  inferred_due_date: string | null;
+  tracking_tier: string | null;
+  cage_type: string | null;
+  cage_size: string | null;
+  // Computed fields
+  days_checked_out: number | null;
+  total_checkouts: number;
+  current_due_date: string | null;
+  is_available: boolean;
+}
+
+/**
+ * Contract for ops.equipment_collection_tasks
+ * @see sql/schema/v2/MIG_2982__equipment_data_correction.sql
+ * @route /api/equipment/collections
+ */
+export interface EquipmentCollectionTaskRow {
+  task_id: string;
+  person_name: string;
+  phone: string | null;
+  person_id: string | null;
+  equipment_description: string | null;
+  trap_count: number | null;
+  collection_status: string;
+  outreach_method: string | null;
+  notes: string | null;
+  traps_returned: number;
+  last_contacted_at: string | null;
+  resolved_at: string | null;
+  source_system: string;
+  source_record_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Contract for ops.equipment_events rows
+ * @route /api/equipment/[id]/events
+ */
+export interface EquipmentEventRow {
+  event_id: string;
+  equipment_id: string;
+  event_type: string;
+  actor_person_id: string | null;
+  actor_name: string | null;
+  custodian_person_id: string | null;
+  custodian_name: string | null;
+  place_id: string | null;
+  place_address: string | null;
+  request_id: string | null;
+  kit_id: string | null;
+  condition_before: string | null;
+  condition_after: string | null;
+  due_date: string | null;
+  notes: string | null;
+  source_system: string;
+  created_at: string;
+  // MIG_2983 fields
+  checkout_type: string | null;
+  deposit_amount: number | null;
+  deposit_returned_at: string | null;
+  custodian_phone: string | null;
+  appointment_id: string | null;
+}
+
+/**
+ * Contract for ops.equipment_kits with item count
+ * @route /api/equipment/kits
+ */
+export interface EquipmentKitRow {
+  kit_id: string;
+  person_id: string | null;
+  person_name: string | null;
+  request_id: string | null;
+  place_id: string | null;
+  place_address: string | null;
+  checked_out_at: string;
+  returned_at: string | null;
+  notes: string | null;
+  item_count: number;
+  items: Array<{
+    equipment_id: string;
+    barcode: string | null;
+    display_name: string;
+    type_display_name: string | null;
+  }>;
+}
+
+/**
+ * Contract for /api/equipment/stats dashboard
+ * @route /api/equipment/stats
+ */
+export interface EquipmentStatsRow {
+  total: number;
+  available: number;
+  checked_out: number;
+  in_maintenance: number;
+  missing: number;
+  overdue: number;
+  needs_repair: number;
+  by_category: Array<{ category: string; count: number }>;
+  by_type: Array<{ type_key: string; display_name: string; count: number }>;
+  by_item_type: Array<{ item_type: string; count: number }>;
+}
+
+/**
+ * Contract for ops.equipment_types rows
+ * @route /api/equipment/types
+ */
+export interface EquipmentTypeRow {
+  type_key: string;
+  display_name: string;
+  category: string;
+  manufacturer: string | null;
+  is_active: boolean;
+  sort_order: number;
+  item_count: number;
+}
+
+// =============================================================================
+// EQUIPMENT RECONCILIATION
+// =============================================================================
+
+/**
+ * Contract for POST /api/equipment/reconcile response items
+ */
+export interface EquipmentReconcileResult extends VEquipmentInventoryRow {
+  was_scanned: boolean;
+  scan_status: string;
+  suggested_action: string | null;
+}
+
+/**
+ * Contract for POST /api/equipment/reconcile summary
+ */
+export interface EquipmentReconcileSummary {
+  total_equipment: number;
+  total_scanned: number;
+  confirmed: number;
+  found_here: number;
+  found: number;
+  possibly_missing: number;
+  expected_out: number;
+  still_missing: number;
+  unknown_barcodes: string[];
+}
+
+// =============================================================================
 // HELPER TYPES
 // =============================================================================
 

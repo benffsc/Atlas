@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { BackButton } from "@/components/common";
 import { TabBar } from "@/components/ui/TabBar";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 
 interface ReadyRequest {
@@ -80,6 +81,7 @@ export default function EmailBatchesPage() {
   });
   const [creating, setCreating] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
+  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
 
   const fetchReadyRequests = useCallback(async () => {
     try {
@@ -224,18 +226,22 @@ export default function EmailBatchesPage() {
     }
   };
 
-  const handleCancelBatch = async (batchId: string) => {
-    if (!confirm("Cancel this batch? Requests will be unmarked and available again.")) return;
+  function handleCancelBatch(batchId: string) {
+    setPendingCancelId(batchId);
+  }
 
+  async function confirmCancel() {
+    if (!pendingCancelId) return;
+    const batchId = pendingCancelId;
+    setPendingCancelId(null);
     try {
       await postApi(`/api/admin/email-batches/${batchId}`, { action: "cancel" }, { method: "PATCH" });
-
       await fetchBatches(activeTab === "ready" ? undefined : activeTab);
       await fetchReadyRequests();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to cancel batch");
     }
-  };
+  }
 
   const openPreview = async (batch: EmailBatch) => {
     setPreviewBatch(batch);
@@ -659,6 +665,16 @@ export default function EmailBatchesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingCancelId}
+        title="Cancel batch"
+        message="Cancel this batch? Requests will be unmarked and available again."
+        confirmLabel="Cancel Batch"
+        variant="danger"
+        onConfirm={confirmCancel}
+        onCancel={() => setPendingCancelId(null)}
+      />
     </div>
   );
 }

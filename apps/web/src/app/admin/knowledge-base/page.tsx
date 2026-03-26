@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface KnowledgeArticle {
   article_id: string;
@@ -63,6 +64,7 @@ export default function KnowledgeBasePage() {
     is_published: true,
   });
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // Load articles
   const loadArticles = async () => {
@@ -175,18 +177,21 @@ export default function KnowledgeBasePage() {
   };
 
   // Delete article
-  const handleDelete = async (articleId: string) => {
-    if (!confirm("Are you sure you want to delete this article? This cannot be undone.")) {
-      return;
-    }
+  function handleDelete(articleId: string) {
+    setPendingDeleteId(articleId);
+  }
 
+  async function confirmDelete() {
+    if (!pendingDeleteId) return;
+    const articleId = pendingDeleteId;
+    setPendingDeleteId(null);
     try {
       await fetchApi(`/api/knowledge/${articleId}`, { method: "DELETE" });
       loadArticles();
     } catch (err) {
       alert("Failed to delete article");
     }
-  };
+  }
 
   // Get category config
   const getCategoryConfig = (category: string) => {
@@ -584,6 +589,15 @@ export default function KnowledgeBasePage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!pendingDeleteId}
+        title="Delete article"
+        message="Are you sure you want to delete this article? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

@@ -488,7 +488,15 @@ BEGIN
       AND sr.source_table = 'owner_info'
       AND sr.file_upload_id = p_upload_id
       AND a.appointment_number = sr.payload->>'Number'
-      AND a.person_id IS NULL;
+      AND a.person_id IS NULL
+      -- FFS-747: Do NOT set person_id when appointment belongs to org/site/address account
+      AND NOT EXISTS (
+        SELECT 1 FROM ops.clinic_accounts ca
+        WHERE ca.account_id = a.owner_account_id
+          AND ca.account_type IN ('organization', 'site_name', 'address')
+          AND ca.resolved_person_id IS NULL
+          AND ca.merged_into_account_id IS NULL
+      );
     GET DIAGNOSTICS v_count = ROW_COUNT;
     v_results := v_results || jsonb_build_object('appointments_linked_to_people', v_count);
 

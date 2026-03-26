@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface AutomationRule {
   rule_id: string;
@@ -114,6 +115,7 @@ export default function AutomationsAdminPage() {
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // Form state
   const [form, setForm] = useState({
@@ -215,16 +217,21 @@ export default function AutomationsAdminPage() {
     }
   };
 
-  const deleteRule = async (ruleId: string) => {
-    if (!confirm("Are you sure you want to delete this automation?")) return;
+  function deleteRule(ruleId: string) {
+    setPendingDeleteId(ruleId);
+  }
 
+  async function confirmDeleteRule() {
+    if (!pendingDeleteId) return;
+    const ruleId = pendingDeleteId;
+    setPendingDeleteId(null);
     try {
       await postApi(`/api/admin/automations?rule_id=${ruleId}`, {}, { method: "DELETE" });
       fetchRules();
     } catch (err) {
       console.error("Delete failed:", err);
     }
-  };
+  }
 
   const getTriggerInfo = (type: string) => TRIGGER_TYPES.find((t) => t.value === type);
   const getActionInfo = (type: string) => ACTION_TYPES.find((a) => a.value === type);
@@ -726,6 +733,16 @@ export default function AutomationsAdminPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDeleteId}
+        title="Delete automation"
+        message="Are you sure you want to delete this automation?"
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDeleteRule}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

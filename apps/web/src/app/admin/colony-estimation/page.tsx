@@ -5,6 +5,7 @@ import { BackButton } from "@/components/common";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { TabBar } from "@/components/ui/TabBar";
 import { StatCard } from "@/components/ui/StatCard";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface SourceConfidence {
   source_type: string;
@@ -47,6 +48,7 @@ export default function ColonyEstimationPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("sources");
   const [saving, setSaving] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ type: "source_confidence" | "count_precision"; key: string } | null>(null);
 
   // Form state for adding new items
   const [newSourceType, setNewSourceType] = useState("");
@@ -105,8 +107,14 @@ export default function ColonyEstimationPage() {
     }
   };
 
-  const deleteItem = async (type: "source_confidence" | "count_precision", key: string) => {
-    if (!confirm(`Delete "${key}"?`)) return;
+  function deleteItem(type: "source_confidence" | "count_precision", key: string) {
+    setPendingDelete({ type, key });
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const { type, key } = pendingDelete;
+    setPendingDelete(null);
     setSaving(key);
     try {
       await postApi(
@@ -124,7 +132,7 @@ export default function ColonyEstimationPage() {
     } finally {
       setSaving(null);
     }
-  };
+  }
 
   const addNewSource = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -656,6 +664,16 @@ export default function ColonyEstimationPage() {
           </form>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete item"
+        message={`Delete "${pendingDelete?.key}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
 
       {/* Back link */}
       <div style={{ marginTop: "2rem" }}>

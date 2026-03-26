@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { SkeletonStats, SkeletonText } from "@/components/feedback/Skeleton";
 
 interface ForecastPoint {
   month: number;
@@ -120,7 +121,7 @@ export default function ScenariosPage() {
       </div>
 
       {/* Place selector */}
-      <div className="card" style={{ padding: "1.25rem", marginBottom: "2rem" }}>
+      <div className="card card-elevated" style={{ padding: "1.25rem", marginBottom: "2rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
           <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>Select Location</span>
           <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
@@ -174,12 +175,12 @@ export default function ScenariosPage() {
         </div>
       </div>
 
-      {loading && <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Generating forecast...</div>}
+      {loading && <div style={{ padding: "1rem 0" }}><SkeletonStats count={4} /><div style={{ marginTop: "1rem" }}><SkeletonText lines={6} /></div></div>}
 
       {forecast && !loading && (
         <>
           {/* Current state */}
-          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
+          <div className="card card-elevated" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
             <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", fontWeight: 600 }}>Current State</h2>
             <div style={{
               display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "1rem",
@@ -197,7 +198,7 @@ export default function ScenariosPage() {
           </div>
 
           {/* Scenario toggles */}
-          <div className="card" style={{ padding: "1rem", marginBottom: "1.5rem" }}>
+          <div className="card card-elevated" style={{ padding: "1rem", marginBottom: "1.5rem" }}>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>Scenarios:</span>
               <ScenarioToggle
@@ -222,7 +223,7 @@ export default function ScenariosPage() {
           </div>
 
           {/* Forecast chart */}
-          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
+          <div className="card card-elevated" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
             <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", fontWeight: 600 }}>
               10-Year Population Projection
             </h2>
@@ -250,7 +251,7 @@ export default function ScenariosPage() {
           </div>
 
           {/* Intervention Impact Comparison */}
-          <div className="card" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
+          <div className="card card-elevated" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
             <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", fontWeight: 600 }}>
               Intervention Impact
             </h2>
@@ -404,7 +405,7 @@ export default function ScenariosPage() {
           </div>
 
           {/* Scientific context */}
-          <div className="card" style={{ padding: "1.25rem" }}>
+          <div className="card card-elevated" style={{ padding: "1.25rem" }}>
             <h3 style={{ margin: "0 0 0.75rem 0", fontSize: "0.95rem" }}>Model Assumptions</h3>
             <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
               <p style={{ margin: "0 0 0.5rem 0" }}>
@@ -427,7 +428,7 @@ export default function ScenariosPage() {
 
       {/* Empty state */}
       {!forecast && !loading && !placeId && (
-        <div className="card" style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
+        <div className="card card-elevated" style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
           <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📈</div>
           <div style={{ fontSize: "1rem", fontWeight: 500, marginBottom: "0.5rem" }}>
             Select a location to begin
@@ -479,7 +480,7 @@ function ScenarioToggle({ label, color, active, onToggle }: {
 
 function ScenarioCard({ scenario, color }: { scenario: ScenarioData; color: string }) {
   return (
-    <div className="card" style={{ padding: "1.25rem", borderTop: `3px solid ${color}` }}>
+    <div className="card card-elevated" style={{ padding: "1.25rem", borderTop: `3px solid ${color}` }}>
       <div style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.25rem", color }}>
         {scenario.label}
       </div>

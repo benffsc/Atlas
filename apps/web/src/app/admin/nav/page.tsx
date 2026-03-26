@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface NavItem {
   id: string;
@@ -17,11 +18,7 @@ interface NavItem {
 }
 
 export default function NavBuilderPage() {
-  return (
-    <AdminSidebar>
-      <NavBuilderContent />
-    </AdminSidebar>
-  );
+  return <NavBuilderContent />;
 }
 
 function NavBuilderContent() {
@@ -30,19 +27,15 @@ function NavBuilderContent() {
   const [activeSidebar, setActiveSidebar] = useState<"admin" | "main">("admin");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<NavItem>>({});
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
+  const { success: showSuccess, error: showError } = useToast();
+  const [pendingDelete, setPendingDelete] = useState<NavItem | null>(null);
 
   async function loadItems() {
     try {
       const data = await fetchApi<{ items: NavItem[] }>(`/api/admin/nav?sidebar=${activeSidebar}`);
       setItems(data.items);
     } catch {
-      showToast("Failed to load nav items", "error");
+      showError("Failed to load nav items");
     } finally {
       setLoading(false);
     }
@@ -57,9 +50,9 @@ function NavBuilderContent() {
     try {
       await postApi("/api/admin/nav", { id: item.id, visible: !item.visible }, { method: "PUT" });
       await loadItems();
-      showToast(`${item.label} ${item.visible ? "hidden" : "shown"}`, "success");
+      showSuccess(`${item.label} ${item.visible ? "hidden" : "shown"}`);
     } catch {
-      showToast("Failed to update", "error");
+      showError("Failed to update");
     }
   }
 
@@ -80,7 +73,7 @@ function NavBuilderContent() {
       ]);
       await loadItems();
     } catch {
-      showToast("Failed to reorder", "error");
+      showError("Failed to reorder");
     }
   }
 
@@ -94,20 +87,26 @@ function NavBuilderContent() {
       await postApi("/api/admin/nav", { id, ...editForm }, { method: "PUT" });
       setEditingId(null);
       await loadItems();
-      showToast("Saved", "success");
+      showSuccess("Saved");
     } catch {
-      showToast("Failed to save", "error");
+      showError("Failed to save");
     }
   }
 
-  async function deleteItem(item: NavItem) {
-    if (!confirm(`Delete "${item.label}"?`)) return;
+  function deleteItem(item: NavItem) {
+    setPendingDelete(item);
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const item = pendingDelete;
+    setPendingDelete(null);
     try {
       await postApi(`/api/admin/nav?id=${item.id}`, {}, { method: "DELETE" });
       await loadItems();
-      showToast(`Deleted ${item.label}`, "success");
+      showSuccess(`Deleted ${item.label}`);
     } catch {
-      showToast("Failed to delete", "error");
+      showError("Failed to delete");
     }
   }
 
@@ -120,25 +119,6 @@ function NavBuilderContent() {
 
   return (
     <div style={{ maxWidth: "800px" }}>
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: "1rem",
-            right: "1rem",
-            padding: "0.75rem 1.25rem",
-            borderRadius: "8px",
-            background: toast.type === "success" ? "var(--success-bg, #dcfce7)" : "var(--danger-bg, #fef2f2)",
-            color: toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)",
-            border: `1px solid ${toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)"}`,
-            zIndex: 1000,
-            fontSize: "0.875rem",
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
-
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>Navigation Builder</h1>
         <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.875rem" }}>
@@ -282,6 +262,16 @@ function NavBuilderContent() {
           </div>
         ))
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete nav item"
+        message={`Delete "${pendingDelete?.label}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

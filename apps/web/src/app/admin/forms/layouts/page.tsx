@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import { postApi } from "@/lib/api-client";
 import {
   useAllPageConfigs,
@@ -12,11 +11,7 @@ import {
 import { useToast } from "@/components/feedback/Toast";
 
 export default function FormLayoutsPage() {
-  return (
-    <AdminSidebar>
-      <FormLayoutsContent />
-    </AdminSidebar>
-  );
+  return <FormLayoutsContent />;
 }
 
 function FormLayoutsContent() {

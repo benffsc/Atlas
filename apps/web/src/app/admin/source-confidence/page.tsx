@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { BackButton } from "@/components/common";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi } from "@/lib/api-client";
 
 interface SourceConfidence {
@@ -17,6 +18,7 @@ export default function SourceConfidencePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   // Form state for adding new source
   const [newSource, setNewSource] = useState("");
@@ -56,8 +58,14 @@ export default function SourceConfidencePage() {
     }
   };
 
-  const deleteSource = async (source_system: string) => {
-    if (!confirm(`Delete source "${source_system}"?`)) return;
+  function deleteSource(source_system: string) {
+    setPendingDelete(source_system);
+  }
+
+  async function confirmDeleteSource() {
+    if (!pendingDelete) return;
+    const source_system = pendingDelete;
+    setPendingDelete(null);
     setSaving(source_system);
     try {
       await fetchApi(
@@ -71,7 +79,7 @@ export default function SourceConfidencePage() {
     } finally {
       setSaving(null);
     }
-  };
+  }
 
   const addNewSource = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,6 +377,16 @@ export default function SourceConfidencePage() {
       <div style={{ marginTop: "2rem" }}>
         <BackButton fallbackHref="/admin" />
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete source"
+        message={`Delete source "${pendingDelete}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDeleteSource}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

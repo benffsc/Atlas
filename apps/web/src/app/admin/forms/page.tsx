@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import Link from "next/link";
 
 interface TemplateListItem {
@@ -16,11 +15,7 @@ interface TemplateListItem {
 }
 
 export default function AdminFormsPage() {
-  return (
-    <AdminSidebar>
-      <AdminFormsContent />
-    </AdminSidebar>
-  );
+  return <AdminFormsContent />;
 }
 
 function AdminFormsContent() {

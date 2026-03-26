@@ -1,16 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import { useAllConfigs } from "@/hooks/useAppConfig";
 import { postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 export default function AppConfigPage() {
-  return (
-    <AdminSidebar>
-      <AppConfigContent />
-    </AdminSidebar>
-  );
+  return <AppConfigContent />;
 }
 
 function AppConfigContent() {
@@ -18,12 +14,7 @@ function AppConfigContent() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }
+  const { success: showSuccess, error: showError } = useToast();
 
   function startEdit(key: string, currentValue: unknown) {
     setEditingKey(key);
@@ -54,9 +45,9 @@ function AppConfigContent() {
       await mutate();
       setEditingKey(null);
       setEditValue("");
-      showToast(`Updated ${key}`, "success");
+      showSuccess(`Updated ${key}`);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Failed to save", "error");
+      showError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -80,27 +71,6 @@ function AppConfigContent() {
 
   return (
     <div style={{ maxWidth: "800px" }}>
-      {/* Toast */}
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: "1rem",
-            right: "1rem",
-            padding: "0.75rem 1.25rem",
-            borderRadius: "8px",
-            background: toast.type === "success" ? "var(--success-bg, #dcfce7)" : "var(--danger-bg, #fef2f2)",
-            color: toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)",
-            border: `1px solid ${toast.type === "success" ? "var(--success, #16a34a)" : "var(--danger, #dc2626)"}`,
-            zIndex: 1000,
-            fontSize: "0.875rem",
-            fontWeight: 500,
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
-
       {/* Header */}
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>App Configuration</h1>

@@ -8,6 +8,7 @@ import { mainSidebarSections, type NavSection } from "@/components/SidebarLayout
 import { usePermission } from "@/hooks/usePermission";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { ToastProvider } from "@/components/feedback/Toast";
+import { Icon } from "@/components/ui/Icon";
 
 interface Staff {
   staff_id: string;
@@ -28,6 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPrintRoute = pathname?.includes("/print") || pathname?.includes("/trapper-sheet");
   const isLoginPage = pathname === "/login";
   const isMapPage = pathname === "/map";
+  const isKioskRoute = pathname?.startsWith("/kiosk");
 
   // Fetch current user on mount
   useEffect(() => {
@@ -65,9 +67,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.location.href = "/login";
   };
 
-  // No chrome for these routes
-  if (isPrintRoute || isLoginPage || isMapPage) {
-    return <ToastProvider>{children}</ToastProvider>;
+  // No chrome for these routes (kiosk has its own layout shell)
+  if (isPrintRoute || isLoginPage || isMapPage || isKioskRoute) {
+    return <>{children}</>;
   }
 
   const isAdmin = usePermission("admin.access");
@@ -333,7 +335,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       textDecoration: "none",
                     }}
                   >
-                    {item.icon && <span style={{ fontSize: "1rem" }}>{item.icon}</span>}
+                    {item.icon && <Icon name={item.icon} size={18} />}
                     {item.label}
                   </Link>
                 ))}
@@ -358,9 +360,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Quick Admin
               </div>
               <nav>
-                <DrawerLink href="/admin/data-engine/review" icon="🔍" label="Data Engine Review" active={isActive("/admin/data-engine/review")} />
-                <DrawerLink href="/admin/intake-fields" icon="📝" label="Intake Fields" active={isActive("/admin/intake-fields")} />
-                <DrawerLink href="/admin/tippy-feedback" icon="💬" label="Tippy Feedback" active={isActive("/admin/tippy-feedback")} />
+                <DrawerLink href="/admin/data-engine/review" icon="search" label="Data Engine Review" active={isActive("/admin/data-engine/review")} />
+                <DrawerLink href="/admin/intake-fields" icon="form-input" label="Intake Fields" active={isActive("/admin/intake-fields")} />
+                <DrawerLink href="/admin/tippy-feedback" icon="pencil" label="Tippy Feedback" active={isActive("/admin/tippy-feedback")} />
               </nav>
             </div>
           )}
@@ -390,7 +392,7 @@ function DrawerLink({ href, icon, label, active }: { href: string; icon: string;
         textDecoration: "none",
       }}
     >
-      <span style={{ fontSize: "1rem" }}>{icon}</span>
+      <Icon name={icon} size={18} />
       {label}
     </Link>
   );

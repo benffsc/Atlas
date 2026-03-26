@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { MAP_COLORS } from "@/lib/map-colors";
 import { useToast } from "@/components/feedback/Toast";
@@ -25,11 +24,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function MapColorsPage() {
-  return (
-    <AdminSidebar>
-      <MapColorsContent />
-    </AdminSidebar>
-  );
+  return <MapColorsContent />;
 }
 
 function MapColorsContent() {

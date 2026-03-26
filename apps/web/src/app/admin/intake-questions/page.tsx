@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface QuestionOption {
   option_id?: string;
@@ -49,6 +50,7 @@ export default function IntakeQuestionsAdmin() {
     is_required: false,
   });
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const fetchQuestions = useCallback(async () => {
     try {
@@ -118,9 +120,14 @@ export default function IntakeQuestionsAdmin() {
     }
   };
 
-  const handleDeleteQuestion = async (questionId: string) => {
-    if (!confirm("Are you sure you want to delete this custom question?")) return;
+  function handleDeleteQuestion(questionId: string) {
+    setPendingDeleteId(questionId);
+  }
 
+  async function confirmDelete() {
+    if (!pendingDeleteId) return;
+    const questionId = pendingDeleteId;
+    setPendingDeleteId(null);
     try {
       await postApi(`/api/admin/intake-questions?id=${questionId}`, {}, { method: "DELETE" });
       fetchQuestions();
@@ -128,7 +135,7 @@ export default function IntakeQuestionsAdmin() {
       console.error("Error deleting question:", err);
       alert(err instanceof ApiError ? err.message : "Failed to delete question");
     }
-  };
+  }
 
   const groupedQuestions = questions.reduce<Record<string, IntakeQuestion[]>>((acc, q) => {
     if (!acc[q.step_name]) acc[q.step_name] = [];
@@ -471,6 +478,16 @@ export default function IntakeQuestionsAdmin() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDeleteId}
+        title="Delete question"
+        message="Are you sure you want to delete this custom question?"
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

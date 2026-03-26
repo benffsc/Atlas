@@ -13,6 +13,7 @@ import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } fro
 import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
 import { useTriageFlags } from "@/hooks/useTriageFlags";
 import { SKELETON_LINE, SKELETON_BLOCK, FLEX_BETWEEN } from "./styles";
+import { SkeletonStats, SkeletonList } from "@/components/feedback/Skeleton";
 import { useEntityDetail } from "@/hooks/useEntityDetail";
 import type { RequestDetail } from "@/hooks/useEntityDetail";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
@@ -1527,9 +1528,20 @@ function RequestsPageContent() {
   );
 }
 
+function RequestsLoadingSkeleton() {
+  return (
+    <div style={{ padding: "1rem 0" }}>
+      <SkeletonStats count={4} />
+      <div style={{ marginTop: "1.5rem" }}>
+        <SkeletonList items={8} showAvatar={false} />
+      </div>
+    </div>
+  );
+}
+
 export default function RequestsPage() {
   return (
-    <Suspense fallback={<div className="loading">Loading requests...</div>}>
+    <Suspense fallback={<RequestsLoadingSkeleton />}>
       <RequestsPageContent />
     </Suspense>
   );

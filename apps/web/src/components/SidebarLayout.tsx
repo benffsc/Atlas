@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useNavItems } from "@/hooks/useNavItems";
+import { Icon } from "@/components/ui/Icon";
 
 export interface NavItem {
   label: string;
@@ -149,7 +150,7 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
                   position: "relative",
                 }}
               >
-                {item.icon && <span style={{ fontSize: isCollapsed ? "1.2rem" : "1rem" }}>{item.icon}</span>}
+                {item.icon && <Icon name={item.icon} size={isCollapsed ? 20 : 18} />}
                 {!isCollapsed && item.label}
                 {item.badge != null && item.badge > 0 && (
                   <span style={{
@@ -237,7 +238,7 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
           overflowY: "auto",
           zIndex: isMobile ? 1000 : undefined,
           transition: isMobile ? "left 0.3s ease-in-out" : "width 0.2s ease-in-out",
-          boxShadow: isMobile && mobileMenuOpen ? "2px 0 8px rgba(0,0,0,0.15)" : undefined,
+          boxShadow: isMobile && mobileMenuOpen ? "2px 0 8px rgba(0,0,0,0.15)" : isMobile ? undefined : "1px 0 4px rgba(0,0,0,0.04)",
         }}
       >
         {/* Mobile close button */}
@@ -282,69 +283,69 @@ const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
   {
     title: "Dashboard",
     items: [
-      { label: "Overview", href: "/admin", icon: "📊" },
-      { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
+      { label: "Overview", href: "/admin", icon: "layout-dashboard" },
+      { label: "Clinic Days", href: "/admin/clinic-days", icon: "hospital" },
     ],
   },
   {
     title: "Data",
     items: [
-      { label: "Data Hub", href: "/admin/data", icon: "📊" },
-      { label: "Ingest Dashboard", href: "/admin/ingest", icon: "📤" },
-      { label: "Review Queue", href: "/admin/data?tab=review", icon: "📋" },
+      { label: "Data Hub", href: "/admin/data", icon: "bar-chart" },
+      { label: "Ingest Dashboard", href: "/admin/ingest", icon: "upload" },
+      { label: "Review Queue", href: "/admin/data?tab=review", icon: "list-checks" },
     ],
   },
   {
     title: "Beacon",
     items: [
-      { label: "Map", href: "/map", icon: "🗺️" },
-      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "🐱" },
-      { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "📆" },
-      { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
+      { label: "Map", href: "/map", icon: "map" },
+      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "cat" },
+      { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "calendar-days" },
+      { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "trending-up" },
     ],
   },
   {
     title: "Email",
     items: [
-      { label: "Email Hub", href: "/admin/email", icon: "📧" },
-      { label: "Templates", href: "/admin/email-templates", icon: "📝" },
-      { label: "Batches", href: "/admin/email-batches", icon: "📨" },
+      { label: "Email Hub", href: "/admin/email", icon: "mail" },
+      { label: "Templates", href: "/admin/email-templates", icon: "file-text" },
+      { label: "Batches", href: "/admin/email-batches", icon: "send" },
     ],
   },
   {
     title: "Settings",
     items: [
-      { label: "Staff", href: "/admin/staff", icon: "👥" },
-      { label: "Organizations", href: "/admin/organizations", icon: "🏢" },
-      { label: "Equipment", href: "/admin/equipment", icon: "🪤" },
-      { label: "Intake Fields", href: "/admin/intake-fields", icon: "📝" },
-      { label: "Form Layouts", href: "/admin/forms/layouts", icon: "📄" },
-      { label: "Ecology Config", href: "/admin/ecology", icon: "🌿" },
-      { label: "AI Access", href: "/admin/ai-access", icon: "🔐" },
-      { label: "App Config", href: "/admin/config", icon: "⚙️" },
-      { label: "Map Colors", href: "/admin/map-colors", icon: "🎨" },
-      { label: "Display Labels", href: "/admin/labels", icon: "🏷️" },
-      { label: "Theme", href: "/admin/theme", icon: "🖌️" },
-      { label: "Blacklist", href: "/admin/blacklist", icon: "🚫" },
-      { label: "Triage Flags", href: "/admin/triage-flags", icon: "🏷️" },
-      { label: "Navigation", href: "/admin/nav", icon: "🧭" },
-      { label: "Roles", href: "/admin/roles", icon: "🛡️" },
+      { label: "Staff", href: "/admin/staff", icon: "user-cog" },
+      { label: "Organizations", href: "/admin/organizations", icon: "building-2" },
+      { label: "Equipment", href: "/admin/equipment", icon: "wrench" },
+      { label: "Intake Fields", href: "/admin/intake-fields", icon: "form-input" },
+      { label: "Form Layouts", href: "/admin/forms/layouts", icon: "file-stack" },
+      { label: "Ecology Config", href: "/admin/ecology", icon: "leaf" },
+      { label: "AI Access", href: "/admin/ai-access", icon: "shield-check" },
+      { label: "App Config", href: "/admin/config", icon: "settings" },
+      { label: "Map Colors", href: "/admin/map-colors", icon: "palette" },
+      { label: "Display Labels", href: "/admin/labels", icon: "tag" },
+      { label: "Theme", href: "/admin/theme", icon: "paintbrush" },
+      { label: "Blacklist", href: "/admin/blacklist", icon: "ban" },
+      { label: "Triage Flags", href: "/admin/triage-flags", icon: "flag" },
+      { label: "Navigation", href: "/admin/nav", icon: "compass" },
+      { label: "Roles", href: "/admin/roles", icon: "shield" },
     ],
   },
   {
     title: "Linear",
     items: [
-      { label: "Dashboard", href: "/admin/linear", icon: "📐" },
-      { label: "Issues", href: "/admin/linear/issues", icon: "📋" },
-      { label: "Sessions", href: "/admin/linear/sessions", icon: "🤖" },
+      { label: "Dashboard", href: "/admin/linear", icon: "square-kanban" },
+      { label: "Issues", href: "/admin/linear/issues", icon: "clipboard-list" },
+      { label: "Sessions", href: "/admin/linear/sessions", icon: "bot" },
     ],
   },
   {
     title: "Developer",
     items: [
-      { label: "Claude Code", href: "/admin/claude-code", icon: "🤖" },
-      { label: "Knowledge Base", href: "/admin/knowledge-base", icon: "📚" },
-      { label: "Tippy Corrections", href: "/admin/tippy-corrections", icon: "✏️" },
+      { label: "Claude Code", href: "/admin/claude-code", icon: "code-2" },
+      { label: "Knowledge Base", href: "/admin/knowledge-base", icon: "book-open" },
+      { label: "Tippy Corrections", href: "/admin/tippy-corrections", icon: "pencil" },
     ],
   },
 ];
@@ -365,37 +366,37 @@ export const mainSidebarSections: NavSection[] = [
   {
     title: "Operations",
     items: [
-      { label: "Dashboard", href: "/", icon: "🏠" },
-      { label: "Map", href: "/map", icon: "🗺️" },
-      { label: "Intake Queue", href: "/intake/queue", icon: "📥" },
-      { label: "Requests", href: "/requests", icon: "📋" },
-      { label: "Clinic Days", href: "/admin/clinic-days", icon: "🏥" },
-      { label: "Trappers", href: "/trappers", icon: "🪤" },
-      { label: "Equipment", href: "/equipment", icon: "🧰" },
+      { label: "Dashboard", href: "/", icon: "home" },
+      { label: "Map", href: "/map", icon: "map" },
+      { label: "Intake Queue", href: "/intake/queue", icon: "inbox" },
+      { label: "Requests", href: "/requests", icon: "clipboard-list" },
+      { label: "Clinic Days", href: "/admin/clinic-days", icon: "hospital" },
+      { label: "Trappers", href: "/trappers", icon: "snail" },
+      { label: "Equipment", href: "/equipment", icon: "wrench" },
     ],
   },
   {
     title: "Records",
     items: [
-      { label: "Cats", href: "/cats", icon: "🐱" },
-      { label: "People", href: "/people", icon: "👥" },
-      { label: "Places", href: "/places", icon: "📍" },
-      { label: "Search", href: "/search", icon: "🔍" },
+      { label: "Cats", href: "/cats", icon: "cat" },
+      { label: "People", href: "/people", icon: "users" },
+      { label: "Places", href: "/places", icon: "map-pin" },
+      { label: "Search", href: "/search", icon: "search" },
     ],
   },
   {
     title: "Beacon",
     items: [
-      { label: "Beacon Dashboard", href: "/beacon", icon: "📡" },
-      { label: "Compare", href: "/beacon/compare", icon: "📊" },
-      { label: "Scenarios", href: "/beacon/scenarios", icon: "🔮" },
-      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "📆" },
+      { label: "Beacon Dashboard", href: "/beacon", icon: "radio" },
+      { label: "Compare", href: "/beacon/compare", icon: "bar-chart" },
+      { label: "Scenarios", href: "/beacon/scenarios", icon: "sparkles" },
+      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "calendar-days" },
     ],
   },
   {
     title: "Admin",
     items: [
-      { label: "Admin Panel", href: "/admin", icon: "⚙️" },
+      { label: "Admin Panel", href: "/admin", icon: "settings" },
     ],
   },
 ];
@@ -416,23 +417,23 @@ export const beaconSidebarSections: NavSection[] = [
   {
     title: "Beacon",
     items: [
-      { label: "Dashboard", href: "/beacon", icon: "📡" },
-      { label: "Compare Locations", href: "/beacon/compare", icon: "📊" },
-      { label: "Scenarios", href: "/beacon/scenarios", icon: "🔮" },
+      { label: "Dashboard", href: "/beacon", icon: "radio" },
+      { label: "Compare Locations", href: "/beacon/compare", icon: "bar-chart" },
+      { label: "Scenarios", href: "/beacon/scenarios", icon: "sparkles" },
     ],
   },
   {
     title: "Data",
     items: [
-      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "📆" },
-      { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "🌡️" },
+      { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "calendar-days" },
+      { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "thermometer" },
     ],
   },
   {
     title: "Atlas",
     items: [
-      { label: "Operations", href: "/", icon: "🏠" },
-      { label: "Admin", href: "/admin", icon: "⚙️" },
+      { label: "Operations", href: "/", icon: "home" },
+      { label: "Admin", href: "/admin", icon: "settings" },
     ],
   },
 ];
@@ -459,16 +460,16 @@ export function RequestsSidebar({ children }: { children: React.ReactNode }) {
     {
       title: "Quick Actions",
       items: [
-        { label: "New Request", href: "/requests/new", icon: "➕" },
-        { label: "Print TNR Call Sheet", href: "/requests/print?blank=true", icon: "📄" },
+        { label: "New Request", href: "/requests/new", icon: "plus" },
+        { label: "Print TNR Call Sheet", href: "/requests/print?blank=true", icon: "printer" },
       ],
     },
     {
       title: "Related",
       items: [
-        { label: "All Requests", href: "/requests", icon: "📋" },
-        { label: "Intake Queue", href: "/intake/queue", icon: "📥" },
-        { label: "Trappers", href: "/trappers", icon: "🪤" },
+        { label: "All Requests", href: "/requests", icon: "clipboard-list" },
+        { label: "Intake Queue", href: "/intake/queue", icon: "inbox" },
+        { label: "Trappers", href: "/trappers", icon: "snail" },
       ],
     },
   ];
@@ -486,21 +487,21 @@ export function CatsSidebar({ children }: { children: React.ReactNode }) {
     {
       title: "Cats",
       items: [
-        { label: "All Cats", href: "/cats", icon: "🐱" },
+        { label: "All Cats", href: "/cats", icon: "cat" },
       ],
     },
     {
       title: "Beacon Data",
       items: [
-        { label: "Reproduction", href: "/admin/beacon/reproduction", icon: "🍼" },
-        { label: "Mortality", href: "/admin/beacon/mortality", icon: "📋" },
+        { label: "Reproduction", href: "/admin/beacon/reproduction", icon: "baby" },
+        { label: "Mortality", href: "/admin/beacon/mortality", icon: "clipboard-list" },
       ],
     },
     {
       title: "Related",
       items: [
-        { label: "Places", href: "/places", icon: "📍" },
-        { label: "People", href: "/people", icon: "👥" },
+        { label: "Places", href: "/places", icon: "map-pin" },
+        { label: "People", href: "/people", icon: "users" },
       ],
     },
   ];
@@ -518,21 +519,21 @@ export function PeopleSidebar({ children }: { children: React.ReactNode }) {
     {
       title: "People",
       items: [
-        { label: "All People", href: "/people", icon: "👥" },
+        { label: "All People", href: "/people", icon: "users" },
       ],
     },
     {
       title: "By Role",
       items: [
-        { label: "Trappers", href: "/trappers", icon: "🪤" },
-        { label: "Staff", href: "/admin/staff", icon: "👔" },
+        { label: "Trappers", href: "/trappers", icon: "snail" },
+        { label: "Staff", href: "/admin/staff", icon: "user-cog" },
       ],
     },
     {
       title: "Related",
       items: [
-        { label: "Places", href: "/places", icon: "📍" },
-        { label: "Requests", href: "/requests", icon: "📋" },
+        { label: "Places", href: "/places", icon: "map-pin" },
+        { label: "Requests", href: "/requests", icon: "clipboard-list" },
       ],
     },
   ];
@@ -550,22 +551,22 @@ export function PlacesSidebar({ children }: { children: React.ReactNode }) {
     {
       title: "Places",
       items: [
-        { label: "All Places", href: "/places", icon: "📍" },
-        { label: "New Place", href: "/places/new", icon: "➕" },
+        { label: "All Places", href: "/places", icon: "map-pin" },
+        { label: "New Place", href: "/places/new", icon: "plus" },
       ],
     },
     {
       title: "Beacon Data",
       items: [
-        { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "📊" },
-        { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "🔮" },
+        { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "bar-chart" },
+        { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "trending-up" },
       ],
     },
     {
       title: "Related",
       items: [
-        { label: "Requests", href: "/requests", icon: "📋" },
-        { label: "Cats", href: "/cats", icon: "🐱" },
+        { label: "Requests", href: "/requests", icon: "clipboard-list" },
+        { label: "Cats", href: "/cats", icon: "cat" },
       ],
     },
   ];
@@ -584,16 +585,16 @@ export function IntakeSidebar({ children }: { children: React.ReactNode }) {
     {
       title: "Intake",
       items: [
-        { label: "Triage Queue", href: "/intake/queue", icon: "📥" },
-        { label: "New Submission", href: "/intake/queue/new", icon: "➕" },
-        { label: "Enter Call Sheet", href: "/intake/call-sheet", icon: "📞" },
+        { label: "Triage Queue", href: "/intake/queue", icon: "inbox" },
+        { label: "New Submission", href: "/intake/queue/new", icon: "plus" },
+        { label: "Enter Call Sheet", href: "/intake/call-sheet", icon: "scroll-text" },
       ],
     },
     {
       title: "Related",
       items: [
-        { label: "Requests", href: "/requests", icon: "📋" },
-        { label: "Intake Fields", href: "/admin/intake-fields", icon: "📝" },
+        { label: "Requests", href: "/requests", icon: "clipboard-list" },
+        { label: "Intake Fields", href: "/admin/intake-fields", icon: "form-input" },
       ],
     },
   ];
@@ -611,17 +612,17 @@ export function TrappersSidebar({ children }: { children: React.ReactNode }) {
     {
       title: "Trappers",
       items: [
-        { label: "All Trappers", href: "/trappers", icon: "🪤" },
-        { label: "Observations", href: "/trappers/observations", icon: "👁️" },
-        { label: "Onboarding", href: "/trappers/onboarding", icon: "📝" },
-        { label: "Training Materials", href: "/trappers/materials", icon: "📚" },
+        { label: "All Trappers", href: "/trappers", icon: "snail" },
+        { label: "Observations", href: "/trappers/observations", icon: "telescope" },
+        { label: "Onboarding", href: "/trappers/onboarding", icon: "file-text" },
+        { label: "Training Materials", href: "/trappers/materials", icon: "book-open" },
       ],
     },
     {
       title: "Related",
       items: [
-        { label: "Requests", href: "/requests", icon: "📋" },
-        { label: "People", href: "/people", icon: "👥" },
+        { label: "Requests", href: "/requests", icon: "clipboard-list" },
+        { label: "People", href: "/people", icon: "users" },
       ],
     },
   ];

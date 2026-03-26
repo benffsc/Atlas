@@ -24,9 +24,10 @@ export function StatCard({ label, value, subtitle, accentColor, valueColor, href
 
   const content = (
     <div
+      className="card-elevated"
       style={{
         padding: "1rem",
-        background: "var(--card-bg)",
+        background: "var(--surface-raised, var(--card-bg))",
         border: "1px solid var(--card-border)",
         borderRadius: "8px",
         borderLeft: accentColor ? `4px solid ${accentColor}` : undefined,
@@ -34,7 +35,7 @@ export function StatCard({ label, value, subtitle, accentColor, valueColor, href
       }}
     >
       <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.25rem" }}>{label}</div>
-      <div style={{ fontSize: "1.75rem", fontWeight: 700, lineHeight: 1, color: valueColor || "var(--foreground)" }}>
+      <div className="text-data" style={{ fontSize: "1.75rem", fontWeight: 700, lineHeight: 1, color: valueColor || "var(--foreground)" }}>
         {formattedValue}
       </div>
       {subtitle && (

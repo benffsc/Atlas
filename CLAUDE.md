@@ -426,6 +426,18 @@ A trapper may ALSO run a rescue (e.g., Katie Moore runs "Cat Rescue of Cloverdal
 - `@/hooks/useDesignTokens` — Admin-configurable theme colors (brand, status, entity)
 - `@/hooks/useOrgConfig` — Org name, phone, website, tagline
 
+**UX Polish (FFS-762+):**
+- Don't use "Loading..." text for loading states — Use `Skeleton*` from `@/components/feedback/Skeleton`
+- Don't create inline button style objects — Use `Button` from `@/components/ui/Button`
+- Don't use emoji icons in navigation — Use `Icon` from `@/components/ui/Icon` with Lucide names (see `@/lib/icon-map.ts`)
+- Don't hardcode box-shadow values — Use CSS variables `var(--shadow-xs)` through `var(--shadow-lg)` from `globals.css`
+
+**Key Files (UX Polish):**
+- `@/components/ui/Button.tsx` — Shared button: variants (primary/secondary/ghost/danger/outline), sizes, loading state, icon prop
+- `@/components/ui/Icon.tsx` — Renders Lucide icon by name with emoji fallback
+- `@/lib/icon-map.ts` — Maps string keys → Lucide components (used by DB-driven nav items)
+- `@/components/feedback/Skeleton.tsx` — `Skeleton`, `SkeletonText`, `SkeletonTable`, `SkeletonStats`, `SkeletonList`
+
 **Map/UI:**
 - Don't use `AddressAutocomplete` for place input — Use `PlaceResolver`
 - Don't use `ST_DWithin` for cross-place aggregation — Use `get_place_family()`
@@ -527,6 +539,10 @@ All new development must move toward kernel-extractability. Reference `docs/HELI
 | New user-visible app name | `useProduct().brandName` or `useOrgConfig().nameShort` (never hardcode "Atlas"/"Beacon") |
 | New Beacon page | Under `/beacon/*` route (auto-gets ProductProvider + ThemeSyncer + BeaconSidebar) |
 | New product-specific behavior | Gate with `useProduct().isBeacon` or `ops.app_config` key |
+| New button | `Button` from `@/components/ui/Button` |
+| New loading state | `Skeleton*` from `@/components/feedback/Skeleton` |
+| New icon in nav/UI | `Icon` from `@/components/ui/Icon` + add to `@/lib/icon-map.ts` |
+| New elevation/shadow | CSS variable `var(--shadow-sm)` through `var(--shadow-lg)` or `.card-elevated` class |
 
 ### Kernel Layer (must be org-agnostic)
 
@@ -538,7 +554,7 @@ These modules form the extractable core. Changes here must work for ANY TNR org:
 - `components/layouts/ListDetailLayout.tsx` — Split-view pattern
 - `components/shared/` — ActionDrawer, RowActionMenu, Breadcrumbs
 - `components/feedback/` — EmptyState, Toast, ConfirmDialog
-- `components/ui/` — StatCard, TabBar
+- `components/ui/` — StatCard, TabBar, Button, Icon
 - SQL: `sot.*` schema functions, `ops.app_config`
 
 ### Don't Do (Helix)

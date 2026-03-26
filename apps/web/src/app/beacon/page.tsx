@@ -246,7 +246,7 @@ export default function BeaconPage() {
 
       {/* Quick Info */}
       <div
-        className="card"
+        className="card card-elevated"
         style={{
           padding: "1.5rem",
           marginBottom: "2rem",
@@ -267,7 +267,7 @@ export default function BeaconPage() {
 
       {/* Date Range Filter */}
       <div
-        className="card"
+        className="card card-elevated"
         style={{ padding: "1.25rem", marginBottom: "2rem" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
@@ -383,7 +383,7 @@ export default function BeaconPage() {
       {/* County-Level Rollup */}
       {!countyLoading && countyData && countyData.counties.length > 0 && (
         <div
-          className="card"
+          className="card card-elevated"
           style={{
             padding: "1.25rem",
             marginBottom: "2rem",
@@ -477,7 +477,7 @@ export default function BeaconPage() {
       {/* Zone-level summary fallback (shows while county data loads or if county view not available) */}
       {!countyLoading && !countyData && !zonesLoading && zones?.summary && (
         <div
-          className="card"
+          className="card card-elevated"
           style={{
             padding: "1.25rem",
             marginBottom: "2rem",
@@ -673,7 +673,7 @@ export default function BeaconPage() {
 
       {/* Scientific Context */}
       <div
-        className="card"
+        className="card card-elevated"
         style={{
           padding: "1.5rem",
           marginTop: "2rem",
@@ -727,7 +727,7 @@ function StatCard({
 }) {
   return (
     <div
-      className="card"
+      className="card card-elevated"
       style={{
         padding: "1.25rem",
         textAlign: "center",
@@ -759,7 +759,7 @@ function AnalyticsCard({
   return (
     <a
       href={href}
-      className="card"
+      className="card card-elevated"
       style={{
         padding: "1.25rem",
         textDecoration: "none",

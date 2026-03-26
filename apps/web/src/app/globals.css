@@ -87,6 +87,17 @@
   --priority-high: #fd7e14;
   --priority-normal: #6c757d;
   --priority-low: #adb5bd;
+
+  /* Elevation / Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+
+  /* Surface layers */
+  --surface-0: var(--background);
+  --surface-1: #f9fafb;
+  --surface-raised: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -152,6 +163,17 @@
     --tab-badge-active-text: #0a0a0a;
     --tab-badge-inactive-bg: #4b5563;
     --tab-badge-inactive-text: #d1d5db;
+
+    /* Elevation / Shadows (dark mode) */
+    --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.35);
+
+    /* Surface layers (dark mode) */
+    --surface-0: var(--background);
+    --surface-1: #1f2937;
+    --surface-raised: #1a1a1a;
   }
 }
 
@@ -170,8 +192,10 @@ body {
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "DM Sans", "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Typography - Raleway for headers */
@@ -509,6 +533,63 @@ button:disabled {
 .badge-primary {
   background: color-mix(in srgb, var(--primary) 15%, transparent);
   color: var(--primary);
+}
+
+/* ============================================================
+   Typography Scale
+   ============================================================ */
+.heading-page {
+  font-family: "Raleway", "DM Sans", sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.heading-section {
+  font-family: "DM Sans", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.text-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.text-data {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ============================================================
+   Elevation Utility Classes
+   ============================================================ */
+.card-elevated {
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+.card-elevated:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-elevated,
+  .card-elevated:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Button spinner animation */
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Detail page */

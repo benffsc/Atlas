@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface ComparisonPlace {
   place_id: string;
@@ -159,7 +160,7 @@ export default function ComparisonPage() {
       </div>
 
       {/* Search to add places */}
-      <div className="card" style={{ padding: "1.25rem", marginBottom: "2rem" }}>
+      <div className="card card-elevated" style={{ padding: "1.25rem", marginBottom: "2rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
           <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>Add Location</span>
           <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
@@ -230,7 +231,7 @@ export default function ComparisonPage() {
       {/* Summary */}
       {summary && (
         <div
-          className="card"
+          className="card card-elevated"
           style={{
             padding: "1.25rem", marginBottom: "2rem",
             background: "linear-gradient(135deg, var(--success-bg) 0%, #dcfce7 100%)",
@@ -273,7 +274,7 @@ export default function ComparisonPage() {
       )}
 
       {/* Comparison Table */}
-      {loading && <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Loading comparison...</div>}
+      {loading && <div style={{ padding: "1rem 0" }}><SkeletonTable rows={5} columns={4} /></div>}
 
       {!loading && places.length > 0 && (
         <div style={{ overflowX: "auto", marginBottom: "2rem" }}>
@@ -371,7 +372,7 @@ export default function ComparisonPage() {
 
       {/* Alteration Rate Comparison Chart */}
       {!loading && places.length >= 2 && (
-        <div className="card" style={{ padding: "1.25rem", marginBottom: "2rem" }}>
+        <div className="card card-elevated" style={{ padding: "1.25rem", marginBottom: "2rem" }}>
           <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", fontWeight: 600 }}>
             Alteration Rate Comparison
           </h2>
@@ -423,7 +424,7 @@ export default function ComparisonPage() {
 
       {/* Empty state */}
       {!loading && places.length === 0 && (
-        <div className="card" style={{
+        <div className="card card-elevated" style={{
           padding: "3rem", textAlign: "center", color: "var(--text-muted)",
         }}>
           <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📊</div>

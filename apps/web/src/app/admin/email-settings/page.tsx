@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface OutlookAccount {
   account_id: string;
@@ -37,6 +38,7 @@ function EmailSettingsContent() {
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [pendingDisconnect, setPendingDisconnect] = useState<{ accountId: string; email: string } | null>(null);
 
   // Handle URL params from OAuth callback
   useEffect(() => {
@@ -72,11 +74,14 @@ function EmailSettingsContent() {
     fetchAccounts();
   }, []);
 
-  const disconnectAccount = async (accountId: string, email: string) => {
-    if (!confirm(`Are you sure you want to disconnect ${email}? This will stop emails from being sent from this account.`)) {
-      return;
-    }
+  function disconnectAccount(accountId: string, email: string) {
+    setPendingDisconnect({ accountId, email });
+  }
 
+  async function confirmDisconnect() {
+    if (!pendingDisconnect) return;
+    const { accountId, email } = pendingDisconnect;
+    setPendingDisconnect(null);
     setDisconnecting(accountId);
     try {
       await postApi(`/api/admin/email-settings/accounts?accountId=${accountId}`, {}, { method: "DELETE" });
@@ -87,7 +92,7 @@ function EmailSettingsContent() {
     } finally {
       setDisconnecting(null);
     }
-  };
+  }
 
   const handleConnectAccount = () => {
     // Redirect to the OAuth connect endpoint
@@ -379,6 +384,16 @@ function EmailSettingsContent() {
           Manage Email Templates &rarr;
         </Link>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDisconnect}
+        title="Disconnect account"
+        message={`Disconnect ${pendingDisconnect?.email}? This will stop emails from being sent from this account.`}
+        confirmLabel="Disconnect"
+        variant="danger"
+        onConfirm={confirmDisconnect}
+        onCancel={() => setPendingDisconnect(null)}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface CustomField {
   field_id: string;
@@ -71,6 +72,7 @@ export default function IntakeFieldsAdminPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingField, setEditingField] = useState<CustomField | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<CustomField | null>(null);
 
   // Form state for add/edit
   const [form, setForm] = useState({
@@ -211,19 +213,23 @@ export default function IntakeFieldsAdminPage() {
     }
   };
 
-  const handleDelete = async (field: CustomField) => {
-    if (!confirm(`Delete field "${field.field_label}"? This cannot be undone.`)) return;
+  function handleDelete(field: CustomField) {
+    setPendingDelete(field);
+  }
 
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const field = pendingDelete;
+    setPendingDelete(null);
     try {
       await postApi(`/api/admin/intake-fields/${field.field_id}`, {}, { method: "DELETE" });
-
       setMessage({ type: "success", text: "Field deleted" });
       fetchFields();
       fetchSyncStatus();
     } catch (err) {
       setMessage({ type: "error", text: "Failed to delete field" });
     }
-  };
+  }
 
   const handleSyncToAirtable = async () => {
     setSyncing(true);
@@ -738,6 +744,16 @@ export default function IntakeFieldsAdminPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete field"
+        message={`Delete field "${pendingDelete?.field_label}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

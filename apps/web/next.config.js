@@ -7,6 +7,7 @@ const nextConfig = {
       bodySizeLimit: '50mb',
     },
     proxyClientMaxBodySize: 50 * 1024 * 1024, // 50MB for media uploads
+    viewTransition: true,
   },
 
   // Unified Data Review Hub redirects

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import Link from "next/link";
 import { useToast } from "@/components/feedback/Toast";
 
@@ -36,11 +35,7 @@ interface FormConfigItem {
 }
 
 export default function FormConfigsPage() {
-  return (
-    <AdminSidebar>
-      <FormConfigsContent />
-    </AdminSidebar>
-  );
+  return <FormConfigsContent />;
 }
 
 function FormConfigsContent() {

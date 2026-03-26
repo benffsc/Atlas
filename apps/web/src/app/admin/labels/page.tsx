@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import { postApi } from "@/lib/api-client";
 import { useAllDisplayLabels } from "@/hooks/useDisplayLabels";
 import { useToast } from "@/components/feedback/Toast";
@@ -20,11 +19,7 @@ const REGISTRY_LABELS: Record<string, string> = {
 };
 
 export default function LabelsPage() {
-  return (
-    <AdminSidebar>
-      <LabelsContent />
-    </AdminSidebar>
-  );
+  return <LabelsContent />;
 }
 
 function LabelsContent() {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DataQualityBadge, AIParsedBadge } from "@/components/badges";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ReproductionRecord {
@@ -40,6 +41,9 @@ export default function ReproductionPage() {
     is_in_heat: false,
   });
   const [saving, setSaving] = useState(false);
+
+  // Confirm dialog state
+  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -96,33 +100,45 @@ export default function ReproductionPage() {
     }
   };
 
-  const handleDelete = async (vitalsId: string) => {
-    if (!confirm("Remove reproduction indicators from this record? This clears pregnant/lactating/in-heat flags.")) return;
-    try {
-      await postApi(`/api/admin/beacon/reproduction?id=${vitalsId}`, {}, { method: "DELETE" });
-      await loadData();
-    } catch (err) {
-      alert("Error deleting");
-    }
-  };
+  function handleDelete(vitalsId: string) {
+    setPendingConfirm({
+      title: "Remove reproduction indicators",
+      message: "Remove reproduction indicators from this record? This clears pregnant/lactating/in-heat flags.",
+      onConfirm: async () => {
+        setPendingConfirm(null);
+        try {
+          await postApi(`/api/admin/beacon/reproduction?id=${vitalsId}`, {}, { method: "DELETE" });
+          await loadData();
+        } catch (err) {
+          alert("Error deleting");
+        }
+      },
+    });
+  }
 
-  const handleBulkDelete = async () => {
+  function handleBulkDelete() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Remove reproduction indicators from ${selectedIds.size} records?`)) return;
-    setBulkDeleting(true);
-    try {
-      const promises = Array.from(selectedIds).map((id) =>
-        postApi(`/api/admin/beacon/reproduction?id=${id}`, {}, { method: "DELETE" })
-      );
-      await Promise.all(promises);
-      setSelectedIds(new Set());
-      await loadData();
-    } catch (err) {
-      alert("Error during bulk delete");
-    } finally {
-      setBulkDeleting(false);
-    }
-  };
+    setPendingConfirm({
+      title: "Bulk remove indicators",
+      message: `Remove reproduction indicators from ${selectedIds.size} records?`,
+      onConfirm: async () => {
+        setPendingConfirm(null);
+        setBulkDeleting(true);
+        try {
+          const promises = Array.from(selectedIds).map((id) =>
+            postApi(`/api/admin/beacon/reproduction?id=${id}`, {}, { method: "DELETE" })
+          );
+          await Promise.all(promises);
+          setSelectedIds(new Set());
+          await loadData();
+        } catch (err) {
+          alert("Error during bulk delete");
+        } finally {
+          setBulkDeleting(false);
+        }
+      },
+    });
+  }
 
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -454,6 +470,16 @@ export default function ReproductionPage() {
           </li>
         </ul>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title={pendingConfirm?.title ?? ""}
+        message={pendingConfirm?.message ?? ""}
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={pendingConfirm?.onConfirm ?? (() => {})}
+        onCancel={() => setPendingConfirm(null)}
+      />
 
       {/* Edit Modal */}
       {editRecord && (

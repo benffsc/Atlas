@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DataQualityBadge } from "@/components/badges";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi } from "@/lib/api-client";
 
 interface ColonyEstimate {
@@ -46,6 +47,7 @@ export default function ColonyEstimatesPage() {
   const [editingEstimate, setEditingEstimate] = useState<ColonyEstimate | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -97,35 +99,44 @@ export default function ColonyEstimatesPage() {
     }
   };
 
-  const handleDelete = async (estimateId: string) => {
-    if (!confirm("Delete this colony estimate? This cannot be undone.")) return;
+  function handleDelete(estimateId: string) {
+    setPendingConfirm({
+      title: "Delete estimate",
+      message: "Delete this colony estimate? This cannot be undone.",
+      onConfirm: async () => {
+        setPendingConfirm(null);
+        try {
+          await postApi(`/api/admin/beacon/colony-estimates?id=${estimateId}`, {}, { method: "DELETE" });
+          loadData();
+        } catch (err) {
+          alert("Error deleting estimate");
+        }
+      },
+    });
+  }
 
-    try {
-      await postApi(`/api/admin/beacon/colony-estimates?id=${estimateId}`, {}, { method: "DELETE" });
-      loadData();
-    } catch (err) {
-      alert("Error deleting estimate");
-    }
-  };
-
-  const handleBulkDelete = async () => {
+  function handleBulkDelete() {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} selected estimates? This cannot be undone.`)) return;
-
-    let deleted = 0;
-    for (const id of selectedIds) {
-      try {
-        await postApi(`/api/admin/beacon/colony-estimates?id=${id}`, {}, { method: "DELETE" });
-        deleted++;
-      } catch {
-        /* optional: skip failed deletes, continue with remaining */
-      }
-    }
-
-    setSelectedIds(new Set());
-    loadData();
-    alert(`Deleted ${deleted} of ${selectedIds.size} estimates`);
-  };
+    setPendingConfirm({
+      title: "Bulk delete",
+      message: `Delete ${selectedIds.size} selected estimates? This cannot be undone.`,
+      onConfirm: async () => {
+        setPendingConfirm(null);
+        let deleted = 0;
+        for (const id of selectedIds) {
+          try {
+            await postApi(`/api/admin/beacon/colony-estimates?id=${id}`, {}, { method: "DELETE" });
+            deleted++;
+          } catch {
+            /* skip failed */
+          }
+        }
+        setSelectedIds(new Set());
+        loadData();
+        alert(`Deleted ${deleted} of ${selectedIds.size} estimates`);
+      },
+    });
+  }
 
   const toggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -565,6 +576,16 @@ export default function ColonyEstimatesPage() {
           <li>Delete duplicates or merge when same place has conflicting estimates</li>
         </ul>
       </div>
+
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title={pendingConfirm?.title ?? ""}
+        message={pendingConfirm?.message ?? ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={pendingConfirm?.onConfirm ?? (() => {})}
+        onCancel={() => setPendingConfirm(null)}
+      />
     </div>
   );
 }

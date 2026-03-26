@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 
@@ -21,11 +20,7 @@ interface TriageFlag {
 }
 
 export default function TriageFlagsPage() {
-  return (
-    <AdminSidebar>
-      <TriageFlagsContent />
-    </AdminSidebar>
-  );
+  return <TriageFlagsContent />;
 }
 
 function TriageFlagsContent() {

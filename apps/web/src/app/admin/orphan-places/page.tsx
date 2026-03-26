@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface OrphanPlace {
   place_id: string;
@@ -28,6 +29,7 @@ export default function OrphanPlacesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [deleteResult, setDeleteResult] = useState<{ deleted: number } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
@@ -65,10 +67,13 @@ export default function OrphanPlacesPage() {
     }
   };
 
-  const handleDelete = async () => {
+  function handleDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`Delete ${selected.size} orphan place(s)? This cannot be undone.`)) return;
+    setShowDeleteConfirm(true);
+  }
 
+  async function confirmDelete() {
+    setShowDeleteConfirm(false);
     setDeleting(true);
     setDeleteResult(null);
     try {
@@ -78,14 +83,13 @@ export default function OrphanPlacesPage() {
       );
       setDeleteResult({ deleted: result.deleted });
       setSelected(new Set());
-      // Refresh data
       fetchData(page * pageSize);
     } catch {
-      /* optional: delete request failed, places remain */
+      /* optional: delete request failed */
     } finally {
       setDeleting(false);
     }
-  };
+  }
 
   const kindBadgeColor: Record<string, string> = {
     address: "#3b82f6",
@@ -383,6 +387,15 @@ export default function OrphanPlacesPage() {
           )}
         </>
       )}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete orphan places"
+        message={`Delete ${selected.size} orphan place(s)? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

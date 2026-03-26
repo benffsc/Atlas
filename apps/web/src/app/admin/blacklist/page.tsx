@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AdminSidebar } from "@/components/SidebarLayout";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface BlacklistEntry {
   id: string;
@@ -16,11 +16,7 @@ interface BlacklistEntry {
 }
 
 export default function BlacklistPage() {
-  return (
-    <AdminSidebar>
-      <BlacklistContent />
-    </AdminSidebar>
-  );
+  return <BlacklistContent />;
 }
 
 function BlacklistContent() {
@@ -32,6 +28,7 @@ function BlacklistContent() {
   const [newEntry, setNewEntry] = useState({ identifier_type: "email", identifier_norm: "", reason: "" });
   const [saving, setSaving] = useState(false);
   const { success: showSuccess, error: showError } = useToast();
+  const [pendingDelete, setPendingDelete] = useState<BlacklistEntry | null>(null);
 
   async function loadEntries() {
     try {
@@ -73,8 +70,14 @@ function BlacklistContent() {
     }
   }
 
-  async function deleteEntry(entry: BlacklistEntry) {
-    if (!confirm(`Remove "${entry.identifier_norm}" from blacklist?`)) return;
+  function deleteEntry(entry: BlacklistEntry) {
+    setPendingDelete(entry);
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const entry = pendingDelete;
+    setPendingDelete(null);
     try {
       await postApi(`/api/admin/blacklist?id=${entry.id}`, {}, { method: "DELETE" });
       await loadEntries();
@@ -184,6 +187,16 @@ function BlacklistContent() {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Remove from blacklist"
+        message={`Remove "${pendingDelete?.identifier_norm}" from blacklist?`}
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
