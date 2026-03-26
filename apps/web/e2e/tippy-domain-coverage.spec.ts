@@ -20,7 +20,6 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { askTippyAuthenticated } from "./helpers/auth-api";
 import {
   VOICEMAIL_TRIAGE_QUESTIONS,
   LOST_CAT_QUESTIONS,
@@ -39,28 +38,35 @@ import {
   validateDomainResponse,
   type DomainQuestion,
 } from "./fixtures/tippy-domain-coverage";
-import { mockTippyAPI, mockTippyWithToolResult } from "./helpers/auth-api";
+import { mockTippyWithToolResult } from "./helpers/auth-api";
+import { createTippyLogger } from "./helpers/tippy-result-logger";
 
-// Helper: run a domain question test against real API
+const logger = createTippyLogger("tippy-domain-coverage");
+
+// Helper: run a domain question test against real API with full logging
 async function runDomainTest(
   page: import("@playwright/test").Page,
   question: DomainQuestion
 ) {
-  const response = await askTippyAuthenticated(page, question.question);
+  const result = await logger.askAndLog(page, question.question, {
+    testName: question.id,
+  });
 
-  expect(response.message).toBeTruthy();
+  expect(result.responseText).toBeTruthy();
 
-  const { pass, reasons } = validateDomainResponse(question, response.message);
+  const { pass, reasons } = validateDomainResponse(question, result.responseText);
 
   if (!pass) {
     console.log(`[${question.id}] VALIDATION ISSUES:`);
     reasons.forEach((r) => console.log(`  - ${r}`));
-    console.log(`  Response excerpt: ${response.message.substring(0, 200)}`);
+    console.log(`  Response (${result.responseTimeMs}ms): ${result.responseText.substring(0, 300)}`);
+  } else {
+    console.log(`[${question.id}] PASS (${result.responseTimeMs}ms) — ${result.responseText.substring(0, 100)}...`);
   }
 
   // Soft validation: log issues but only fail on hard errors
-  expect(response.message.length).toBeGreaterThan(20);
-  expect(response.message.toLowerCase()).not.toMatch(
+  expect(result.responseText.length).toBeGreaterThan(20);
+  expect(result.responseText.toLowerCase()).not.toMatch(
     /error|exception|crash|500/i
   );
 }
