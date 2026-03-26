@@ -9,6 +9,7 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "@/styles/map.css";
 import { useMapData } from "@/hooks/useMapData";
 import { fetchApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 import { formatRelativeTime } from "@/lib/formatters";
 import {
   createPinMarker,
@@ -23,6 +24,7 @@ import {
 import { useMapColors } from "@/hooks/useMapColors";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
+import { MAP_COLORS } from "@/lib/map-colors";
 import {
   buildPlacePopup,
   buildGooglePinPopup,
@@ -50,7 +52,9 @@ import {
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type { TextSearchResult } from "@/components/map/types";
 import { decodePolyline } from "@/lib/polyline";
+import { exportPinsToCsv, exportPinsToGeoJson } from "@/lib/map-export";
 import { GroupedLayerControl, type LayerGroup } from "@/components/map/GroupedLayerControl";
+import { useHeatmapLayer } from "@/components/map/hooks/useHeatmapLayer";
 import type {
   Place,
   GooglePin,
@@ -88,6 +92,8 @@ function useIsMobile(breakpoint = 768) {
 const ATLAS_SUB_LAYER_IDS = ["atlas_all", "atlas_disease", "atlas_watch", "atlas_needs_tnr", "atlas_needs_trapper"] as const;
 /** Disease filter layer IDs */
 const DISEASE_FILTER_IDS = ["dis_felv", "dis_fiv", "dis_ringworm", "dis_heartworm", "dis_panleuk"] as const;
+/** Heatmap layer IDs — client-side only, use atlasPins data */
+const HEATMAP_LAYER_IDS = ["heatmap_density", "heatmap_disease"] as const;
 
 /** Grouped layer definitions for the full Atlas map */
 const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
@@ -95,41 +101,53 @@ const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
     id: "atlas_data",
     label: "Atlas Data",
     icon: "\u{1F4CD}",
-    color: "#3b82f6",
+    color: MAP_COLORS.layers.places,
     defaultExpanded: true,
     exclusive: true,
     children: [
-      { id: "atlas_all", label: "All Places", color: "#3b82f6", defaultEnabled: true },
-      { id: "atlas_disease", label: "Disease Risk", color: "#ea580c", defaultEnabled: false },
-      { id: "atlas_watch", label: "Watch List", color: "#8b5cf6", defaultEnabled: false },
-      { id: "atlas_needs_tnr", label: "Needs TNR", color: "#dc2626", defaultEnabled: false },
-      { id: "atlas_needs_trapper", label: "Needs Trapper", color: "#f97316", defaultEnabled: false },
+      { id: "atlas_all", label: "All Places", color: MAP_COLORS.layers.places, defaultEnabled: true },
+      { id: "atlas_disease", label: "Disease Risk", color: MAP_COLORS.pinStyle.disease, defaultEnabled: false },
+      { id: "atlas_watch", label: "Watch List", color: MAP_COLORS.pinStyle.watch_list, defaultEnabled: false },
+      { id: "atlas_needs_tnr", label: "Needs TNR", color: MAP_COLORS.priority.critical, defaultEnabled: false },
+      { id: "atlas_needs_trapper", label: "Needs Trapper", color: MAP_COLORS.priority.high, defaultEnabled: false },
     ],
   },
   {
     id: "disease_filter",
     label: "Disease Filter",
     icon: "\u{1F9A0}",
-    color: "#ea580c",
+    color: MAP_COLORS.pinStyle.disease,
     defaultExpanded: true,
     children: [
-      { id: "dis_felv", label: "FeLV", color: "#dc2626", defaultEnabled: false },
-      { id: "dis_fiv", label: "FIV", color: "#ea580c", defaultEnabled: false },
-      { id: "dis_ringworm", label: "Ringworm", color: "#ca8a04", defaultEnabled: false },
-      { id: "dis_heartworm", label: "Heartworm", color: "#7c3aed", defaultEnabled: false },
-      { id: "dis_panleuk", label: "Panleukopenia", color: "#be185d", defaultEnabled: false },
+      { id: "dis_felv", label: "FeLV", color: MAP_COLORS.disease.felv, defaultEnabled: false },
+      { id: "dis_fiv", label: "FIV", color: MAP_COLORS.disease.fiv, defaultEnabled: false },
+      { id: "dis_ringworm", label: "Ringworm", color: MAP_COLORS.disease.ringworm, defaultEnabled: false },
+      { id: "dis_heartworm", label: "Heartworm", color: MAP_COLORS.disease.heartworm, defaultEnabled: false },
+      { id: "dis_panleuk", label: "Panleukopenia", color: MAP_COLORS.disease.panleukopenia, defaultEnabled: false },
+    ],
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    icon: "\u{1F525}",
+    color: MAP_COLORS.priority.high,
+    defaultExpanded: false,
+    exclusive: true,
+    children: [
+      { id: "heatmap_density", label: "Cat Density Heatmap", color: "#f03b20", defaultEnabled: false },
+      { id: "heatmap_disease", label: "Disease Heatmap", color: "#e31a1c", defaultEnabled: false },
     ],
   },
   {
     id: "operational",
     label: "Operational",
     icon: "\u{1F4CA}",
-    color: "#10b981",
+    color: MAP_COLORS.layers.zones,
     defaultExpanded: false,
     children: [
-      { id: "zones", label: "Observation Zones", color: "#10b981", defaultEnabled: false },
+      { id: "zones", label: "Observation Zones", color: MAP_COLORS.layers.zones, defaultEnabled: false },
       { id: "volunteers", label: "Volunteers", color: "#FFD700", defaultEnabled: false },
-      { id: "clinic_clients", label: "Clinic Clients", color: "#8b5cf6", defaultEnabled: false },
+      { id: "clinic_clients", label: "Clinic Clients", color: MAP_COLORS.layers.clinic_clients, defaultEnabled: false },
       { id: "trapper_territories", label: "Trapper Coverage", color: "#0ea5e9", defaultEnabled: false },
     ],
   },
@@ -137,14 +155,14 @@ const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
     id: "historical",
     label: "Historical",
     icon: "\u{1F4DC}",
-    color: "#9333ea",
+    color: MAP_COLORS.layers.volunteers,
     defaultExpanded: false,
     children: [
-      { id: "places", label: "Cat Locations", color: "#3b82f6", defaultEnabled: false },
-      { id: "google_pins", label: "Google Pins", color: "#f59e0b", defaultEnabled: false },
-      { id: "tnr_priority", label: "TNR Priority", color: "#dc2626", defaultEnabled: false },
-      { id: "historical_sources", label: "Historical Sources", color: "#9333ea", defaultEnabled: false },
-      { id: "data_coverage", label: "Data Coverage", color: "#059669", defaultEnabled: false },
+      { id: "places", label: "Cat Locations", color: MAP_COLORS.layers.places, defaultEnabled: false },
+      { id: "google_pins", label: "Google Pins", color: MAP_COLORS.layers.google_pins, defaultEnabled: false },
+      { id: "tnr_priority", label: "TNR Priority", color: MAP_COLORS.layers.tnr_priority, defaultEnabled: false },
+      { id: "historical_sources", label: "Historical Sources", color: MAP_COLORS.layers.historical_sources, defaultEnabled: false },
+      { id: "data_coverage", label: "Data Coverage", color: MAP_COLORS.layers.data_coverage, defaultEnabled: false },
     ],
   },
 ];
@@ -192,6 +210,7 @@ function serializeAtlasLayers(enabledLayers: Record<string, boolean>): string | 
 }
 
 function AtlasMapInner() {
+  const { addToast } = useToast();
   const isMobile = useIsMobile();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -399,6 +418,16 @@ function AtlasMapInner() {
   // Measurement tool hook
   const measurement = useMeasurement({ mapRef, isActive: measureActive });
 
+  // Heatmap layer hook — uses atlasPins data
+  const heatmapEnabled = !!(enabledLayers.heatmap_density || enabledLayers.heatmap_disease);
+  const heatmapMode = enabledLayers.heatmap_disease ? "disease" as const : "density" as const;
+  useHeatmapLayer({
+    map: mapRef.current,
+    pins: atlasPins,
+    enabled: heatmapEnabled,
+    mode: heatmapMode,
+  });
+
   // Measurement and addPointMode are mutually exclusive
   const handleMeasureToggle = useCallback(() => {
     setMeasureActive(prev => {
@@ -425,7 +454,7 @@ function AtlasMapInner() {
 
     const polyline = L.polyline(
       routePolyline.map(p => [p.lat, p.lng] as L.LatLngExpression),
-      { color: "#3b82f6", weight: 4, opacity: 0.8 }
+      { color: MAP_COLORS.layers.places, weight: 4, opacity: 0.8 }
     );
     polyline.addTo(mapRef.current);
     routeLayerRef.current = polyline;
@@ -528,7 +557,7 @@ function AtlasMapInner() {
     // Add cone marker (blue dot)
     const coneMarker = L.circleMarker([conePos.lat, conePos.lng], {
       radius: 6,
-      fillColor: "#3b82f6",
+      fillColor: MAP_COLORS.layers.places,
       fillOpacity: 1,
       color: "white",
       weight: 2,
@@ -542,12 +571,8 @@ function AtlasMapInner() {
       const dLat = Math.abs(p.lat - conePos.lat);
       const dLng = Math.abs(p.lng - conePos.lng);
       if (dLat < MINI_RADIUS && dLng < MINI_RADIUS) {
-        const dotColor = p.pin_style === "disease" ? "#ea580c"
-          : p.pin_style === "watch_list" ? "#8b5cf6"
-          : p.pin_style === "active" ? "#22c55e"
-          : p.pin_style === "active_requests" ? "#14b8a6"
-          : p.pin_style === "has_history" ? "#6366f1"
-          : "#94a3b8";
+        const dotColor = MAP_COLORS.pinStyle[p.pin_style as keyof typeof MAP_COLORS.pinStyle]
+          ?? MAP_COLORS.pinStyle.minimal;
         L.circleMarker([p.lat, p.lng], {
           radius: 4,
           fillColor: dotColor,
@@ -605,6 +630,21 @@ function AtlasMapInner() {
       document.exitFullscreen().catch(console.error);
     }
   }, []);
+
+  // Export handlers — export the currently visible atlasPins
+  const activeFilterName = useMemo(() => {
+    if (riskFilter !== "all") return riskFilter;
+    if (diseaseFilter.length > 0) return diseaseFilter.join("_");
+    return undefined;
+  }, [riskFilter, diseaseFilter]);
+
+  const handleExportCsv = useCallback(() => {
+    exportPinsToCsv(atlasPins, activeFilterName);
+  }, [atlasPins, activeFilterName]);
+
+  const handleExportGeoJson = useCallback(() => {
+    exportPinsToGeoJson(atlasPins, activeFilterName);
+  }, [atlasPins, activeFilterName]);
 
   // Keep cone-only ref in sync with state
   useEffect(() => { streetViewConeOnlyRef.current = streetViewConeOnly; }, [streetViewConeOnly]);
@@ -731,6 +771,9 @@ function AtlasMapInner() {
         apiLayers.add("atlas_pins");
       } else if ((DISEASE_FILTER_IDS as readonly string[]).includes(id)) {
         // Disease filter IDs are client-side only, not API layers
+      } else if ((HEATMAP_LAYER_IDS as readonly string[]).includes(id)) {
+        // Heatmap layers use atlasPins data — ensure it's fetched
+        apiLayers.add("atlas_pins");
       } else {
         apiLayers.add(id);
       }
@@ -1154,17 +1197,8 @@ function AtlasMapInner() {
 
     const layer = L.layerGroup();
 
-    // Color by trapper_type
-    const typeColors: Record<string, string> = {
-      ffsc_volunteer: "#3b82f6",   // blue
-      ffsc_staff: "#3b82f6",       // blue
-      ffsc_trapper: "#3b82f6",     // blue
-      coordinator: "#3b82f6",      // blue
-      head_trapper: "#3b82f6",     // blue
-      community_trapper: "#d97706", // amber
-      rescue_operator: "#8b5cf6",  // purple
-      colony_caretaker: "#059669", // green
-    };
+    // Color by trapper_type (spread from MAP_COLORS to get a mutable Record<string, string>)
+    const typeColors: Record<string, string> = { ...MAP_COLORS.trapperType };
 
     // Size by service_type
     const typeSizes: Record<string, number> = {
@@ -1177,7 +1211,7 @@ function AtlasMapInner() {
     trapperTerritories.forEach((t) => {
       if (!t.lat || !t.lng) return;
 
-      const color = typeColors[t.trapper_type] || "#6b7280";
+      const color = typeColors[t.trapper_type] || MAP_COLORS.trapperType.unknown;
       const size = typeSizes[t.service_type] || 14;
       const isPrimary = t.service_type === "primary_territory";
 
@@ -1189,8 +1223,8 @@ function AtlasMapInner() {
 
       const availLabel = t.availability_status === "available" ? "Available"
         : t.availability_status === "busy" ? "Busy" : "On Leave";
-      const availColor = t.availability_status === "available" ? "#16a34a"
-        : t.availability_status === "busy" ? "#d97706" : "#6b7280";
+      const availColor = t.availability_status === "available" ? MAP_COLORS.priority.managed
+        : t.availability_status === "busy" ? MAP_COLORS.trapperType.community_trapper : MAP_COLORS.priority.unknown;
 
       const serviceLabel = t.service_type === "primary_territory" ? "Primary Territory"
         : t.service_type === "regular" ? "Regular"
@@ -1265,7 +1299,7 @@ function AtlasMapInner() {
     historicalSources.forEach((source) => {
       if (!source.lat || !source.lng) return;
 
-      const color = source.display_color || "#9333ea";
+      const color = source.display_color || MAP_COLORS.layers.volunteers;
       const size = source.peak_cat_count && source.peak_cat_count > 50 ? 32 :
                    source.peak_cat_count && source.peak_cat_count > 20 ? 28 : 24;
 
@@ -1345,16 +1379,16 @@ function AtlasMapInner() {
     // Create a simple info panel showing coverage by zone
     // Since we don't have zone polygons, we'll display as text overlay
     const coverageColors: Record<string, string> = {
-      rich: "#059669",      // Green
-      moderate: "#0891b2",  // Cyan
-      sparse: "#f59e0b",    // Amber
-      gap: "#dc2626",       // Red
+      rich: MAP_COLORS.coverage.rich,
+      moderate: MAP_COLORS.coverage.moderate,
+      sparse: MAP_COLORS.coverage.sparse,
+      gap: MAP_COLORS.coverage.gap,
     };
 
     // For now, add a text marker at the map center showing coverage summary
     // In the future, this could use actual zone polygons
     dataCoverage.forEach((zone) => {
-      const color = coverageColors[zone.coverage_level] || "#6b7280";
+      const color = coverageColors[zone.coverage_level] || MAP_COLORS.priority.unknown;
       const totalPoints = zone.google_maps_entries + zone.airtable_requests +
                           zone.clinic_appointments + zone.intake_submissions;
 
@@ -1379,7 +1413,7 @@ function AtlasMapInner() {
         let html = `<div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">📊 Data Coverage by Zone</div>`;
 
         dataCoverage.forEach((zone) => {
-          const color = coverageColors[zone.coverage_level] || "#6b7280";
+          const color = coverageColors[zone.coverage_level] || MAP_COLORS.priority.unknown;
           const totalPoints = zone.google_maps_entries + zone.airtable_requests +
                               zone.clinic_appointments + zone.intake_submissions;
           html += `
@@ -1467,16 +1501,16 @@ function AtlasMapInner() {
           const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
           const dim = sizeClass === "small" ? 32 : sizeClass === "medium" ? 40 : 50;
 
-          let clusterColor = "#3b82f6";
+          let clusterColor = MAP_COLORS.layers.places;
           let badge = "";
           if (diseaseRatio > 0.5) {
-            clusterColor = "#ea580c";
+            clusterColor = MAP_COLORS.pinStyle.disease;
           } else if (watchRatio > 0.5) {
-            clusterColor = "#8b5cf6";
+            clusterColor = MAP_COLORS.pinStyle.watch_list;
           } else if (diseaseCount > 0) {
-            badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#ea580c;border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${diseaseCount}</div>`;
+            badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:${MAP_COLORS.pinStyle.disease};border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${diseaseCount}</div>`;
           } else if (watchCount > 0) {
-            badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#8b5cf6;border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${watchCount}</div>`;
+            badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:${MAP_COLORS.pinStyle.watch_list};border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${watchCount}</div>`;
           }
 
           return L.divIcon({
@@ -1527,7 +1561,7 @@ function AtlasMapInner() {
 
       // Reference tier: smaller, muted pins → separate cluster layer
       if (pin.pin_tier === "reference") {
-        const refColor = pin.pin_style === "has_history" ? "#6366f1" : "#94a3b8";
+        const refColor = pin.pin_style === "has_history" ? MAP_COLORS.pinStyle.has_history : MAP_COLORS.pinStyle.minimal;
         const marker = L.marker([pin.lat, pin.lng], {
           icon: createReferencePinMarker(refColor, { size: 18, pinStyle: pin.pin_style }),
           diseaseRisk: pin.disease_risk,
@@ -1586,27 +1620,27 @@ function AtlasMapInner() {
 
       switch (pin.pin_style) {
         case "disease":
-          color = "#ea580c";
+          color = MAP_COLORS.pinStyle.disease;
           size = 32;
           break;
         case "watch_list":
-          color = "#8b5cf6";
+          color = MAP_COLORS.pinStyle.watch_list;
           size = 30;
           break;
         case "active":
-          color = "#22c55e";
+          color = MAP_COLORS.pinStyle.active;
           size = 28;
           break;
         case "active_requests":
-          color = "#14b8a6";
+          color = MAP_COLORS.pinStyle.active_requests;
           size = 26;
           break;
         case "has_history":
-          color = "#6366f1";
+          color = MAP_COLORS.pinStyle.has_history;
           size = 26;
           break;
         default:
-          color = "#3b82f6";
+          color = MAP_COLORS.pinStyle.default;
           size = 24;
       }
 
@@ -1617,9 +1651,17 @@ function AtlasMapInner() {
       );
 
       // Build disease badge data for sub-icons
+      // Filter out historical badges AND badges where last positive test was >36 months ago
       const diseaseBadges = Array.isArray(pin.disease_badges)
         ? pin.disease_badges
-            .filter((b: { status: string }) => b.status !== 'historical')
+            .filter((b: { status: string; last_positive: string | null }) => {
+              if (b.status === 'historical') return false;
+              if (b.last_positive) {
+                const monthsAgo = (Date.now() - new Date(b.last_positive).getTime()) / (1000 * 60 * 60 * 24 * 30);
+                if (monthsAgo > 36) return false;
+              }
+              return true;
+            })
             .map((b: { short_code: string; color: string }) => ({ short_code: b.short_code, color: b.color }))
         : [];
 
@@ -2226,7 +2268,7 @@ function AtlasMapInner() {
 
   const handleMyLocation = () => {
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser");
+      addToast({ type: "error", message: "Geolocation is not supported by your browser" });
       return;
     }
     setLocatingUser(true);
@@ -2253,7 +2295,7 @@ function AtlasMapInner() {
       },
       (error) => {
         setLocatingUser(false);
-        alert(`Unable to get location: ${error.message}`);
+        addToast({ type: "error", message: `Unable to get location: ${error.message}` });
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -2640,7 +2682,7 @@ function AtlasMapInner() {
               borderRadius: 6,
               transition: "background 0.15s",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#f3f4f6")}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
             <span style={{ fontSize: 16, lineHeight: 1 }}>←</span>
@@ -2693,7 +2735,7 @@ function AtlasMapInner() {
                   padding: "8px 16px 4px",
                   fontSize: 11,
                   fontWeight: 600,
-                  color: "#6b7280",
+                  color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   background: "var(--section-bg)",
@@ -2710,20 +2752,20 @@ function AtlasMapInner() {
                     style={{
                       padding: "12px 16px",
                       cursor: "pointer",
-                      borderBottom: "1px solid #f3f4f6",
+                      borderBottom: "1px solid var(--border-default)",
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f0fdf4")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--healthy-bg)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "var(--background)")}
                   >
                     <span style={{ fontSize: 16 }}>
                       {result.type === "place" ? "🐱" : result.type === "google_pin" ? "📍" : "⭐"}
                     </span>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 500, fontSize: 14 }}>{result.label}</div>
-                      <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
                         {result.type === "place" ? "Colony Site" : result.type === "google_pin" ? "Historical Pin" : "Volunteer"}
                       </div>
                     </div>
@@ -2734,15 +2776,15 @@ function AtlasMapInner() {
                           setStreetViewCoords({ lat: result.item.lat, lng: result.item.lng, address: result.label });
                           setSearchQuery("");
                         }}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", fontSize: 14, color: "#6b7280", borderRadius: 4 }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", fontSize: 14, color: "var(--text-secondary)", borderRadius: 4 }}
                         title="Street View"
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#92400e")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#6b7280")}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--warning-text)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
                       >
                         📷
                       </button>
                     )}
-                    <span style={{ fontSize: 10, color: "#10b981", fontWeight: 500 }}>LOADED</span>
+                    <span style={{ fontSize: 10, color: MAP_COLORS.layers.zones, fontWeight: 500 }}>LOADED</span>
                   </div>
                 ))}
 
@@ -2754,13 +2796,13 @@ function AtlasMapInner() {
                     style={{
                       padding: "12px 16px",
                       cursor: "pointer",
-                      borderBottom: "1px solid #f3f4f6",
+                      borderBottom: "1px solid var(--border-default)",
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#eff6ff")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--info-bg)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "var(--background)")}
                   >
                     <span style={{ fontSize: 16 }}>
                       {result.entity_type === "person" ? "👤" : result.entity_type === "cat" ? "🐱" : "📍"}
@@ -2768,7 +2810,7 @@ function AtlasMapInner() {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 500, fontSize: 14 }}>{result.display_name}</div>
                       {result.subtitle && (
-                        <div style={{ fontSize: 12, color: "#6b7280" }}>{result.subtitle}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{result.subtitle}</div>
                       )}
                     </div>
                     {result.metadata?.lat && result.metadata?.lng && (
@@ -2778,17 +2820,17 @@ function AtlasMapInner() {
                           setStreetViewCoords({ lat: result.metadata!.lat!, lng: result.metadata!.lng!, address: result.display_name });
                           setSearchQuery("");
                         }}
-                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", fontSize: 14, color: "#6b7280", borderRadius: 4 }}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", fontSize: 14, color: "var(--text-secondary)", borderRadius: 4 }}
                         title="Street View"
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#92400e")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#6b7280")}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--warning-text)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-secondary)")}
                       >
                         📷
                       </button>
                     )}
                     <span style={{
                       fontSize: 10,
-                      color: result.metadata?.lat ? "#3b82f6" : "#9ca3af",
+                      color: result.metadata?.lat ? "var(--primary)" : "var(--text-tertiary)",
                       fontWeight: 500,
                     }}>
                       {result.entity_type === "person" ? "PERSON" : result.entity_type === "cat" ? "CAT" : "PLACE"}
@@ -2806,7 +2848,7 @@ function AtlasMapInner() {
                   padding: "8px 16px 4px",
                   fontSize: 11,
                   fontWeight: 600,
-                  color: "#6b7280",
+                  color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   background: "var(--section-bg)",
@@ -2822,20 +2864,20 @@ function AtlasMapInner() {
                     style={{
                       padding: "12px 16px",
                       cursor: "pointer",
-                      borderBottom: "1px solid #f3f4f6",
+                      borderBottom: "1px solid var(--border-default)",
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f9ff")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--info-bg)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "var(--background)")}
                   >
                     <span style={{ fontSize: 16 }}>🏪</span>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 500, fontSize: 14 }}>{result.name}</div>
-                      <div style={{ fontSize: 12, color: "#6b7280" }}>{result.formatted_address}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{result.formatted_address}</div>
                     </div>
-                    <span style={{ fontSize: 10, color: "#0284c7", fontWeight: 500 }}>PLACE</span>
+                    <span style={{ fontSize: 10, color: MAP_COLORS.layers.places, fontWeight: 500 }}>PLACE</span>
                   </div>
                 ))}
               </>
@@ -2848,7 +2890,7 @@ function AtlasMapInner() {
                   padding: "8px 16px 4px",
                   fontSize: 11,
                   fontWeight: 600,
-                  color: "#6b7280",
+                  color: "var(--text-secondary)",
                   textTransform: "uppercase",
                   letterSpacing: "0.05em",
                   background: "var(--section-bg)",
@@ -2864,20 +2906,20 @@ function AtlasMapInner() {
                     style={{
                       padding: "12px 16px",
                       cursor: "pointer",
-                      borderBottom: i < googleSuggestions.length - 1 ? "1px solid #f3f4f6" : "none",
+                      borderBottom: i < googleSuggestions.length - 1 ? "1px solid var(--border-default)" : "none",
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#fef3c7")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--warning-bg)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "var(--background)")}
                   >
                     <span style={{ fontSize: 16 }}>📍</span>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 500, fontSize: 14 }}>{suggestion.structured_formatting.main_text}</div>
-                      <div style={{ fontSize: 12, color: "#6b7280" }}>{suggestion.structured_formatting.secondary_text}</div>
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{suggestion.structured_formatting.secondary_text}</div>
                     </div>
-                    <span style={{ fontSize: 10, color: "#d97706", fontWeight: 500 }}>GOOGLE</span>
+                    <span style={{ fontSize: 10, color: MAP_COLORS.trapperType.community_trapper, fontWeight: 500 }}>GOOGLE</span>
                   </div>
                 ))}
               </>
@@ -2888,10 +2930,10 @@ function AtlasMapInner() {
               <div style={{ padding: "4px 0" }}>
                 {[1, 2, 3].map((n) => (
                   <div key={n} style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#e5e7eb", animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)" }} />
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--border-default)", animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, var(--border-default) 25%, var(--bg-secondary) 50%, var(--border-default) 75%)" }} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ height: 14, width: "70%", borderRadius: 4, background: "#e5e7eb", marginBottom: 4, animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)" }} />
-                      <div style={{ height: 10, width: "45%", borderRadius: 4, background: "#e5e7eb", animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)" }} />
+                      <div style={{ height: 14, width: "70%", borderRadius: 4, background: "var(--border-default)", marginBottom: 4, animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, var(--border-default) 25%, var(--bg-secondary) 50%, var(--border-default) 75%)" }} />
+                      <div style={{ height: 10, width: "45%", borderRadius: 4, background: "var(--border-default)", animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, var(--border-default) 25%, var(--bg-secondary) 50%, var(--border-default) 75%)" }} />
                     </div>
                   </div>
                 ))}
@@ -2900,7 +2942,7 @@ function AtlasMapInner() {
 
             {/* No results message */}
             {searchQuery.length >= 3 && !searchLoading && searchResults.length === 0 && atlasSearchResults.length === 0 && googleSuggestions.length === 0 && poiResults.length === 0 && (
-              <div style={{ padding: "16px", textAlign: "center", color: "#6b7280" }}>
+              <div style={{ padding: "16px", textAlign: "center", color: "var(--text-secondary)" }}>
                 <div style={{ fontSize: 14, marginBottom: 4 }}>No matches found</div>
                 <div style={{ fontSize: 12 }}>Try a different search term</div>
               </div>
@@ -2960,6 +3002,9 @@ function AtlasMapInner() {
         onFullscreenToggle={handleFullscreenToggle}
         onZoomIn={() => mapRef.current?.zoomIn()}
         onZoomOut={() => mapRef.current?.zoomOut()}
+        onExportCsv={handleExportCsv}
+        onExportGeoJson={handleExportGeoJson}
+        exportPinCount={atlasPins.length}
       />
 
       {/* Layer panel */}
@@ -3013,7 +3058,7 @@ function AtlasMapInner() {
           {/* Legend */}
           {(atlasLayerEnabled || enabledLayers.google_pins || enabledLayers.tnr_priority || enabledLayers.historical_sources) && (
             <div style={{ padding: 16, borderTop: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: "#6b7280", marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 8 }}>
                 Legend
               </div>
 
@@ -3022,11 +3067,11 @@ function AtlasMapInner() {
                   <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Atlas Data Pins</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {[
-                      { label: "Disease Risk", color: "#ea580c" },
-                      { label: "Watch List", color: "#8b5cf6" },
-                      { label: "Active Colony", color: "#22c55e" },
-                      { label: "Has History", color: "#6366f1" },
-                      { label: "Minimal Data", color: "#3b82f6" },
+                      { label: "Disease Risk", color: MAP_COLORS.pinStyle.disease },
+                      { label: "Watch List", color: MAP_COLORS.pinStyle.watch_list },
+                      { label: "Active Colony", color: MAP_COLORS.pinStyle.active },
+                      { label: "Has History", color: MAP_COLORS.pinStyle.has_history },
+                      { label: "Minimal Data", color: MAP_COLORS.pinStyle.default },
                     ].map(({ label, color }) => (
                       <span key={label} style={{
                         display: "flex",
@@ -3050,10 +3095,10 @@ function AtlasMapInner() {
                   <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>AI Classifications</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {[
-                      { label: "Disease Risk", color: "#FF0000" },
-                      { label: "Watch List", color: "#FF6600" },
-                      { label: "Volunteer", color: "#FFD700" },
-                      { label: "Active Colony", color: "#00AA00" },
+                      { label: "Disease Risk", color: MAP_COLORS.classification.disease_risk },
+                      { label: "Watch List", color: MAP_COLORS.classification.watch_list },
+                      { label: "Volunteer", color: MAP_COLORS.classification.volunteer },
+                      { label: "Active Colony", color: MAP_COLORS.classification.active_colony },
                     ].map(({ label, color }) => (
                       <span key={label} style={{
                         display: "flex",
@@ -3077,9 +3122,9 @@ function AtlasMapInner() {
                   <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>TNR Priority</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {[
-                      { label: "Critical", color: "#dc2626" },
-                      { label: "High", color: "#ea580c" },
-                      { label: "Medium", color: "#ca8a04" },
+                      { label: "Critical", color: MAP_COLORS.priority.critical },
+                      { label: "High", color: MAP_COLORS.priority.high },
+                      { label: "Medium", color: MAP_COLORS.priority.medium },
                     ].map(({ label, color }) => (
                       <span key={label} style={{
                         display: "flex",
@@ -3103,10 +3148,10 @@ function AtlasMapInner() {
                   <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 4 }}>Historical Conditions</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {[
-                      { label: "Hoarding", color: "#9333ea" },
-                      { label: "Breeding Crisis", color: "#dc2626" },
-                      { label: "Disease Outbreak", color: "#ef4444" },
-                      { label: "Resolved", color: "#10b981" },
+                      { label: "Hoarding", color: MAP_COLORS.layers.volunteers },
+                      { label: "Breeding Crisis", color: MAP_COLORS.priority.critical },
+                      { label: "Disease Outbreak", color: MAP_COLORS.annotationType.hazard },
+                      { label: "Resolved", color: MAP_COLORS.layers.zones },
                     ].map(({ label, color }) => (
                       <span key={label} style={{
                         display: "flex",
@@ -3122,7 +3167,7 @@ function AtlasMapInner() {
                       </span>
                     ))}
                   </div>
-                  <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 6 }}>
+                  <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6 }}>
                     Opacity indicates recency (fainter = older)
                   </div>
                 </div>
@@ -3151,13 +3196,13 @@ function AtlasMapInner() {
             <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text-secondary)" }}>
               {summary.total_places.toLocaleString()}
             </div>
-            <div style={{ fontSize: 11, color: "#6b7280" }}>Total Places</div>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Total Places</div>
           </div>
           <div style={{ borderLeft: "1px solid #e5e7eb", paddingLeft: 24 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text-secondary)" }}>
               {summary.total_cats.toLocaleString()}
             </div>
-            <div style={{ fontSize: 11, color: "#6b7280" }}>Cats Linked</div>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>Cats Linked</div>
           </div>
         </div>
       )}
@@ -3170,8 +3215,8 @@ function AtlasMapInner() {
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: MAP_Z_INDEX.notification,
-          background: "#2563eb",
-          color: "white",
+          background: "var(--primary)",
+          color: "var(--primary-foreground)",
           padding: "10px 20px",
           borderRadius: 8,
           boxShadow: "0 4px 12px rgba(37,99,235,0.3)",
@@ -3234,8 +3279,8 @@ function AtlasMapInner() {
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          background: "#fef2f2",
-          color: "#b91c1c",
+          background: "var(--danger-bg)",
+          color: "var(--danger-text)",
           padding: "16px 24px",
           borderRadius: 12,
           zIndex: MAP_Z_INDEX.notification,
@@ -3255,7 +3300,7 @@ function AtlasMapInner() {
         boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
         padding: "6px 10px",
         fontSize: 10,
-        color: "#9ca3af",
+        color: "var(--text-tertiary)",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
       }}>
         <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>/</kbd> search

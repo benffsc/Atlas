@@ -12,6 +12,8 @@
 // Hooks
 export { useMapSearch } from "./hooks/useMapSearch";
 export { useStreetView } from "./hooks/useStreetView";
+export { useMeasurement, formatDistance } from "./hooks/useMeasurement";
+export { useHeatmapLayer } from "./hooks/useHeatmapLayer";
 export {
   useMapClustering,
   isCluster,
@@ -48,6 +50,7 @@ export type {
   DataFilter,
   StreetViewState,
   SearchState,
+  TextSearchResult,
 } from "./types";
 
 // Constants

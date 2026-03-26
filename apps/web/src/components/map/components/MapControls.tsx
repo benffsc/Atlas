@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
 
 /**
@@ -9,7 +10,8 @@ import { MAP_Z_INDEX } from "@/lib/design-tokens";
  * - Layer toggle button
  * - Add Point button with menu
  * - My Location button
- * - Satellite toggle
+ * - Measure distance tool
+ * - Basemap selector (Street / Google / Satellite)
  * - Zoom controls
  */
 
@@ -46,6 +48,13 @@ const LoadingIcon = () => (
   </svg>
 );
 
+const RulerIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z" />
+    <path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" />
+  </svg>
+);
+
 const SatelliteIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20" /><path d="M12 2a14.5 14.5 0 0 1 0 20" /><line x1="2" y1="12" x2="22" y2="12" />
@@ -56,6 +65,14 @@ const MapIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
     <line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" />
+  </svg>
+);
+
+const GoogleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
   </svg>
 );
 
@@ -73,6 +90,14 @@ const CollapseIcon = () => (
   </svg>
 );
 
+const DownloadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
 const PlacePinIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
@@ -86,6 +111,8 @@ const NoteIcon = () => (
   </svg>
 );
 
+export type BasemapType = "street" | "google" | "satellite";
+
 interface MapControlsProps {
   isMobile: boolean;
   showLayerPanel: boolean;
@@ -96,12 +123,17 @@ interface MapControlsProps {
   onShowAddPointMenuChange: (show: boolean) => void;
   locatingUser: boolean;
   onMyLocation: () => void;
-  isSatellite: boolean;
-  onSatelliteToggle: () => void;
+  basemap: BasemapType;
+  onBasemapChange: (basemap: BasemapType) => void;
+  measureActive: boolean;
+  onMeasureToggle: () => void;
   isFullscreen: boolean;
   onFullscreenToggle: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onExportCsv?: () => void;
+  onExportGeoJson?: () => void;
+  exportPinCount?: number;
 }
 
 export function MapControls({
@@ -114,13 +146,21 @@ export function MapControls({
   onShowAddPointMenuChange,
   locatingUser,
   onMyLocation,
-  isSatellite,
-  onSatelliteToggle,
+  basemap,
+  onBasemapChange,
+  measureActive,
+  onMeasureToggle,
   isFullscreen,
   onFullscreenToggle,
   onZoomIn,
   onZoomOut,
+  onExportCsv,
+  onExportGeoJson,
+  exportPinCount,
 }: MapControlsProps) {
+  const [showBasemapMenu, setShowBasemapMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
   const handleAddPointClick = () => {
     if (addPointMode) {
       onAddPointModeChange(null);
@@ -129,6 +169,12 @@ export function MapControls({
       onShowAddPointMenuChange(!showAddPointMenu);
     }
   };
+
+  const basemapOptions: Array<{ type: BasemapType; label: string; icon: React.ReactNode }> = [
+    { type: "street", label: "Street", icon: <MapIcon /> },
+    { type: "google", label: "Google Maps", icon: <GoogleIcon /> },
+    { type: "satellite", label: "Satellite", icon: <SatelliteIcon /> },
+  ];
 
   return (
     <div
@@ -203,17 +249,81 @@ export function MapControls({
         {!isMobile && (locatingUser ? "Locating..." : "My Location")}
       </button>
 
-      {/* Satellite toggle */}
+      {/* Measure button */}
       <button
-        onClick={onSatelliteToggle}
-        title={isSatellite ? "Map view" : "Satellite view"}
-        className={`map-control-btn ${
-          isSatellite ? "map-control-btn--active" : ""
-        }`}
+        onClick={onMeasureToggle}
+        title="Measure distance (D)"
+        className={`map-control-btn ${measureActive ? "map-control-btn--active" : ""}`}
       >
-        {isSatellite ? <MapIcon /> : <SatelliteIcon />}
-        {!isMobile && (isSatellite ? "Map" : "Satellite")}
+        <RulerIcon />
+        {!isMobile && (measureActive ? "Stop" : "Measure")}
       </button>
+
+      {/* Export button */}
+      {onExportCsv && (
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            title="Export visible data (E)"
+            className="map-control-btn"
+          >
+            <DownloadIcon />
+            {!isMobile && "Export"}
+          </button>
+          {showExportMenu && (
+            <div className="map-basemap-menu">
+              <button
+                onClick={() => {
+                  onExportCsv();
+                  setShowExportMenu(false);
+                }}
+                className="map-basemap-menu__item"
+              >
+                CSV{exportPinCount != null && ` (${exportPinCount.toLocaleString()} rows)`}
+              </button>
+              {onExportGeoJson && (
+                <button
+                  onClick={() => {
+                    onExportGeoJson();
+                    setShowExportMenu(false);
+                  }}
+                  className="map-basemap-menu__item"
+                >
+                  GeoJSON
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Basemap selector */}
+      <div style={{ position: "relative" }}>
+        <button
+          onClick={() => setShowBasemapMenu(!showBasemapMenu)}
+          title="Change basemap"
+          className={`map-control-btn ${basemap !== "street" ? "map-control-btn--active" : ""}`}
+        >
+          {basemap === "satellite" ? <SatelliteIcon /> : basemap === "google" ? <GoogleIcon /> : <MapIcon />}
+          {!isMobile && (basemap === "street" ? "Basemap" : basemap === "google" ? "Google" : "Satellite")}
+        </button>
+        {showBasemapMenu && (
+          <div className="map-basemap-menu">
+            {basemapOptions.map(({ type, label, icon }) => (
+              <button
+                key={type}
+                onClick={() => {
+                  onBasemapChange(type);
+                  setShowBasemapMenu(false);
+                }}
+                className={`map-basemap-menu__item ${basemap === type ? "map-basemap-menu__item--active" : ""}`}
+              >
+                {icon} {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Fullscreen toggle */}
       <button
