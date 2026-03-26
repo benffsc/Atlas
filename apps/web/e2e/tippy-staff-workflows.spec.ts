@@ -179,44 +179,7 @@ test.describe("Tippy Response Quality @real-api", () => {
 });
 
 test.describe("Tippy Edge Cases @real-api", () => {
-  test("handles future date queries gracefully", async ({ request }) => {
-    const result = await askTippy(
-      request,
-      "How many fosters will we have in 2027?"
-    );
-
-    const text = result.message.toLowerCase();
-
-    // Should acknowledge it can't predict the future
-    const appropriateResponse =
-      text.includes("future") ||
-      text.includes("cannot predict") ||
-      text.includes("no data") ||
-      text.includes("haven't") ||
-      text.includes("projection");
-
-    expect(appropriateResponse).toBeTruthy();
-  });
-
-  test("handles ambiguous program names", async ({ request }) => {
-    const result = await askTippy(
-      request,
-      "How many for the special program?"
-    );
-
-    const text = result.message.toLowerCase();
-
-    // Should ask for clarification or list options
-    const asksForClarification =
-      text.includes("which") ||
-      text.includes("clarify") ||
-      text.includes("mean") ||
-      text.includes("foster") ||
-      text.includes("lmfm") ||
-      text.includes("county");
-
-    expect(asksForClarification).toBeTruthy();
-  });
+  // Test suite audit: Removed "future date" and "ambiguous program" — duplicated in complex-queries.spec.ts
 
   test("handles malformed queries", async ({ request }) => {
     const result = await askTippy(

@@ -2,22 +2,16 @@
 /**
  * Tippy Capability Tests
  *
- * These tests validate what Tippy CAN currently do today.
- * They test the working tools and ensure they continue to function.
+ * Core regression tests for Tippy's working tools.
+ * If these tests fail, something has regressed.
  *
- * If these tests fail, something has regressed in Tippy's capabilities.
+ * NOTE: Fixture-driven tests removed — cross-source.spec.ts runs those fixtures.
+ * NOTE: Person/place comprehensive lookups removed — human-questions.spec.ts covers those.
+ * See FFS-91 and test suite audit for dedup rationale.
  */
 
 import { test, expect } from "@playwright/test";
-import {
-  PERSON_CROSS_SOURCE_QUESTIONS,
-  CAT_JOURNEY_QUESTIONS,
-  PLACE_CROSS_SOURCE_QUESTIONS,
-  DATA_QUALITY_QUESTIONS,
-  BEACON_QUESTIONS,
-  type CrossSourceQuestion,
-} from "./fixtures/tippy-questions";
-import { askTippyAuthenticated, TippyResponse } from "./helpers/auth-api";
+import { askTippyAuthenticated } from "./helpers/auth-api";
 
 // ============================================================================
 // POINT-IN-TIME LOOKUP CAPABILITIES
@@ -85,105 +79,12 @@ test.describe("Tippy: Point-in-Time Lookups @real-api", () => {
   });
 });
 
-// ============================================================================
-// COMPREHENSIVE LOOKUP CAPABILITIES
-// These tools aggregate data from multiple sources
-// ============================================================================
+// FFS-91 audit: Removed comprehensive lookups — covered by human-questions.spec.ts
+// FFS-91 audit: Removed query_cat_journey — covered by cross-source.spec.ts cat journey tests
 
-test.describe("Tippy: Comprehensive Lookups @real-api", () => {
-  test("comprehensive_person_lookup works", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "Tell me everything about any person who has submitted a request"
-    );
-
-    expect(response.message).toBeTruthy();
-    expect(response.message.length).toBeGreaterThan(50);
-  });
-
-  test("comprehensive_place_lookup works", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "Tell me everything about any place that has cat activity"
-    );
-
-    expect(response.message).toBeTruthy();
-    expect(response.message.length).toBeGreaterThan(50);
-  });
-
-  test("query_cat_journey traces full history", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "Trace the journey of any cat with a microchip through our system"
-    );
-
-    expect(response.message).toBeTruthy();
-    // Should reference appointments, clinic, or microchip
-    expect(
-      response.message.toLowerCase().includes("microchip") ||
-      response.message.toLowerCase().includes("appointment") ||
-      response.message.toLowerCase().includes("clinic") ||
-      response.message.toLowerCase().includes("cat")
-    ).toBeTruthy();
-  });
-});
-
-// ============================================================================
-// DATA QUALITY TOOL CAPABILITIES
-// These help staff maintain data integrity
-// ============================================================================
-
-test.describe("Tippy: Data Quality Tools @real-api", () => {
-  test("Can check entity data quality", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "Check the data quality for any person record"
-    );
-
-    expect(response.message).toBeTruthy();
-    // Should mention quality, completeness, or missing fields
-    expect(
-      response.message.toLowerCase().includes("quality") ||
-      response.message.toLowerCase().includes("complete") ||
-      response.message.toLowerCase().includes("missing") ||
-      response.message.toLowerCase().includes("field")
-    ).toBeTruthy();
-  });
-
-  test("Can find potential duplicates", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "Are there any potential duplicate person records for the name Smith?"
-    );
-
-    expect(response.message).toBeTruthy();
-  });
-
-  test("Can query merge history", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "Show me the merge history for any merged records"
-    );
-
-    expect(response.message).toBeTruthy();
-  });
-
-  test("Can trace data lineage", async ({ page }) => {
-    const response = await askTippyAuthenticated(
-      page,
-      "Where did the data for any cat come from? What was the original source?"
-    );
-
-    expect(response.message).toBeTruthy();
-    // Should mention source system
-    expect(
-      response.message.toLowerCase().includes("source") ||
-      response.message.toLowerCase().includes("airtable") ||
-      response.message.toLowerCase().includes("clinichq") ||
-      response.message.toLowerCase().includes("origin")
-    ).toBeTruthy();
-  });
-});
+// FFS-91 audit: Removed data quality tools section (4 tests)
+// — "check entity data quality" + "find duplicates" + "merge history" → covered by cross-source data quality questions
+// — "trace data lineage" → covered by cross-source cat journey tests
 
 // ============================================================================
 // BEACON ANALYTICS CAPABILITIES
@@ -220,101 +121,9 @@ test.describe("Tippy: Beacon Analytics @real-api", () => {
   });
 });
 
-// ============================================================================
-// FIXTURE-BASED CAPABILITY TESTS
-// Run subset of fixture questions to verify capabilities
-// ============================================================================
-
-test.describe("Tippy: Person Cross-Source Questions (Easy) @real-api", () => {
-  const easyQuestions = PERSON_CROSS_SOURCE_QUESTIONS.filter(
-    (q) => q.difficulty === "easy"
-  );
-
-  for (const question of easyQuestions) {
-    test(question.id, async ({ page }) => {
-      const response = await askTippyAuthenticated(page, question.question);
-
-      expect(response.message).toBeTruthy();
-      expect(response.message.length).toBeGreaterThan(30);
-
-      // Validate using the fixture's validation function
-      const passes = question.validateResponse(response.message);
-      expect(passes).toBeTruthy();
-    });
-  }
-});
-
-test.describe("Tippy: Cat Journey Questions (Easy) @real-api", () => {
-  const easyQuestions = CAT_JOURNEY_QUESTIONS.filter(
-    (q) => q.difficulty === "easy"
-  );
-
-  for (const question of easyQuestions) {
-    test(question.id, async ({ page }) => {
-      const response = await askTippyAuthenticated(page, question.question);
-
-      expect(response.message).toBeTruthy();
-      expect(response.message.length).toBeGreaterThan(30);
-
-      const passes = question.validateResponse(response.message);
-      expect(passes).toBeTruthy();
-    });
-  }
-});
-
-test.describe("Tippy: Place Questions (Easy) @real-api", () => {
-  const easyQuestions = PLACE_CROSS_SOURCE_QUESTIONS.filter(
-    (q) => q.difficulty === "easy"
-  );
-
-  for (const question of easyQuestions) {
-    test(question.id, async ({ page }) => {
-      const response = await askTippyAuthenticated(page, question.question);
-
-      expect(response.message).toBeTruthy();
-      expect(response.message.length).toBeGreaterThan(30);
-
-      const passes = question.validateResponse(response.message);
-      expect(passes).toBeTruthy();
-    });
-  }
-});
-
-test.describe("Tippy: Data Quality Questions (Easy) @real-api", () => {
-  const easyQuestions = DATA_QUALITY_QUESTIONS.filter(
-    (q) => q.difficulty === "easy"
-  );
-
-  for (const question of easyQuestions) {
-    test(question.id, async ({ page }) => {
-      const response = await askTippyAuthenticated(page, question.question);
-
-      expect(response.message).toBeTruthy();
-      expect(response.message.length).toBeGreaterThan(30);
-
-      const passes = question.validateResponse(response.message);
-      expect(passes).toBeTruthy();
-    });
-  }
-});
-
-test.describe("Tippy: Beacon Questions (Easy) @real-api", () => {
-  const easyQuestions = BEACON_QUESTIONS.filter(
-    (q) => q.difficulty === "easy"
-  );
-
-  for (const question of easyQuestions) {
-    test(question.id, async ({ page }) => {
-      const response = await askTippyAuthenticated(page, question.question);
-
-      expect(response.message).toBeTruthy();
-      expect(response.message.length).toBeGreaterThan(30);
-
-      const passes = question.validateResponse(response.message);
-      expect(passes).toBeTruthy();
-    });
-  }
-});
+// FFS-91 audit: Removed 5 fixture-driven test blocks (Person, Cat, Place, Data Quality, Beacon easy questions)
+// These run the exact same fixture questions as tippy-cross-source.spec.ts.
+// Keeping them here doubled API costs with zero additional signal.
 
 // ============================================================================
 // CONVERSATION CONTINUITY

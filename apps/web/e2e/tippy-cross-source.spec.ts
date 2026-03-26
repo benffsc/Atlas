@@ -218,114 +218,20 @@ test.describe("Tippy Cross-Source: Place Questions @real-api", () => {
   });
 });
 
-// ============================================================================
-// DATA QUALITY TESTS (MIG_487 Functions)
-// ============================================================================
-
-test.describe("Tippy Cross-Source: Data Quality Questions @real-api", () => {
-  test("Data Quality: check_data_quality for person", async ({ page }) => {
-    const question = DATA_QUALITY_QUESTIONS.find(
-      (q) => q.id === "quality-person-check"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
-
-  test("Data Quality: check_data_quality for cat", async ({ page }) => {
-    const question = DATA_QUALITY_QUESTIONS.find(
-      (q) => q.id === "quality-cat-check"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
-
-  test("Data Quality: find_potential_duplicates", async ({ page }) => {
-    const question = DATA_QUALITY_QUESTIONS.find(
-      (q) => q.id === "quality-duplicates-person"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
-
-  // FFS-91: Removed "query_merge_history" — dup of capabilities "Can query merge history"
-
-  test("Data Quality: query_data_lineage", async ({ page }) => {
-    const question = DATA_QUALITY_QUESTIONS.find(
-      (q) => q.id === "quality-data-lineage"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
-
-  test("Data Quality: query_volunteerhub_data", async ({ page }) => {
-    const question = DATA_QUALITY_QUESTIONS.find(
-      (q) => q.id === "quality-volunteerhub-data"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
-});
+// Test suite audit: Removed Data Quality section (5 tests)
+// All data quality fixture questions are generic ("check quality for person/cat")
+// and provide minimal signal beyond confirming run_sql works.
+// Covered by: complex-queries data quality detection + accuracy-verification.
 
 // ============================================================================
 // BEACON ANALYTICS QUESTIONS (via Tippy)
 // ============================================================================
 
 test.describe("Tippy Cross-Source: Beacon Analytics Questions @real-api", () => {
-  test("Beacon: overall impact metrics", async ({ page }) => {
-    const question = BEACON_QUESTIONS.find(
-      (q) => q.id === "beacon-overall-impact"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
-
-  test("Beacon: year-over-year comparison", async ({ page }) => {
-    const question = BEACON_QUESTIONS.find(
-      (q) => q.id === "beacon-yoy-comparison"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
-
-  test("Beacon: stale estimates detection", async ({ page }) => {
-    const question = BEACON_QUESTIONS.find(
-      (q) => q.id === "beacon-stale-estimates"
-    );
-    if (!question) {
-      test.skip();
-      return;
-    }
-
-    await runCrossSourceTest(page, question);
-  });
+  // Test suite audit: Removed 3 Beacon tests overlapping capabilities/accuracy:
+  // - "overall impact" → dup of capabilities "Can query FFR impact metrics"
+  // - "yoy comparison" → dup of complex-queries "year-over-year comparison"
+  // - "stale estimates" → low signal (just checks response.length)
 
   test("Beacon: kitten surge prediction", async ({ page }) => {
     const question = BEACON_QUESTIONS.find(

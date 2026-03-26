@@ -125,6 +125,10 @@ test.describe("Tippy: Human-Style Address Questions @real-api", () => {
 
   let place: PlaceEntity | null = null;
 
+  // Test suite audit: Reduced from 6 address variants to 2.
+  // All 6 tested the same address with different phrasings — tool routing works.
+  // Keep "what do we know about" (vaguest phrasing) and "colony status" (different tool).
+
   test("What do we know about [address]?", async ({ request }) => {
     place = await getRealPlace(request);
     test.skip(!place?.formatted_address, "No places with addresses in database");
@@ -133,62 +137,6 @@ test.describe("Tippy: Human-Style Address Questions @real-api", () => {
     const { ok, message } = await askTippy(
       request,
       `what do we know about ${address}?`
-    );
-
-    expect(ok).toBeTruthy();
-    expectRealResponse(message);
-  });
-
-  test("Cats at [address]?", async ({ request }) => {
-    if (!place) place = await getRealPlace(request);
-    test.skip(!place?.formatted_address, "No places with addresses in database");
-
-    const address = place!.formatted_address!;
-    const { ok, message } = await askTippy(
-      request,
-      `cats at ${address}?`
-    );
-
-    expect(ok).toBeTruthy();
-    expectRealResponse(message);
-  });
-
-  test("What's the situation at [address]?", async ({ request }) => {
-    if (!place) place = await getRealPlace(request);
-    test.skip(!place?.formatted_address, "No places with addresses in database");
-
-    const address = place!.formatted_address!;
-    const { ok, message } = await askTippy(
-      request,
-      `what's the situation at ${address}?`
-    );
-
-    expect(ok).toBeTruthy();
-    expectRealResponse(message);
-  });
-
-  test("Any activity at [address]?", async ({ request }) => {
-    if (!place) place = await getRealPlace(request);
-    test.skip(!place?.formatted_address, "No places with addresses in database");
-
-    const address = place!.formatted_address!;
-    const { ok, message } = await askTippy(
-      request,
-      `any activity at ${address}?`
-    );
-
-    expect(ok).toBeTruthy();
-    expectRealResponse(message);
-  });
-
-  test("How many cats at [address]?", async ({ request }) => {
-    if (!place) place = await getRealPlace(request);
-    test.skip(!place?.formatted_address, "No places with addresses in database");
-
-    const address = place!.formatted_address!;
-    const { ok, message } = await askTippy(
-      request,
-      `how many cats are at ${address}?`
     );
 
     expect(ok).toBeTruthy();
@@ -219,6 +167,7 @@ test.describe("Tippy: Human-Style Person Questions @real-api", () => {
 
   let person: PersonEntity | null = null;
 
+  // Test suite audit: Reduced from 2 person variants to 1 (same entity, different phrasing)
   test("Tell me about [person name]", async ({ request }) => {
     person = await getRealPerson(request);
     test.skip(!person?.display_name, "No people with names in database");
@@ -227,20 +176,6 @@ test.describe("Tippy: Human-Style Person Questions @real-api", () => {
     const { ok, message } = await askTippy(
       request,
       `tell me about ${name}`
-    );
-
-    expect(ok).toBeTruthy();
-    expectRealResponse(message);
-  });
-
-  test("What do we know about [person name]?", async ({ request }) => {
-    if (!person) person = await getRealPerson(request);
-    test.skip(!person?.display_name, "No people with names in database");
-
-    const name = person!.display_name!;
-    const { ok, message } = await askTippy(
-      request,
-      `what do we know about ${name}?`
     );
 
     expect(ok).toBeTruthy();
