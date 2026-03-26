@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface TippyConversation {
   conversation_id: string;
@@ -449,8 +450,8 @@ export default function TippyConversationsPage() {
             </div>
 
             {loadingDetail ? (
-              <div style={{ textAlign: "center", padding: "40px", color: "var(--muted)" }}>
-                Loading...
+              <div style={{ padding: "2rem" }}>
+                <SkeletonList items={6} />
               </div>
             ) : detail ? (
               <>

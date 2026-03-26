@@ -291,7 +291,9 @@ export function TippyChat() {
     fetch('/api/tippy/briefing')
       .then(res => res.json())
       .then(data => {
-        if (data.needsBriefing) {
+        // Handle apiSuccess wrapper: { success: true, data: { needsBriefing } }
+        const payload = data?.success === true && "data" in data ? data.data : data;
+        if (payload.needsBriefing) {
           sendMessage('__shift_briefing__');
           localStorage.setItem('tippy-last-briefing', today);
         }

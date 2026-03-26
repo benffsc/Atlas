@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 export async function POST(
@@ -15,6 +16,7 @@ export async function POST(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "correction");
     // Apply the correction using the SQL function
     const result = await queryOne<{
       success: boolean;

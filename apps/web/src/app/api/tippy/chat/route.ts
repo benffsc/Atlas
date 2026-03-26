@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 import Anthropic from "@anthropic-ai/sdk";
 import { TIPPY_TOOLS, executeToolCall, ToolContext, ToolResult } from "../tools";
 import { getSession } from "@/lib/auth";
@@ -10,9 +11,14 @@ import {
   getToolsForAccessLevel as getToolsForAccessLevelPure,
   detectIntentAndForceToolChoice,
 } from "@/lib/tippy-routing";
-// Domain knowledge modules available for future integration
-// import { DOMAIN_KNOWLEDGE, TNR_SCIENCE, SONOMA_GEOGRAPHY } from "../domain-knowledge";
-// import { DATA_QUALITY, KNOWN_GAPS, CAVEATS } from "../data-quality";
+// Domain knowledge & data quality modules (FFS-757/Part 2)
+import { DOMAIN_KNOWLEDGE, TNR_SCIENCE, SONOMA_GEOGRAPHY } from "../domain-knowledge";
+import { DATA_QUALITY, KNOWN_GAPS, CAVEATS } from "../data-quality";
+
+// FFS-805: Configurable model — Haiku for CI, Sonnet for production/nightly
+const TIPPY_MODEL =
+  (process.env.NODE_ENV !== "production" && process.env.TIPPY_TEST_MODEL) ||
+  "claude-sonnet-4-20250514";
 
 // Extend Vercel function timeout for multi-turn tool calls (FFS-809: 60→120s)
 export const maxDuration = 120;
@@ -789,6 +795,13 @@ async function buildPreflightContext(
     text += `\n- Disease: ${diseaseCount.count} places with positive cats`;
   }
 
+  // FFS-757/Part 2: Add top known data gaps from data-quality module
+  const activeGaps = Object.values(KNOWN_GAPS).filter(g => g.status === 'open' || g.status === 'monitoring');
+  if (activeGaps.length > 0) {
+    text += '\n- Known data gaps:';
+    activeGaps.slice(0, 3).forEach(g => { text += `\n  -> ${g.id}: ${g.impact}`; });
+  }
+
   text += '\n\nUse this context to inform responses. If data quality is degraded, mention it. If batches are stale (>48h), caveat freshness. Reference seasonal context when discussing colony planning.';
 
   // Cache in session_context (fire-and-forget — FFS-808)
@@ -965,7 +978,7 @@ async function handleStreamingChat({
 
         // Initial API call (non-streaming, to check for tool use)
         let response = await client.messages.create({
-          model: "claude-sonnet-4-20250514",
+          model: TIPPY_MODEL,
           max_tokens: 4096,
           system: systemPrompt,
           messages,
@@ -1044,7 +1057,7 @@ async function handleStreamingChat({
 
           // Next API call (non-streaming, to check for more tool use)
           response = await client.messages.create({
-            model: "claude-sonnet-4-20250514",
+            model: TIPPY_MODEL,
             max_tokens: 4096,
             system: systemPrompt,
             messages,
@@ -1117,7 +1130,7 @@ async function handleStreamingChat({
         } else {
           // Stream the final text generation
           const finalStream = client.messages.stream({
-            model: "claude-sonnet-4-20250514",
+            model: TIPPY_MODEL,
             max_tokens: 4096,
             system: systemPrompt,
             messages,
@@ -1220,10 +1233,7 @@ export async function POST(request: NextRequest) {
     const { message, history = [], conversationId: clientConversationId, pageContext } = body;
 
     if (!message || typeof message !== "string") {
-      return NextResponse.json(
-        { error: "Message is required" },
-        { status: 400 }
-      );
+      return apiBadRequest("Message is required");
     }
 
     // Get user's session and AI access level
@@ -1247,7 +1257,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user has any AI access
     if (!session || aiAccessLevel === "none") {
-      return NextResponse.json({
+      return apiSuccess({
         message:
           "I'm sorry, but your account doesn't have access to Tippy. Please contact an administrator if you need AI assistance.",
       });
@@ -1272,7 +1282,7 @@ export async function POST(request: NextRequest) {
       // Fallback to simple pattern matching if no API key
       const fallbackResponse = getFallbackResponse(message);
       await storeMessage(conversationId, "assistant", fallbackResponse);
-      return NextResponse.json({ message: fallbackResponse, conversationId });
+      return apiSuccess({ message: fallbackResponse, conversationId });
     }
 
     // Initialize Anthropic client
@@ -1429,12 +1439,38 @@ Think: How would a veteran coordinator give an honest assessment?`;
       }
     }
 
+    // FFS-745: Token optimization — truncate old messages to reduce cost
+    const optimizedHistory: Anthropic.MessageParam[] = history.map((msg, idx) => {
+      const isOlderThan2Turns = idx < history.length - 4; // Last 2 turns = 4 messages (user+assistant)
+      if (!isOlderThan2Turns) {
+        return { role: msg.role as "user" | "assistant", content: msg.content };
+      }
+
+      if (msg.role === "assistant" && typeof msg.content === "string" && msg.content.length > 500) {
+        // Truncate old assistant messages to first 500 chars
+        return {
+          role: msg.role as "user" | "assistant",
+          content: msg.content.slice(0, 500) + "... [truncated for context]",
+        };
+      }
+
+      // Strip tool_result content from old turns (raw SQL results no longer needed)
+      if (msg.role === "user" && Array.isArray(msg.content)) {
+        const pruned = (msg.content as Anthropic.ContentBlockParam[]).map((block) => {
+          if ('type' in block && block.type === "tool_result") {
+            return { ...block, content: "[tool result available in earlier context]" } as Anthropic.ContentBlockParam;
+          }
+          return block;
+        });
+        return { role: msg.role as "user" | "assistant", content: pruned };
+      }
+
+      return { role: msg.role as "user" | "assistant", content: msg.content };
+    });
+
     // Build messages array
     const messages: Anthropic.MessageParam[] = [
-      ...history.map((msg) => ({
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-      })),
+      ...optimizedHistory,
       { role: "user" as const, content: message },
     ];
 
@@ -1499,7 +1535,7 @@ ${JSON.stringify(briefingData, null, 2)}`;
 
     // Call Claude API with filtered tools
     let response = await client.messages.create({
-      model: "claude-sonnet-4-20250514", // Sonnet 4 for better conversation quality
+      model: TIPPY_MODEL,
       max_tokens: 4096,
       system: systemPrompt,
       messages,
@@ -1599,7 +1635,7 @@ ${JSON.stringify(briefingData, null, 2)}`;
 
       // Call Claude again with tool results
       response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: TIPPY_MODEL,
         max_tokens: 4096,
         system: systemPrompt,
         messages,
@@ -1659,7 +1695,7 @@ ${JSON.stringify(briefingData, null, 2)}`;
       });
 
       response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: TIPPY_MODEL,
         max_tokens: 4096,
         system: systemPrompt,
         messages,
@@ -1686,7 +1722,7 @@ ${JSON.stringify(briefingData, null, 2)}`;
       await updateConversationTools(conversationId, toolsUsedInThisRequest);
     }
 
-    return NextResponse.json({ message: assistantMessage, conversationId });
+    return apiSuccess({ message: assistantMessage, conversationId });
   } catch (error) {
     console.error("Tippy chat error:", error);
     const errMsg = error instanceof Error ? error.message : String(error);
@@ -1701,7 +1737,7 @@ ${JSON.stringify(briefingData, null, 2)}`;
       friendlyMessage = "Something went wrong on my end. If this keeps happening, let the tech team know.";
     }
 
-    return NextResponse.json({ message: friendlyMessage });
+    return apiServerError(friendlyMessage);
   }
 }
 

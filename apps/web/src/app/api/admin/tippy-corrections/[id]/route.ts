@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 export async function GET(
@@ -15,6 +16,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "correction");
     const correction = await queryOne(
       `
       SELECT
@@ -69,6 +71,7 @@ export async function PATCH(
   }
 
   try {
+    requireValidUUID(id, "correction");
     await execute(
       `
       UPDATE ops.tippy_proposed_corrections

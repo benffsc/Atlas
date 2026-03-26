@@ -1,5 +1,8 @@
 import { queryOne, queryRows } from "@/lib/db";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
+// Domain knowledge & data quality modules (Part 2)
+import { interpretPlaceSituation, expandRegion } from "./domain-knowledge";
+import { getPlaceDataCaveats, checkSuspiciousPatterns } from "./data-quality";
 
 /**
  * Tippy Database Query Tools
@@ -1154,6 +1157,44 @@ Example queries:
       required: [],
     },
   },
+  // FFS-744: Search cats by physical description
+  {
+    name: "search_cats_by_description",
+    description:
+      "Search for cats by physical description (color, pattern, breed, sex). Use when someone asks about a specific looking cat at a location, e.g., 'find the orange tabby on Pozzan Road' or 'any calico cats near Oak St'. Searches across multiple color/description columns to maximize matches.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        color: {
+          type: "string",
+          description: "Primary color to search for (e.g., 'orange', 'black', 'white', 'gray', 'calico', 'tortoiseshell')",
+        },
+        pattern: {
+          type: "string",
+          description: "Color pattern (e.g., 'tabby', 'tuxedo', 'solid', 'bicolor', 'calico')",
+        },
+        breed: {
+          type: "string",
+          description: "Breed (e.g., 'domestic shorthair', 'siamese', 'persian')",
+        },
+        sex: {
+          type: "string",
+          enum: ["M", "F"],
+          description: "Sex of the cat",
+        },
+        age_group: {
+          type: "string",
+          enum: ["kitten", "young", "adult", "senior"],
+          description: "Approximate age group",
+        },
+        place_name: {
+          type: "string",
+          description: "Place name or address to narrow the search (e.g., 'Pozzan Road', '1170 Walker')",
+        },
+      },
+      required: [],
+    },
+  },
   // FFS-756: Flag anomaly tool
   {
     name: "flag_anomaly",
@@ -1525,6 +1566,17 @@ export async function executeToolCall(
 
       case "demo_coverage_gaps":
         return await callDemoFunction("ops.tippy_demo_coverage_gaps()");
+
+      // FFS-744: Cat search by physical description
+      case "search_cats_by_description":
+        return await searchCatsByDescription(
+          toolInput.color as string | undefined,
+          toolInput.pattern as string | undefined,
+          toolInput.breed as string | undefined,
+          toolInput.sex as string | undefined,
+          toolInput.age_group as string | undefined,
+          toolInput.place_name as string | undefined
+        );
 
       case "flag_anomaly":
         return await flagAnomaly(
@@ -2350,6 +2402,11 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
         largest_colony: result.largest_colony,
         cities_with_activity: result.cities_with_activity,
       },
+      // Part 2: Check for suspicious patterns in region data
+      suspicious_patterns: checkSuspiciousPatterns({
+        alteration_rate: alterationRate,
+        total_cats: result.total_cats,
+      }).map(p => ({ pattern: p.pattern, likely_cause: p.likely_cause, recommendation: p.recommendation })),
       summary: `**${region}** (${isRegionalSearch ? searchPatterns.slice(0, 3).join(", ") + (searchPatterns.length > 3 ? ", ..." : "") : region}):
 • ${result.total_places} places tracked with ${result.total_cats} cats in database
 • ${result.cats_altered} cats altered (${alterationRate}% alteration rate)
@@ -4572,6 +4629,33 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
     interpretationHints.push(`HISTORY: ${requestHistory.completed} completed request(s) at this location.`);
   }
 
+  // Part 2: Enrich with domain knowledge module interpretations
+  const domainInterpretation = interpretPlaceSituation({
+    total_cats: totalCats,
+    altered_cats: catStats.altered_cats || 0,
+    null_status_count: catStats.null_status_count,
+    has_active_request: requestHistory.active > 0,
+    recent_mass_trapping: massTrappingEvents.length > 0,
+    disease_positives: diseases.filter((d: { positive: number }) => d.positive > 0).length,
+  });
+  if (domainInterpretation.caveats.length > 0) {
+    interpretationHints.push(`DATA CAVEATS: ${domainInterpretation.caveats.join('; ')}`);
+  }
+
+  // Part 2: Data quality checks from data-quality module
+  const dataCaveats = getPlaceDataCaveats({
+    total_cats: totalCats,
+    altered_cats: catStats.altered_cats || 0,
+    null_status_count: catStats.null_status_count,
+    reported_cats: report.colony_estimate?.total_cats,
+    has_active_request: requestHistory.active > 0,
+  });
+  dataCaveats.forEach(caveat => {
+    if (!interpretationHints.some(h => h.includes(caveat.slice(0, 40)))) {
+      interpretationHints.push(`DATA QUALITY: ${caveat}`);
+    }
+  });
+
   // FFS-758: Enrich with Chapman estimate and disease summary
   let chapmanEstimate = null;
   let diseaseSummary = null;
@@ -4627,6 +4711,23 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
           );
         }
       });
+    }
+
+    // FFS-757: Add seasonal/breeding context to place responses
+    const seasonal = await queryOne<{ breeding_phase: string; breeding_intensity: number }>(
+      `SELECT breeding_phase, breeding_intensity
+       FROM ops.v_breeding_season_indicators
+       WHERE month_num = EXTRACT(MONTH FROM CURRENT_DATE) LIMIT 1`
+    ).catch(() => null);
+
+    if (seasonal) {
+      interpretationHints.push(
+        `SEASONAL: Currently in ${seasonal.breeding_phase} phase (intensity: ${seasonal.breeding_intensity}/10).${
+          seasonal.breeding_intensity >= 7 ? ' High breeding activity — prioritize trapping at locations with unaltered cats.' :
+          seasonal.breeding_intensity >= 4 ? ' Moderate breeding activity — good time for targeted TNR.' :
+          ' Low breeding season — good time for monitoring and planning.'
+        }`
+      );
     }
   }
 
@@ -4716,6 +4817,14 @@ async function analyzeSpatialContext(
     }
   }
 
+  // Part 2: Add geographic region expansion context
+  const regionExpansion = expandRegion(address);
+  if (regionExpansion.length > 1) {
+    interpretations.push(
+      `REGION: "${address}" expands to ${regionExpansion.length} cities: ${regionExpansion.join(', ')}. Consider querying query_region_stats for comprehensive regional data.`
+    );
+  }
+
   return {
     success: true,
     data: {
@@ -4794,6 +4903,17 @@ async function strategicCityAnalysis(
         `${lowestIncome.city} has the lowest median income (${lowestIncome.median_income?.toLocaleString()}) in our data - may have less access to TNR resources and could benefit from targeted outreach.`
       );
     }
+  }
+
+  // Part 2: Check for suspicious patterns in strategic data
+  if (analysis.worst_affected) {
+    const patterns = checkSuspiciousPatterns({
+      alteration_rate: analysis.worst_affected.alteration_rate ?? 0,
+      total_cats: analysis.worst_affected.total_cats ?? 0,
+    });
+    patterns.forEach(p => {
+      interpretations.push(`⚠️ ${p.pattern}: ${p.recommendation}`);
+    });
   }
 
   return {
@@ -6115,6 +6235,111 @@ async function createDraftRequest(
 }
 
 /**
+ * FFS-744: Search cats by physical description
+ */
+async function searchCatsByDescription(
+  color?: string,
+  pattern?: string,
+  breed?: string,
+  sex?: string,
+  ageGroup?: string,
+  placeName?: string,
+): Promise<ToolResult> {
+  const conditions: string[] = ["c.merged_into_cat_id IS NULL"];
+  const params: string[] = [];
+  let paramIdx = 1;
+
+  if (color) {
+    conditions.push(`(c.primary_color ILIKE $${paramIdx} OR c.secondary_color ILIKE $${paramIdx} OR c.color ILIKE $${paramIdx} OR c.description ILIKE $${paramIdx})`);
+    params.push(`%${color}%`);
+    paramIdx++;
+  }
+
+  if (pattern) {
+    conditions.push(`(c.color_pattern ILIKE $${paramIdx} OR c.color ILIKE $${paramIdx} OR c.description ILIKE $${paramIdx})`);
+    params.push(`%${pattern}%`);
+    paramIdx++;
+  }
+
+  if (breed) {
+    conditions.push(`c.breed ILIKE $${paramIdx}`);
+    params.push(`%${breed}%`);
+    paramIdx++;
+  }
+
+  if (sex) {
+    conditions.push(`c.sex = $${paramIdx}`);
+    params.push(sex);
+    paramIdx++;
+  }
+
+  if (ageGroup) {
+    conditions.push(`c.age_group = $${paramIdx}`);
+    params.push(ageGroup);
+    paramIdx++;
+  }
+
+  if (placeName) {
+    conditions.push(`p.formatted_address ILIKE $${paramIdx}`);
+    params.push(`%${placeName}%`);
+    paramIdx++;
+  }
+
+  // Require at least one search criterion
+  if (params.length === 0) {
+    return {
+      success: false,
+      error: "At least one search criterion is required (color, pattern, breed, sex, age_group, or place_name)",
+    };
+  }
+
+  const sql = `
+    SELECT DISTINCT ON (c.cat_id)
+      c.cat_id, c.display_name as name,
+      c.primary_color, c.secondary_color, c.color, c.color_pattern,
+      c.sex, c.breed, c.age_group, c.altered_status,
+      ci.id_value as microchip,
+      p.display_name as place_name, p.formatted_address,
+      a.appointment_date as last_appointment
+    FROM sot.cats c
+    LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+    LEFT JOIN sot.cat_place cp ON cp.cat_id = c.cat_id
+    LEFT JOIN sot.places p ON p.place_id = cp.place_id AND p.merged_into_place_id IS NULL
+    LEFT JOIN ops.appointments a ON a.cat_id = c.cat_id
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY c.cat_id, a.appointment_date DESC NULLS LAST
+    LIMIT 20
+  `;
+
+  const rows = await queryRows(sql, params);
+
+  if (!rows || rows.length === 0) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        count: 0,
+        message: `No cats found matching the description.${placeName ? ` Try searching without the location filter, or broadening the color/pattern terms.` : ''}`,
+        note: "Only ~4.5% of cats have color data populated. Try run_sql with broader ILIKE searches on the description and color columns if this returns no results.",
+      },
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      found: true,
+      count: rows.length,
+      cats: rows,
+      note: rows.length === 20
+        ? "Showing first 20 matches. Add more filters to narrow results."
+        : `Found ${rows.length} matching cat(s).`,
+      data_caveat: "Color data is only populated for ~4.5% of cats. Many cats with matching descriptions may not appear if their color wasn't recorded.",
+    },
+  };
+}
+
+/**
  * FFS-756: Flag a data anomaly for staff review
  */
 async function flagAnomaly(
@@ -6152,12 +6377,22 @@ async function flagAnomaly(
       ]
     );
 
+    // FFS-760: Fire-and-forget Linear issue creation for medium+ severity
+    const effectiveSeverity = severity || 'medium';
+    if (result?.anomaly_id && effectiveSeverity !== 'low') {
+      fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/admin/anomalies/linear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ anomaly_id: result.anomaly_id }),
+      }).catch(err => console.warn('Linear issue creation failed (non-blocking):', err));
+    }
+
     return {
       success: true,
       data: {
         message: `Anomaly flagged for review (ID: ${result?.anomaly_id}). A coordinator will investigate.`,
         anomaly_id: result?.anomaly_id,
-        severity: severity || 'medium',
+        severity: effectiveSeverity,
       },
     };
   } catch (error) {

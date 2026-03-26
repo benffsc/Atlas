@@ -39,16 +39,16 @@ import {
   type DomainQuestion,
 } from "./fixtures/tippy-domain-coverage";
 import { mockTippyWithToolResult } from "./helpers/auth-api";
-import { createTippyLogger } from "./helpers/tippy-result-logger";
+import { createVCR } from "./helpers/tippy-vcr";
 
-const logger = createTippyLogger("tippy-domain-coverage");
+const vcr = createVCR("tippy-domain-coverage");
 
-// Helper: run a domain question test against real API with full logging
+// Helper: run a domain question test against real API with full logging + VCR
 async function runDomainTest(
   page: import("@playwright/test").Page,
   question: DomainQuestion
 ) {
-  const result = await logger.askAndLog(page, question.question, {
+  const result = await vcr.askAndReplay(page, question.id, question.question, {
     testName: question.id,
   });
 

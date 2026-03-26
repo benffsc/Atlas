@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Anomaly {
   anomaly_id: string;
@@ -155,7 +156,7 @@ export default function AnomaliesPage() {
 
       {/* List */}
       {loading ? (
-        <p style={{ color: "var(--text-muted)" }}>Loading...</p>
+        <div style={{ padding: "1rem 0" }}><SkeletonList items={5} /></div>
       ) : anomalies.length === 0 ? (
         <div style={{
           padding: "48px",

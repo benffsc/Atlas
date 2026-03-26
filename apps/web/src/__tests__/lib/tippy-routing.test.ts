@@ -26,6 +26,7 @@ const MOCK_TOOLS = [
   { name: "log_site_observation" },
   { name: "create_draft_request" },
   { name: "flag_anomaly" },
+  { name: "search_cats_by_description" },
   { name: "run_sql" },
 ];
 
@@ -304,6 +305,52 @@ describe("detectIntentAndForceToolChoice", () => {
         "read_only"
       );
       expect(result).toEqual({ type: "tool", name: "query_partner_org_stats" });
+    });
+  });
+
+  // ===========================================================================
+  // FFS-744: Cat description search patterns
+  // ===========================================================================
+
+  describe("cat description → search_cats_by_description", () => {
+    it("find the orange tabby on Pozzan Road", () => {
+      const result = detectIntentAndForceToolChoice(
+        "Find the orange tabby on Pozzan Road",
+        "read_only"
+      );
+      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+    });
+
+    it("any calico cats near Oak St", () => {
+      const result = detectIntentAndForceToolChoice(
+        "Any calico cats near Oak St?",
+        "read_only"
+      );
+      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+    });
+
+    it("search for a black cat at Walker Rd", () => {
+      const result = detectIntentAndForceToolChoice(
+        "Search for a black cat at Walker Rd",
+        "read_only"
+      );
+      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+    });
+
+    it("orange cat on Selvage", () => {
+      const result = detectIntentAndForceToolChoice(
+        "orange cat on Selvage",
+        "read_only"
+      );
+      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+    });
+
+    it("look for a gray kitten near downtown", () => {
+      const result = detectIntentAndForceToolChoice(
+        "Look for a gray kitten near downtown",
+        "read_only"
+      );
+      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
     });
   });
 

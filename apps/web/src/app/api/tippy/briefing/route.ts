@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
  * FFS-755: Check if staff member needs a shift briefing today.
@@ -9,7 +10,7 @@ import { queryOne } from "@/lib/db";
 export async function GET(request: NextRequest) {
   const session = await getSession(request);
   if (!session?.staff_id) {
-    return NextResponse.json({ needsBriefing: false });
+    return apiSuccess({ needsBriefing: false });
   }
 
   try {
@@ -23,8 +24,8 @@ export async function GET(request: NextRequest) {
       [session.staff_id]
     );
 
-    return NextResponse.json({ needsBriefing: !result?.has_briefed });
+    return apiSuccess({ needsBriefing: !result?.has_briefed });
   } catch {
-    return NextResponse.json({ needsBriefing: false });
+    return apiServerError("Failed to check briefing status");
   }
 }

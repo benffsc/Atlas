@@ -107,6 +107,16 @@ export function detectIntentAndForceToolChoice(
     return { type: "tool", name: "query_partner_org_stats" };
   }
 
+  // FFS-744: Cat description search patterns
+  const catDescriptionPatterns = [
+    /(?:find|search|look for|any|where is|seen)\s+(?:the\s+)?(?:an?\s+)?(?:orange|black|white|gray|grey|calico|tortoiseshell|tabby|tuxedo|siamese|ginger)\s+(?:cat|kitten|tabby)/i,
+    /(?:orange|black|white|gray|grey|calico|tortoiseshell|tabby|tuxedo|siamese|ginger)\s+(?:cat|kitten)\s+(?:at|on|near|around)/i,
+    /cat\s+(?:that\s+)?(?:looks?|described|with)\s+(?:like\s+)?(?:an?\s+)?(?:orange|black|white|gray|grey|calico)/i,
+  ];
+  if (catDescriptionPatterns.some(p => p.test(message))) {
+    return { type: "tool", name: "search_cats_by_description" };
+  }
+
   // ADDRESS / PLACE patterns — force analyze_place_situation for address queries
   const addressPattern =
     /\d+\s+[\w]+(?: [\w]+)?\s*(?:st|street|ave|avenue|rd|road|dr|drive|ct|court|ln|lane|way|blvd|boulevard|pl|place|cir|circle)\b/i;

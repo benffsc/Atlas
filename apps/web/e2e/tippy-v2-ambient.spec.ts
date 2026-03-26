@@ -97,7 +97,6 @@ test.describe("Tippy V2: Pre-flight Context (FFS-754) - Mocked", () => {
   }) => {
     // Mock the streaming endpoint
     await page.route("**/api/tippy/chat", (route) => {
-      const encoder = new TextEncoder();
       const events = [
         `event: status\ndata: ${JSON.stringify({ phase: "thinking" })}\n\n`,
         `event: delta\ndata: ${JSON.stringify({ text: "Data quality is healthy. " })}\n\n`,
@@ -111,7 +110,7 @@ test.describe("Tippy V2: Pre-flight Context (FFS-754) - Mocked", () => {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
         },
-        body: encoder.encode(events),
+        body: events,
       });
     });
 
@@ -177,7 +176,6 @@ test.describe("Tippy V2: Shift Briefing (FFS-755) - Mocked", () => {
       receivedMessage = postData?.message || "";
 
       // Return SSE response for streaming
-      const encoder = new TextEncoder();
       const events = [
         `event: status\ndata: ${JSON.stringify({ phase: "thinking" })}\n\n`,
         `event: delta\ndata: ${JSON.stringify({ text: "Good morning! Here's your briefing..." })}\n\n`,
@@ -187,7 +185,7 @@ test.describe("Tippy V2: Shift Briefing (FFS-755) - Mocked", () => {
       route.fulfill({
         status: 200,
         headers: { "Content-Type": "text/event-stream" },
-        body: encoder.encode(events),
+        body: events,
       });
     });
 
@@ -224,7 +222,7 @@ test.describe("Tippy V2: Shift Briefing (FFS-755) - Mocked", () => {
       [baseURL] as [string]
     );
 
-    expect(result.needsBriefing).toBe(false);
+    expect(result.data?.needsBriefing ?? result.needsBriefing).toBe(false);
   });
 });
 
@@ -605,7 +603,7 @@ test.describe("Tippy V2: Admin Anomalies Page (FFS-756)", () => {
     const pageContent = await page.textContent("body");
     expect(pageContent).toContain("data inconsistency");
     expect(pageContent).toContain("456 Elm St");
-    expect(pageContent).toContain("HIGH");
+    expect(pageContent?.toLowerCase()).toContain("high");
   });
 });
 

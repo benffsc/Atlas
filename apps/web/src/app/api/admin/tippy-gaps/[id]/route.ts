@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 export async function PATCH(
@@ -31,6 +32,7 @@ export async function PATCH(
   }
 
   try {
+    requireValidUUID(id, "gap");
     await execute(
       `
       UPDATE ops.tippy_capability_gaps

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { TabBar } from "@/components/ui/TabBar";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface ProposedCorrection {
   correction_id: string;
@@ -188,7 +189,7 @@ export default function TippyCorrectionsPage() {
 
       {/* List */}
       {loading ? (
-        <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+        <div style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={4} /></div>
       ) : corrections.length === 0 ? (
         <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
           No corrections found
