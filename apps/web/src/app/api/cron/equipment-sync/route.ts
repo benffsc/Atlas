@@ -124,7 +124,12 @@ async function syncEquipment(records: AirtableRecord[]): Promise<{ staged: numbe
 
     const result = await queryOne<{ equipment_id: string; custody_was_skipped: boolean }>(
       `UPDATE ops.equipment SET
-         barcode = COALESCE($2, barcode),
+         barcode = CASE
+           WHEN $2::text IS NULL THEN barcode
+           WHEN EXISTS (SELECT 1 FROM ops.equipment e2 WHERE e2.barcode = $2::text AND e2.equipment_id != ops.equipment.equipment_id)
+             THEN barcode
+           ELSE $2::text
+         END,
          item_type = $3,
          size = $4,
          functional_status = $5,
