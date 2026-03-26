@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
@@ -18,6 +18,14 @@ import { getCustodyStyle, getConditionStyle } from "@/lib/equipment-styles";
 import { Button } from "@/components/ui/Button";
 
 export default function EquipmentPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "2rem", color: "var(--muted)" }}>Loading equipment...</div>}>
+      <EquipmentPageContent />
+    </Suspense>
+  );
+}
+
+function EquipmentPageContent() {
   const { success, error: showError } = useToast();
   const { filters, setFilter, setFilters, clearFilters, isDefault } = useUrlFilters({
     search: "",
