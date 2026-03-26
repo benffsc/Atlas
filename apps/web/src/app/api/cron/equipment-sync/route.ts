@@ -138,7 +138,7 @@ async function syncEquipment(records: AirtableRecord[]): Promise<{ staged: numbe
              WHERE equipment_id = ops.equipment.equipment_id
                AND source_system = 'atlas_ui'
                AND created_at > COALESCE(
-                 (SELECT value::timestamptz FROM ops.app_config WHERE key = 'equipment.last_sync_at'),
+                 (SELECT (value#>>'{}')::timestamptz FROM ops.app_config WHERE key = 'equipment.last_sync_at'),
                  '2020-01-01'
                )
            ) THEN custody_status
@@ -154,7 +154,7 @@ async function syncEquipment(records: AirtableRecord[]): Promise<{ staged: numbe
              WHERE equipment_id = ops.equipment.equipment_id
                AND source_system = 'atlas_ui'
                AND created_at > COALESCE(
-                 (SELECT value::timestamptz FROM ops.app_config WHERE key = 'equipment.last_sync_at'),
+                 (SELECT (value#>>'{}')::timestamptz FROM ops.app_config WHERE key = 'equipment.last_sync_at'),
                  '2020-01-01'
                )
            ) THEN true ELSE false
@@ -351,16 +351,12 @@ export async function GET(request: NextRequest) {
     };
 
     await query(
-      `INSERT INTO ops.app_config (key, value, updated_at)
-       VALUES ('equipment.last_sync_at', $1, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      `UPDATE ops.app_config SET value = to_jsonb($1::text), updated_at = NOW() WHERE key = 'equipment.last_sync_at'`,
       [new Date().toISOString()]
     );
 
     await query(
-      `INSERT INTO ops.app_config (key, value, updated_at)
-       VALUES ('equipment.last_sync_result', $1, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      `UPDATE ops.app_config SET value = $1::jsonb, updated_at = NOW() WHERE key = 'equipment.last_sync_result'`,
       [JSON.stringify(syncResult)]
     );
 

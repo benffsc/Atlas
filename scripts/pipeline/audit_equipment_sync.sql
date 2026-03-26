@@ -102,7 +102,7 @@ FROM ops.equipment_events ev
 JOIN ops.equipment eq USING (equipment_id)
 WHERE ev.source_system = 'atlas_ui'
   AND ev.created_at > COALESCE(
-      (SELECT value::timestamptz FROM ops.app_config WHERE key = 'equipment.last_sync_at'),
+      (SELECT (value#>>'{}')::timestamptz FROM ops.app_config WHERE key = 'equipment.last_sync_at'),
       '2020-01-01'
   )
 ORDER BY ev.created_at DESC;

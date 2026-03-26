@@ -9,14 +9,15 @@ const STALE_THRESHOLD_HOURS = 6;
  * Returns Airtable sync metadata for the equipment transition UI.
  */
 export const GET = withErrorHandling(async () => {
+  // value column is jsonb — pg driver returns parsed JS values
   const [lastSyncRow, lastResultRow, transitionRow, counts] = await Promise.all([
-    queryOne<{ value: string }>(
+    queryOne<{ value: unknown }>(
       `SELECT value FROM ops.app_config WHERE key = 'equipment.last_sync_at'`
     ),
-    queryOne<{ value: string }>(
+    queryOne<{ value: unknown }>(
       `SELECT value FROM ops.app_config WHERE key = 'equipment.last_sync_result'`
     ),
-    queryOne<{ value: string }>(
+    queryOne<{ value: unknown }>(
       `SELECT value FROM ops.app_config WHERE key = 'equipment.transition_active'`
     ),
     queryOne<{ total: number; atlas_only: number }>(
@@ -27,14 +28,14 @@ export const GET = withErrorHandling(async () => {
     ),
   ]);
 
-  const lastSyncAt = lastSyncRow?.value || null;
+  const lastSyncAt = typeof lastSyncRow?.value === "string" ? lastSyncRow.value : null;
   const minutesAgo = lastSyncAt
     ? Math.round((Date.now() - new Date(lastSyncAt).getTime()) / 60000)
     : null;
 
   return apiSuccess({
     last_sync_at: lastSyncAt,
-    last_sync_result: lastResultRow?.value ? JSON.parse(lastResultRow.value) : null,
+    last_sync_result: lastResultRow?.value && typeof lastResultRow.value === "object" ? lastResultRow.value : null,
     minutes_ago: minutesAgo,
     is_stale: minutesAgo === null || minutesAgo > STALE_THRESHOLD_HOURS * 60,
     atlas_only_count: counts?.atlas_only || 0,
