@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { Icon } from "@/components/ui/Icon";
 
 interface NavItem {
   id: string;
@@ -196,8 +197,9 @@ function NavBuilderContent() {
                       <input
                         value={editForm.icon || ""}
                         onChange={(e) => setEditForm({ ...editForm, icon: e.target.value })}
-                        style={{ width: "40px", padding: "0.25rem", border: "1px solid var(--card-border)", borderRadius: "4px", textAlign: "center" }}
-                        placeholder="Icon"
+                        style={{ width: "100px", padding: "0.25rem", border: "1px solid var(--card-border)", borderRadius: "4px", fontSize: "0.75rem", fontFamily: "monospace" }}
+                        placeholder="cat"
+                        title="Lucide icon name (e.g. cat, hospital, map-pin)"
                       />
                       <input
                         value={editForm.label || ""}
@@ -230,7 +232,7 @@ function NavBuilderContent() {
                   ) : (
                     /* Display mode */
                     <>
-                      <span style={{ fontSize: "1rem", width: "24px", textAlign: "center" }}>{item.icon}</span>
+                      <span style={{ width: "24px", textAlign: "center", display: "inline-flex", justifyContent: "center" }}><Icon name={item.icon} size={16} /></span>
                       <span style={{ flex: 1, fontSize: "0.875rem", fontWeight: 500 }}>{item.label}</span>
                       <code style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{item.path}</code>
                       {item.required_role && (
