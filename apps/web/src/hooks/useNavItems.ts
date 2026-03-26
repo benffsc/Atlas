@@ -2,7 +2,10 @@
  * useNavItems — SWR hook for admin-configurable sidebar navigation.
  *
  * Fetches nav items from /api/admin/nav, grouped into NavSection[].
- * Falls back to hardcoded items if the fetch fails or is loading.
+ * Merges DB items with hardcoded fallback: DB items win (and can hide
+ * items via visible=false), but fallback items whose paths aren't in
+ * the DB still appear. This prevents new pages from disappearing when
+ * a migration hasn't been run yet.
  *
  * Usage:
  *   const { sections, isLoading } = useNavItems('admin', FALLBACK_SECTIONS);
@@ -56,6 +59,43 @@ function groupIntoSections(items: NavItemRow[]): NavSection[] {
   }));
 }
 
+/**
+ * Merge DB sections with fallback: DB items take priority, but fallback
+ * items whose paths don't exist in the DB are appended to their section.
+ * This ensures new pages added in code appear even before a DB migration.
+ */
+function mergeWithFallback(dbSections: NavSection[], fallback: NavSection[]): NavSection[] {
+  // Collect all DB paths for quick lookup
+  const dbPaths = new Set<string>();
+  for (const section of dbSections) {
+    for (const item of section.items) {
+      dbPaths.add(item.href);
+    }
+  }
+
+  // Build a map of DB sections by title
+  const merged = new Map<string, NavSection>();
+  for (const section of dbSections) {
+    merged.set(section.title, { ...section, items: [...section.items] });
+  }
+
+  // Append fallback items whose paths aren't in DB
+  for (const section of fallback) {
+    const missingItems = section.items.filter((item) => !dbPaths.has(item.href));
+    if (missingItems.length === 0) continue;
+
+    if (merged.has(section.title)) {
+      // Section exists in DB — append missing items at the end
+      merged.get(section.title)!.items.push(...missingItems);
+    } else {
+      // Entire section is missing from DB — add it
+      merged.set(section.title, { title: section.title, items: [...missingItems] });
+    }
+  }
+
+  return Array.from(merged.values());
+}
+
 export function useNavItems(
   sidebar: "main" | "admin" | "beacon",
   fallback: NavSection[]
@@ -77,8 +117,10 @@ export function useNavItems(
     return { sections: fallback, isLoading };
   }
 
+  const dbSections = groupIntoSections(data.items);
+
   return {
-    sections: groupIntoSections(data.items),
+    sections: mergeWithFallback(dbSections, fallback),
     isLoading: false,
   };
 }
