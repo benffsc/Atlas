@@ -205,7 +205,7 @@ test.describe("Domain Coverage: Field Events (Mocked)", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Voicemail Triage @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of VOICEMAIL_TRIAGE_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -220,7 +220,7 @@ test.describe("Domain Coverage: Voicemail Triage @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Lost Cat Search @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of LOST_CAT_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -235,7 +235,7 @@ test.describe("Domain Coverage: Lost Cat Search @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Spatial Analysis @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of SPATIAL_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -250,7 +250,7 @@ test.describe("Domain Coverage: Spatial Analysis @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Disease Tracking @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of DISEASE_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -265,7 +265,7 @@ test.describe("Domain Coverage: Disease Tracking @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Knowledge Base @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of KNOWLEDGE_BASE_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -279,7 +279,7 @@ test.describe("Domain Coverage: Knowledge Base @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Colony History @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of COLONY_HISTORY_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -293,7 +293,7 @@ test.describe("Domain Coverage: Colony History @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Household Context @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of HOUSEHOLD_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -307,7 +307,7 @@ test.describe("Domain Coverage: Household Context @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Booking & Clinic @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of BOOKING_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -321,7 +321,7 @@ test.describe("Domain Coverage: Booking & Clinic @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Seasonal Context @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of SEASONAL_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {
@@ -335,7 +335,7 @@ test.describe("Domain Coverage: Seasonal Context @real-api", () => {
 // ============================================================================
 
 test.describe("Domain Coverage: Place Comparison @real-api", () => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
 
   for (const q of PLACE_COMPARISON_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page }) => {

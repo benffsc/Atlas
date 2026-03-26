@@ -4,12 +4,18 @@ import { TIPPY_TOOLS, executeToolCall, ToolContext, ToolResult } from "../tools"
 import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
+import {
+  WRITE_TOOLS,
+  ADMIN_TOOLS,
+  getToolsForAccessLevel as getToolsForAccessLevelPure,
+  detectIntentAndForceToolChoice,
+} from "@/lib/tippy-routing";
 // Domain knowledge modules available for future integration
 // import { DOMAIN_KNOWLEDGE, TNR_SCIENCE, SONOMA_GEOGRAPHY } from "../domain-knowledge";
 // import { DATA_QUALITY, KNOWN_GAPS, CAVEATS } from "../data-quality";
 
-// Extend Vercel function timeout for multi-turn tool calls
-export const maxDuration = 60;
+// Extend Vercel function timeout for multi-turn tool calls (FFS-809: 60→120s)
+export const maxDuration = 120;
 
 /**
  * Tippy Chat API
@@ -667,111 +673,15 @@ interface ChatRequest {
 }
 
 // Tools that require write access (read_write or full)
-// Note: lookup_cat_appointment is READ-ONLY (moved out of this list)
-const WRITE_TOOLS = ["log_field_event", "create_reminder", "save_lookup", "log_site_observation", "send_staff_message", "create_draft_request", "flag_anomaly"];
-
-// Tools that require full access only (admin/engineer level)
-// run_sql allows dynamic SQL queries - powerful but requires understanding of the schema
-// TEMPORARY: run_sql available to all users for presentation demo
-const ADMIN_TOOLS: string[] = []; // ["run_sql"] - temporarily disabled restriction
+// WRITE_TOOLS, ADMIN_TOOLS, detectIntentAndForceToolChoice imported from @/lib/tippy-routing
 
 /**
- * Filter tools based on user's AI access level
+ * Filter tools based on user's AI access level (wraps pure function from tippy-routing)
  */
 function getToolsForAccessLevel(
   accessLevel: string | null
 ): typeof TIPPY_TOOLS {
-  if (!accessLevel || accessLevel === "none") {
-    return []; // No tools
-  }
-
-  if (accessLevel === "read_only") {
-    // Filter out write and admin tools
-    return TIPPY_TOOLS.filter(
-      (tool) =>
-        !WRITE_TOOLS.includes(tool.name) && !ADMIN_TOOLS.includes(tool.name)
-    );
-  }
-
-  if (accessLevel === "read_write") {
-    // Filter out admin-only tools
-    return TIPPY_TOOLS.filter((tool) => !ADMIN_TOOLS.includes(tool.name));
-  }
-
-  // 'full' access gets all tools
-  return TIPPY_TOOLS;
-}
-
-/**
- * Detect user intent and optionally force a specific tool
- * Returns tool_choice parameter for API call if strong intent detected
- */
-function detectIntentAndForceToolChoice(
-  message: string,
-  accessLevel: string
-): { type: "auto" } | { type: "tool"; name: string } | undefined {
-  const lower = message.toLowerCase();
-
-  // REMINDER patterns - highest priority for write users
-  if (accessLevel === "read_write" || accessLevel === "full") {
-    const reminderPatterns = [
-      /remind me/i,
-      /don't let me forget/i,
-      /i need to remember/i,
-      /set a reminder/i,
-      /add.*reminder/i,
-      /follow up on.*(?:later|tomorrow|next|week)/i,
-      /check on.*(?:later|tomorrow|next|week)/i,
-    ];
-    if (reminderPatterns.some((p) => p.test(message))) {
-      return { type: "tool", name: "create_reminder" };
-    }
-
-    // MESSAGE patterns - "tell X that...", "message X about..."
-    if (/^(tell|message|let)\s+\w+\s+(that|about|know)/i.test(lower)) {
-      return { type: "tool", name: "send_staff_message" };
-    }
-  }
-
-  // STAFF patterns (must check before trapper to avoid "staff" being confused with trappers)
-  if (
-    /how many\s+staff/i.test(lower) ||
-    /staff\s+(count|list|members?|info)/i.test(lower) ||
-    /who\s+(are|is)\s+(our|the)\s+staff/i.test(lower) ||
-    /list\s+(of\s+)?staff/i.test(lower)
-  ) {
-    return { type: "tool", name: "query_staff_info" };
-  }
-
-  // TRAPPER stats patterns
-  if (
-    /how many.*(trappers?|volunteers?)/i.test(lower) ||
-    /active trappers/i.test(lower) ||
-    /trapper (stats|count|numbers)/i.test(lower)
-  ) {
-    return { type: "tool", name: "query_trapper_stats" };
-  }
-
-  // PARTNER ORG patterns (SCAS, shelter, etc.)
-  if (
-    /how many.*(scas|shelter|humane)/i.test(lower) ||
-    /scas (cats?|stats)/i.test(lower)
-  ) {
-    return { type: "tool", name: "query_partner_org_stats" };
-  }
-
-  // ADDRESS / PLACE patterns — force analyze_place_situation for address queries
-  // Matches: "what do we know about 123 Main St", "situation at 456 Oak Ave",
-  // "tell me about 789 Elm Rd, Santa Rosa", "cats at 101 Fisher Lane"
-  const addressPattern = /\d+\s+[\w]+(?: [\w]+)?\s*(?:st|street|ave|avenue|rd|road|dr|drive|ct|court|ln|lane|way|blvd|boulevard|pl|place|cir|circle)\b/i;
-  if (addressPattern.test(message)) {
-    const placeQueryPattern = /(?:what(?:'s| do we| is)|tell me|situation|anything|know about|activity|info|cats? at|colony|look ?up|going on)/i;
-    if (placeQueryPattern.test(lower)) {
-      return { type: "tool", name: "analyze_place_situation" };
-    }
-  }
-
-  return undefined; // Let Claude decide
+  return getToolsForAccessLevelPure(TIPPY_TOOLS, accessLevel);
 }
 
 /**
@@ -881,18 +791,14 @@ async function buildPreflightContext(
 
   text += '\n\nUse this context to inform responses. If data quality is degraded, mention it. If batches are stale (>48h), caveat freshness. Reference seasonal context when discussing colony planning.';
 
-  // Cache in session_context
-  try {
-    await execute(
-      `UPDATE ops.tippy_conversations
-       SET session_context = COALESCE(session_context, '{}'::jsonb)
-         || jsonb_build_object('preflight_text', $2::text, 'preflight_computed_at', NOW()::text)
-       WHERE conversation_id = $1`,
-      [conversationId, text]
-    );
-  } catch {
-    // Don't fail the chat if caching fails
-  }
+  // Cache in session_context (fire-and-forget — FFS-808)
+  execute(
+    `UPDATE ops.tippy_conversations
+     SET session_context = COALESCE(session_context, '{}'::jsonb)
+       || jsonb_build_object('preflight_text', $2::text, 'preflight_computed_at', NOW()::text)
+     WHERE conversation_id = $1`,
+    [conversationId, text]
+  ).catch(() => {});
 
   return text;
 }
@@ -1041,11 +947,13 @@ async function handleStreamingChat({
         );
       };
 
+      // Declare outside try so catch block can access partial results (FFS-811)
+      const recentToolResults: ToolResult[] = [];
+
       try {
         send("status", { phase: "thinking" });
 
         // Tool context
-        const recentToolResults: ToolResult[] = [];
         const toolContext: ToolContext = {
           staffId: session?.staff_id || "",
           staffName: userName || "Unknown",
@@ -1065,11 +973,36 @@ async function handleStreamingChat({
           ...(forcedToolChoice && { tool_choice: forcedToolChoice }),
         });
 
-        // Tool loop (max 3 iterations)
+        // Tool loop (max 3 iterations, with time budget — FFS-809)
         let iterations = 0;
         const maxIterations = 3;
+        const startTime = Date.now();
+        const TIME_BUDGET_MS = 110_000; // 10s buffer before Vercel kills us
 
         while (response.stop_reason === "tool_use" && iterations < maxIterations) {
+          // Check time budget before starting another tool iteration
+          const remaining = TIME_BUDGET_MS - (Date.now() - startTime);
+          if (remaining < 25_000) {
+            // Not enough time for another API round-trip — force summarize
+            const pendingBlocks = response.content.filter(
+              (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+            );
+            const pendingResults = pendingBlocks.map((toolUse) => ({
+              type: "tool_result" as const,
+              tool_use_id: toolUse.id,
+              content: JSON.stringify({ success: false, error: "Skipped: time budget exceeded" }),
+            }));
+            messages.push({ role: "assistant", content: response.content });
+            messages.push({
+              role: "user",
+              content: [
+                ...pendingResults,
+                { type: "text" as const, text: "Time is limited. Summarize what you found so far. Do not call any more tools." },
+              ],
+            });
+            break;
+          }
+
           iterations++;
 
           const toolUseBlocks = response.content.filter(
@@ -1224,9 +1157,49 @@ async function handleStreamingChat({
         controller.close();
       } catch (error) {
         console.error("Tippy streaming error:", error);
-        send("error", {
-          message: "I'm having trouble connecting right now. Try asking again.",
-        });
+        const errMsg = error instanceof Error ? error.message : String(error);
+
+        // Return partial results if any tools succeeded (FFS-811)
+        if (recentToolResults.length > 0) {
+          const partialFindings = recentToolResults
+            .filter((r) => r.success && r.data)
+            .map((r) => {
+              const d = r.data as Record<string, unknown>;
+              return d.summary || d.message || JSON.stringify(d).substring(0, 300);
+            });
+          if (partialFindings.length > 0) {
+            send("delta", {
+              text: `I ran into an issue finishing my analysis, but here's what I found so far:\n\n${partialFindings.join("\n\n")}`,
+            });
+          }
+        }
+
+        // Error-specific messaging (FFS-811)
+        if (errMsg.includes("rate_limit") || errMsg.includes("429")) {
+          send("error", {
+            message: "I'm getting a lot of questions right now. Give me about 10 seconds and try again.",
+          });
+        } else if (errMsg.includes("timeout") || errMsg.includes("ETIMEDOUT") || errMsg.includes("overloaded")) {
+          send("error", {
+            message: "That question needed more research than I could finish in time. Try something more specific — like a single address or cat name.",
+          });
+        } else {
+          send("error", {
+            message: "Something went wrong on my end. If this keeps happening, let the tech team know.",
+          });
+        }
+
+        // Persist error for debugging (FFS-811)
+        if (conversationId && !conversationId.startsWith("conv_")) {
+          execute(
+            `UPDATE ops.tippy_conversations
+             SET session_context = COALESCE(session_context, '{}'::jsonb)
+               || jsonb_build_object('last_error', $2::text, 'error_at', NOW()::text)
+             WHERE conversation_id = $1`,
+            [conversationId, errMsg.substring(0, 500)]
+          ).catch(() => {});
+        }
+
         controller.close();
       }
     },
@@ -1424,10 +1397,13 @@ Think: How would a veteran coordinator give an honest assessment?`;
       systemPrompt += mapContextStr;
     }
 
-    // FFS-754: Add pre-flight data quality context
+    // FFS-754/808: Add pre-flight data quality context (3s hard timeout)
     if (session?.staff_id && !conversationId.startsWith('conv_')) {
       try {
-        const preflightContext = await buildPreflightContext(conversationId);
+        const preflightContext = await Promise.race([
+          buildPreflightContext(conversationId),
+          new Promise<string>((resolve) => setTimeout(() => resolve(''), 3000)),
+        ]);
         systemPrompt += preflightContext;
       } catch {
         // Don't fail the chat if pre-flight fails
@@ -1544,11 +1520,35 @@ ${JSON.stringify(briefingData, null, 2)}`;
     // Track tools used during conversation
     const toolsUsedInThisRequest: string[] = [];
 
-    // Handle tool use loop (max 3 iterations to prevent infinite loops)
+    // Handle tool use loop (max 3 iterations, with time budget — FFS-809)
     let iterations = 0;
     const maxIterations = 3;
+    const nsStartTime = Date.now();
+    const NS_TIME_BUDGET_MS = 110_000; // 10s buffer before Vercel kills us
 
     while (response.stop_reason === "tool_use" && iterations < maxIterations) {
+      // Check time budget before starting another tool iteration
+      const nsRemaining = NS_TIME_BUDGET_MS - (Date.now() - nsStartTime);
+      if (nsRemaining < 25_000) {
+        const pendingBlocks = response.content.filter(
+          (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+        );
+        const pendingResults = pendingBlocks.map((toolUse) => ({
+          type: "tool_result" as const,
+          tool_use_id: toolUse.id,
+          content: JSON.stringify({ success: false, error: "Skipped: time budget exceeded" }),
+        }));
+        messages.push({ role: "assistant", content: response.content });
+        messages.push({
+          role: "user",
+          content: [
+            ...pendingResults,
+            { type: "text" as const, text: "Time is limited. Summarize what you found so far. Do not call any more tools." },
+          ],
+        });
+        break;
+      }
+
       iterations++;
 
       // Find tool use blocks
@@ -1689,12 +1689,19 @@ ${JSON.stringify(briefingData, null, 2)}`;
     return NextResponse.json({ message: assistantMessage, conversationId });
   } catch (error) {
     console.error("Tippy chat error:", error);
+    const errMsg = error instanceof Error ? error.message : String(error);
 
-    // Return a friendly error message
-    return NextResponse.json({
-      message:
-        "I'm having trouble connecting right now. Try asking again or use the search bar to find what you need.",
-    });
+    // Error-specific messaging (FFS-811)
+    let friendlyMessage: string;
+    if (errMsg.includes("rate_limit") || errMsg.includes("429")) {
+      friendlyMessage = "I'm getting a lot of questions right now. Give me about 10 seconds and try again.";
+    } else if (errMsg.includes("timeout") || errMsg.includes("ETIMEDOUT") || errMsg.includes("overloaded")) {
+      friendlyMessage = "That question needed more research than I could finish in time. Try something more specific — like a single address or cat name.";
+    } else {
+      friendlyMessage = "Something went wrong on my end. If this keeps happening, let the tech team know.";
+    }
+
+    return NextResponse.json({ message: friendlyMessage });
   }
 }
 

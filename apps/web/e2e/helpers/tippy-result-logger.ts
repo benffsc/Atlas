@@ -28,6 +28,7 @@ export interface TippyLogEntry {
   error?: string;
   conversation_id?: string;
   http_status: number;
+  attempt?: number;
 }
 
 const ARCHIVE_DIR = path.join(
@@ -65,6 +66,7 @@ export function createTippyLogger(testFile: string) {
     /**
      * Ask Tippy a question and log the result to the archive.
      * Uses page.request.post() for authenticated requests.
+     * Retries up to 3 times on transient failures (FFS-806).
      */
     async askAndLog(
       page: Page,
@@ -80,69 +82,113 @@ export function createTippyLogger(testFile: string) {
       conversationId?: string;
       responseTimeMs: number;
     }> {
-      const startTime = Date.now();
-      let entry: TippyLogEntry;
+      const MAX_ATTEMPTS = 3;
+      let lastResult: {
+        ok: boolean;
+        responseText: string;
+        conversationId?: string;
+        responseTimeMs: number;
+      } = { ok: false, responseText: "", responseTimeMs: 0 };
 
-      try {
-        const response = await page.request.post("/api/tippy/chat", {
-          data: {
-            message: question,
-            ...(options?.conversationId && {
-              conversationId: options.conversationId,
-            }),
-            ...(options?.history && { history: options.history }),
-          },
-        });
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const startTime = Date.now();
 
-        const responseTimeMs = Date.now() - startTime;
-        const status = response.status();
-        const data = await response.json().catch(() => ({}));
+        try {
+          const response = await page.request.post("/api/tippy/chat", {
+            data: {
+              message: question,
+              ...(options?.conversationId && {
+                conversationId: options.conversationId,
+              }),
+              ...(options?.history && { history: options.history }),
+            },
+          });
 
-        const responseText =
-          data.message || data.response || data.content || JSON.stringify(data);
+          const responseTimeMs = Date.now() - startTime;
+          const status = response.status();
+          const data = await response.json().catch(() => ({}));
 
-        entry = {
-          timestamp: new Date().toISOString(),
-          test_file: testFile,
-          test_name: options?.testName,
-          question,
-          response_text: responseText,
-          response_time_ms: responseTimeMs,
-          passed: response.ok(),
-          conversation_id: data.conversationId,
-          http_status: status,
-        };
+          const responseText =
+            data.message || data.response || data.content || JSON.stringify(data);
 
-        appendEntry(entry);
+          lastResult = {
+            ok: response.ok(),
+            responseText,
+            conversationId: data.conversationId,
+            responseTimeMs,
+          };
 
-        return {
-          ok: response.ok(),
-          responseText,
-          conversationId: data.conversationId,
-          responseTimeMs,
-        };
-      } catch (err) {
-        const responseTimeMs = Date.now() - startTime;
-        entry = {
-          timestamp: new Date().toISOString(),
-          test_file: testFile,
-          test_name: options?.testName,
-          question,
-          response_text: "",
-          response_time_ms: responseTimeMs,
-          passed: false,
-          error: err instanceof Error ? err.message : String(err),
-          http_status: 0,
-        };
+          // Success: real response (not a generic error)
+          const isTransientError =
+            responseText.includes("trouble connecting") ||
+            responseText.includes("wrong on my end") ||
+            responseText.includes("lot of questions right now") ||
+            responseText.includes("more research than I could finish");
 
-        appendEntry(entry);
+          if (response.ok() && responseText && !isTransientError) {
+            appendEntry({
+              timestamp: new Date().toISOString(),
+              test_file: testFile,
+              test_name: options?.testName,
+              question,
+              response_text: responseText,
+              response_time_ms: responseTimeMs,
+              passed: true,
+              conversation_id: data.conversationId,
+              http_status: status,
+              attempt,
+            });
+            return lastResult;
+          }
 
-        return {
-          ok: false,
-          responseText: "",
-          responseTimeMs,
-        };
+          // Don't retry on the last attempt
+          if (attempt < MAX_ATTEMPTS - 1) {
+            await page.waitForTimeout(2000 * Math.pow(2, attempt)); // 2s, 4s
+          }
+        } catch (err) {
+          const responseTimeMs = Date.now() - startTime;
+          lastResult = {
+            ok: false,
+            responseText: "",
+            responseTimeMs,
+          };
+
+          // Don't retry on the last attempt
+          if (attempt < MAX_ATTEMPTS - 1) {
+            await page.waitForTimeout(2000 * Math.pow(2, attempt));
+          } else {
+            appendEntry({
+              timestamp: new Date().toISOString(),
+              test_file: testFile,
+              test_name: options?.testName,
+              question,
+              response_text: "",
+              response_time_ms: responseTimeMs,
+              passed: false,
+              error: err instanceof Error ? err.message : String(err),
+              http_status: 0,
+              attempt,
+            });
+          }
+        }
       }
+
+      // All attempts failed — log final attempt
+      if (lastResult.responseText) {
+        appendEntry({
+          timestamp: new Date().toISOString(),
+          test_file: testFile,
+          test_name: options?.testName,
+          question,
+          response_text: lastResult.responseText,
+          response_time_ms: lastResult.responseTimeMs,
+          passed: false,
+          http_status: 0,
+          attempt: MAX_ATTEMPTS - 1,
+        });
+      }
+
+      return lastResult;
     },
   };
 }
