@@ -14,7 +14,7 @@ import { EquipmentPreviewContent } from "@/components/preview/EquipmentPreviewCo
 import { getLabel } from "@/lib/form-options";
 import { EQUIPMENT_CUSTODY_STATUS_OPTIONS, EQUIPMENT_CONDITION_OPTIONS, EQUIPMENT_CATEGORY_OPTIONS, EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS } from "@/lib/form-options";
 import type { VEquipmentInventoryRow, EquipmentStatsRow } from "@/lib/types/view-contracts";
-import { getCustodyStyle, getConditionStyle } from "@/lib/equipment-styles";
+import { getCustodyStyle, getConditionStyle, getCategoryStyle } from "@/lib/equipment-styles";
 import { Button } from "@/components/ui/Button";
 
 export default function EquipmentPage() {
@@ -23,6 +23,13 @@ export default function EquipmentPage() {
       <EquipmentPageContent />
     </Suspense>
   );
+}
+
+function formatMinutesAgo(mins: number | null): string {
+  if (mins == null) return "unknown";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  return `${hours}h ago`;
 }
 
 function EquipmentPageContent() {
@@ -48,6 +55,12 @@ function EquipmentPageContent() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<EquipmentStatsRow | null>(null);
   const [types, setTypes] = useState<Array<{ type_key: string; display_name: string; category: string }>>([]);
+  const [syncStatus, setSyncStatus] = useState<{
+    last_sync_at: string | null;
+    minutes_ago: number | null;
+    is_stale: boolean;
+    total_equipment: number;
+  } | null>(null);
 
   const selectedEquipment = useMemo(
     () => equipment.find((e) => e.equipment_id === filters.selected) || null,
@@ -83,12 +96,15 @@ function EquipmentPageContent() {
     }
   }, [filters.search, filters.category, filters.custody_status, filters.condition_status, filters.functional_status, filters.type_key, apiParams, showError]);
 
-  // Fetch stats and types once
+  // Fetch stats, types, and sync status once
   useEffect(() => {
     fetchApi<EquipmentStatsRow>("/api/equipment/stats").then(setStats).catch(() => {});
     fetchApi<{ types: Array<{ type_key: string; display_name: string; category: string }> }>("/api/equipment/types")
       .then((d) => setTypes(d.types || []))
       .catch(() => {});
+    fetchApi<{ last_sync_at: string | null; minutes_ago: number | null; is_stale: boolean; total_equipment: number }>(
+      "/api/equipment/sync-status"
+    ).then(setSyncStatus).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -108,6 +124,38 @@ function EquipmentPageContent() {
 
   const columns = useMemo<ColumnDef<VEquipmentInventoryRow, unknown>[]>(() => [
     {
+      id: "photo",
+      header: "",
+      cell: ({ row }) => {
+        const url = row.original.photo_url;
+        return (
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: "6px",
+            overflow: "hidden",
+            background: "var(--muted-bg, #f3f4f6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}>
+            {url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={url}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>—</span>
+            )}
+          </div>
+        );
+      },
+      meta: { minWidth: "48px", hideOnMobile: true },
+    },
+    {
       accessorKey: "barcode",
       header: "Barcode",
       cell: ({ row }) => (
@@ -123,7 +171,30 @@ function EquipmentPageContent() {
     {
       accessorKey: "type_display_name",
       header: "Type",
-      cell: ({ row }) => row.original.type_display_name || row.original.legacy_type,
+      cell: ({ row }) => {
+        const item = row.original;
+        const typeName = item.type_display_name || item.legacy_type;
+        const catStyle = getCategoryStyle(item.type_category || "");
+        return (
+          <div>
+            <span style={{
+              fontSize: "0.75rem",
+              padding: "0.125rem 0.5rem",
+              borderRadius: "4px",
+              background: catStyle.bg,
+              color: catStyle.text,
+              fontWeight: 500,
+            }}>
+              {typeName}
+            </span>
+            {item.size && (
+              <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.2rem" }}>
+                {item.size}
+              </div>
+            )}
+          </div>
+        );
+      },
       meta: { sortKey: "type_display_name", hideOnMobile: true },
     },
     {
@@ -223,6 +294,27 @@ function EquipmentPageContent() {
           Kiosk Mode
         </Button>
       </div>
+
+      {/* Sync status bar */}
+      {syncStatus && syncStatus.last_sync_at && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.375rem 0.75rem",
+          marginBottom: "0.75rem",
+          borderRadius: "6px",
+          fontSize: "0.8rem",
+          background: syncStatus.is_stale ? "var(--warning-bg)" : "var(--info-bg)",
+          color: syncStatus.is_stale ? "var(--warning-text)" : "var(--info-text)",
+          border: `1px solid ${syncStatus.is_stale ? "var(--warning-border)" : "var(--info-border)"}`,
+        }}>
+          {syncStatus.is_stale
+            ? `Sync delayed (${formatMinutesAgo(syncStatus.minutes_ago)})`
+            : `Airtable Sync: ${formatMinutesAgo(syncStatus.minutes_ago)} \u00B7 ${syncStatus.total_equipment} items`
+          }
+        </div>
+      )}
 
       {/* Stats Row */}
       {stats && (

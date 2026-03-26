@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import {
   getCustodyStyle,
   getConditionStyle,
+  getCategoryStyle,
 } from "@/lib/equipment-styles";
 import {
   getLabel,
@@ -124,27 +125,44 @@ export function KioskEquipmentCard({ equipment, onAction }: KioskEquipmentCardPr
           }}
         >
           <div>
-            <h2
-              style={{
-                fontSize: "1.35rem",
-                fontWeight: 700,
-                color: "var(--text-primary)",
-                margin: 0,
-                lineHeight: 1.2,
-              }}
-            >
-              {equipment.display_name}
-            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+              <h2
+                style={{
+                  fontSize: "1.35rem",
+                  fontWeight: 700,
+                  color: "var(--text-primary)",
+                  margin: 0,
+                  lineHeight: 1.2,
+                }}
+              >
+                {equipment.display_name}
+              </h2>
+              {(() => {
+                const catStyle = getCategoryStyle(equipment.type_category || "");
+                const typeName = equipment.type_display_name || equipment.legacy_type;
+                return (
+                  <span style={{
+                    fontSize: "0.7rem",
+                    padding: "0.125rem 0.5rem",
+                    borderRadius: "4px",
+                    background: catStyle.bg,
+                    color: catStyle.text,
+                    fontWeight: 500,
+                    whiteSpace: "nowrap",
+                  }}>
+                    {typeName}
+                  </span>
+                );
+              })()}
+            </div>
             <span
               style={{
-                fontFamily: "monospace",
-                fontSize: "1rem",
+                fontSize: "0.9rem",
                 color: "var(--muted)",
-                marginTop: "0.25rem",
                 display: "block",
               }}
             >
-              #{equipment.barcode || "???"}
+              {[equipment.size, equipment.manufacturer, `#${equipment.barcode || "???"}`].filter(Boolean).join(" \u00B7 ")}
             </span>
           </div>
 
@@ -169,6 +187,28 @@ export function KioskEquipmentCard({ equipment, onAction }: KioskEquipmentCardPr
           </span>
         </div>
       </div>
+
+      {/* Photo (if available) */}
+      {equipment.photo_url && (
+        <div style={{
+          padding: "0 1.25rem",
+          borderBottom: "1px solid var(--card-border, #e5e7eb)",
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={equipment.photo_url}
+            alt={equipment.display_name}
+            style={{
+              width: "100%",
+              maxHeight: "180px",
+              objectFit: "contain",
+              borderRadius: "8px",
+              marginBottom: "0.75rem",
+              background: "var(--muted-bg, #f3f4f6)",
+            }}
+          />
+        </div>
+      )}
 
       {/* Info grid */}
       <div

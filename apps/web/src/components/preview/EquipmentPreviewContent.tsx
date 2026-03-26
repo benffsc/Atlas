@@ -104,7 +104,13 @@ export function EquipmentPreviewContent({ equipment, onClose }: EquipmentPreview
           )}
           <div>
             <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase" }}>Source</div>
-            <div>{equipment.source_system}</div>
+            <div>
+              {equipment.source_system === "airtable"
+                ? "Airtable (synced)"
+                : equipment.source_system === "atlas_ui"
+                  ? "Atlas (kiosk)"
+                  : equipment.source_system}
+            </div>
           </div>
         </div>
       ),

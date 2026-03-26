@@ -1,4 +1,5 @@
 import { SidebarLayout, type NavSection } from "@/components/SidebarLayout";
+import { TransitionBanner } from "./TransitionBanner";
 
 const equipmentSections: NavSection[] = [
   {
@@ -30,6 +31,7 @@ const equipmentSections: NavSection[] = [
 export default function EquipmentLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarLayout sections={equipmentSections} title="Equipment" backLink={{ label: "Home", href: "/" }}>
+      <TransitionBanner />
       {children}
     </SidebarLayout>
   );

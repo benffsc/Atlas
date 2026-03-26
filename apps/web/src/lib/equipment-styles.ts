@@ -93,6 +93,17 @@ export const ACTION_BUTTON_STYLES: Record<string, string> = {
 };
 
 // =============================================================================
+// CATEGORY STYLES (trap, cage, camera, accessory)
+// =============================================================================
+
+export const CATEGORY_STYLES: Record<string, StatusStyle> = {
+  trap:      { bg: "var(--info-bg)",      border: "var(--info-border)",      text: "var(--info-text)" },
+  cage:      { bg: "var(--caution-bg)",   border: "var(--caution-border)",   text: "var(--caution-text)" },
+  camera:    { bg: "var(--success-bg)",   border: "var(--success-border)",   text: "var(--success-text)" },
+  accessory: { bg: "var(--muted-bg, #f3f4f6)", border: "var(--border)", text: "var(--muted)" },
+};
+
+// =============================================================================
 // HELPERS
 // =============================================================================
 
@@ -120,6 +131,10 @@ export function getFunctionalStyle(status: string): StatusStyle {
 
 export function getScanResultStyle(status: string): StatusStyle {
   return SCAN_RESULT_STYLES[status] || DEFAULT_STYLE;
+}
+
+export function getCategoryStyle(category: string): StatusStyle {
+  return CATEGORY_STYLES[category] || DEFAULT_STYLE;
 }
 
 export function getActionColor(action: string): string {
