@@ -40,11 +40,16 @@ import {
   MapControls,
   DateRangeFilter,
   LocationComparisonPanel,
+  useMeasurement,
+  formatDistance,
   PRIMARY_LAYER_CONFIGS,
   LEGACY_LAYER_CONFIGS,
   LAYER_CONFIGS,
   SERVICE_ZONES,
 } from "@/components/map";
+import type { BasemapType } from "@/components/map/components/MapControls";
+import type { TextSearchResult } from "@/components/map/types";
+import { decodePolyline } from "@/lib/polyline";
 import { GroupedLayerControl, type LayerGroup } from "@/components/map/GroupedLayerControl";
 import type {
   Place,
@@ -203,7 +208,7 @@ function AtlasMapInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [showLegend, setShowLegend] = useState(!isMobile);
-  const [isSatellite, setIsSatellite] = useState(false);
+  const [basemap, setBasemap] = useState<BasemapType>("street");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedZone, setSelectedZone] = useState("All Zones");
   const [dateFrom, setDateFrom] = useState<string | null>(null);
@@ -327,12 +332,18 @@ function AtlasMapInner() {
   const [searchResults, setSearchResults] = useState<Array<{ type: string; item: Place | GooglePin | Volunteer; label: string }>>([]);
   const [atlasSearchResults, setAtlasSearchResults] = useState<AtlasSearchResult[]>([]);
   const [googleSuggestions, setGoogleSuggestions] = useState<PlacePrediction[]>([]);
+  const [poiResults, setPoiResults] = useState<TextSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [navigatedLocation, setNavigatedLocation] = useState<NavigatedLocation | null>(null);
   const navigatedMarkerRef = useRef<L.Marker | null>(null);
   const atlasPinsRef = useRef<AtlasPin[]>([]);
   const leafletCjsRef = useRef<any>(null);
+
+  // Stable cluster group refs — created once, cleared/refilled on data change (FFS-837)
+  const atlasActiveClusterRef = useRef<any>(null);
+  const atlasRefClusterRef = useRef<any>(null);
+  const atlasCombinedLayerRef = useRef<L.LayerGroup | null>(null);
 
   // Keep atlasPinsRef in sync without triggering effects
   useEffect(() => {
@@ -362,6 +373,13 @@ function AtlasMapInner() {
   // Location comparison state
   const [comparisonPlaceIds, setComparisonPlaceIds] = useState<string[]>([]);
 
+  // Measurement tool state
+  const [measureActive, setMeasureActive] = useState(false);
+
+  // Route polyline state (for driving directions)
+  const [routePolyline, setRoutePolyline] = useState<Array<{ lat: number; lng: number }> | null>(null);
+  const routeLayerRef = useRef<L.Polyline | null>(null);
+
   const handleAddToComparison = useCallback((placeId: string) => {
     setComparisonPlaceIds(prev => {
       if (prev.includes(placeId) || prev.length >= 3) return prev;
@@ -375,6 +393,51 @@ function AtlasMapInner() {
 
   const handleClearComparison = useCallback(() => {
     setComparisonPlaceIds([]);
+    setRoutePolyline(null);
+  }, []);
+
+  // Measurement tool hook
+  const measurement = useMeasurement({ mapRef, isActive: measureActive });
+
+  // Measurement and addPointMode are mutually exclusive
+  const handleMeasureToggle = useCallback(() => {
+    setMeasureActive(prev => {
+      if (!prev) {
+        setAddPointMode(null);
+        setPendingClick(null);
+        setShowAddPointMenu(false);
+      }
+      return !prev;
+    });
+  }, []);
+
+  // Route polyline rendering
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Remove existing route
+    if (routeLayerRef.current) {
+      routeLayerRef.current.remove();
+      routeLayerRef.current = null;
+    }
+
+    if (!routePolyline || routePolyline.length === 0) return;
+
+    const polyline = L.polyline(
+      routePolyline.map(p => [p.lat, p.lng] as L.LatLngExpression),
+      { color: "#3b82f6", weight: 4, opacity: 0.8 }
+    );
+    polyline.addTo(mapRef.current);
+    routeLayerRef.current = polyline;
+
+    return () => {
+      polyline.remove();
+    };
+  }, [routePolyline]);
+
+  // Handle route polyline from directions
+  const handleRoutePolyline = useCallback((points: Array<{ lat: number; lng: number }> | null) => {
+    setRoutePolyline(points);
   }, []);
 
   // Street View state
@@ -682,6 +745,7 @@ function AtlasMapInner() {
     data: mapData,
     error: mapError,
     isLoading: mapIsLoading,
+    isValidating: mapIsValidating,
     mutate: refreshMapData,
   } = useMapData({
     layers,
@@ -731,6 +795,37 @@ function AtlasMapInner() {
     setLoading(mapIsLoading);
     setError(mapError ? (mapError instanceof Error ? mapError.message : "Failed to load") : null);
   }, [mapIsLoading, mapError]);
+
+  // Per-layer loading state: a layer is "loading" if enabled + validating + no data yet (FFS-838)
+  const loadingLayers = useMemo(() => {
+    const s = new Set<string>();
+    if (!mapIsValidating) return s;
+    // Atlas sub-layers: loading if validating + no pins yet
+    if (atlasPins.length === 0) {
+      for (const id of ATLAS_SUB_LAYER_IDS) {
+        if (enabledLayers[id]) s.add(id);
+      }
+    }
+    // Legacy layers: loading if validating + no data in that layer
+    const legacyDataMap: Record<string, number> = {
+      places: places.length,
+      google_pins: googlePins.length,
+      tnr_priority: tnrPriority.length,
+      zones: zones.length,
+      volunteers: volunteers.length,
+      clinic_clients: clinicClients.length,
+      trapper_territories: trapperTerritories.length,
+      historical_sources: historicalSources.length,
+      data_coverage: dataCoverage.length,
+    };
+    for (const [id, count] of Object.entries(legacyDataMap)) {
+      if (enabledLayers[id] && count === 0) s.add(id);
+    }
+    return s;
+  }, [mapIsValidating, enabledLayers, atlasPins.length, places.length,
+      googlePins.length, tnrPriority.length, zones.length, volunteers.length,
+      clinicClients.length, trapperTerritories.length,
+      historicalSources.length, dataCoverage.length]);
 
   // Initialize map
   useEffect(() => {
@@ -800,10 +895,13 @@ function AtlasMapInner() {
     return () => {
       map.remove();
       mapRef.current = null;
+      atlasActiveClusterRef.current = null;
+      atlasRefClusterRef.current = null;
+      atlasCombinedLayerRef.current = null;
     };
   }, []);
 
-  // Toggle satellite / street tile layer
+  // Toggle basemap tile layer (street / google / satellite)
   useEffect(() => {
     if (!mapRef.current || !tileLayerRef.current) return;
 
@@ -814,7 +912,7 @@ function AtlasMapInner() {
       labelsLayerRef.current = null;
     }
 
-    if (isSatellite) {
+    if (basemap === "satellite") {
       // Satellite imagery base layer
       const satelliteTiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
         attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics",
@@ -828,13 +926,22 @@ function AtlasMapInner() {
       const labelsTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         maxZoom: 19,
-        pane: "overlayPane", // Ensure labels are above satellite but below markers
+        pane: "overlayPane",
       });
       labelsTiles.addTo(mapRef.current);
       labelsTiles.setZIndex(1);
       labelsLayerRef.current = labelsTiles;
+    } else if (basemap === "google") {
+      // Google Maps tiles — includes POI labels naturally
+      const googleTiles = L.tileLayer("https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+        attribution: '&copy; Google Maps',
+        maxZoom: 20,
+      });
+      googleTiles.addTo(mapRef.current);
+      googleTiles.setZIndex(0);
+      tileLayerRef.current = googleTiles;
     } else {
-      // Street view (includes labels)
+      // Street view — Carto Voyager (includes labels)
       const streetTiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         maxZoom: 19,
@@ -843,7 +950,7 @@ function AtlasMapInner() {
       streetTiles.setZIndex(0);
       tileLayerRef.current = streetTiles;
     }
-  }, [isSatellite]);
+  }, [basemap]);
 
   // NOTE: SWR automatically handles fetching on mount and when dependencies change.
   // We intentionally do NOT refetch on pan/zoom. Loading all data once
@@ -1315,78 +1422,105 @@ function AtlasMapInner() {
   }, [dataCoverage, enabledLayers.data_coverage]);
 
   // =========================================================================
-  // Atlas Pins layer — uses Leaflet.markercluster for smooth clustering
+  // Atlas Pins layer — stable cluster groups, batch adds (FFS-837)
+  // Cluster groups are created ONCE and reused. On data change we
+  // clearLayers() + addLayers(batch) instead of destroy/recreate.
   // =========================================================================
   useEffect(() => {
-    if (!mapRef.current) return;
-    if (layersRef.current.atlas_pins) {
-      mapRef.current.removeLayer(layersRef.current.atlas_pins);
+    if (!mapRef.current || !leafletCjsRef.current) return;
+
+    // When atlas is disabled: remove combined layer from map, clear markers, but keep refs alive
+    if (!atlasLayerEnabled) {
+      if (atlasCombinedLayerRef.current && mapRef.current.hasLayer(atlasCombinedLayerRef.current)) {
+        mapRef.current.removeLayer(atlasCombinedLayerRef.current);
+      }
+      if (atlasActiveClusterRef.current) atlasActiveClusterRef.current.clearLayers();
+      if (atlasRefClusterRef.current) atlasRefClusterRef.current.clearLayers();
+      delete layersRef.current.atlas_pins;
+      return;
     }
-    if (!atlasLayerEnabled || atlasPins.length === 0) return;
 
-    // Active pins cluster — full-size pins with disease/watch badges
-    const layer = leafletCjsRef.current.markerClusterGroup({
-      maxClusterRadius: 50,
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: false,
-      zoomToBoundsOnClick: true,
-      disableClusteringAtZoom: 16,
-      chunkedLoading: true,
-      chunkInterval: 100,
-      chunkDelay: 20,
-      iconCreateFunction: (cluster: any) => {
-        const count = cluster.getChildCount();
-        const markers = cluster.getAllChildMarkers();
-        const diseaseCount = markers.filter((m: any) => m.options.diseaseRisk).length;
-        const watchCount = markers.filter((m: any) => m.options.watchList).length;
-        const diseaseRatio = diseaseCount / count;
-        const watchRatio = watchCount / count;
-        const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
-        const dim = sizeClass === "small" ? 32 : sizeClass === "medium" ? 40 : 50;
+    if (atlasPins.length === 0) {
+      if (atlasActiveClusterRef.current) atlasActiveClusterRef.current.clearLayers();
+      if (atlasRefClusterRef.current) atlasRefClusterRef.current.clearLayers();
+      return;
+    }
 
-        // Majority-wins: cluster only turns colored if >50% of markers match
-        let clusterColor = "#3b82f6"; // default blue
-        let badge = "";
-        if (diseaseRatio > 0.5) {
-          clusterColor = "#ea580c";
-        } else if (watchRatio > 0.5) {
-          clusterColor = "#8b5cf6";
-        } else if (diseaseCount > 0) {
-          // Minority disease — blue cluster + small orange badge
-          badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#ea580c;border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${diseaseCount}</div>`;
-        } else if (watchCount > 0) {
-          badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#8b5cf6;border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${watchCount}</div>`;
-        }
+    // Lazy-create cluster groups once — stable iconCreateFunction closures
+    if (!atlasActiveClusterRef.current) {
+      atlasActiveClusterRef.current = leafletCjsRef.current.markerClusterGroup({
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        disableClusteringAtZoom: 16,
+        chunkedLoading: true,
+        chunkInterval: 100,
+        chunkDelay: 20,
+        iconCreateFunction: (cluster: any) => {
+          const count = cluster.getChildCount();
+          const markers = cluster.getAllChildMarkers();
+          const diseaseCount = markers.filter((m: any) => m.options.diseaseRisk).length;
+          const watchCount = markers.filter((m: any) => m.options.watchList).length;
+          const diseaseRatio = diseaseCount / count;
+          const watchRatio = watchCount / count;
+          const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
+          const dim = sizeClass === "small" ? 32 : sizeClass === "medium" ? 40 : 50;
 
-        return L.divIcon({
-          html: `<div style="position:relative;"><div class="map-cluster map-cluster--${sizeClass}" style="--cluster-color: ${clusterColor}">${count}</div>${badge}</div>`,
-          className: "map-cluster-icon",
-          iconSize: L.point(dim, dim),
-        });
-      },
-    });
+          let clusterColor = "#3b82f6";
+          let badge = "";
+          if (diseaseRatio > 0.5) {
+            clusterColor = "#ea580c";
+          } else if (watchRatio > 0.5) {
+            clusterColor = "#8b5cf6";
+          } else if (diseaseCount > 0) {
+            badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#ea580c;border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${diseaseCount}</div>`;
+          } else if (watchCount > 0) {
+            badge = `<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#8b5cf6;border-radius:50%;border:2px solid white;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;">${watchCount}</div>`;
+          }
 
-    // Reference pins cluster — more aggressive clustering, smaller/muted appearance
-    const refLayer = leafletCjsRef.current.markerClusterGroup({
-      maxClusterRadius: 80, // Larger radius = clusters more aggressively
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: false,
-      zoomToBoundsOnClick: true,
-      disableClusteringAtZoom: 17, // Only unclusters at higher zoom than active
-      chunkedLoading: true,
-      chunkInterval: 100,
-      chunkDelay: 20,
-      iconCreateFunction: (cluster: any) => {
-        const count = cluster.getChildCount();
-        const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
-        const dim = sizeClass === "small" ? 24 : sizeClass === "medium" ? 30 : 38;
-        return L.divIcon({
-          html: `<div style="width:${dim}px;height:${dim}px;border-radius:50%;background:rgba(148,163,184,0.65);color:#475569;font-size:${dim < 30 ? 10 : 11}px;font-weight:600;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 3px rgba(0,0,0,0.15);">${count}</div>`,
-          className: "map-cluster-icon",
-          iconSize: L.point(dim, dim),
-        });
-      },
-    });
+          return L.divIcon({
+            html: `<div style="position:relative;"><div class="map-cluster map-cluster--${sizeClass}" style="--cluster-color: ${clusterColor}">${count}</div>${badge}</div>`,
+            className: "map-cluster-icon",
+            iconSize: L.point(dim, dim),
+          });
+        },
+      });
+    }
+
+    if (!atlasRefClusterRef.current) {
+      atlasRefClusterRef.current = leafletCjsRef.current.markerClusterGroup({
+        maxClusterRadius: 80,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        disableClusteringAtZoom: 17,
+        chunkedLoading: true,
+        chunkInterval: 100,
+        chunkDelay: 20,
+        iconCreateFunction: (cluster: any) => {
+          const count = cluster.getChildCount();
+          const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
+          const dim = sizeClass === "small" ? 24 : sizeClass === "medium" ? 30 : 38;
+          return L.divIcon({
+            html: `<div style="width:${dim}px;height:${dim}px;border-radius:50%;background:rgba(148,163,184,0.65);color:#475569;font-size:${dim < 30 ? 10 : 11}px;font-weight:600;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 3px rgba(0,0,0,0.15);">${count}</div>`,
+            className: "map-cluster-icon",
+            iconSize: L.point(dim, dim),
+          });
+        },
+      });
+    }
+
+    const activeCluster = atlasActiveClusterRef.current;
+    const refCluster = atlasRefClusterRef.current;
+
+    // Clear existing markers (O(n) internal grid reset)
+    activeCluster.clearLayers();
+    refCluster.clearLayers();
+
+    // Build marker arrays for batch add
+    const activeMarkers: L.Marker[] = [];
+    const refMarkers: L.Marker[] = [];
 
     atlasPins.forEach((pin) => {
       if (!pin.lat || !pin.lng) return;
@@ -1441,7 +1575,7 @@ function AtlasMapInner() {
             L.DomEvent.stopPropagation(e);
           }
         });
-        refLayer.addLayer(marker);
+        refMarkers.push(marker);
         return;
       }
 
@@ -1678,94 +1812,110 @@ function AtlasMapInner() {
         }
       });
 
-      layer.addLayer(marker);
+      activeMarkers.push(marker);
     });
 
-    // Add both cluster layers to map as a single layer group
-    const combined = L.layerGroup([layer, refLayer]);
-    combined.addTo(mapRef.current);
-    layersRef.current.atlas_pins = combined;
+    // Batch add markers to cluster groups (uses chunkedLoading internally)
+    activeCluster.addLayers(activeMarkers);
+    refCluster.addLayers(refMarkers);
+
+    // Create or reuse combined layer group, ensure it's on the map
+    if (!atlasCombinedLayerRef.current) {
+      atlasCombinedLayerRef.current = L.layerGroup([activeCluster, refCluster]);
+    }
+    if (!mapRef.current.hasLayer(atlasCombinedLayerRef.current)) {
+      atlasCombinedLayerRef.current.addTo(mapRef.current);
+    }
+    layersRef.current.atlas_pins = atlasCombinedLayerRef.current;
   }, [atlasPins, atlasLayerEnabled]);
 
-  // Search functionality - uses fuzzy search API for better matching
+  // Search: local instant filtering
+  const searchAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
-      setAtlasSearchResults([]);
-      setGoogleSuggestions([]);
       return;
     }
-
-    // Also do quick local search for instant results on loaded data
     const query = searchQuery.toLowerCase();
     const localResults: typeof searchResults = [];
-
     places.filter(p => p.address.toLowerCase().includes(query)).slice(0, 2).forEach(p => {
       localResults.push({ type: "place", item: p, label: p.address });
     });
-
     googlePins.filter(p => p.name?.toLowerCase().includes(query)).slice(0, 2).forEach(p => {
       localResults.push({ type: "google_pin", item: p, label: p.name || "Unnamed pin" });
     });
-
     volunteers.filter(v => v.name.toLowerCase().includes(query)).slice(0, 2).forEach(v => {
       localResults.push({ type: "volunteer", item: v, label: `${v.name} (${v.role_label})` });
     });
-
     setSearchResults(localResults);
   }, [searchQuery, places, googlePins, volunteers]);
 
-  // Fuzzy search via Atlas search API (debounced)
+  // Search: parallel remote (Atlas + Google Autocomplete + Text Search) — single debounced effect
   useEffect(() => {
     if (searchQuery.length < 3) {
       setAtlasSearchResults([]);
+      setGoogleSuggestions([]);
+      setPoiResults([]);
+      setSearchLoading(false);
       return;
     }
 
     setSearchLoading(true);
     const timer = setTimeout(async () => {
+      searchAbortRef.current?.abort();
+      const controller = new AbortController();
+      searchAbortRef.current = controller;
+
+      const isLikelyAddress = /^\d/.test(searchQuery.trim());
+
       try {
-        const data = await fetchApi<{ suggestions?: AtlasSearchResult[] }>(
-          `/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&suggestions=true`
-        );
-        // Show all results — those with coordinates navigate on map,
-        // those without link to the entity detail page
-        setAtlasSearchResults(data.suggestions || []);
-      } catch (err) {
-        console.error("Atlas search error:", err);
-      } finally {
+        const results = await Promise.allSettled([
+          fetchApi<{ suggestions?: AtlasSearchResult[] }>(
+            `/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&suggestions=true`,
+            { signal: controller.signal }
+          ),
+          fetchApi<{ predictions?: PlacePrediction[] }>(
+            `/api/places/autocomplete?input=${encodeURIComponent(searchQuery)}`,
+            { signal: controller.signal }
+          ),
+          isLikelyAddress
+            ? Promise.resolve(null)
+            : fetchApi<{ results?: TextSearchResult[] }>(
+                `/api/places/text-search?query=${encodeURIComponent(searchQuery)}`,
+                { signal: controller.signal }
+              ),
+        ]);
+
+        if (controller.signal.aborted) return;
+
+        const atlasData = results[0].status === "fulfilled" ? results[0].value : null;
+        const googleData = results[1].status === "fulfilled" ? results[1].value : null;
+        const textData = results[2].status === "fulfilled" ? results[2].value : null;
+
+        const newAtlas = atlasData?.suggestions || [];
+        const newGoogle = googleData?.predictions || [];
+        let newPoi: TextSearchResult[] = textData?.results || [];
+
+        // Only show Google address suggestions if <3 Atlas results
+        const showGoogle = newAtlas.length < 3;
+
+        // Deduplicate POI results that match autocomplete place_ids
+        if (newPoi.length > 0 && newGoogle.length > 0) {
+          const ids = new Set(newGoogle.map(s => s.place_id));
+          newPoi = newPoi.filter(r => !ids.has(r.place_id));
+        }
+
+        setAtlasSearchResults(newAtlas);
+        setGoogleSuggestions(showGoogle ? newGoogle : []);
+        setPoiResults(newPoi);
         setSearchLoading(false);
+      } catch {
+        if (!controller.signal.aborted) setSearchLoading(false);
       }
-    }, 300);
+    }, 200);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  // Google Places autocomplete as fallback (when few Atlas results)
-  useEffect(() => {
-    if (searchQuery.length < 3) {
-      setGoogleSuggestions([]);
-      return;
-    }
-
-    // Only fetch Google suggestions if we have few Atlas results
-    const timer = setTimeout(async () => {
-      if (atlasSearchResults.length < 3) {
-        try {
-          const data = await fetchApi<{ predictions?: PlacePrediction[] }>(
-            `/api/places/autocomplete?input=${encodeURIComponent(searchQuery)}`
-          );
-          setGoogleSuggestions(data.predictions || []);
-        } catch (err) {
-          console.error("Google Places error:", err);
-        }
-      } else {
-        setGoogleSuggestions([]);
-      }
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, atlasSearchResults.length]);
 
   const handleSearchSelect = (result: typeof searchResults[0]) => {
     const item = result.item as Place | GooglePin | Volunteer;
@@ -1877,6 +2027,17 @@ function AtlasMapInner() {
       }
     } catch (err) {
       console.error("Failed to get place details:", err);
+    }
+    setSearchQuery("");
+    setShowSearchResults(false);
+  };
+
+  // Handle POI/business search result selection — navigate to location
+  const handlePoiSelect = (result: TextSearchResult) => {
+    const { lat, lng } = result.geometry.location;
+    setNavigatedLocation({ lat, lng, address: result.formatted_address });
+    if (mapRef.current) {
+      mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
     }
     setSearchQuery("");
     setShowSearchResults(false);
@@ -2133,6 +2294,8 @@ function AtlasMapInner() {
           } else if (selectedPlaceId) {
             setSelectedPlaceId(null);
             setDrawerFromAddPoint(false);
+          } else if (measureActive) {
+            setMeasureActive(false);
           } else if (addPointMode) {
             setAddPointMode(null);
             setPendingClick(null);
@@ -2174,6 +2337,10 @@ function AtlasMapInner() {
             setShowAddPointMenu(false);
           }
           break;
+        case "d":
+        case "D":
+          handleMeasureToggle();
+          break;
         case "f":
         case "F":
           handleFullscreenToggle();
@@ -2183,17 +2350,24 @@ function AtlasMapInner() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [addPointMode, selectedPlaceId, selectedPersonId, selectedCatId, selectedAnnotationId, handleFullscreenToggle]);
+  }, [addPointMode, measureActive, selectedPlaceId, selectedPersonId, selectedCatId, selectedAnnotationId, handleFullscreenToggle, handleMeasureToggle]);
 
-  // Add Point mode: map click handler and cursor
+  // Add Point mode / Measurement mode: map click handler and cursor
   useEffect(() => {
-    if (!mapRef.current || !addPointMode) return;
+    if (!mapRef.current) return;
     const map = mapRef.current;
     const container = map.getContainer();
+
+    if (!addPointMode && !measureActive) return;
+
     container.style.cursor = 'crosshair';
 
     const handleMapClick = (e: L.LeafletMouseEvent) => {
-      setPendingClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+      if (measureActive) {
+        measurement.addPoint({ lat: e.latlng.lat, lng: e.latlng.lng });
+      } else if (addPointMode) {
+        setPendingClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+      }
     };
 
     map.on('click', handleMapClick);
@@ -2201,7 +2375,7 @@ function AtlasMapInner() {
       map.off('click', handleMapClick);
       container.style.cursor = '';
     };
-  }, [addPointMode]);
+  }, [addPointMode, measureActive, measurement]);
 
   // Street View click-to-navigate: clicking the map repositions street view
   const streetViewCoordsRef = useRef(streetViewCoords);
@@ -2503,7 +2677,7 @@ function AtlasMapInner() {
         </div>
 
         {/* Search results dropdown */}
-        {showSearchResults && (searchResults.length > 0 || atlasSearchResults.length > 0 || googleSuggestions.length > 0 || (searchQuery.length >= 3 && !searchLoading)) && (
+        {showSearchResults && (searchResults.length > 0 || atlasSearchResults.length > 0 || poiResults.length > 0 || googleSuggestions.length > 0 || searchLoading || (searchQuery.length >= 3 && !searchLoading)) && (
           <div style={{
             background: "var(--background)",
             borderRadius: 12,
@@ -2625,6 +2799,48 @@ function AtlasMapInner() {
               </>
             )}
 
+            {/* Nearby Places (POI/Business) Section */}
+            {poiResults.length > 0 && (
+              <>
+                <div style={{
+                  padding: "8px 16px 4px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  background: "var(--section-bg)",
+                  borderBottom: "1px solid var(--border)",
+                  marginTop: searchResults.length > 0 || atlasSearchResults.length > 0 ? 8 : 0,
+                }}>
+                  Nearby Places
+                </div>
+                {poiResults.map((result, i) => (
+                  <div
+                    key={`poi-${i}`}
+                    onClick={() => handlePoiSelect(result)}
+                    style={{
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      borderBottom: "1px solid #f3f4f6",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f9ff")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                  >
+                    <span style={{ fontSize: 16 }}>🏪</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 500, fontSize: 14 }}>{result.name}</div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>{result.formatted_address}</div>
+                    </div>
+                    <span style={{ fontSize: 10, color: "#0284c7", fontWeight: 500 }}>PLACE</span>
+                  </div>
+                ))}
+              </>
+            )}
+
             {/* Google Places Section */}
             {googleSuggestions.length > 0 && (
               <>
@@ -2637,7 +2853,7 @@ function AtlasMapInner() {
                   letterSpacing: "0.05em",
                   background: "var(--section-bg)",
                   borderBottom: "1px solid var(--border)",
-                  marginTop: searchResults.length > 0 || atlasSearchResults.length > 0 ? 8 : 0,
+                  marginTop: searchResults.length > 0 || atlasSearchResults.length > 0 || poiResults.length > 0 ? 8 : 0,
                 }}>
                   Search All Addresses
                 </div>
@@ -2667,15 +2883,23 @@ function AtlasMapInner() {
               </>
             )}
 
-            {/* Loading state */}
+            {/* Loading skeleton */}
             {searchLoading && (
-              <div style={{ padding: "12px 16px", textAlign: "center", color: "#6b7280", fontSize: 13 }}>
-                Searching...
+              <div style={{ padding: "4px 0" }}>
+                {[1, 2, 3].map((n) => (
+                  <div key={n} style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#e5e7eb", animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)" }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ height: 14, width: "70%", borderRadius: 4, background: "#e5e7eb", marginBottom: 4, animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)" }} />
+                      <div style={{ height: 10, width: "45%", borderRadius: 4, background: "#e5e7eb", animation: "map-shimmer 1.5s infinite linear", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%)" }} />
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
             {/* No results message */}
-            {searchQuery.length >= 3 && !searchLoading && searchResults.length === 0 && atlasSearchResults.length === 0 && googleSuggestions.length === 0 && (
+            {searchQuery.length >= 3 && !searchLoading && searchResults.length === 0 && atlasSearchResults.length === 0 && googleSuggestions.length === 0 && poiResults.length === 0 && (
               <div style={{ padding: "16px", textAlign: "center", color: "#6b7280" }}>
                 <div style={{ fontSize: 14, marginBottom: 4 }}>No matches found</div>
                 <div style={{ fontSize: 12 }}>Try a different search term</div>
@@ -2684,6 +2908,24 @@ function AtlasMapInner() {
           </div>
         )}
       </div>
+      )}
+
+      {/* Measurement floating panel */}
+      {measureActive && (
+        <div className="map-measure-panel">
+          <span className="map-measure-panel__distance">
+            {measurement.points.length >= 2 ? formatDistance(measurement.totalDistance) : "Click to measure"}
+          </span>
+          <span className="map-measure-panel__info">
+            {measurement.points.length} point{measurement.points.length !== 1 ? "s" : ""}
+          </span>
+          {measurement.points.length > 0 && (
+            <>
+              <button className="map-measure-panel__btn" onClick={measurement.undoLastPoint}>Undo</button>
+              <button className="map-measure-panel__btn map-measure-panel__btn--danger" onClick={measurement.clearMeasurement}>Clear</button>
+            </>
+          )}
+        </div>
       )}
 
       {/* Date range filter (hidden during Street View) */}
@@ -2704,13 +2946,16 @@ function AtlasMapInner() {
         onAddPointModeChange={(mode) => {
           setAddPointMode(mode);
           if (mode === null) setPendingClick(null);
+          if (mode) setMeasureActive(false);
         }}
         showAddPointMenu={showAddPointMenu}
         onShowAddPointMenuChange={setShowAddPointMenu}
         locatingUser={locatingUser}
         onMyLocation={handleMyLocation}
-        isSatellite={isSatellite}
-        onSatelliteToggle={() => setIsSatellite(!isSatellite)}
+        basemap={basemap}
+        onBasemapChange={setBasemap}
+        measureActive={measureActive}
+        onMeasureToggle={handleMeasureToggle}
         isFullscreen={isFullscreen}
         onFullscreenToggle={handleFullscreenToggle}
         onZoomIn={() => mapRef.current?.zoomIn()}
@@ -2749,6 +2994,7 @@ function AtlasMapInner() {
               groups={atlasMapLayerGroups}
               enabledLayers={enabledLayers}
               onToggleLayer={toggleLayer}
+              loadingLayers={loadingLayers}
               inline
               counts={{
                 ...atlasSubLayerCounts,
@@ -3018,6 +3264,8 @@ function AtlasMapInner() {
         <span style={{ margin: "0 6px" }}>·</span>
         <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>A</kbd> add point
         <span style={{ margin: "0 6px" }}>·</span>
+        <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>D</kbd> measure
+        <span style={{ margin: "0 6px" }}>·</span>
         <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>M</kbd> location
         <span style={{ margin: "0 6px" }}>·</span>
         <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>F</kbd> fullscreen
@@ -3036,6 +3284,7 @@ function AtlasMapInner() {
         placeIds={comparisonPlaceIds}
         onRemovePlace={handleRemoveFromComparison}
         onClear={handleClearComparison}
+        onRoutePolyline={handleRoutePolyline}
       />
 
       {/* CSS animations are in map.css */}

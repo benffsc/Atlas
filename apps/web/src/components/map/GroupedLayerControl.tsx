@@ -25,6 +25,8 @@ export interface GroupedLayerControlProps {
   enabledLayers: Record<string, boolean>;
   onToggleLayer: (layerId: string) => void;
   counts?: Record<string, number>;
+  /** Set of layer IDs currently loading data (shows spinner next to label) */
+  loadingLayers?: Set<string>;
   /** Compact mode for dashboard (smaller font, tighter spacing) */
   compact?: boolean;
   /** Inline mode renders groups directly without trigger button/popover (for sidebar panels) */
@@ -36,12 +38,14 @@ function LayerGroupList({
   enabledLayers,
   onToggleLayer,
   counts,
+  loadingLayers,
   defaultExpanded,
 }: {
   groups: LayerGroup[];
   enabledLayers: Record<string, boolean>;
   onToggleLayer: (layerId: string) => void;
   counts?: Record<string, number>;
+  loadingLayers?: Set<string>;
   defaultExpanded: Record<string, boolean>;
 }) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(defaultExpanded);
@@ -57,6 +61,7 @@ function LayerGroupList({
         const groupActiveCount = group.children.filter(
           (c) => enabledLayers[c.id]
         ).length;
+        const groupLoading = loadingLayers && group.children.some(c => loadingLayers.has(c.id));
 
         return (
           <div key={group.id} className="layer-group">
@@ -84,6 +89,7 @@ function LayerGroupList({
               {groupActiveCount > 0 && (
                 <span className="layer-group-badge">{groupActiveCount}</span>
               )}
+              {groupLoading && <span className="layer-loading-spinner" />}
             </button>
 
             {isExpanded && (
@@ -111,6 +117,9 @@ function LayerGroupList({
                       {count !== undefined && (
                         <span className="layer-count-badge">{count}</span>
                       )}
+                      {isOn && loadingLayers?.has(item.id) && (
+                        <span className="layer-loading-spinner" />
+                      )}
                     </button>
                   );
                 })}
@@ -128,6 +137,7 @@ export function GroupedLayerControl({
   enabledLayers,
   onToggleLayer,
   counts,
+  loadingLayers,
   compact = false,
   inline = false,
 }: GroupedLayerControlProps) {
@@ -159,6 +169,7 @@ export function GroupedLayerControl({
           enabledLayers={enabledLayers}
           onToggleLayer={onToggleLayer}
           counts={counts}
+          loadingLayers={loadingLayers}
           defaultExpanded={defaultExpanded}
         />
       </div>
@@ -193,6 +204,7 @@ export function GroupedLayerControl({
             enabledLayers={enabledLayers}
             onToggleLayer={onToggleLayer}
             counts={counts}
+            loadingLayers={loadingLayers}
             defaultExpanded={defaultExpanded}
           />
         </div>
