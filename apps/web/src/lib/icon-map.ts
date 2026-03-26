@@ -71,6 +71,23 @@ import {
   ExternalLink,
   Tablet,
   ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  Zap,
+  Gauge,
+  HelpCircle,
+  HeartPulse,
+  FlaskConical,
+  GraduationCap,
+  MessageSquare,
+  Activity,
+  Grid2X2,
+  DatabaseZap,
+  GitMerge,
+  AlertTriangle,
+  Crosshair,
+  Layers,
+  FileSearch,
   type LucideIcon,
 } from "lucide-react";
 
@@ -158,6 +175,27 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   "external-link": ExternalLink,
   tablet: Tablet,
   "arrow-right": ArrowRight,
+
+  // Sidebar collapse
+  "chevron-down": ChevronDown,
+  "chevron-right": ChevronRight,
+
+  // Hub pages & dashboard
+  zap: Zap,
+  gauge: Gauge,
+  "help-circle": HelpCircle,
+  "heart-pulse": HeartPulse,
+  "flask-conical": FlaskConical,
+  "graduation-cap": GraduationCap,
+  "message-square": MessageSquare,
+  activity: Activity,
+  "grid-2x2": Grid2X2,
+  "database-zap": DatabaseZap,
+  "git-merge": GitMerge,
+  "alert-triangle": AlertTriangle,
+  crosshair: Crosshair,
+  layers: Layers,
+  "file-search": FileSearch,
 };
 
 export type IconName = keyof typeof ICON_MAP;

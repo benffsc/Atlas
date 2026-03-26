@@ -26,9 +26,15 @@ interface SidebarLayoutProps {
   backLink?: { label: string; href: string };
   /** Allow sidebar to be collapsed to icon-only mode */
   collapsible?: boolean;
+  /** Enable collapsible section headers (click to expand/collapse) */
+  collapsibleSections?: boolean;
+  /** localStorage key for persisting collapsed sections state */
+  sidebarKey?: string;
+  /** Section titles to collapse by default */
+  defaultCollapsed?: string[];
 }
 
-export function SidebarLayout({ children, sections, title, backLink, collapsible = true }: SidebarLayoutProps) {
+export function SidebarLayout({ children, sections, title, backLink, collapsible = true, collapsibleSections = false, sidebarKey, defaultCollapsed = [] }: SidebarLayoutProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -36,6 +42,36 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
     if (typeof window === "undefined") return false;
     try { return localStorage.getItem("sidebar-collapsed") === "true"; } catch { return false; }
   });
+
+  // Collapsible sections state
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set(defaultCollapsed);
+    if (!sidebarKey) return new Set(defaultCollapsed);
+    try {
+      const stored = localStorage.getItem(`sidebar-sections-${sidebarKey}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[];
+        // Merge stored with defaults (stored takes priority on subsequent visits)
+        return new Set(parsed);
+      }
+    } catch { /* ignore */ }
+    return new Set(defaultCollapsed);
+  });
+
+  const toggleSection = (sectionTitle: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionTitle)) {
+        next.delete(sectionTitle);
+      } else {
+        next.add(sectionTitle);
+      }
+      if (sidebarKey) {
+        try { localStorage.setItem(`sidebar-sections-${sidebarKey}`, JSON.stringify([...next])); } catch { /* ignore */ }
+      }
+      return next;
+    });
+  };
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -113,70 +149,103 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
         </div>
       )}
 
-      {sections.map((section, idx) => (
-        <div key={idx} style={{ marginBottom: "1.5rem" }}>
-          {!isCollapsed && (
-            <div
-              style={{
-                padding: "0 1rem",
-                marginBottom: "0.5rem",
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-                color: "var(--text-muted)",
-              }}
-            >
-              {section.title}
-            </div>
-          )}
-          <nav>
-            {section.items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={isCollapsed ? item.label : undefined}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: isCollapsed ? "0" : "0.5rem",
-                  justifyContent: isCollapsed ? "center" : "flex-start",
-                  padding: isCollapsed ? "0.5rem" : "0.5rem 1rem",
-                  fontSize: "0.875rem",
-                  color: isActive(item.href) ? "var(--primary)" : "var(--text-primary)",
-                  background: isActive(item.href) ? "var(--info-bg)" : "transparent",
-                  borderLeft: isActive(item.href) ? "3px solid var(--primary)" : "3px solid transparent",
-                  textDecoration: "none",
-                  position: "relative",
-                }}
-              >
-                {item.icon && <Icon name={item.icon} size={isCollapsed ? 20 : 18} />}
-                {!isCollapsed && item.label}
-                {item.badge != null && item.badge > 0 && (
-                  <span style={{
-                    marginLeft: isCollapsed ? "0" : "auto",
-                    position: isCollapsed ? "absolute" : "static",
-                    top: isCollapsed ? "2px" : undefined,
-                    right: isCollapsed ? "4px" : undefined,
-                    minWidth: "18px",
-                    height: "18px",
-                    lineHeight: "18px",
-                    textAlign: "center",
-                    fontSize: "0.65rem",
-                    fontWeight: 700,
-                    color: "#fff",
-                    background: "var(--primary)",
-                    borderRadius: "9px",
-                    padding: "0 4px",
-                  }}>
-                    {item.badge > 99 ? "99+" : item.badge}
-                  </span>
-                )}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      ))}
+      {sections.map((section, idx) => {
+        const isSectionCollapsed = collapsibleSections && collapsedSections.has(section.title);
+
+        return (
+          <div key={idx} style={{ marginBottom: "1.5rem" }}>
+            {!isCollapsed && (
+              collapsibleSections ? (
+                <button
+                  onClick={() => toggleSection(section.title)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    width: "100%",
+                    padding: "0.15rem 1rem",
+                    marginBottom: isSectionCollapsed ? "0" : "0.5rem",
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    color: "var(--text-muted)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                  aria-expanded={!isSectionCollapsed}
+                >
+                  <Icon name={isSectionCollapsed ? "chevron-right" : "chevron-down"} size={12} />
+                  {section.title}
+                </button>
+              ) : (
+                <div
+                  style={{
+                    padding: "0 1rem",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  {section.title}
+                </div>
+              )
+            )}
+            {!isSectionCollapsed && (
+              <nav>
+                {section.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={isCollapsed ? item.label : undefined}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: isCollapsed ? "0" : "0.5rem",
+                      justifyContent: isCollapsed ? "center" : "flex-start",
+                      padding: isCollapsed ? "0.5rem" : "0.5rem 1rem",
+                      fontSize: "0.875rem",
+                      color: isActive(item.href) ? "var(--primary)" : "var(--text-primary)",
+                      background: isActive(item.href) ? "var(--info-bg)" : "transparent",
+                      borderLeft: isActive(item.href) ? "3px solid var(--primary)" : "3px solid transparent",
+                      textDecoration: "none",
+                      position: "relative",
+                    }}
+                  >
+                    {item.icon && <Icon name={item.icon} size={isCollapsed ? 20 : 18} />}
+                    {!isCollapsed && item.label}
+                    {item.badge != null && item.badge > 0 && (
+                      <span style={{
+                        marginLeft: isCollapsed ? "0" : "auto",
+                        position: isCollapsed ? "absolute" : "static",
+                        top: isCollapsed ? "2px" : undefined,
+                        right: isCollapsed ? "4px" : undefined,
+                        minWidth: "18px",
+                        height: "18px",
+                        lineHeight: "18px",
+                        textAlign: "center",
+                        fontSize: "0.65rem",
+                        fontWeight: 700,
+                        color: "#fff",
+                        background: "var(--primary)",
+                        borderRadius: "9px",
+                        padding: "0 4px",
+                      }}>
+                        {item.badge > 99 ? "99+" : item.badge}
+                      </span>
+                    )}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </div>
+        );
+      })}
     </>
   );
 
@@ -291,15 +360,16 @@ const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
     title: "Data",
     items: [
       { label: "Data Hub", href: "/admin/data", icon: "bar-chart" },
-      { label: "Ingest Dashboard", href: "/admin/ingest", icon: "upload" },
-      { label: "Review Queue", href: "/admin/data?tab=review", icon: "list-checks" },
+      { label: "ClinicHQ Upload", href: "/admin/ingest", icon: "upload" },
+      { label: "Data Health", href: "/admin/data-health", icon: "activity" },
     ],
   },
   {
     title: "Beacon",
     items: [
-      { label: "Map", href: "/map", icon: "map" },
       { label: "Colony Estimates", href: "/admin/beacon/colony-estimates", icon: "cat" },
+      { label: "Mortality", href: "/admin/beacon/mortality", icon: "clipboard-list" },
+      { label: "Reproduction", href: "/admin/beacon/reproduction", icon: "baby" },
       { label: "Seasonal Analysis", href: "/admin/beacon/seasonal", icon: "calendar-days" },
       { label: "Forecasts", href: "/admin/beacon/forecasts", icon: "trending-up" },
     ],
@@ -313,39 +383,26 @@ const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
     ],
   },
   {
-    title: "Settings",
+    title: "Tippy",
     items: [
-      { label: "Staff", href: "/admin/staff", icon: "user-cog" },
-      { label: "Organizations", href: "/admin/organizations", icon: "building-2" },
-      { label: "Equipment", href: "/admin/equipment", icon: "wrench" },
-      { label: "Intake Fields", href: "/admin/intake-fields", icon: "form-input" },
-      { label: "Form Layouts", href: "/admin/forms/layouts", icon: "file-stack" },
-      { label: "Ecology Config", href: "/admin/ecology", icon: "leaf" },
-      { label: "AI Access", href: "/admin/ai-access", icon: "shield-check" },
-      { label: "App Config", href: "/admin/config", icon: "settings" },
-      { label: "Map Colors", href: "/admin/map-colors", icon: "palette" },
-      { label: "Display Labels", href: "/admin/labels", icon: "tag" },
-      { label: "Theme", href: "/admin/theme", icon: "paintbrush" },
-      { label: "Blacklist", href: "/admin/blacklist", icon: "ban" },
-      { label: "Triage Flags", href: "/admin/triage-flags", icon: "flag" },
-      { label: "Navigation", href: "/admin/nav", icon: "compass" },
-      { label: "Roles", href: "/admin/roles", icon: "shield" },
+      { label: "Corrections", href: "/admin/tippy-corrections", icon: "pencil" },
+      { label: "Knowledge Base", href: "/admin/knowledge-base", icon: "book-open" },
+      { label: "Conversations", href: "/admin/tippy-conversations", icon: "message-square" },
+      { label: "Feedback", href: "/admin/tippy-feedback", icon: "help-circle" },
     ],
   },
   {
-    title: "Linear",
+    title: "Settings",
     items: [
-      { label: "Dashboard", href: "/admin/linear", icon: "square-kanban" },
-      { label: "Issues", href: "/admin/linear/issues", icon: "clipboard-list" },
-      { label: "Sessions", href: "/admin/linear/sessions", icon: "bot" },
+      { label: "All Settings", href: "/admin/settings", icon: "settings" },
     ],
   },
   {
     title: "Developer",
     items: [
       { label: "Claude Code", href: "/admin/claude-code", icon: "code-2" },
-      { label: "Knowledge Base", href: "/admin/knowledge-base", icon: "book-open" },
-      { label: "Tippy Corrections", href: "/admin/tippy-corrections", icon: "pencil" },
+      { label: "Linear", href: "/admin/linear", icon: "square-kanban" },
+      { label: "Test Mode", href: "/admin/test-mode", icon: "flask-conical" },
     ],
   },
 ];
@@ -355,7 +412,14 @@ export function AdminSidebar({ children }: { children: React.ReactNode }) {
   const { sections } = useNavItems("admin", ADMIN_SIDEBAR_FALLBACK);
 
   return (
-    <SidebarLayout sections={sections} title="Admin" backLink={{ label: "Home", href: "/" }}>
+    <SidebarLayout
+      sections={sections}
+      title="Admin"
+      backLink={{ label: "Home", href: "/" }}
+      collapsibleSections
+      sidebarKey="admin"
+      defaultCollapsed={["Developer"]}
+    >
       {children}
     </SidebarLayout>
   );

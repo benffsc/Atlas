@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { ClinicHQUploadModal } from "@/components/modals";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
+import { Icon } from "@/components/ui/Icon";
 
 interface QueueStats {
   total: number;
@@ -65,57 +66,63 @@ export default function AdminPage() {
                   href="/admin/data"
                   title="Data Hub"
                   description="Review queues, processing, health"
-                  icon="📊"
+                  icon="bar-chart"
                   badge="New"
                 />
                 <ActionCard
                   onClick={() => setShowClinicHQModal(true)}
                   title="ClinicHQ Upload"
                   description="Upload 3-file batch from clinic"
-                  icon="🏥"
+                  icon="hospital"
                 />
                 <AdminCard
                   href="/admin/email"
                   title="Email Hub"
                   description="Send, templates, and history"
-                  icon="📧"
+                  icon="mail"
                 />
                 <AdminCard
                   href="/admin/staff"
                   title="Staff & Trappers"
                   description={`Manage ${nameShort} personnel`}
-                  icon="👥"
+                  icon="users"
                 />
               </div>
             </section>
 
-            {/* CONFIGURATION Section (4 cards) */}
+            {/* CONFIGURATION Section (5 cards) */}
             <section>
               <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", color: "var(--text-muted)" }}>Configuration</h2>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
                 <AdminCard
+                  href="/admin/settings"
+                  title="All Settings"
+                  description="Theme, roles, forms, integrations"
+                  icon="settings"
+                />
+                <AdminCard
                   href="/admin/ecology"
                   title="Ecology & Beacon"
                   description="Colony parameters & modeling"
-                  icon="🌿"
+                  icon="leaf"
                 />
                 <AdminCard
                   href="/admin/intake-fields"
                   title="Intake Fields"
                   description="Custom questions + Airtable"
-                  icon="📝"
+                  icon="form-input"
                 />
                 <AdminCard
                   href="/admin/organizations"
                   title="Organizations"
                   description="Shelters, rescues, clinics, partners"
-                  icon="🏢"
+                  icon="building-2"
                 />
                 <AdminCard
-                  href="/admin/departments"
-                  title={`${nameShort} Departments`}
-                  description="Internal teams & structure"
-                  icon="🐾"
+                  href="/admin/data-health"
+                  title="Data Health"
+                  description="Dedup, quality, identity, reviews"
+                  icon="activity"
                 />
               </div>
             </section>
@@ -128,13 +135,13 @@ export default function AdminPage() {
                   href="/admin/claude-code"
                   title="Claude Code"
                   description="AI development assistant"
-                  icon="🤖"
+                  icon="bot"
                 />
                 <AdminCard
                   href="/admin/knowledge-base"
                   title="Knowledge Base"
                   description="Manage Tippy's knowledge"
-                  icon="📚"
+                  icon="book-open"
                 />
               </div>
             </section>
@@ -283,7 +290,9 @@ function AdminCard({
           {badge}
         </span>
       )}
-      <span style={{ fontSize: "1.5rem" }}>{icon}</span>
+      <div style={{ color: "var(--primary)", flexShrink: 0, marginTop: "2px" }}>
+        <Icon name={icon} size={24} />
+      </div>
       <div>
         <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--foreground)" }}>{title}</h3>
         <p className="text-muted" style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem" }}>{description}</p>
@@ -377,7 +386,9 @@ function ActionCard({
           {badge}
         </span>
       )}
-      <span style={{ fontSize: "1.5rem" }}>{icon}</span>
+      <div style={{ color: "var(--primary)", flexShrink: 0, marginTop: "2px" }}>
+        <Icon name={icon} size={24} />
+      </div>
       <div>
         <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--foreground)" }}>{title}</h3>
         <p className="text-muted" style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem" }}>{description}</p>
