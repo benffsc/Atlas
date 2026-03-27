@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryOne, query, queryRows, execute } from "@/lib/db";
 import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 import { getServerConfig } from "@/lib/server-config";
+import { sendSlackAlerts } from "@/lib/slack";
 
 // Data Quality Check Cron Job
 //
@@ -12,6 +13,8 @@ import { getServerConfig } from "@/lib/server-config";
 // - Geocoding queue > 100
 // - Invalid people created in 24h > 10
 // - ClinicHQ export broken (services_per_appt < 8)
+//
+// Phase 1A: Now writes to ops.alert_queue and sends Slack notifications.
 //
 // Vercel Cron: "0 */6 * * *" (every 6 hours)
 
@@ -166,6 +169,8 @@ export async function GET(request: NextRequest) {
       mislinkedApptsWarning,
       duplicatePlacesWarning,
       unpropagatedMatchesWarning,
+      slackEnabled,
+      dedupHours,
     ] = await Promise.all([
       getServerConfig("dq.cat_place_coverage_warning_pct", 95),
       getServerConfig("dq.cat_place_coverage_critical_pct", 90),
@@ -177,6 +182,8 @@ export async function GET(request: NextRequest) {
       getServerConfig("dq.mislinked_appointments_warning", 50),
       getServerConfig("dq.duplicate_places_warning", 0),
       getServerConfig("dq.unpropagated_matches_warning", 0),
+      getServerConfig("alerts.slack_enabled", true),
+      getServerConfig("alerts.dedup_hours", 6),
     ]);
 
     // Check thresholds and generate alerts
@@ -284,6 +291,68 @@ export async function GET(request: NextRequest) {
     const hasAlerts = alerts.length > 0;
     const hasCritical = alerts.some((a) => a.level === "critical");
 
+    // Phase 1A: Write alerts to ops.alert_queue for persistence + notification
+    let alertsQueued = 0;
+    try {
+      for (const alert of alerts) {
+        await queryOne(
+          `SELECT ops.write_alert($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            alert.level,
+            "data_quality_check",
+            alert.metric,
+            alert.message,
+            alert.current,
+            alert.threshold,
+            JSON.stringify({ checked_at: new Date().toISOString() }),
+            dedupHours,
+          ]
+        );
+        alertsQueued++;
+      }
+    } catch (alertError) {
+      // Non-fatal — alert queue may not exist yet (pre-MIG_2999)
+      console.warn("Alert queue write failed (MIG_2999 not applied?):", alertError instanceof Error ? alertError.message : "Unknown");
+    }
+
+    // Phase 1A: Send Slack notifications for pending alerts
+    let slackSent = false;
+    if (slackEnabled && hasAlerts) {
+      try {
+        // Get all pending alerts from queue (includes any from anomaly detection below)
+        const pendingAlerts = await queryRows<{
+          alert_id: string;
+          level: string;
+          metric: string;
+          message: string;
+          current_value: number | null;
+          threshold_value: number | null;
+        }>("SELECT * FROM ops.get_pending_slack_alerts()");
+
+        if (pendingAlerts.length > 0) {
+          slackSent = await sendSlackAlerts(
+            pendingAlerts.map((a) => ({
+              level: a.level as "warning" | "critical",
+              metric: a.metric,
+              message: a.message,
+              current_value: a.current_value,
+              threshold_value: a.threshold_value,
+            }))
+          );
+
+          if (slackSent) {
+            await queryOne(
+              `SELECT ops.mark_alerts_slack_notified($1)`,
+              [pendingAlerts.map((a) => a.alert_id)]
+            );
+          }
+        }
+      } catch (slackError) {
+        // Non-fatal
+        console.warn("Slack notification failed:", slackError instanceof Error ? slackError.message : "Unknown");
+      }
+    }
+
     // Take daily snapshot using MIG_2515 function (if available)
     let snapshotTaken = false;
     try {
@@ -322,6 +391,26 @@ export async function GET(request: NextRequest) {
             [a.anomaly_type, a.entity_type, a.entity_id, a.severity, a.description, JSON.stringify(a.evidence)]
           );
           anomaliesDetected++;
+
+          // Also write critical/high anomalies to alert queue
+          if (a.severity === "critical" || a.severity === "high") {
+            try {
+              await queryOne(
+                `SELECT ops.write_alert($1, $2, $3, $4, $5, $6, $7)`,
+                [
+                  a.severity === "critical" ? "critical" : "warning",
+                  "anomaly_detection",
+                  a.anomaly_type,
+                  a.description,
+                  null,
+                  null,
+                  JSON.stringify(a.evidence),
+                ]
+              );
+            } catch {
+              // Non-fatal
+            }
+          }
         }
       }
     } catch (error) {
@@ -358,6 +447,8 @@ export async function GET(request: NextRequest) {
       },
       alerts,
       alert_count: alerts.length,
+      alerts_queued: alertsQueued,
+      slack_notified: slackSent,
       anomalies_detected: anomaliesDetected,
       snapshot_taken: snapshotTaken,
       duration_ms: Date.now() - startTime,
