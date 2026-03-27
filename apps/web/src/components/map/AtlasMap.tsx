@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
@@ -43,26 +43,21 @@ import {
   DateRangeFilter,
   LocationComparisonPanel,
   useMeasurement,
-  formatDistance,
-  PRIMARY_LAYER_CONFIGS,
-  LEGACY_LAYER_CONFIGS,
-  LAYER_CONFIGS,
   SERVICE_ZONES,
 } from "@/components/map";
+import { useMapLayers, ATLAS_SUB_LAYER_IDS, ATLAS_MAP_LAYER_GROUPS_BASE } from "@/components/map/hooks/useMapLayers";
+import { useMapContextMenu } from "@/components/map/hooks/useMapContextMenu";
+import { useMapViews } from "@/components/map/hooks/useMapViews";
+import { useMapExport } from "@/components/map/hooks/useMapExport";
+import { useMapFullscreen } from "@/components/map/hooks/useMapFullscreen";
+import { MapContextMenu } from "@/components/map/components/MapContextMenu";
+import { MeasurementPanel } from "@/components/map/components/MeasurementPanel";
+import { SavedViewsPanel } from "@/components/map/components/SavedViewsPanel";
+import { SearchResultsPanel } from "@/components/map/components/SearchResultsPanel";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type { TextSearchResult } from "@/components/map/types";
 import { decodePolyline } from "@/lib/polyline";
-import { exportPinsToCsv, exportPinsToGeoJson } from "@/lib/map-export";
-import {
-  SYSTEM_VIEWS,
-  loadCustomViews,
-  addCustomView,
-  deleteCustomView,
-  viewToEnabledLayers,
-  enabledLayersToList,
-  type MapView,
-} from "@/lib/map-views";
-import { GroupedLayerControl, type LayerGroup } from "@/components/map/GroupedLayerControl";
+import { GroupedLayerControl } from "@/components/map/GroupedLayerControl";
 import { useHeatmapLayer } from "@/components/map/hooks/useHeatmapLayer";
 import type {
   Place,
@@ -80,18 +75,9 @@ import type {
   AtlasSearchResult,
   NavigatedLocation,
   Annotation,
-  RiskFilter,
-  DataFilter,
 } from "@/components/map";
 
-// Inline SVG icons for context menu (14px, matches menu item text size)
-const menuIconProps = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-const RulerMenuIcon = () => <svg {...menuIconProps}><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z" /><path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /></svg>;
-const DirectionsMenuIcon = () => <svg {...menuIconProps}><path d="M3 11l19-9-9 19-2-8-8-2z" /></svg>;
-const StreetViewMenuIcon = () => <svg {...menuIconProps}><circle cx="12" cy="5" r="3" /><path d="M12 8v4" /><path d="M6.5 17.5C6.5 15 9 13 12 13s5.5 2 5.5 4.5" /></svg>;
-const PlacePinMenuIcon = () => <svg {...menuIconProps}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>;
-const NoteMenuIcon = () => <svg {...menuIconProps}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
-const CopyMenuIcon = () => <svg {...menuIconProps}><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>;
+
 
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(false);
@@ -106,133 +92,11 @@ function useIsMobile(breakpoint = 768) {
 
 // All type definitions and layer configs are now imported from @/components/map
 
-/** Atlas sub-layer IDs — any of these being ON means atlas data is shown */
-const ATLAS_SUB_LAYER_IDS = ["atlas_all", "atlas_disease", "atlas_watch", "atlas_needs_tnr", "atlas_needs_trapper"] as const;
-/** Disease filter layer IDs */
-const DISEASE_FILTER_IDS = ["dis_felv", "dis_fiv", "dis_ringworm", "dis_heartworm", "dis_panleuk"] as const;
-/** Heatmap layer IDs — client-side only, use atlasPins data */
-const HEATMAP_LAYER_IDS = ["heatmap_density", "heatmap_disease"] as const;
-
-/** Grouped layer definitions for the full Atlas map */
-const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
-  {
-    id: "atlas_data",
-    label: "Atlas Data",
-    icon: "\u{1F4CD}",
-    color: MAP_COLORS.layers.places,
-    defaultExpanded: true,
-    exclusive: true,
-    children: [
-      { id: "atlas_all", label: "All Places", color: MAP_COLORS.layers.places, defaultEnabled: true },
-      { id: "atlas_disease", label: "Disease Risk", color: MAP_COLORS.pinStyle.disease, defaultEnabled: false },
-      { id: "atlas_watch", label: "Watch List", color: MAP_COLORS.pinStyle.watch_list, defaultEnabled: false },
-      { id: "atlas_needs_tnr", label: "Needs TNR", color: MAP_COLORS.priority.critical, defaultEnabled: false },
-      { id: "atlas_needs_trapper", label: "Needs Trapper", color: MAP_COLORS.priority.high, defaultEnabled: false },
-    ],
-  },
-  {
-    id: "disease_filter",
-    label: "Disease Filter",
-    icon: "\u{1F9A0}",
-    color: MAP_COLORS.pinStyle.disease,
-    defaultExpanded: true,
-    children: [
-      { id: "dis_felv", label: "FeLV", color: MAP_COLORS.disease.felv, defaultEnabled: false },
-      { id: "dis_fiv", label: "FIV", color: MAP_COLORS.disease.fiv, defaultEnabled: false },
-      { id: "dis_ringworm", label: "Ringworm", color: MAP_COLORS.disease.ringworm, defaultEnabled: false },
-      { id: "dis_heartworm", label: "Heartworm", color: MAP_COLORS.disease.heartworm, defaultEnabled: false },
-      { id: "dis_panleuk", label: "Panleukopenia", color: MAP_COLORS.disease.panleukopenia, defaultEnabled: false },
-    ],
-  },
-  {
-    id: "analytics",
-    label: "Analytics",
-    icon: "\u{1F525}",
-    color: MAP_COLORS.priority.high,
-    defaultExpanded: false,
-    exclusive: true,
-    children: [
-      { id: "heatmap_density", label: "Cat Density Heatmap", color: "#f03b20", defaultEnabled: false },
-      { id: "heatmap_disease", label: "Disease Heatmap", color: "#e31a1c", defaultEnabled: false },
-    ],
-  },
-  {
-    id: "operational",
-    label: "Operational",
-    icon: "\u{1F4CA}",
-    color: MAP_COLORS.layers.zones,
-    defaultExpanded: false,
-    children: [
-      { id: "zones", label: "Observation Zones", color: MAP_COLORS.layers.zones, defaultEnabled: false },
-      { id: "volunteers", label: "Volunteers", color: "#FFD700", defaultEnabled: false },
-      { id: "clinic_clients", label: "Clinic Clients", color: MAP_COLORS.layers.clinic_clients, defaultEnabled: false },
-      { id: "trapper_territories", label: "Trapper Coverage", color: "#0ea5e9", defaultEnabled: false },
-    ],
-  },
-  {
-    id: "historical",
-    label: "Historical",
-    icon: "\u{1F4DC}",
-    color: MAP_COLORS.layers.volunteers,
-    defaultExpanded: false,
-    children: [
-      { id: "places", label: "Cat Locations", color: MAP_COLORS.layers.places, defaultEnabled: false },
-      { id: "google_pins", label: "Google Pins", color: MAP_COLORS.layers.google_pins, defaultEnabled: false },
-      { id: "tnr_priority", label: "TNR Priority", color: MAP_COLORS.layers.tnr_priority, defaultEnabled: false },
-      { id: "historical_sources", label: "Historical Sources", color: MAP_COLORS.layers.historical_sources, defaultEnabled: false },
-      { id: "data_coverage", label: "Data Coverage", color: MAP_COLORS.layers.data_coverage, defaultEnabled: false },
-    ],
-  },
-];
-
-function getAtlasDefaultEnabledLayers(): Record<string, boolean> {
-  const result: Record<string, boolean> = {};
-  for (const group of ATLAS_MAP_LAYER_GROUPS_BASE) {
-    for (const child of group.children) {
-      result[child.id] = child.defaultEnabled;
-    }
-  }
-  for (const l of LEGACY_LAYER_CONFIGS) {
-    result[l.id] = l.defaultEnabled;
-  }
-  return result;
-}
-
-function parseLayersParam(param: string | null): Record<string, boolean> | null {
-  if (!param) return null;
-  if (param === "none") {
-    const defaults = getAtlasDefaultEnabledLayers();
-    const result: Record<string, boolean> = {};
-    for (const id of Object.keys(defaults)) result[id] = false;
-    return result;
-  }
-  const ids = param.split(",").filter(Boolean);
-  if (ids.length === 0) return null;
-  const defaults = getAtlasDefaultEnabledLayers();
-  const knownIds = new Set(Object.keys(defaults));
-  const valid = ids.filter(id => knownIds.has(id));
-  if (valid.length === 0) return null;
-  const result: Record<string, boolean> = {};
-  for (const id of Array.from(knownIds)) result[id] = false;
-  for (const id of valid) result[id] = true;
-  return result;
-}
-
-function serializeAtlasLayers(enabledLayers: Record<string, boolean>): string | null {
-  const defaults = getAtlasDefaultEnabledLayers();
-  const currentKeys = Object.keys(enabledLayers).filter(k => enabledLayers[k]).sort();
-  const defaultKeys = Object.keys(defaults).filter(k => defaults[k]).sort();
-  if (currentKeys.join(",") === defaultKeys.join(",")) return null;
-  if (currentKeys.length === 0) return "none";
-  return currentKeys.join(",");
-}
 
 function AtlasMapInner() {
   const { addToast } = useToast();
   const isMobile = useIsMobile();
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<Record<string, L.LayerGroup>>({});
@@ -246,102 +110,31 @@ function AtlasMapInner() {
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [showLegend, setShowLegend] = useState(!isMobile);
   const [basemap, setBasemap] = useState<BasemapType>("street");
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Fullscreen (extracted hook)
+  const { isFullscreen, handleFullscreenToggle } = useMapFullscreen({ mapRef });
   const [selectedZone, setSelectedZone] = useState("All Zones");
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
-  const [enabledLayers, setEnabledLayers] = useState<Record<string, boolean>>(() => {
-    const fromUrl = parseLayersParam(searchParams.get("layers"));
-    if (fromUrl) return fromUrl;
-    return Object.fromEntries(LAYER_CONFIGS.map(l => [l.id, l.defaultEnabled]));
-  });
-
   // Admin-configurable map colors (falls back to hardcoded MAP_COLORS)
   const { colors } = useMapColors();
   const { mapCenter, mapZoom } = useGeoConfig();
 
-  // Saved views
-  const [customViews, setCustomViews] = useState<MapView[]>(() => loadCustomViews());
-  const [activeViewId, setActiveViewId] = useState<string | null>(null);
-  const allLayerIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const group of ATLAS_MAP_LAYER_GROUPS_BASE) {
-      for (const child of group.children) ids.push(child.id);
-    }
-    for (const l of LEGACY_LAYER_CONFIGS) ids.push(l.id);
-    return ids;
-  }, []);
-
-  const handleApplyView = useCallback((view: MapView) => {
-    const newLayers = viewToEnabledLayers(view, allLayerIds);
-    setEnabledLayers(newLayers);
-    setActiveViewId(view.id);
-    if (view.zone) setSelectedZone(view.zone);
-    if (view.dateFrom !== undefined) setDateFrom(view.dateFrom);
-    if (view.dateTo !== undefined) setDateTo(view.dateTo);
-    if (view.zoom && view.center && mapRef.current) {
-      mapRef.current.setView(view.center, view.zoom);
-    }
-    addToast({ type: "success", message: `View: ${view.name}` });
-  }, [allLayerIds, addToast]);
-
-  const handleSaveView = useCallback((name: string) => {
-    const map = mapRef.current;
-    const newView = addCustomView({
-      name,
-      layers: enabledLayersToList(enabledLayers),
-      zoom: map?.getZoom(),
-      center: map ? [map.getCenter().lat, map.getCenter().lng] : undefined,
-      dateFrom,
-      dateTo,
-      zone: selectedZone !== "All Zones" ? selectedZone : undefined,
-    });
-    setCustomViews(loadCustomViews());
-    setActiveViewId(newView.id);
-    addToast({ type: "success", message: `Saved view: ${name}` });
-  }, [enabledLayers, dateFrom, dateTo, selectedZone, addToast]);
-
-  const handleDeleteView = useCallback((id: string) => {
-    deleteCustomView(id);
-    setCustomViews(loadCustomViews());
-    if (activeViewId === id) setActiveViewId(null);
-  }, [activeViewId]);
-
-  // Clear active view indicator when user manually changes layers
-  const prevLayersRef = useRef(enabledLayers);
-  useEffect(() => {
-    if (prevLayersRef.current !== enabledLayers && activeViewId) {
-      // Check if layers still match the active view
-      const view = [...SYSTEM_VIEWS, ...customViews].find(v => v.id === activeViewId);
-      if (view) {
-        const viewLayers = new Set(view.layers);
-        const currentLayers = new Set(enabledLayersToList(enabledLayers));
-        if (viewLayers.size !== currentLayers.size || ![...viewLayers].every(l => currentLayers.has(l))) {
-          setActiveViewId(null);
-        }
-      }
-    }
-    prevLayersRef.current = enabledLayers;
-  }, [enabledLayers, activeViewId, customViews]);
-
-  // Sync layer state to URL
-  useEffect(() => {
-    const serialized = serializeAtlasLayers(enabledLayers);
-    const params = new URLSearchParams(searchParams.toString());
-    if (serialized) {
-      params.set("layers", serialized);
-    } else {
-      params.delete("layers");
-    }
-    const newUrl = params.toString() ? `${pathname}?${params}` : pathname;
-    const currentUrl = searchParams.toString() ? `${pathname}?${searchParams}` : pathname;
-    if (newUrl !== currentUrl) {
-      router.replace(newUrl, { scroll: false });
-    }
-  }, [enabledLayers, pathname, router, searchParams]);
-
   // Data - NEW simplified layers
   const [atlasPins, setAtlasPins] = useState<AtlasPin[]>([]);
+
+  // Layer management (extracted hook) — includes enabledLayers, toggleLayer, filters, counts, URL sync
+  const {
+    enabledLayers, setEnabledLayers, toggleLayer,
+    atlasLayerEnabled, riskFilter, diseaseFilter, dataFilter,
+    atlasMapLayerGroups, atlasSubLayerCounts,
+    apiLayers: layers, heatmapEnabled, heatmapMode,
+  } = useMapLayers({ atlasPins });
+
+  // Saved views (extracted hook)
+  const { customViews, activeViewId, handleApplyView, handleSaveView, handleDeleteView } = useMapViews({
+    mapRef, enabledLayers, setEnabledLayers, setSelectedZone, setDateFrom, setDateTo,
+    dateFrom, dateTo, selectedZone, atlasMapLayerGroupsBase: ATLAS_MAP_LAYER_GROUPS_BASE,
+  });
 
   // Data - Legacy layers
   const [places, setPlaces] = useState<Place[]>([]);
@@ -355,79 +148,11 @@ function AtlasMapInner() {
   const [dataCoverage, setDataCoverage] = useState<DataCoverageZone[]>([]);
   const [summary, setSummary] = useState<MapSummary | null>(null);
 
-  // Derived filter values from enabledLayers (replaces old riskFilter/dataFilter/diseaseFilter state)
-  const atlasLayerEnabled = useMemo(
-    () => ATLAS_SUB_LAYER_IDS.some(id => enabledLayers[id]),
-    [enabledLayers]
-  );
-
-  const riskFilter: RiskFilter = useMemo(() => {
-    if (enabledLayers.atlas_disease) return "disease";
-    if (enabledLayers.atlas_watch) return "watch_list";
-    if (enabledLayers.atlas_needs_tnr) return "needs_tnr";
-    if (enabledLayers.atlas_needs_trapper) return "needs_trapper";
-    return "all";
-  }, [enabledLayers]);
-
-  const diseaseFilter: string[] = useMemo(() => {
-    const active: string[] = [];
-    if (enabledLayers.dis_felv) active.push("felv");
-    if (enabledLayers.dis_fiv) active.push("fiv");
-    if (enabledLayers.dis_ringworm) active.push("ringworm");
-    if (enabledLayers.dis_heartworm) active.push("heartworm");
-    if (enabledLayers.dis_panleuk) active.push("panleukopenia");
-    return active;
-  }, [enabledLayers]);
-
-  const dataFilter: DataFilter = "all";
-
   const handleDateRangeChange = useCallback((from: string | null, to: string | null) => {
     setDateFrom(from);
     setDateTo(to);
   }, []);
 
-  // Conditionally show disease filter group (only when Disease Risk sub-layer is active)
-  const atlasMapLayerGroups = useMemo(() => {
-    if (!enabledLayers.atlas_disease) {
-      return ATLAS_MAP_LAYER_GROUPS_BASE.filter(g => g.id !== "disease_filter");
-    }
-    return ATLAS_MAP_LAYER_GROUPS_BASE;
-  }, [enabledLayers.atlas_disease]);
-
-  // Single-pass count computation for atlas sub-layers (avoids 10 separate .filter() calls)
-  const atlasSubLayerCounts = useMemo(() => {
-    const c = {
-      atlas_all: atlasPins.length,
-      atlas_disease: 0,
-      atlas_watch: 0,
-      atlas_needs_tnr: 0,
-      atlas_needs_trapper: 0,
-      dis_felv: 0,
-      dis_fiv: 0,
-      dis_ringworm: 0,
-      dis_heartworm: 0,
-      dis_panleuk: 0,
-    };
-    for (const p of atlasPins) {
-      if (p.disease_risk) c.atlas_disease++;
-      if (p.watch_list) c.atlas_watch++;
-      if (p.cat_count > 0 && p.cat_count > p.total_altered) c.atlas_needs_tnr++;
-      if (p.needs_trapper_count > 0) c.atlas_needs_trapper++;
-      if (p.disease_badges) {
-        for (const b of p.disease_badges) {
-          if (b.disease_key === "felv") c.dis_felv++;
-          else if (b.disease_key === "fiv") c.dis_fiv++;
-          else if (b.disease_key === "ringworm") c.dis_ringworm++;
-          else if (b.disease_key === "heartworm") c.dis_heartworm++;
-          else if (b.disease_key === "panleukopenia") c.dis_panleuk++;
-        }
-      }
-    }
-    return c;
-  }, [atlasPins]);
-
-  // Show legacy layers toggle
-  // showLegacyLayers removed — GroupedLayerControl handles expand/collapse internally
 
   // Search suggestions
   const [searchResults, setSearchResults] = useState<Array<{ type: string; item: Place | GooglePin | Volunteer; label: string }>>([]);
@@ -437,8 +162,6 @@ function AtlasMapInner() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; lat: number; lng: number } | null>(null);
   const [navigatedLocation, setNavigatedLocation] = useState<NavigatedLocation | null>(null);
   const navigatedMarkerRef = useRef<L.Marker | null>(null);
   const atlasPinsRef = useRef<AtlasPin[]>([]);
@@ -504,8 +227,6 @@ function AtlasMapInner() {
   const measurement = useMeasurement({ mapRef, isActive: measureActive });
 
   // Heatmap layer hook — uses atlasPins data
-  const heatmapEnabled = !!(enabledLayers.heatmap_density || enabledLayers.heatmap_disease);
-  const heatmapMode = enabledLayers.heatmap_disease ? "disease" as const : "density" as const;
   useHeatmapLayer({
     map: mapRef.current,
     pins: atlasPins,
@@ -689,47 +410,8 @@ function AtlasMapInner() {
     }
   }, [streetViewFullscreen]);
 
-  // Sync fullscreen state with browser fullscreen API
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, []);
-
-  // Invalidate map size when entering/exiting fullscreen
-  useEffect(() => {
-    if (mapRef.current) {
-      setTimeout(() => mapRef.current?.invalidateSize(), 350);
-    }
-  }, [isFullscreen]);
-
-  const handleFullscreenToggle = useCallback(() => {
-    if (!document.fullscreenElement) {
-      const mapContainer = document.querySelector('.map-container');
-      if (mapContainer) {
-        mapContainer.requestFullscreen().catch(console.error);
-      }
-    } else {
-      document.exitFullscreen().catch(console.error);
-    }
-  }, []);
-
-  // Export handlers — export the currently visible atlasPins
-  const activeFilterName = useMemo(() => {
-    if (riskFilter !== "all") return riskFilter;
-    if (diseaseFilter.length > 0) return diseaseFilter.join("_");
-    return undefined;
-  }, [riskFilter, diseaseFilter]);
-
-  const handleExportCsv = useCallback(() => {
-    exportPinsToCsv(atlasPins, activeFilterName);
-  }, [atlasPins, activeFilterName]);
-
-  const handleExportGeoJson = useCallback(() => {
-    exportPinsToGeoJson(atlasPins, activeFilterName);
-  }, [atlasPins, activeFilterName]);
+  // Export (extracted hook)
+  const { handleExportCsv, handleExportGeoJson } = useMapExport({ atlasPins, riskFilter, diseaseFilter });
 
   // Keep cone-only ref in sync with state
   useEffect(() => { streetViewConeOnlyRef.current = streetViewConeOnly; }, [streetViewConeOnly]);
@@ -845,26 +527,6 @@ function AtlasMapInner() {
       }
     };
   }, [selectedPlaceId, atlasPins, places, navigatedLocation]);
-
-  // Fetch map data using SWR for caching and deduplication
-  // Map atlas sub-layer IDs → "atlas_pins" API layer. Disease filter IDs are NOT API layers.
-  const layers = useMemo(() => {
-    const apiLayers = new Set<string>();
-    for (const [id, enabled] of Object.entries(enabledLayers)) {
-      if (!enabled) continue;
-      if ((ATLAS_SUB_LAYER_IDS as readonly string[]).includes(id)) {
-        apiLayers.add("atlas_pins");
-      } else if ((DISEASE_FILTER_IDS as readonly string[]).includes(id)) {
-        // Disease filter IDs are client-side only, not API layers
-      } else if ((HEATMAP_LAYER_IDS as readonly string[]).includes(id)) {
-        // Heatmap layers use atlasPins data — ensure it's fetched
-        apiLayers.add("atlas_pins");
-      } else {
-        apiLayers.add(id);
-      }
-    }
-    return Array.from(apiLayers);
-  }, [enabledLayers]);
 
   // Read trapper filter from URL params for territory map highlighting
   const trapperFilter = searchParams.get("trapper") || undefined;
@@ -2313,39 +1975,6 @@ function AtlasMapInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigatedLocation]);
 
-  const toggleLayer = useCallback((layerId: string) => {
-    setEnabledLayers(prev => {
-      const next = { ...prev };
-
-      // Find which group this layer belongs to
-      const group = ATLAS_MAP_LAYER_GROUPS_BASE.find(g =>
-        g.children.some(c => c.id === layerId)
-      );
-
-      if (group?.exclusive) {
-        // Radio behavior: turn off siblings, toggle this one
-        const wasOn = !!prev[layerId];
-        for (const child of group.children) {
-          next[child.id] = false;
-        }
-        // Clear disease filters when leaving Disease Risk
-        // (unless we're turning ON atlas_disease for the first time)
-        if (layerId !== 'atlas_disease' || wasOn) {
-          for (const disId of DISEASE_FILTER_IDS) {
-            next[disId] = false;
-          }
-        }
-        // Only turn on if it wasn't already on (allow deselecting all)
-        if (!wasOn) next[layerId] = true;
-      } else {
-        // Checkbox behavior
-        next[layerId] = !prev[layerId];
-      }
-
-      return next;
-    });
-  }, []);
-
   // My Location functionality
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [locatingUser, setLocatingUser] = useState(false);
@@ -2385,6 +2014,17 @@ function AtlasMapInner() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  // Context menu (extracted hook) — must be before keyboard shortcuts which reference contextMenu
+  const {
+    contextMenu, setContextMenu,
+    handleContextMeasure, handleContextAddPlace, handleContextAddNote,
+    handleContextDirections, handleContextStreetView, handleContextCopyCoords,
+  } = useMapContextMenu({
+    mapRef, measurement, setMeasureActive, setAddPointMode,
+    setPendingClick, setShowAddPointMenu, setStreetViewCoords,
+    setStreetViewFullscreen, setStreetViewConeOnly,
+  });
 
   // Keyboard shortcuts
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -2543,89 +2183,6 @@ function AtlasMapInner() {
       return () => { container.style.cursor = ''; };
     }
   }, [streetViewCoords, streetViewFullscreen, streetViewConeOnly, addPointMode]);
-
-  // Right-click context menu
-  useEffect(() => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-
-    const handleContextMenu = (e: L.LeafletMouseEvent) => {
-      e.originalEvent.preventDefault();
-      const containerPoint = map.latLngToContainerPoint(e.latlng);
-      setContextMenu({
-        x: containerPoint.x,
-        y: containerPoint.y,
-        lat: e.latlng.lat,
-        lng: e.latlng.lng,
-      });
-    };
-
-    const closeContextMenu = () => setContextMenu(null);
-
-    map.on('contextmenu', handleContextMenu);
-    map.on('click', closeContextMenu);
-    map.on('movestart', closeContextMenu);
-
-    return () => {
-      map.off('contextmenu', handleContextMenu);
-      map.off('click', closeContextMenu);
-      map.off('movestart', closeContextMenu);
-    };
-  }, []);
-
-  // Context menu actions
-  const handleContextMeasure = useCallback(() => {
-    if (!contextMenu) return;
-    setMeasureActive(true);
-    setAddPointMode(null);
-    setPendingClick(null);
-    setShowAddPointMenu(false);
-    // Use setTimeout to let the measurement hook activate first
-    setTimeout(() => {
-      measurement.addPoint({ lat: contextMenu.lat, lng: contextMenu.lng });
-    }, 50);
-    setContextMenu(null);
-  }, [contextMenu, measurement]);
-
-  const handleContextAddPlace = useCallback(() => {
-    if (!contextMenu) return;
-    setAddPointMode("place");
-    setMeasureActive(false);
-    setPendingClick({ lat: contextMenu.lat, lng: contextMenu.lng });
-    setContextMenu(null);
-  }, [contextMenu]);
-
-  const handleContextAddNote = useCallback(() => {
-    if (!contextMenu) return;
-    setAddPointMode("annotation");
-    setMeasureActive(false);
-    setPendingClick({ lat: contextMenu.lat, lng: contextMenu.lng });
-    setContextMenu(null);
-  }, [contextMenu]);
-
-  const handleContextDirections = useCallback(() => {
-    if (!contextMenu) return;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${contextMenu.lat},${contextMenu.lng}`;
-    window.open(url, '_blank');
-    setContextMenu(null);
-  }, [contextMenu]);
-
-  const handleContextStreetView = useCallback(() => {
-    if (!contextMenu) return;
-    setStreetViewCoords({ lat: contextMenu.lat, lng: contextMenu.lng });
-    setStreetViewFullscreen(false);
-    setStreetViewConeOnly(false);
-    setContextMenu(null);
-  }, [contextMenu]);
-
-  const handleContextCopyCoords = useCallback(() => {
-    if (!contextMenu) return;
-    const text = `${contextMenu.lat.toFixed(6)}, ${contextMenu.lng.toFixed(6)}`;
-    navigator.clipboard.writeText(text).then(() => {
-      addToast({ type: "success", message: `Copied: ${text}` });
-    });
-    setContextMenu(null);
-  }, [contextMenu, addToast]);
 
   // Annotations: fetch and render
   const fetchAnnotations = useCallback(async () => {
@@ -3122,22 +2679,14 @@ function AtlasMapInner() {
       </div>
       )}
 
-      {/* Measurement floating panel */}
+      {/* Measurement floating panel (extracted component) */}
       {measureActive && (
-        <div className="map-measure-panel">
-          <span className="map-measure-panel__distance">
-            {measurement.points.length >= 2 ? formatDistance(measurement.totalDistance) : "Click to measure"}
-          </span>
-          <span className="map-measure-panel__info">
-            {measurement.points.length} point{measurement.points.length !== 1 ? "s" : ""}
-          </span>
-          {measurement.points.length > 0 && (
-            <>
-              <button className="map-measure-panel__btn" onClick={measurement.undoLastPoint}>Undo</button>
-              <button className="map-measure-panel__btn map-measure-panel__btn--danger" onClick={measurement.clearMeasurement}>Clear</button>
-            </>
-          )}
-        </div>
+        <MeasurementPanel
+          points={measurement.points}
+          totalDistance={measurement.totalDistance}
+          onUndo={measurement.undoLastPoint}
+          onClear={measurement.clearMeasurement}
+        />
       )}
 
       {/* Date range filter (hidden during Street View) */}
@@ -3187,56 +2736,14 @@ function AtlasMapInner() {
             </div>
           </div>
 
-          {/* Saved Views */}
-          <div className="map-layer-panel__views">
-            <div className="map-layer-panel__zone-label">Quick Views</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
-              {SYSTEM_VIEWS.map((view) => (
-                <button
-                  key={view.id}
-                  onClick={() => handleApplyView(view)}
-                  className="map-view-chip"
-                  data-active={activeViewId === view.id || undefined}
-                >
-                  {view.name}
-                </button>
-              ))}
-            </div>
-            {customViews.length > 0 && (
-              <>
-                <div className="map-layer-panel__zone-label" style={{ marginTop: 4 }}>My Views</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
-                  {customViews.map((view) => (
-                    <span key={view.id} style={{ display: "inline-flex", alignItems: "center", gap: 0 }}>
-                      <button
-                        onClick={() => handleApplyView(view)}
-                        className="map-view-chip"
-                        data-active={activeViewId === view.id || undefined}
-                      >
-                        {view.name}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteView(view.id)}
-                        className="map-view-chip-delete"
-                        title="Delete view"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </>
-            )}
-            <button
-              onClick={() => {
-                const name = window.prompt("View name:");
-                if (name?.trim()) handleSaveView(name.trim());
-              }}
-              className="map-view-save-btn"
-            >
-              + Save Current View
-            </button>
-          </div>
+          {/* Saved Views (extracted component) */}
+          <SavedViewsPanel
+            customViews={customViews}
+            activeViewId={activeViewId}
+            onApplyView={handleApplyView}
+            onSaveView={handleSaveView}
+            onDeleteView={handleDeleteView}
+          />
 
           {/* Zone filter */}
           <div className="map-layer-panel__zone">
@@ -3510,41 +3017,17 @@ function AtlasMapInner() {
         </div>
       )}
 
-      {/* Right-click context menu */}
+      {/* Right-click context menu (extracted component) */}
       {contextMenu && (
-        <div
-          className="map-context-menu"
-          style={{
-            position: "absolute",
-            left: contextMenu.x,
-            top: contextMenu.y,
-            zIndex: MAP_Z_INDEX.controls + 10,
-          }}
-        >
-          <div className="map-context-menu__coords">
-            {contextMenu.lat.toFixed(5)}, {contextMenu.lng.toFixed(5)}
-          </div>
-          <button className="map-context-menu__item" onClick={handleContextMeasure}>
-            <RulerMenuIcon /> Measure from here
-          </button>
-          <button className="map-context-menu__item" onClick={handleContextDirections}>
-            <DirectionsMenuIcon /> Directions to here
-          </button>
-          <button className="map-context-menu__item" onClick={handleContextStreetView}>
-            <StreetViewMenuIcon /> Street View
-          </button>
-          <div className="map-context-menu__divider" />
-          <button className="map-context-menu__item" onClick={handleContextAddPlace}>
-            <PlacePinMenuIcon /> Add place here
-          </button>
-          <button className="map-context-menu__item" onClick={handleContextAddNote}>
-            <NoteMenuIcon /> Add note here
-          </button>
-          <div className="map-context-menu__divider" />
-          <button className="map-context-menu__item" onClick={handleContextCopyCoords}>
-            <CopyMenuIcon /> Copy coordinates
-          </button>
-        </div>
+        <MapContextMenu
+          contextMenu={contextMenu}
+          onMeasure={handleContextMeasure}
+          onDirections={handleContextDirections}
+          onStreetView={handleContextStreetView}
+          onAddPlace={handleContextAddPlace}
+          onAddNote={handleContextAddNote}
+          onCopyCoords={handleContextCopyCoords}
+        />
       )}
 
       {/* Keyboard shortcuts help — hidden on mobile (no keyboard) */}
