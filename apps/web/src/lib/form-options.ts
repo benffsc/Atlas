@@ -813,6 +813,14 @@ export const EQUIPMENT_COLLECTION_STATUS_OPTIONS = [
 // EQUIPMENT (Phase 2)
 // =============================================================================
 
+export const EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS = [
+  { value: "tnr_appointment", label: "TNR Appointment", shortLabel: "TNR" },
+  { value: "kitten_rescue", label: "Kitten Rescue", shortLabel: "Kitten" },
+  { value: "colony_check", label: "Colony Check", shortLabel: "Colony" },
+  { value: "feeding_station", label: "Feeding Station", shortLabel: "Feed" },
+  { value: "personal_pet", label: "Personal Pet", shortLabel: "Pet" },
+] as const satisfies readonly FormOption[];
+
 export const EQUIPMENT_CHECKOUT_TYPE_OPTIONS = [
   { value: "client", label: "Client", shortLabel: "Client" },
   { value: "trapper", label: "Trapper", shortLabel: "Trapper" },

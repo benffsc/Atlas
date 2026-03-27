@@ -6,7 +6,7 @@ import { fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { BarcodeInput } from "@/components/equipment/BarcodeInput";
 import { KioskEquipmentCard } from "@/components/kiosk/KioskEquipmentCard";
-import { CheckoutWizard } from "@/components/kiosk/CheckoutWizard";
+import { CheckoutForm } from "@/components/kiosk/CheckoutForm";
 import { CheckinForm } from "@/components/kiosk/CheckinForm";
 import { SimpleActionConfirm } from "@/components/kiosk/SimpleActionConfirm";
 import { Icon } from "@/components/ui/Icon";
@@ -280,7 +280,7 @@ export default function KioskScanPage() {
 
           {/* Action forms rendered inline below the card */}
           {state === "action" && activeAction === "check_out" && (
-            <CheckoutWizard
+            <CheckoutForm
               equipmentId={equipment.equipment_id}
               equipmentName={equipment.display_name}
               onComplete={handleActionComplete}

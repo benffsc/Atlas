@@ -31,7 +31,8 @@ export const GET = withErrorHandling(async (
        ev.created_at::text,
        ev.checkout_type, ev.deposit_amount::numeric,
        ev.deposit_returned_at::text, ev.custodian_phone,
-       ev.appointment_id
+       ev.appointment_id,
+       ev.checkout_purpose, ev.custodian_name_raw, ev.resolution_status
      FROM ops.equipment_events ev
      LEFT JOIN sot.people ap ON ap.person_id = ev.actor_person_id
      LEFT JOIN sot.people cp ON cp.person_id = ev.custodian_person_id
@@ -70,6 +71,8 @@ export const POST = withErrorHandling(async (
     condition_after, due_date, notes,
     // MIG_2983 fields
     checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id,
+    // MIG_2996 fields
+    checkout_purpose, custodian_name_raw, resolution_status,
   } = body;
 
   if (!event_type) {
@@ -111,6 +114,22 @@ export const POST = withErrorHandling(async (
     }
   }
 
+  // Validate checkout_purpose enum if provided (MIG_2996)
+  if (checkout_purpose) {
+    const validPurposes = ["tnr_appointment", "kitten_rescue", "colony_check", "feeding_station", "personal_pet"];
+    if (!validPurposes.includes(checkout_purpose)) {
+      throw new ApiError(`Invalid checkout_purpose: ${checkout_purpose}`, 400);
+    }
+  }
+
+  // Validate resolution_status if provided (MIG_2996)
+  if (resolution_status) {
+    const validStatuses = ["resolved", "unresolved", "created"];
+    if (!validStatuses.includes(resolution_status)) {
+      throw new ApiError(`Invalid resolution_status: ${resolution_status}`, 400);
+    }
+  }
+
   // Validate deposit_amount if provided
   if (deposit_amount !== undefined && deposit_amount !== null) {
     const amount = Number(deposit_amount);
@@ -126,8 +145,9 @@ export const POST = withErrorHandling(async (
        place_id, request_id,
        condition_before, condition_after,
        due_date, notes, source_system,
-       checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14)
+       checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id,
+       checkout_purpose, custodian_name_raw, resolution_status
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14, $15, $16, $17)
      RETURNING event_id`,
     [
       id, event_type, custodian_person_id || null,
@@ -138,6 +158,7 @@ export const POST = withErrorHandling(async (
       deposit_amount !== undefined && deposit_amount !== null ? Number(deposit_amount) : null,
       custodian_name || null, custodian_phone || null,
       appointment_id || null,
+      checkout_purpose || null, custodian_name_raw || null, resolution_status || null,
     ]
   );
 

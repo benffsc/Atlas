@@ -41,6 +41,7 @@ import {
   EQUIPMENT_SIZE_OPTIONS as _EQUIPMENT_SIZE_OPTIONS,
   EQUIPMENT_COLLECTION_STATUS_OPTIONS as _EQUIPMENT_COLLECTION_STATUS_OPTIONS,
   EQUIPMENT_CHECKOUT_TYPE_OPTIONS as _EQUIPMENT_CHECKOUT_TYPE_OPTIONS,
+  EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS as _EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS,
   EQUIPMENT_TRACKING_TIER_OPTIONS as _EQUIPMENT_TRACKING_TIER_OPTIONS,
   getValues,
 } from "./form-options";
@@ -275,6 +276,7 @@ export const EQUIPMENT_ITEM_TYPE = getValues(_EQUIPMENT_ITEM_TYPE_OPTIONS) as un
 export const EQUIPMENT_SIZE = getValues(_EQUIPMENT_SIZE_OPTIONS) as unknown as readonly ["Small", "Large", "Extra Large"];
 export const EQUIPMENT_COLLECTION_STATUS = getValues(_EQUIPMENT_COLLECTION_STATUS_OPTIONS) as unknown as readonly ["pending", "contacted", "will_return", "do_not_collect", "no_traps", "collected"];
 export const EQUIPMENT_CHECKOUT_TYPE = getValues(_EQUIPMENT_CHECKOUT_TYPE_OPTIONS) as unknown as readonly ["client", "trapper", "internal", "foster"];
+export const EQUIPMENT_CHECKOUT_PURPOSE = getValues(_EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS) as unknown as readonly ["tnr_appointment", "kitten_rescue", "colony_check", "feeding_station", "personal_pet"];
 export const EQUIPMENT_TRACKING_TIER = getValues(_EQUIPMENT_TRACKING_TIER_OPTIONS) as unknown as readonly ["active", "passive", "untracked"];
 
 // =============================================================================
@@ -341,6 +343,7 @@ export const ENTITY_ENUMS = {
   EQUIPMENT_SIZE,
   EQUIPMENT_COLLECTION_STATUS,
   EQUIPMENT_CHECKOUT_TYPE,
+  EQUIPMENT_CHECKOUT_PURPOSE,
   EQUIPMENT_TRACKING_TIER,
 
   // General
@@ -394,6 +397,7 @@ export type EquipmentItemType = (typeof EQUIPMENT_ITEM_TYPE)[number];
 export type EquipmentSize = (typeof EQUIPMENT_SIZE)[number];
 export type EquipmentCollectionStatus = (typeof EQUIPMENT_COLLECTION_STATUS)[number];
 export type EquipmentCheckoutType = (typeof EQUIPMENT_CHECKOUT_TYPE)[number];
+export type EquipmentCheckoutPurpose = (typeof EQUIPMENT_CHECKOUT_PURPOSE)[number];
 export type EquipmentTrackingTier = (typeof EQUIPMENT_TRACKING_TIER)[number];
 
 export type EntityType = (typeof ENTITY_TYPE)[number];

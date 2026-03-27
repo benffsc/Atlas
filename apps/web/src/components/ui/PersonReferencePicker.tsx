@@ -27,6 +27,8 @@ interface PersonReferencePickerProps {
   required?: boolean;
   inputStyle?: React.CSSProperties;
   allowCreate?: boolean;
+  /** Called when resolution type changes: resolved (picked from search), unresolved (freeform), created (new person) */
+  onResolutionType?: (type: "resolved" | "unresolved" | "created") => void;
 }
 
 interface CreatePersonResponse {
@@ -49,6 +51,7 @@ export function PersonReferencePicker({
   required,
   inputStyle: customInputStyle,
   allowCreate = false,
+  onResolutionType,
 }: PersonReferencePickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PersonSearchResult[]>([]);
@@ -59,8 +62,10 @@ export function PersonReferencePicker({
 
   // Inline creation state
   const [showCreateFields, setShowCreateFields] = useState(false);
-  const [createEmail, setCreateEmail] = useState("");
+  const [createFirstName, setCreateFirstName] = useState("");
+  const [createLastName, setCreateLastName] = useState("");
   const [createPhone, setCreatePhone] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -130,6 +135,7 @@ export function PersonReferencePicker({
       display_name: person.display_name,
       is_resolved: true,
     });
+    onResolutionType?.("resolved");
     setQuery("");
     setResults([]);
     setShowDropdown(false);
@@ -143,6 +149,7 @@ export function PersonReferencePicker({
       display_name: query.trim(),
       is_resolved: false,
     });
+    onResolutionType?.("unresolved");
     setResults([]);
     setShowDropdown(false);
     setHasSearched(false);
@@ -156,24 +163,38 @@ export function PersonReferencePicker({
     setShowDropdown(false);
     setHasSearched(false);
     setShowCreateFields(false);
-    setCreateEmail("");
+    setCreateFirstName("");
+    setCreateLastName("");
     setCreatePhone("");
+    setCreateEmail("");
     setCreateError(null);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleStartCreate = () => {
+    // Auto-split query into first/last name
+    const trimmed = query.trim();
+    const lastSpace = trimmed.lastIndexOf(" ");
+    if (lastSpace > 0) {
+      setCreateFirstName(trimmed.substring(0, lastSpace));
+      setCreateLastName(trimmed.substring(lastSpace + 1));
+    } else {
+      setCreateFirstName(trimmed);
+      setCreateLastName("");
+    }
     setShowDropdown(false);
     setShowCreateFields(true);
-    setCreateEmail("");
     setCreatePhone("");
+    setCreateEmail("");
     setCreateError(null);
   };
 
   const handleCancelCreate = () => {
     setShowCreateFields(false);
-    setCreateEmail("");
+    setCreateFirstName("");
+    setCreateLastName("");
     setCreatePhone("");
+    setCreateEmail("");
     setCreateError(null);
   };
 
@@ -185,10 +206,8 @@ export function PersonReferencePicker({
       return;
     }
 
-    // Parse name from query
-    const nameParts = query.trim().split(/\s+/);
-    const firstName = nameParts[0] || query.trim();
-    const lastName = nameParts.slice(1).join(" ") || null;
+    const firstName = createFirstName.trim() || query.trim();
+    const lastName = createLastName.trim() || null;
 
     setCreating(true);
     setCreateError(null);
@@ -205,11 +224,14 @@ export function PersonReferencePicker({
         display_name: resp.person.display_name,
         is_resolved: true,
       });
+      onResolutionType?.("created");
       setQuery("");
       setResults([]);
       setShowCreateFields(false);
-      setCreateEmail("");
+      setCreateFirstName("");
+      setCreateLastName("");
       setCreatePhone("");
+      setCreateEmail("");
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "Failed to create person");
     } finally {
@@ -490,7 +512,7 @@ export function PersonReferencePicker({
           }}
         >
           <div style={{ fontSize: "0.8rem", color: "#1e40af", fontWeight: 600, marginBottom: "8px" }}>
-            Create &ldquo;{query.trim()}&rdquo; — add contact info:
+            Create new person — add contact info:
           </div>
 
           {/* Dedup banner */}
@@ -505,26 +527,47 @@ export function PersonReferencePicker({
                 display_name: person.display_name,
                 is_resolved: true,
               });
+              onResolutionType?.("resolved");
               setQuery("");
               setShowCreateFields(false);
-              setCreateEmail("");
+              setCreateFirstName("");
+              setCreateLastName("");
               setCreatePhone("");
+              setCreateEmail("");
             }}
           />
 
           <div style={{ display: "grid", gap: "8px" }}>
+            {/* Editable first/last name fields */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <input
+                type="text"
+                value={createFirstName}
+                onChange={(e) => setCreateFirstName(e.target.value)}
+                placeholder="First name"
+                style={{ ...baseInputStyle, padding: "6px 10px", fontSize: "0.85rem" }}
+              />
+              <input
+                type="text"
+                value={createLastName}
+                onChange={(e) => setCreateLastName(e.target.value)}
+                placeholder="Last name"
+                style={{ ...baseInputStyle, padding: "6px 10px", fontSize: "0.85rem" }}
+              />
+            </div>
+            {/* Phone first — highest value for ClinicHQ auto-linking */}
+            <input
+              type="tel"
+              value={createPhone}
+              onChange={(e) => setCreatePhone(formatPhoneAsYouType(e.target.value))}
+              placeholder="Phone (best for auto-linking)"
+              style={{ ...baseInputStyle, padding: "6px 10px", fontSize: "0.85rem" }}
+            />
             <input
               type="email"
               value={createEmail}
               onChange={(e) => setCreateEmail(e.target.value)}
               placeholder="Email"
-              style={{ ...baseInputStyle, padding: "6px 10px", fontSize: "0.85rem" }}
-            />
-            <input
-              type="tel"
-              value={createPhone}
-              onChange={(e) => setCreatePhone(formatPhoneAsYouType(e.target.value))}
-              placeholder="Phone"
               style={{ ...baseInputStyle, padding: "6px 10px", fontSize: "0.85rem" }}
             />
           </div>
@@ -552,6 +595,22 @@ export function PersonReferencePicker({
               }}
             >
               {creating ? "Creating..." : "Create"}
+            </button>
+            <button
+              type="button"
+              onClick={handleUseFreeText}
+              style={{
+                padding: "4px 12px",
+                background: "transparent",
+                color: "#2563eb",
+                border: "1px solid #93c5fd",
+                borderRadius: "6px",
+                fontSize: "0.8rem",
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Skip — just use name
             </button>
             <button
               type="button"

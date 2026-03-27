@@ -582,6 +582,10 @@ export interface EquipmentEventRow {
   deposit_returned_at: string | null;
   custodian_phone: string | null;
   appointment_id: string | null;
+  // MIG_2996 fields
+  checkout_purpose: string | null;
+  custodian_name_raw: string | null;
+  resolution_status: string | null;
 }
 
 /**
@@ -636,6 +640,36 @@ export interface EquipmentTypeRow {
   is_active: boolean;
   sort_order: number;
   item_count: number;
+}
+
+/**
+ * Contract for GET /api/people/[id]/equipment-context
+ * @route /api/people/[id]/equipment-context
+ */
+export interface EquipmentContextResponse {
+  active_requests: Array<{
+    request_id: string;
+    place_address: string | null;
+    estimated_cat_count: number | null;
+    status: string;
+  }>;
+  upcoming_appointments: Array<{
+    appointment_id: string;
+    appointment_date: string;
+    service_name: string | null;
+    place_address: string;
+  }>;
+  service_places: Array<{
+    place_id: string;
+    place_name: string;
+    service_type: string;
+  }>;
+  recent_checkouts: Array<{
+    event_id: string;
+    created_at: string;
+    equipment_name: string;
+    place_address: string;
+  }>;
 }
 
 // =============================================================================
