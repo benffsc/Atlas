@@ -117,26 +117,15 @@ export function detectIntentAndForceToolChoice(
     return { type: "tool", name: "search_cats_by_description" };
   }
 
-  // TEMPORAL IMPACT patterns — "how many cats altered this week/month/year"
-  if (
-    /how many\s+cats?\s+(?:were\s+)?(?:altered|fixed|spayed|neutered)/i.test(lower) ||
-    /cats?\s+(?:altered|fixed|spayed|neutered)\s+(?:this|last|today|yesterday)/i.test(lower) ||
-    /(?:alteration|impact|ffr)\s+(?:stats?|numbers?|metrics?|count)/i.test(lower)
-  ) {
-    return { type: "tool", name: "query_ffr_impact" };
-  }
-
   // ADDRESS / PLACE patterns — force analyze_place_situation for address queries
-  // Match street names (with or without number): "pozzan rd", "123 Oak St", "tell me about Main Street"
   const addressPattern =
-    /(?:\d+\s+)?[\w]+(?: [\w]+)?\s*(?:st|street|ave|avenue|rd|road|dr|drive|ct|court|ln|lane|way|blvd|boulevard|pl|place|cir|circle)\b/i;
+    /\d+\s+[\w]+(?: [\w]+)?\s*(?:st|street|ave|avenue|rd|road|dr|drive|ct|court|ln|lane|way|blvd|boulevard|pl|place|cir|circle)\b/i;
   if (addressPattern.test(message)) {
-    return { type: "tool", name: "analyze_place_situation" };
-  }
-
-  // "tell me about [place]" / "what about [place]" — general place queries
-  if (/^(?:tell me about|what about|what's (?:up |going on )?(?:at|with))\s+/i.test(lower)) {
-    return { type: "tool", name: "analyze_place_situation" };
+    const placeQueryPattern =
+      /(?:what(?:'s| do we| is)|tell me|situation|anything|know about|activity|info|cats? at|colony|look ?up|going on)/i;
+    if (placeQueryPattern.test(lower)) {
+      return { type: "tool", name: "analyze_place_situation" };
+    }
   }
 
   return undefined; // Let Claude decide

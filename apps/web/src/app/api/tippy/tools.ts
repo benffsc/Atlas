@@ -1,4 +1,4 @@
-import { queryOne, queryRows, execute } from "@/lib/db";
+import { queryOne, queryRows } from "@/lib/db";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 // Domain knowledge & data quality modules (Part 2)
 import { interpretPlaceSituation, expandRegion } from "./domain-knowledge";
@@ -1664,8 +1664,6 @@ async function runReadOnlySql(
   }
 
   try {
-    // Set a 15-second statement timeout to prevent runaway queries from consuming the time budget
-    await execute("SET LOCAL statement_timeout = '15s'");
     const results = await queryRows(sql, []);
 
     // Limit results to prevent huge responses
@@ -1683,12 +1681,9 @@ async function runReadOnlySql(
       },
     };
   } catch (error) {
-    const errMsg = error instanceof Error ? error.message : "Query failed";
     return {
       success: false,
-      error: errMsg.includes("statement timeout")
-        ? "Query took too long (>15s). Try a simpler query with LIMIT, fewer JOINs, or a more specific WHERE clause."
-        : `SQL error: ${errMsg}`,
+      error: `SQL error: ${error instanceof Error ? error.message : "Query failed"}`,
     };
   }
 }
