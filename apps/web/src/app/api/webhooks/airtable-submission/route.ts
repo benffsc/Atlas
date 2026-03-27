@@ -228,10 +228,12 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Dedup by Jotform submission ID
+        // Dedup by Jotform submission ID stored in custom_fields
+        // (source_raw_id is UUID type — Jotform IDs are numeric, so we use custom_fields)
         if (m.source_raw_id) {
           const existing = await queryOne<{ submission_id: string }>(
-            `SELECT submission_id FROM ops.intake_submissions WHERE source_raw_id = $1 LIMIT 1`,
+            `SELECT submission_id FROM ops.intake_submissions
+             WHERE custom_fields->>'jotform_submission_id' = $1 LIMIT 1`,
             [m.source_raw_id]
           );
           if (existing) {
@@ -240,12 +242,34 @@ export async function POST(request: NextRequest) {
             results.push({ airtable_id: record.id, status: "duplicate", submission_id: existing.submission_id });
             continue;
           }
+
+          // Also dedup by email + name within 30 minutes
+          if (m.email) {
+            const recentDup = await queryOne<{ submission_id: string }>(
+              `SELECT submission_id FROM ops.intake_submissions
+               WHERE LOWER(email) = LOWER($1) AND LOWER(first_name) = LOWER($2)
+               AND submitted_at > NOW() - INTERVAL '30 minutes' LIMIT 1`,
+              [m.email, m.first_name]
+            );
+            if (recentDup) {
+              await updateAirtableRecord(record.id, "synced", recentDup.submission_id);
+              synced++;
+              results.push({ airtable_id: record.id, status: "duplicate", submission_id: recentDup.submission_id });
+              continue;
+            }
+          }
         }
+
+        // Build custom_fields JSON with Jotform tracking
+        const customFields = JSON.stringify({
+          jotform_submission_id: m.source_raw_id,
+          source: "jotform_airtable_sync",
+        });
 
         // Insert into Atlas
         const result = await queryOne<{ submission_id: string; triage_category: string }>(
           `INSERT INTO ops.intake_submissions (
-            intake_source, source_system, source_raw_id,
+            intake_source, source_system,
             first_name, last_name, email, phone,
             requester_address, requester_city, requester_zip,
             cats_at_requester_address,
@@ -260,67 +284,69 @@ export async function POST(request: NextRequest) {
             mom_present,
             has_medical_concerns, medical_description, is_emergency,
             is_property_owner, has_property_access,
-            situation_description, referral_source
+            situation_description, referral_source,
+            custom_fields
           ) VALUES (
-            'jotform', 'jotform_airtable_sync', $1,
-            $2, $3, $4, $5,
-            $6, $7, $8,
-            $9,
-            $10, $11,
-            $12, $13, $14,
-            $15, $16, $17, $18,
-            $19, $20,
-            $21, $22, $23,
-            $24, $25, $26, $27,
-            $28,
-            $29, $30, $31, $32,
-            $33,
-            $34, $35, $36,
-            $37, $38,
-            $39, $40
+            'jotform', 'jotform_airtable_sync',
+            $1, $2, $3, $4,
+            $5, $6, $7,
+            $8,
+            $9, $10,
+            $11, $12, $13,
+            $14, $15, $16, $17,
+            $18, $19,
+            $20, $21, $22,
+            $23, $24, $25, $26,
+            $27,
+            $28, $29, $30, $31,
+            $32,
+            $33, $34, $35,
+            $36, $37,
+            $38, $39,
+            $40::JSONB
           )
           RETURNING submission_id, triage_category::TEXT`,
           [
-            m.source_raw_id,            // $1
-            m.first_name,               // $2
-            m.last_name,                // $3
-            m.email,                    // $4
-            m.phone,                    // $5
-            m.requester_address,        // $6
-            m.requester_city,           // $7
-            m.requester_zip,            // $8
-            m.cats_at_requester_address, // $9
-            m.is_third_party_report,    // $10
-            m.third_party_relationship, // $11
-            m.property_owner_name,      // $12
-            m.property_owner_phone,     // $13
-            m.property_owner_email,     // $14
-            m.cats_address,             // $15
-            m.cats_city,                // $16
-            m.cats_zip,                 // $17
-            m.county,                   // $18
-            m.ownership_status,         // $19
-            m.call_type,                // $20
-            m.cat_name,                 // $21
-            m.cat_count,                // $22
-            m.cat_description,          // $23
-            m.handleability,            // $24
-            m.fixed_status,             // $25
-            m.peak_count,               // $26
-            m.eartip_count,             // $27
-            m.feeding_situation,        // $28
-            m.has_kittens,              // $29
-            m.kitten_count,             // $30
-            m.kitten_age,               // $31
-            m.kitten_behavior,          // $32
-            m.mom_present,              // $33
-            m.has_medical_concerns,     // $34
-            m.medical_description,      // $35
-            m.is_emergency,             // $36
-            m.is_property_owner,        // $37
-            m.has_property_access,      // $38
-            m.notes,                    // $39
-            m.referral_source,          // $40
+            m.first_name,               // $1
+            m.last_name,                // $2
+            m.email,                    // $3
+            m.phone,                    // $4
+            m.requester_address,        // $5
+            m.requester_city,           // $6
+            m.requester_zip,            // $7
+            m.cats_at_requester_address, // $8
+            m.is_third_party_report,    // $9
+            m.third_party_relationship, // $10
+            m.property_owner_name,      // $11
+            m.property_owner_phone,     // $12
+            m.property_owner_email,     // $13
+            m.cats_address,             // $14
+            m.cats_city,                // $15
+            m.cats_zip,                 // $16
+            m.county,                   // $17
+            m.ownership_status,         // $18
+            m.call_type,                // $19
+            m.cat_name,                 // $20
+            m.cat_count,                // $21
+            m.cat_description,          // $22
+            m.handleability,            // $23
+            m.fixed_status,             // $24
+            m.peak_count,               // $25
+            m.eartip_count,             // $26
+            m.feeding_situation,        // $27
+            m.has_kittens,              // $28
+            m.kitten_count,             // $29
+            m.kitten_age,               // $30
+            m.kitten_behavior,          // $31
+            m.mom_present,              // $32
+            m.has_medical_concerns,     // $33
+            m.medical_description,      // $34
+            m.is_emergency,             // $35
+            m.is_property_owner,        // $36
+            m.has_property_access,      // $37
+            m.notes,                    // $38
+            m.referral_source,          // $39
+            customFields,              // $40
           ]
         );
 
