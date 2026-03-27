@@ -87,11 +87,134 @@ function parseSSE(buffer: string): { events: { type: string; data: Record<string
   return { events, remaining };
 }
 
-const QUICK_ACTIONS = [
+const DEFAULT_QUICK_ACTIONS = [
   { label: "How do I create a request?", icon: "📝" },
   { label: "Find cats near an address", icon: "🔍" },
   { label: "What is TNR?", icon: "❓" },
 ];
+
+/** FFS-866: Context-aware quick action suggestions based on current page */
+function getContextualActions(pathname: string): { label: string; icon: string }[] {
+  // Place detail page
+  if (/^\/places\/[^/]+$/.test(pathname)) {
+    return [
+      { label: "What's the colony status at this place?", icon: "🏠" },
+      { label: "Find nearby colonies", icon: "📍" },
+      { label: "Who caretakes this place?", icon: "👤" },
+    ];
+  }
+  // Cat detail page
+  if (/^\/cats\/[^/]+$/.test(pathname)) {
+    return [
+      { label: "Trace this cat's full history", icon: "🐱" },
+      { label: "Where has this cat been seen?", icon: "📍" },
+      { label: "Is this cat linked to any requests?", icon: "📋" },
+    ];
+  }
+  // Request detail page
+  if (/^\/requests\/[^/]+$/.test(pathname)) {
+    return [
+      { label: "Summarize this request", icon: "📋" },
+      { label: "What cats were trapped for this request?", icon: "🐱" },
+      { label: "Find trappers near this location", icon: "👤" },
+    ];
+  }
+  // Requests list
+  if (pathname === "/requests") {
+    return [
+      { label: "Show stale requests needing attention", icon: "⚠️" },
+      { label: "Summarize my assigned requests", icon: "📋" },
+      { label: "Which areas have the most open requests?", icon: "📍" },
+    ];
+  }
+  // Map page
+  if (pathname === "/map") {
+    return [
+      { label: "What colonies are in this area?", icon: "📍" },
+      { label: "Show me the highest priority locations nearby", icon: "⚠️" },
+      { label: "Any disease-positive places in view?", icon: "🔬" },
+    ];
+  }
+  // People list or detail
+  if (pathname === "/people" || /^\/people\/[^/]+$/.test(pathname)) {
+    return [
+      { label: "Look up a person by phone or email", icon: "🔍" },
+      { label: "Find caretakers in Santa Rosa", icon: "👤" },
+      { label: "Who are the most active trappers?", icon: "📊" },
+    ];
+  }
+  // Cats list
+  if (pathname === "/cats") {
+    return [
+      { label: "Look up a cat by microchip", icon: "🔍" },
+      { label: "How many cats were altered this month?", icon: "📊" },
+      { label: "Find unaltered cats in Petaluma", icon: "🐱" },
+    ];
+  }
+  // Places list
+  if (pathname === "/places") {
+    return [
+      { label: "Which places have the lowest alteration rates?", icon: "📊" },
+      { label: "Find colonies with active requests", icon: "📋" },
+      { label: "Look up a place by address", icon: "🔍" },
+    ];
+  }
+  // Intake
+  if (pathname === "/intake" || pathname === "/intake/queue") {
+    return [
+      { label: "How many pending intakes are there?", icon: "📥" },
+      { label: "Does this address have existing requests?", icon: "🔍" },
+      { label: "What's the process for declining an intake?", icon: "❓" },
+    ];
+  }
+  // Trappers
+  if (pathname.startsWith("/trappers")) {
+    return [
+      { label: "Who are the most active trappers?", icon: "📊" },
+      { label: "Find trappers available in Rohnert Park", icon: "📍" },
+      { label: "Show trapper activity this month", icon: "📈" },
+    ];
+  }
+  // Dashboard
+  if (pathname === "/" || pathname === "/dashboard") {
+    return [
+      { label: "Give me today's briefing", icon: "☀️" },
+      { label: "Any urgent issues I should know about?", icon: "⚠️" },
+      { label: "How many cats were altered this week?", icon: "📊" },
+    ];
+  }
+  return DEFAULT_QUICK_ACTIONS;
+}
+
+/** FFS-865: Custom link renderer for entity handoff links */
+function TippyLink(props: React.JSX.IntrinsicElements["a"]) {
+  const { href, children, ...rest } = props;
+  const isInternal = href?.startsWith("/");
+  return (
+    <a
+      href={href}
+      {...rest}
+      onClick={(e) => {
+        if (isInternal && href) {
+          e.preventDefault();
+          window.location.href = href;
+        }
+      }}
+      style={{
+        color: isInternal ? "#667eea" : undefined,
+        textDecoration: "underline",
+        cursor: "pointer",
+        fontWeight: isInternal ? 500 : undefined,
+      }}
+      target={isInternal ? undefined : "_blank"}
+      rel={isInternal ? undefined : "noopener noreferrer"}
+    >
+      {children}
+    </a>
+  );
+}
+
+const markdownComponents = { a: TippyLink };
 
 interface ConversationSummary {
   conversation_id: string;
@@ -141,6 +264,7 @@ export function TippyChat() {
   const [view, setView] = useState<"chat" | "history">("chat");
   const [historyList, setHistoryList] = useState<ConversationSummary[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [anomalyCount, setAnomalyCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const streamingMsgIdRef = useRef<string | null>(null);
@@ -160,6 +284,13 @@ export function TippyChat() {
     return () => {
       window.removeEventListener('tippy-map-context', handleMapContext as EventListener);
     };
+  }, []);
+
+  // FFS-867: Fetch anomaly count for notification badge
+  useEffect(() => {
+    fetchApi<{ count: number }>("/api/tippy/anomalies/count")
+      .then((data) => setAnomalyCount(data.count || 0))
+      .catch(() => {});
   }, []);
 
   // Auto-scroll to bottom on new messages
@@ -429,6 +560,28 @@ export function TippyChat() {
         title="Ask Tippy"
       >
         <span style={{ fontSize: "1.75rem" }}>🐱</span>
+        {anomalyCount > 0 && (
+          <span
+            style={{
+              position: "absolute",
+              top: "-2px",
+              right: "-2px",
+              width: "18px",
+              height: "18px",
+              borderRadius: "50%",
+              background: "#ef4444",
+              color: "#fff",
+              fontSize: "0.65rem",
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid var(--background, #fff)",
+            }}
+          >
+            {anomalyCount > 9 ? "9+" : anomalyCount}
+          </span>
+        )}
       </button>
     );
   }
@@ -601,9 +754,9 @@ export function TippyChat() {
               operations.
             </div>
 
-            {/* Quick actions */}
+            {/* FFS-866: Context-aware quick actions */}
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {QUICK_ACTIONS.map((action) => (
+              {getContextualActions(window.location.pathname).map((action) => (
                 <button
                   key={action.label}
                   onClick={() => handleQuickAction(action.label)}
@@ -668,7 +821,7 @@ export function TippyChat() {
                   }}
                 >
                   {msg.role === "assistant" ? (
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
                   ) : (
                     msg.content
                   )}

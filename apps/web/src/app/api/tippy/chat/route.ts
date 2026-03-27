@@ -135,6 +135,14 @@ Be concise, helpful, and friendly. Use simple language. Always cite specific num
 
 Format responses in a readable way. Use short paragraphs and bullet points when listing multiple items.
 
+ENTITY LINKS - ALWAYS INCLUDE CLICKABLE REFERENCES:
+When you mention a specific place, cat, person, or request from tool results, include a markdown link so staff can navigate directly:
+- Places: [123 Oak Street](/places/PLACE_UUID)
+- Cats: [Whiskers](/cats/CAT_UUID)
+- People: [Emily West](/people/PERSON_UUID)
+- Requests: [Request #456](/requests/REQUEST_UUID)
+Use the entity IDs from tool results. Every entity mention should be clickable when you have the ID.
+
 COMMUNICATION STYLE - TELL THE STORY:
 
 **You are a knowledgeable colleague explaining the data, not a query engine returning results.**
@@ -826,7 +834,7 @@ async function buildPreflightContext(
  * Returns structured data for Claude to format as a natural briefing.
  */
 async function assembleBriefingData(staffId: string): Promise<Record<string, unknown>> {
-  const [newIntakes, batchStatus, staleRequests, seasonalPhase, linkingHealth, reminders, qualityAlerts] =
+  const [newIntakes, batchStatus, staleRequests, seasonalPhase, linkingHealth, reminders, qualityAlerts, operationalAnomalies] =
     await Promise.all([
       queryOne<{ count: number }>(
         `SELECT COUNT(*)::int as count FROM ops.intake_submissions
@@ -861,6 +869,14 @@ async function assembleBriefingData(staffId: string): Promise<Record<string, unk
         `SELECT severity, message FROM ops.v_data_quality_alerts
          WHERE severity IN ('CRITICAL', 'HIGH') LIMIT 5`
       ).catch(() => []),
+      // FFS-867: Operational anomalies
+      queryRows<{ anomaly_type: string; severity: string; description: string }>(
+        `SELECT anomaly_type, severity, description
+         FROM ops.tippy_anomaly_log
+         WHERE status = 'new' AND created_at > NOW() - INTERVAL '7 days'
+         ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 ELSE 3 END
+         LIMIT 5`
+      ).catch(() => []),
     ]);
 
   return {
@@ -871,6 +887,7 @@ async function assembleBriefingData(staffId: string): Promise<Record<string, unk
     linking_health: linkingHealth,
     pending_reminders: reminders,
     quality_alerts: qualityAlerts,
+    operational_anomalies: operationalAnomalies,
   };
 }
 

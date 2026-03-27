@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { queryOne, query } from "@/lib/db";
+import { queryOne, query, queryRows, execute } from "@/lib/db";
 import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 import { getServerConfig } from "@/lib/server-config";
 
@@ -293,6 +293,42 @@ export async function GET(request: NextRequest) {
       // MIG_2515 may not be applied yet - ignore
     }
 
+    // FFS-867: Run operational anomaly detection and store new anomalies
+    let anomaliesDetected = 0;
+    try {
+      const anomalies = await queryRows<{
+        anomaly_type: string;
+        entity_type: string;
+        entity_id: string;
+        severity: string;
+        description: string;
+        evidence: Record<string, unknown>;
+      }>("SELECT * FROM ops.detect_operational_anomalies()");
+
+      for (const a of anomalies) {
+        // Deduplicate: skip if same anomaly_type + entity_id already exists within 7 days
+        const existing = await queryOne<{ anomaly_id: string }>(
+          `SELECT anomaly_id FROM ops.tippy_anomaly_log
+           WHERE anomaly_type = $1 AND entity_id = $2
+             AND created_at > NOW() - INTERVAL '7 days'
+           LIMIT 1`,
+          [a.anomaly_type, a.entity_id]
+        );
+        if (!existing) {
+          await execute(
+            `INSERT INTO ops.tippy_anomaly_log
+             (anomaly_id, anomaly_type, entity_type, entity_id, severity, description, evidence)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)`,
+            [a.anomaly_type, a.entity_type, a.entity_id, a.severity, a.description, JSON.stringify(a.evidence)]
+          );
+          anomaliesDetected++;
+        }
+      }
+    } catch (error) {
+      console.error("Operational anomaly detection failed:", error);
+      // Non-fatal — don't block the cron response
+    }
+
     return apiSuccess({
       status: hasCritical ? "critical" : hasAlerts ? "warning" : "healthy",
       checked_at: new Date().toISOString(),
@@ -322,6 +358,7 @@ export async function GET(request: NextRequest) {
       },
       alerts,
       alert_count: alerts.length,
+      anomalies_detected: anomaliesDetected,
       snapshot_taken: snapshotTaken,
       duration_ms: Date.now() - startTime,
     });
