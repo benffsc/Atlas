@@ -18,10 +18,12 @@ const PUBLIC_PATHS = [
   "/change-password",
   "/api/auth/login",
   "/api/auth/change-password",
+  "/api/auth/kiosk",
   "/api/auth/me",
   "/api/intake/public",
   "/api/version",
   "/api/health",
+  "/kiosk",
   "/_next",
   "/favicon.ico",
 ];
