@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CatCard } from "@/components/cards";
 import type { CatCardData } from "@/components/cards";
 import { TabBar } from "@/components/ui/TabBar";
 import { MediaUploader } from "@/components/media";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface ClinicDay {
   clinic_day_id: string;
@@ -137,6 +140,7 @@ function toCatCardData(cat: ClinicDayCat): CatCardData {
     cat_name: cat.cat_name,
     cat_sex: cat.cat_sex,
     cat_color: cat.cat_color,
+    secondary_color: cat.cat_secondary_color,
     photo_url: cat.photo_url,
     microchip: cat.microchip,
     needs_microchip: cat.needs_microchip,
@@ -160,6 +164,7 @@ function toCatCardData(cat: ClinicDayCat): CatCardData {
 }
 
 export default function ClinicDaysPage() {
+  const { addToast } = useToast();
   const [clinicDays, setClinicDays] = useState<ClinicDay[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
@@ -225,6 +230,11 @@ export default function ClinicDaysPage() {
     error?: string;
     existingCount?: number;
   } | null>(null);
+
+  // Confirm dialogs
+  const [showDeleteEntryConfirm, setShowDeleteEntryConfirm] = useState(false);
+  const [showClearImportConfirm, setShowClearImportConfirm] = useState(false);
+  const pendingDeleteEntryIdRef = useRef<string>("");
 
   // New entry form
   const [newEntry, setNewEntry] = useState({
@@ -340,7 +350,7 @@ export default function ClinicDaysPage() {
   // Create clinic day
   const handleCreateDay = async () => {
     if (!createForm.clinic_date) {
-      alert("Please select a date");
+      addToast({ type: "warning", message: "Please select a date" });
       return;
     }
 
@@ -373,7 +383,7 @@ export default function ClinicDaysPage() {
         setShowCreateModal(false);
         setSelectedDate(createForm.clinic_date);
       } else {
-        alert(err instanceof Error ? err.message : "Failed to create clinic day");
+        addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to create clinic day" });
       }
     }
   };
@@ -403,7 +413,7 @@ export default function ClinicDaysPage() {
   // Add entry
   const handleAddEntry = async () => {
     if (!newEntry.cat_count) {
-      alert("Cat count is required");
+      addToast({ type: "warning", message: "Cat count is required" });
       return;
     }
 
@@ -447,14 +457,20 @@ export default function ClinicDaysPage() {
       const listData = await fetchApi<{ clinic_days: ClinicDay[] }>("/api/admin/clinic-days?include_comparison=true&limit=90");
       setClinicDays(listData.clinic_days || []);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to add entry");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to add entry" });
     }
   };
 
   // Delete entry
-  const handleDeleteEntry = async (entryId: string) => {
-    if (!confirm("Delete this entry?")) return;
+  const handleDeleteEntry = (entryId: string) => {
+    pendingDeleteEntryIdRef.current = entryId;
+    setShowDeleteEntryConfirm(true);
+  };
 
+  const handleDeleteEntryConfirm = async () => {
+    const entryId = pendingDeleteEntryIdRef.current;
+    setShowDeleteEntryConfirm(false);
+    pendingDeleteEntryIdRef.current = "";
     try {
       await fetchApi(`/api/admin/clinic-days/${selectedDate}/entries/${entryId}`, { method: "DELETE" });
       setEntries(entries.filter((e) => e.entry_id !== entryId));
@@ -497,7 +513,7 @@ export default function ClinicDaysPage() {
   // Import master list
   const handleImport = async () => {
     if (!importFile) {
-      alert("Please select a file");
+      addToast({ type: "warning", message: "Please select a file" });
       return;
     }
 
@@ -538,14 +554,17 @@ export default function ClinicDaysPage() {
   };
 
   // Clear master list entries
-  const handleClearImport = async () => {
-    if (!confirm("Delete all master list entries for this date? This cannot be undone.")) return;
+  const handleClearImport = () => {
+    setShowClearImportConfirm(true);
+  };
 
+  const handleClearImportConfirm = async () => {
+    setShowClearImportConfirm(false);
     try {
       const data = await fetchApi<{ deleted: number }>(`/api/admin/clinic-days/${selectedDate}/import`, {
         method: "DELETE",
       });
-      alert(`Deleted ${data.deleted} entries`);
+      addToast({ type: "success", message: `Deleted ${data.deleted} entries` });
       // Reload
       const dayData = await fetchApi<{ clinic_day: ClinicDay | null; entries: ClinicDayEntry[] }>(`/api/admin/clinic-days/${selectedDate}`);
       setSelectedDay(dayData.clinic_day || null);
@@ -553,7 +572,7 @@ export default function ClinicDaysPage() {
       setImportResult(null);
       setImportFile(null);
     } catch {
-      alert("Failed to delete entries");
+      addToast({ type: "error", message: "Failed to delete entries" });
     }
   };
 
@@ -670,7 +689,7 @@ export default function ClinicDaysPage() {
   };
 
   if (loading) {
-    return <div className="page-header"><h1>Loading...</h1></div>;
+    return <div style={{ padding: "2rem" }}><SkeletonTable rows={8} columns={4} /></div>;
   }
 
   return (
@@ -1392,6 +1411,8 @@ export default function ClinicDaysPage() {
                                   <CatCard
                                     key={cat.appointment_id}
                                     cat={toCatCardData(cat)}
+                                    showOwner
+                                    showAddress
                                     onUpdateClinicDayNumber={handleUpdateClinicDayNumber}
                                   />
                                 ))}
@@ -1412,6 +1433,8 @@ export default function ClinicDaysPage() {
                           <CatCard
                             key={cat.appointment_id}
                             cat={toCatCardData(cat)}
+                            showOwner
+                            showAddress
                             onUpdateClinicDayNumber={handleUpdateClinicDayNumber}
                           />
                         ))}
@@ -2318,6 +2341,29 @@ export default function ClinicDaysPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showDeleteEntryConfirm}
+        title="Delete Entry"
+        message="Delete this entry?"
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDeleteEntryConfirm}
+        onCancel={() => {
+          setShowDeleteEntryConfirm(false);
+          pendingDeleteEntryIdRef.current = "";
+        }}
+      />
+
+      <ConfirmDialog
+        open={showClearImportConfirm}
+        title="Delete Master List"
+        message="Delete all master list entries for this date? This cannot be undone."
+        confirmLabel="Delete All"
+        variant="danger"
+        onConfirm={handleClearImportConfirm}
+        onCancel={() => setShowClearImportConfirm(false)}
+      />
     </div>
   );
 }

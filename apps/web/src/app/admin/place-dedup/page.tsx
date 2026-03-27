@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { DedupPageLayout } from "@/components/admin/dedup";
 import type { DedupConfig, BaseDedupResponse } from "@/components/admin/dedup";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
+import type { Toast } from "@/components/feedback/Toast";
 
 interface PlaceDedupCandidate {
   candidate_id: string;
@@ -68,7 +71,7 @@ const TIER_TABS = [
   { value: "4", label: "Text Match Only", color: "#0dcaf0" },
 ];
 
-function makeConfig(onAutoMerge: () => void, autoMerging: boolean, autoMergeStatus: string): DedupConfig<PlaceDedupCandidate> {
+function makeConfig(onAutoMerge: () => void, autoMerging: boolean, autoMergeStatus: string, addToast: (toast: Omit<Toast, "id">) => void): DedupConfig<PlaceDedupCandidate> {
   return {
     entityName: "Place",
     apiPath: "/api/admin/place-dedup",
@@ -123,9 +126,10 @@ function makeConfig(onAutoMerge: () => void, autoMerging: boolean, autoMergeStat
             tier4_count: number;
             total: number;
           }>("/api/admin/place-dedup", { action: "refresh_candidates" });
-          alert(
-            `Refreshed: T1=${result.tier1_count}, T2=${result.tier2_count}, T3=${result.tier3_count}, T4=${result.tier4_count}, Total=${result.total}`
-          );
+          addToast({
+            type: "success",
+            message: `Refreshed: T1=${result.tier1_count}, T2=${result.tier2_count}, T3=${result.tier3_count}, T4=${result.tier4_count}, Total=${result.total}`,
+          });
         },
       },
     ],
@@ -312,8 +316,14 @@ function makeConfig(onAutoMerge: () => void, autoMerging: boolean, autoMergeStat
 }
 
 export default function PlaceDedupPage() {
+  const { addToast } = useToast();
   const [autoMerging, setAutoMerging] = useState(false);
   const [autoMergeStatus, setAutoMergeStatus] = useState("");
+
+  // Confirm dialog for auto-merge
+  const [showAutoMergeConfirm, setShowAutoMergeConfirm] = useState(false);
+  const pendingHighConfidenceRef = useRef<PlaceDedupCandidate[]>([]);
+  const pendingAllCandidatesCountRef = useRef(0);
 
   const handleAutoMerge = async () => {
     setAutoMerging(true);
@@ -338,24 +348,32 @@ export default function PlaceDedupPage() {
       );
 
       if (highConfidence.length === 0) {
-        alert(
-          "No high-confidence pairs found (need >= 90% address match AND < 10m distance)."
-        );
+        addToast({ type: "warning", message: "No high-confidence pairs found (need >= 90% address match AND < 10m distance)." });
+        setAutoMerging(false);
+        setAutoMergeStatus("");
         return;
       }
 
-      if (
-        !confirm(
-          `Auto-merge ${highConfidence.length} high-confidence pairs?\n\n` +
-            `Criteria: >= 90% address similarity AND < 10m apart.\n` +
-            `Each merge goes through sot.place_safe_to_merge() gate.\n\n` +
-            `Total Tier 1 candidates: ${allCandidates.length}\n` +
-            `Qualifying for auto-merge: ${highConfidence.length}`
-        )
-      ) {
-        return;
-      }
+      // Store candidates for the confirm handler and open dialog
+      pendingHighConfidenceRef.current = highConfidence;
+      pendingAllCandidatesCountRef.current = allCandidates.length;
+      setAutoMerging(false);
+      setAutoMergeStatus("");
+      setShowAutoMergeConfirm(true);
+    } catch (error) {
+      console.error("Auto-merge failed:", error);
+      addToast({ type: "error", message: `Auto-merge failed: ${error instanceof Error ? error.message : "Unknown error"}` });
+      setAutoMerging(false);
+      setAutoMergeStatus("");
+    }
+  };
 
+  const handleAutoMergeConfirm = async () => {
+    const highConfidence = pendingHighConfidenceRef.current;
+    setShowAutoMergeConfirm(false);
+    pendingHighConfidenceRef.current = [];
+    setAutoMerging(true);
+    try {
       const batchSize = 50;
       let totalSuccess = 0;
       let totalErrors = 0;
@@ -397,26 +415,46 @@ export default function PlaceDedupPage() {
         }
       }
 
-      alert(
-        `Auto-merge complete!\n\n` +
-          `Merged: ${totalSuccess}\n` +
-          `Errors: ${totalErrors}` +
+      addToast({
+        type: totalErrors > 0 ? "warning" : "success",
+        message:
+          `Auto-merge complete! Merged: ${totalSuccess}, Errors: ${totalErrors}` +
           (errorMessages.length > 0
-            ? `\n\nFirst errors: ${errorMessages.slice(0, 5).join("; ")}`
-            : "")
-      );
+            ? ` — First errors: ${errorMessages.slice(0, 3).join("; ")}`
+            : ""),
+      });
     } catch (error) {
       console.error("Auto-merge failed:", error);
-      alert(
-        `Auto-merge failed: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
+      addToast({ type: "error", message: `Auto-merge failed: ${error instanceof Error ? error.message : "Unknown error"}` });
     } finally {
       setAutoMerging(false);
       setAutoMergeStatus("");
     }
   };
 
-  const config = makeConfig(handleAutoMerge, autoMerging, autoMergeStatus);
+  const config = makeConfig(handleAutoMerge, autoMerging, autoMergeStatus, addToast);
 
-  return <DedupPageLayout config={config} />;
+  return (
+    <>
+      <DedupPageLayout config={config} />
+      <ConfirmDialog
+        open={showAutoMergeConfirm}
+        title="Auto-Merge High-Confidence Pairs"
+        message={
+          `Auto-merge ${pendingHighConfidenceRef.current.length} high-confidence pairs?\n\n` +
+          `Criteria: >= 90% address similarity AND < 10m apart. ` +
+          `Each merge goes through sot.place_safe_to_merge() gate.\n\n` +
+          `Total Tier 1 candidates: ${pendingAllCandidatesCountRef.current}. ` +
+          `Qualifying for auto-merge: ${pendingHighConfidenceRef.current.length}.`
+        }
+        confirmLabel="Auto-Merge"
+        variant="danger"
+        onConfirm={handleAutoMergeConfirm}
+        onCancel={() => {
+          setShowAutoMergeConfirm(false);
+          pendingHighConfidenceRef.current = [];
+        }}
+      />
+    </>
+  );
 }

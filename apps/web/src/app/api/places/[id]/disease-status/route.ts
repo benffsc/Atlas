@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    requireValidUUID(id, "place");
     const statusesSql = `
       SELECT
         pds.status_id,
@@ -77,6 +79,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    requireValidUUID(id, "place");
     const body = await request.json();
     const { disease_key, action, notes, staff_id } = body as {
       disease_key?: string;

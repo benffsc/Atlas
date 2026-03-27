@@ -6,7 +6,11 @@ import { fetchApi } from "@/lib/api-client";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { formatPhone } from "@/lib/formatters";
 import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup } from "@/components/filters";
+import { StatCard } from "@/components/ui/StatCard";
 import { DataTable, DataTablePagination, useDataTable } from "@/components/data-table";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
+import { FosterPreviewContent } from "@/components/preview/FosterPreviewContent";
 
 interface Foster {
   person_id: string;
@@ -35,23 +39,9 @@ const FILTER_DEFAULTS = {
   view: "table",
   page: "0",
   pageSize: "50",
+  selected: "",
 };
 
-function StatCard({ label, value, color }: { label: string; value: number | string; color?: string }) {
-  return (
-    <div style={{
-      padding: "0.75rem 1rem",
-      background: "var(--card-bg, #fff)",
-      border: "1px solid var(--border)",
-      borderRadius: "8px",
-      textAlign: "center",
-      minWidth: "120px",
-    }}>
-      <div style={{ fontSize: "1.5rem", fontWeight: 700, color: color || "var(--text)" }}>{value}</div>
-      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{label}</div>
-    </div>
-  );
-}
 
 function ContactInfo({ email, phone }: { email: string | null; phone: string | null }) {
   return (
@@ -277,9 +267,9 @@ function FosterRosterContent() {
       {aggregates && (
         <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
           <StatCard label="Total Fosters" value={aggregates.total_fosters} />
-          <StatCard label="Active" value={aggregates.active_fosters} color="#16a34a" />
-          <StatCard label="Inactive" value={aggregates.inactive_fosters} color="#6b7280" />
-          <StatCard label="Cats Fostered" value={aggregates.total_cats_fostered} color="#7c3aed" />
+          <StatCard label="Active" value={aggregates.active_fosters} valueColor="#16a34a" />
+          <StatCard label="Inactive" value={aggregates.inactive_fosters} valueColor="#6b7280" />
+          <StatCard label="Cats Fostered" value={aggregates.total_cats_fostered} valueColor="#7c3aed" />
         </div>
       )}
 
@@ -376,7 +366,7 @@ function FosterRosterContent() {
 
 export default function FostersPage() {
   return (
-    <Suspense fallback={<div className="loading">Loading...</div>}>
+    <Suspense fallback={<div className="page-container"><SkeletonTable rows={8} columns={5} /></div>}>
       <FosterRosterContent />
     </Suspense>
   );

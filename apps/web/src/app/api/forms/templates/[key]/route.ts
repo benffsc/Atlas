@@ -6,25 +6,20 @@ import {
   apiBadRequest,
   apiServerError,
 } from "@/lib/api-response";
-import type {
-  TemplateKey,
-  ResolvedTemplate,
-  ResolvedTemplateField,
-  TemplateSection,
-  FieldKey,
-  FieldType,
-  FieldCategory,
-  FieldWidth,
-  FieldValidation,
-  PrintLayout,
-  FormEntityType,
+import {
+  FORM_TEMPLATE_KEYS,
+  type TemplateKey,
+  type ResolvedTemplate,
+  type ResolvedTemplateField,
+  type TemplateSection,
+  type FieldKey,
+  type FieldType,
+  type FieldCategory,
+  type FieldWidth,
+  type FieldValidation,
+  type PrintLayout,
+  type FormEntityType,
 } from "@/lib/form-field-types";
-
-const VALID_KEYS: TemplateKey[] = [
-  "help_request",
-  "tnr_call_sheet",
-  "trapper_sheet",
-];
 
 interface TemplateRow {
   template_key: TemplateKey;
@@ -62,9 +57,9 @@ export async function GET(
 ) {
   const { key } = await params;
 
-  if (!VALID_KEYS.includes(key as TemplateKey)) {
+  if (!FORM_TEMPLATE_KEYS.includes(key as TemplateKey)) {
     return apiBadRequest(
-      `Invalid template key. Valid keys: ${VALID_KEYS.join(", ")}`
+      `Invalid template key. Valid keys: ${FORM_TEMPLATE_KEYS.join(", ")}`
     );
   }
 

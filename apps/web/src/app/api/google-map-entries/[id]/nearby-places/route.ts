@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface PlaceUnit {
@@ -32,6 +33,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "google_map_entry");
     // Get entry details first
     const entry = await queryOne<{
       entry_id: string;

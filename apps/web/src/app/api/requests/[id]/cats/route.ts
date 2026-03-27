@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiConflict } from "@/lib/api-response";
 
 interface RequestCatLink {
@@ -25,6 +26,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "request");
     const cats = await queryRows<RequestCatLink>(`
       SELECT
         rcl.link_id,
@@ -71,6 +73,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(id, "request");
     // Check if link already exists
     const existing = await queryOne<{ link_id: string }>(`
       SELECT link_id FROM ops.request_cat_links
@@ -137,6 +140,7 @@ export async function DELETE(
   }
 
   try {
+    requireValidUUID(id, "request");
     // Check if link exists
     const existing = await queryOne<{ link_id: string; link_purpose: string | null }>(`
       SELECT link_id, link_purpose FROM ops.request_cat_links

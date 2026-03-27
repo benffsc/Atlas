@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi } from "@/lib/api-client";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
+import { useProduct } from "@/lib/product-context";
 
 interface PersonPrint {
   person_id: string;
@@ -38,6 +39,7 @@ export default function PersonPrintPage() {
   const params = useParams();
   const id = params.id as string;
   const { nameShort } = useOrgConfig();
+  const { brandName } = useProduct();
 
   const [person, setPerson] = useState<PersonPrint | null>(null);
   const [loading, setLoading] = useState(true);
@@ -217,7 +219,7 @@ export default function PersonPrintPage() {
         display: "flex",
         justifyContent: "space-between"
       }}>
-        <span>Printed from {nameShort || "Atlas"} - FFR Management</span>
+        <span>Printed from {nameShort || brandName} - FFR Management</span>
         <span>{new Date().toLocaleString()}</span>
       </div>
 

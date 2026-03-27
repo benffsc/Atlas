@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 import type { SectionProps } from "@/lib/person-roles/types";
 
 const CONTRACT_TYPE_LABELS: Record<string, string> = {
@@ -23,6 +24,7 @@ const CONTRACT_STATUS_STYLES: Record<string, { bg: string; color: string }> = {
  * Lists all contracts with status badges, add/terminate actions.
  */
 export function ContractHistorySection({ personId, data, onDataChange }: SectionProps) {
+  const { addToast } = useToast();
   const { contracts } = data;
 
   const [showAddContract, setShowAddContract] = useState(false);
@@ -34,6 +36,9 @@ export function ContractHistorySection({ personId, data, onDataChange }: Section
   const [newContractExpirePrev, setNewContractExpirePrev] = useState(true);
   const [addingContract, setAddingContract] = useState(false);
   const [terminatingContractId, setTerminatingContractId] = useState<string | null>(null);
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
+  const [pendingTerminateId, setPendingTerminateId] = useState<string | null>(null);
+  const [terminateReason, setTerminateReason] = useState("");
 
   const handleAddContract = async () => {
     setAddingContract(true);
@@ -55,27 +60,34 @@ export function ContractHistorySection({ personId, data, onDataChange }: Section
       onDataChange?.("trapper");
     } catch (err) {
       console.error("Failed to create contract:", err);
-      alert(err instanceof Error ? err.message : "Failed to create contract");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to create contract" });
     } finally {
       setAddingContract(false);
     }
   };
 
-  const handleTerminateContract = async (contractId: string) => {
-    const reason = prompt("Reason for termination:");
-    if (reason === null) return;
-    setTerminatingContractId(contractId);
+  const handleTerminateContract = (contractId: string) => {
+    setPendingTerminateId(contractId);
+    setTerminateReason("");
+    setShowTerminateModal(true);
+  };
+
+  const handleTerminateConfirm = async () => {
+    if (!pendingTerminateId) return;
+    setShowTerminateModal(false);
+    setTerminatingContractId(pendingTerminateId);
     try {
-      await postApi(`/api/people/${personId}/contracts/${contractId}`, {
+      await postApi(`/api/people/${personId}/contracts/${pendingTerminateId}`, {
         status: "terminated",
-        reason: reason || "Manually terminated",
+        reason: terminateReason.trim() || "Manually terminated",
       }, { method: "PATCH" });
       onDataChange?.("trapper");
     } catch (err) {
       console.error("Failed to terminate contract:", err);
-      alert(err instanceof Error ? err.message : "Failed to terminate contract");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to terminate contract" });
     } finally {
       setTerminatingContractId(null);
+      setPendingTerminateId(null);
     }
   };
 
@@ -182,6 +194,29 @@ export function ContractHistorySection({ personId, data, onDataChange }: Section
         </div>
       ) : (
         <p className="text-muted">No contracts on file.</p>
+      )}
+
+      {showTerminateModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowTerminateModal(false); }}>
+          <div style={{ background: "var(--card-bg, #fff)", borderRadius: "12px", maxWidth: "400px", width: "100%", padding: "1.5rem", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}>
+            <h3 style={{ margin: "0 0 0.75rem", fontSize: "1.1rem", fontWeight: 600, color: "#b91c1c" }}>Terminate Contract</h3>
+            <p style={{ margin: "0 0 1rem", fontSize: "0.9rem", color: "var(--text-muted, #6b7280)" }}>Reason for termination (optional):</p>
+            <input
+              type="text"
+              value={terminateReason}
+              onChange={(e) => setTerminateReason(e.target.value)}
+              placeholder="e.g., Contract expired, no renewal"
+              style={{ width: "100%", padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border)", marginBottom: "1rem", boxSizing: "border-box" }}
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") handleTerminateConfirm(); if (e.key === "Escape") setShowTerminateModal(false); }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+              <button onClick={() => setShowTerminateModal(false)} style={{ padding: "0.5rem 1rem", border: "1px solid var(--border)", borderRadius: "6px", background: "transparent", cursor: "pointer", fontSize: "0.875rem" }}>Cancel</button>
+              <button onClick={handleTerminateConfirm} style={{ padding: "0.5rem 1rem", border: "none", borderRadius: "6px", background: "#b91c1c", color: "#fff", cursor: "pointer", fontWeight: 500, fontSize: "0.875rem" }}>Terminate</button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

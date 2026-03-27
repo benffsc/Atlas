@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import Link from "next/link";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface TemplateListItem {
   template_key: string;
@@ -73,7 +74,7 @@ function AdminFormsContent() {
         >
           Form Templates
         </h1>
-        <p>Loading...</p>
+        <SkeletonTable rows={5} columns={3} />
       </div>
     );
   }

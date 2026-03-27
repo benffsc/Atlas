@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // PATCH - Advance onboarding status
@@ -10,6 +11,7 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "trapper");
     const body = await request.json();
     const { new_status, notes, advanced_by } = body;
 
@@ -82,6 +84,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "trapper");
     const candidate = await queryOne(`
       SELECT * FROM ops.v_trapper_onboarding_pipeline
       WHERE person_id = $1

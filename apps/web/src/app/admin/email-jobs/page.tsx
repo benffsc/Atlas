@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface EmailJob {
   job_id: string;
@@ -275,7 +276,7 @@ export default function EmailJobsPage() {
       {/* Jobs Table */}
       <div className="card" style={{ overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>Loading...</div>
+          <div style={{ padding: "2rem" }}><SkeletonTable rows={5} columns={4} /></div>
         ) : jobs.length === 0 ? (
           <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
             No email jobs found

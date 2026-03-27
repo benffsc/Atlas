@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 // GET: Retrieve classification suggestion for a request
@@ -9,11 +10,8 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return apiBadRequest("Request ID is required");
-  }
-
   try {
+    requireValidUUID(id, "request");
     const sql = `
       SELECT
         r.request_id,
@@ -64,11 +62,8 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return apiBadRequest("Request ID is required");
-  }
-
   try {
+    requireValidUUID(id, "request");
     const body = await request.json();
     const { action, override_classification, reason, authoritative_count } = body;
 

@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { ColonySourcesBreakdown } from "@/components/charts";
 import { EcologyMethodologyPanel } from "@/components/admin";
+import { useToast } from "@/components/feedback/Toast";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface ColonyEstimate {
   estimate_id: string;
@@ -122,6 +124,7 @@ const sourceColors: Record<string, string> = {
 };
 
 export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
+  const { addToast } = useToast();
   const [data, setData] = useState<ColonyEstimatesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +137,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
   const [overrideAltered, setOverrideAltered] = useState<number>(0);
   const [overrideNote, setOverrideNote] = useState<string>("");
   const [savingOverride, setSavingOverride] = useState(false);
+  const [showClearOverrideConfirm, setShowClearOverrideConfirm] = useState(false);
 
   // Classification editing state
   const [showClassificationForm, setShowClassificationForm] = useState(false);
@@ -170,17 +174,18 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
       setLoading(true);
       await fetchEstimates();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error setting override");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Error setting override" });
     } finally {
       setSavingOverride(false);
     }
   };
 
-  const handleClearOverride = async () => {
-    if (!confirm("Clear the manual override and revert to computed estimates?")) {
-      return;
-    }
+  const handleClearOverride = () => {
+    setShowClearOverrideConfirm(true);
+  };
 
+  const handleClearOverrideConfirm = async () => {
+    setShowClearOverrideConfirm(false);
     setSavingOverride(true);
     try {
       await postApi(`/api/places/${placeId}/colony-override`, {}, { method: "DELETE" });
@@ -188,7 +193,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
       setLoading(true);
       await fetchEstimates();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error clearing override");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Error clearing override" });
     } finally {
       setSavingOverride(false);
     }
@@ -223,7 +228,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
       setLoading(true);
       await fetchEstimates();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error setting classification");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Error setting classification" });
     } finally {
       setSavingClassification(false);
     }
@@ -1046,6 +1051,16 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showClearOverrideConfirm}
+        title="Clear Manual Override"
+        message="Clear the manual override and revert to computed estimates?"
+        confirmLabel="Clear Override"
+        variant="danger"
+        onConfirm={handleClearOverrideConfirm}
+        onCancel={() => setShowClearOverrideConfirm(false)}
+      />
     </div>
   );
 }

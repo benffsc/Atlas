@@ -9,27 +9,15 @@ import {
 } from "@/lib/api-response";
 import { requireValidUUID } from "@/lib/api-validation";
 import { getSession } from "@/lib/auth";
-import type {
-  TemplateKey,
-  SubmissionSource,
-  FormSubmission,
-  FieldType,
+import {
+  FORM_TEMPLATE_KEYS,
+  SUBMISSION_SOURCES,
+  FORM_ENTITY_TYPES,
+  type TemplateKey,
+  type SubmissionSource,
+  type FormSubmission,
+  type FieldType,
 } from "@/lib/form-field-types";
-
-const VALID_TEMPLATE_KEYS: TemplateKey[] = [
-  "help_request",
-  "tnr_call_sheet",
-  "trapper_sheet",
-];
-
-const VALID_SOURCES: SubmissionSource[] = [
-  "atlas_ui",
-  "paper_entry",
-  "web_intake",
-  "import",
-];
-
-const VALID_ENTITY_TYPES = ["request", "cat", "place"];
 
 /**
  * GET /api/forms/submissions?entity_id=...&entity_type=request
@@ -54,9 +42,9 @@ export async function GET(request: NextRequest) {
     return apiBadRequest("Invalid entity_id format");
   }
 
-  if (!VALID_ENTITY_TYPES.includes(entityType)) {
+  if (!FORM_ENTITY_TYPES.includes(entityType as (typeof FORM_ENTITY_TYPES)[number])) {
     return apiBadRequest(
-      `Invalid entity_type. Valid types: ${VALID_ENTITY_TYPES.join(", ")}`
+      `Invalid entity_type. Valid types: ${FORM_ENTITY_TYPES.join(", ")}`
     );
   }
 
@@ -114,15 +102,15 @@ export async function POST(request: NextRequest) {
   } = body;
 
   // Validation
-  if (!template_key || !VALID_TEMPLATE_KEYS.includes(template_key)) {
+  if (!template_key || !FORM_TEMPLATE_KEYS.includes(template_key as TemplateKey)) {
     return apiBadRequest(
-      `Invalid template_key. Valid keys: ${VALID_TEMPLATE_KEYS.join(", ")}`
+      `Invalid template_key. Valid keys: ${FORM_TEMPLATE_KEYS.join(", ")}`
     );
   }
 
-  if (!entity_type || !VALID_ENTITY_TYPES.includes(entity_type)) {
+  if (!entity_type || !FORM_ENTITY_TYPES.includes(entity_type as (typeof FORM_ENTITY_TYPES)[number])) {
     return apiBadRequest(
-      `Invalid entity_type. Valid types: ${VALID_ENTITY_TYPES.join(", ")}`
+      `Invalid entity_type. Valid types: ${FORM_ENTITY_TYPES.join(", ")}`
     );
   }
 
@@ -136,9 +124,9 @@ export async function POST(request: NextRequest) {
     return apiBadRequest("data must be an object");
   }
 
-  if (!VALID_SOURCES.includes(source)) {
+  if (!SUBMISSION_SOURCES.includes(source as SubmissionSource)) {
     return apiBadRequest(
-      `Invalid source. Valid sources: ${VALID_SOURCES.join(", ")}`
+      `Invalid source. Valid sources: ${SUBMISSION_SOURCES.join(", ")}`
     );
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { formatDateLocal, formatRelativeTime, getActivityColor } from "@/lib/formatters";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { KanbanBoard, KanbanBoardMobile } from "@/components/common";
@@ -9,6 +9,7 @@ import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useRequestCounts } from "@/hooks/useRequestCounts";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS, getStatusColor } from "@/lib/design-tokens";
 import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
 import { useTriageFlags } from "@/hooks/useTriageFlags";
@@ -20,6 +21,7 @@ import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { RequestPreviewContent } from "@/components/preview/RequestPreviewContent";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
 import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface Request {
   request_id: string;
@@ -884,6 +886,7 @@ const FILTER_DEFAULTS = {
 };
 
 function RequestsPageContent() {
+  const { addToast } = useToast();
   const { filters, setFilter, setFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
   const isMobile = useIsMobile();
 
@@ -897,6 +900,11 @@ function RequestsPageContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [bulkStatusTarget, setBulkStatusTarget] = useState<string>("");
+
+  // Confirm dialogs
+  const [showBulkStatusConfirm, setShowBulkStatusConfirm] = useState(false);
+  const [showKanbanCompleteConfirm, setShowKanbanCompleteConfirm] = useState(false);
+  const kanbanCompleteResolveRef = useRef<((result: boolean) => void) | null>(null);
 
   // Request counts for segmented control (FFS-166)
   const { counts: requestCounts } = useRequestCounts();
@@ -951,10 +959,13 @@ function RequestsPageContent() {
     }
   };
 
-  const handleBulkStatusUpdate = async () => {
+  const handleBulkStatusUpdate = () => {
     if (selectedIds.size === 0 || !bulkStatusTarget) return;
-    if (!confirm(`Update ${selectedIds.size} requests to "${bulkStatusTarget.replace(/_/g, " ")}"?`)) return;
+    setShowBulkStatusConfirm(true);
+  };
 
+  const handleBulkStatusUpdateConfirm = async () => {
+    setShowBulkStatusConfirm(false);
     setBulkUpdating(true);
     try {
       const promises = Array.from(selectedIds).map((id) =>
@@ -975,7 +986,7 @@ function RequestsPageContent() {
       const data = await fetchApi<{ requests: Request[] }>(`/api/requests?${params.toString()}`);
       setRequests(data.requests || []);
     } catch (err) {
-      alert("Error updating requests");
+      addToast({ type: "error", message: "Error updating requests" });
     } finally {
       setBulkUpdating(false);
     }
@@ -1058,7 +1069,7 @@ function RequestsPageContent() {
       onClose={() => setFilter("selected", "")}
     />
   ) : filters.selected && !isKanban && detailLoading ? (
-    <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+    <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
   ) : null;
 
   return (
@@ -1356,7 +1367,10 @@ function RequestsPageContent() {
             requests={requests}
             onBeforeDrop={(_itemId, _from, toStatus) => {
               if (toStatus === "completed") {
-                return window.confirm("Mark this request as completed? This is a terminal status.");
+                return new Promise<boolean>((resolve) => {
+                  kanbanCompleteResolveRef.current = resolve;
+                  setShowKanbanCompleteConfirm(true);
+                });
               }
               return true;
             }}
@@ -1523,6 +1537,35 @@ function RequestsPageContent() {
         onClose={() => setKanbanPreviewId(null)}
         entityType="request"
         entityId={kanbanPreviewId}
+      />
+
+      {/* Confirm: bulk status update */}
+      <ConfirmDialog
+        open={showBulkStatusConfirm}
+        title="Update Request Status"
+        message={`Update ${selectedIds.size} requests to "${bulkStatusTarget.replace(/_/g, " ")}"?`}
+        confirmLabel="Update"
+        onConfirm={handleBulkStatusUpdateConfirm}
+        onCancel={() => setShowBulkStatusConfirm(false)}
+      />
+
+      {/* Confirm: kanban drop to completed */}
+      <ConfirmDialog
+        open={showKanbanCompleteConfirm}
+        title="Mark as Completed"
+        message="Mark this request as completed? This is a terminal status."
+        confirmLabel="Mark Completed"
+        variant="danger"
+        onConfirm={() => {
+          setShowKanbanCompleteConfirm(false);
+          kanbanCompleteResolveRef.current?.(true);
+          kanbanCompleteResolveRef.current = null;
+        }}
+        onCancel={() => {
+          setShowKanbanCompleteConfirm(false);
+          kanbanCompleteResolveRef.current?.(false);
+          kanbanCompleteResolveRef.current = null;
+        }}
       />
     </ListDetailLayout>
   );

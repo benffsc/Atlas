@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface Processor {
   processor_id: string;
@@ -92,7 +93,7 @@ export default function ProcessorsPage() {
     return (
       <div>
         <h1>Data Engine Processors</h1>
-        <p className="text-muted">Loading...</p>
+        <SkeletonTable rows={5} columns={3} />
       </div>
     );
   }

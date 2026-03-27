@@ -1,22 +1,11 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
-import type {
-  FormFieldDefinition,
-  FieldCategory,
+import {
+  FIELD_CATEGORIES,
+  type FormFieldDefinition,
+  type FieldCategory,
 } from "@/lib/form-field-types";
-
-const VALID_CATEGORIES: FieldCategory[] = [
-  "contact",
-  "location",
-  "cat_info",
-  "logistics",
-  "trapping",
-  "kitten",
-  "medical",
-  "staff",
-  "referral",
-];
 
 /**
  * GET /api/forms/fields?category=contact
@@ -27,7 +16,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category");
 
-  if (category && !VALID_CATEGORIES.includes(category as FieldCategory)) {
+  if (category && !FIELD_CATEGORIES.includes(category as FieldCategory)) {
     return apiSuccess([]); // Empty for invalid category
   }
 

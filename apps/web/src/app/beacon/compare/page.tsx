@@ -47,11 +47,11 @@ interface SearchResult {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  managed: { bg: "#dcfce7", text: "#166534", label: "Managed" },
-  in_progress: { bg: "#fef3c7", text: "#92400e", label: "In Progress" },
-  needs_work: { bg: "#fed7aa", text: "#9a3412", label: "Needs Work" },
-  needs_attention: { bg: "#fecaca", text: "#991b1b", label: "Needs Attention" },
-  no_data: { bg: "#f3f4f6", text: "#6b7280", label: "No Data" },
+  managed: { bg: "var(--healthy-bg)", text: "var(--healthy-text)", label: "Managed" },
+  in_progress: { bg: "var(--caution-bg)", text: "var(--caution-text)", label: "In Progress" },
+  needs_work: { bg: "var(--warning-bg)", text: "#9a3412", label: "Needs Work" },      // amber-dark, no exact var
+  needs_attention: { bg: "var(--critical-bg)", text: "var(--critical-text)", label: "Needs Attention" },
+  no_data: { bg: "var(--bg-secondary)", text: "var(--text-secondary)", label: "No Data" },
 };
 
 export default function ComparisonPage() {
@@ -249,7 +249,7 @@ export default function ComparisonPage() {
               value={summary.combined_alteration_rate !== null ? `${summary.combined_alteration_rate}%` : "N/A"}
               color={
                 summary.combined_alteration_rate !== null
-                  ? summary.combined_alteration_rate >= 70 ? "#16a34a" : summary.combined_alteration_rate >= 50 ? "#f59e0b" : "#dc2626"
+                  ? summary.combined_alteration_rate >= 70 ? "var(--healthy-text)" : summary.combined_alteration_rate >= 50 ? "var(--caution-text)" : "var(--critical-text)"
                   : undefined
               }
             />
@@ -258,7 +258,7 @@ export default function ComparisonPage() {
                 label="Best Performing"
                 value={`${summary.best_performing.alteration_rate ?? 0}%`}
                 subtitle={summary.best_performing.name || "Unknown"}
-                color="#16a34a"
+                color="var(--healthy-text)"
               />
             )}
             {summary.worst_performing && (
@@ -266,7 +266,7 @@ export default function ComparisonPage() {
                 label="Needs Most Work"
                 value={`${summary.worst_performing.alteration_rate ?? 0}%`}
                 subtitle={summary.worst_performing.name || "Unknown"}
-                color="#dc2626"
+                color="var(--critical-text)"
               />
             )}
           </div>
@@ -343,7 +343,7 @@ export default function ComparisonPage() {
                     <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>
                       {p.total_requests}
                       {p.active_requests > 0 && (
-                        <span style={{ fontSize: "0.7rem", color: "#dc2626" }}> ({p.active_requests} active)</span>
+                        <span style={{ fontSize: "0.7rem", color: "var(--critical-text)" }}> ({p.active_requests} active)</span>
                       )}
                     </td>
                     <td style={{ textAlign: "right", padding: "0.5rem 0.75rem" }}>{p.people_count}</td>
@@ -381,7 +381,7 @@ export default function ComparisonPage() {
               .sort((a, b) => (b.alteration_rate_pct ?? 0) - (a.alteration_rate_pct ?? 0))
               .map(p => {
                 const rate = p.alteration_rate_pct ?? 0;
-                const barColor = rate >= 75 ? "#16a34a" : rate >= 50 ? "#f59e0b" : "#dc2626";
+                const barColor = rate >= 75 ? "var(--healthy-text)" : rate >= 50 ? "var(--caution-text)" : "var(--critical-text)";
                 return (
                   <div key={p.place_id} style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                     <div style={{

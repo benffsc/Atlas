@@ -10,11 +10,7 @@ import {
   apiNotFound,
   apiServerError,
 } from "@/lib/api-response";
-
-const VALID_FIELD_TYPES = [
-  "text", "number", "boolean", "select", "multi_select",
-  "date", "textarea", "phone", "email",
-];
+import { FIELD_TYPES } from "@/lib/form-field-types";
 
 interface FieldDefRow {
   id: string;
@@ -81,7 +77,7 @@ export async function PUT(
     const { label, print_label, options, description, field_type } = body;
 
     // Validate field_type if provided
-    if (field_type && !VALID_FIELD_TYPES.includes(field_type)) {
+    if (field_type && !FIELD_TYPES.includes(field_type as (typeof FIELD_TYPES)[number])) {
       return apiBadRequest(`Invalid field_type: ${field_type}`);
     }
 

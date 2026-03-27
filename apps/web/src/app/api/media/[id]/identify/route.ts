@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 type ConfidenceLevel = "confirmed" | "likely" | "uncertain";
@@ -18,6 +19,7 @@ export async function PATCH(
   const { id: mediaId } = await params;
 
   try {
+    requireValidUUID(mediaId, "media");
     const body = await request.json();
     const {
       cat_id,
@@ -120,6 +122,7 @@ export async function DELETE(
   const { id: mediaId } = await params;
 
   try {
+    requireValidUUID(mediaId, "media");
     const searchParams = request.nextUrl.searchParams;
     const applyToGroup = searchParams.get("apply_to_group") === "true";
 
@@ -188,6 +191,7 @@ export async function GET(
   const { id: mediaId } = await params;
 
   try {
+    requireValidUUID(mediaId, "media");
     const media = await queryOne<{
       media_id: string;
       cat_id: string | null;

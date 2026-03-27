@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { TabBar } from "@/components/ui/TabBar";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -188,7 +189,7 @@ export default function RoleAuditPage() {
     return (
       <div>
         <h1>Role Audit</h1>
-        <p style={{ color: "var(--muted)" }}>Loading...</p>
+        <SkeletonTable rows={6} columns={4} />
       </div>
     );
   }

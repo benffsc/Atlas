@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { formatPhone } from "@/lib/formatters";
+import { SkeletonList } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface PendingTrapperLink {
   pending_id: string;
@@ -40,6 +42,7 @@ interface TrapperLinkingResponse {
 }
 
 export default function TrapperLinkingPage() {
+  const { addToast } = useToast();
   const [data, setData] = useState<TrapperLinkingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("pending");
@@ -68,7 +71,7 @@ export default function TrapperLinkingPage() {
       fetchPending();
     } catch (error) {
       console.error("Failed to resolve:", error);
-      alert(`Error: ${error instanceof Error ? error.message : "Failed to resolve"}`);
+      addToast({ type: "error", message: error instanceof Error ? error.message : "Failed to resolve" });
     } finally {
       setResolving(null);
     }
@@ -160,7 +163,7 @@ export default function TrapperLinkingPage() {
         ))}
       </div>
 
-      {loading && <div className="loading">Loading...</div>}
+      {loading && <div style={{ padding: "1rem 0" }}><SkeletonList items={5} /></div>}
 
       {!loading && data?.pending.length === 0 && (
         <div className="empty" style={{ padding: "3rem", textAlign: "center" }}>

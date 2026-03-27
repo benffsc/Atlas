@@ -5,6 +5,7 @@ import type { IntakeSubmission, CommunicationLog, StaffMember } from "@/lib/inta
 import { CONTACT_METHODS, CONTACT_RESULTS } from "@/lib/intake-types";
 import { normalizeName } from "@/components/intake/IntakeBadges";
 import { formatPhone } from "@/lib/formatters";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, Z_INDEX } from "@/lib/design-tokens";
 
@@ -238,7 +239,7 @@ export function ContactLogModal({
           </h3>
 
           {loadingLogs ? (
-            <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>Loading...</p>
+            <div style={{ padding: "0.5rem 0" }}><SkeletonList items={3} /></div>
           ) : communicationLogs.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: "0.9rem", margin: 0 }}>
               No journal entries logged yet.

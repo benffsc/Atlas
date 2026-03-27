@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface TestModeStatus {
   test_mode_active: boolean;
@@ -17,6 +19,11 @@ export default function TestModePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<string | null>(null);
+
+  // Confirm dialogs
+  const [showEnableTestModeConfirm, setShowEnableTestModeConfirm] = useState(false);
+  const [showDisableTestModeConfirm, setShowDisableTestModeConfirm] = useState(false);
+  const pendingKeepChangesRef = { current: false };
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -34,22 +41,12 @@ export default function TestModePage() {
     fetchStatus();
   }, [fetchStatus]);
 
-  const enableTestMode = async () => {
-    if (!confirm(
-      "Enable Test Mode?\n\n" +
-      "This will create a snapshot of key database tables. " +
-      "You can then make test changes and revert them when done.\n\n" +
-      "Tables backed up:\n" +
-      "• Intake submissions\n" +
-      "• Requests\n" +
-      "• Journal entries\n" +
-      "• Colony estimates\n" +
-      "• Cat movements & reunifications\n\n" +
-      "Continue?"
-    )) {
-      return;
-    }
+  const enableTestMode = () => {
+    setShowEnableTestModeConfirm(true);
+  };
 
+  const enableTestModeConfirm = async () => {
+    setShowEnableTestModeConfirm(false);
     setActionLoading(true);
     setError(null);
 
@@ -64,17 +61,14 @@ export default function TestModePage() {
     }
   };
 
-  const disableTestMode = async (keepChanges: boolean) => {
-    const confirmMessage = keepChanges
-      ? "Disable Test Mode and KEEP all changes?\n\n" +
-        "The changes you made during test mode will become permanent."
-      : "Disable Test Mode and REVERT all changes?\n\n" +
-        "All changes made during test mode will be discarded and the database will be restored to its original state.";
+  const disableTestMode = (keepChanges: boolean) => {
+    pendingKeepChangesRef.current = keepChanges;
+    setShowDisableTestModeConfirm(true);
+  };
 
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-
+  const disableTestModeConfirm = async () => {
+    const keepChanges = pendingKeepChangesRef.current;
+    setShowDisableTestModeConfirm(false);
     setActionLoading(true);
     setError(null);
 
@@ -93,7 +87,7 @@ export default function TestModePage() {
     return (
       <div style={{ padding: "2rem" }}>
         <h1>Test Mode</h1>
-        <p>Loading...</p>
+        <SkeletonList items={3} />
       </div>
     );
   }
@@ -333,6 +327,36 @@ export default function TestModePage() {
           Test mode is designed for testing workflows, not bulk data changes.
         </p>
       </div>
+
+      {/* Confirm: enable test mode */}
+      <ConfirmDialog
+        open={showEnableTestModeConfirm}
+        title="Enable Test Mode?"
+        message={
+          "This will create a snapshot of key database tables. " +
+          "You can then make test changes and revert them when done.\n\n" +
+          "Tables backed up: Intake submissions, Requests, Journal entries, Colony estimates, Cat movements & reunifications."
+        }
+        confirmLabel="Enable Test Mode"
+        variant="danger"
+        onConfirm={enableTestModeConfirm}
+        onCancel={() => setShowEnableTestModeConfirm(false)}
+      />
+
+      {/* Confirm: disable test mode */}
+      <ConfirmDialog
+        open={showDisableTestModeConfirm}
+        title={pendingKeepChangesRef.current ? "Disable Test Mode — Keep Changes" : "Disable Test Mode — Revert Changes"}
+        message={
+          pendingKeepChangesRef.current
+            ? "Disable Test Mode and KEEP all changes? The changes you made during test mode will become permanent."
+            : "Disable Test Mode and REVERT all changes? All changes made during test mode will be discarded and the database will be restored to its original state."
+        }
+        confirmLabel={pendingKeepChangesRef.current ? "Keep Changes" : "Revert Changes"}
+        variant="danger"
+        onConfirm={disableTestModeConfirm}
+        onCancel={() => setShowDisableTestModeConfirm(false)}
+      />
     </div>
   );
 }

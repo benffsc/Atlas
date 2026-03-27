@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { BackButton } from "@/components/common";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface SourceConfidence {
   source_system: string;
@@ -14,6 +16,7 @@ interface SourceConfidence {
 const coreSourceSystems = ["web_intake", "atlas_ui", "airtable", "clinichq"];
 
 export default function SourceConfidencePage() {
+  const { addToast } = useToast();
   const [scores, setScores] = useState<SourceConfidence[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export default function SourceConfidencePage() {
       fetchScores();
     } catch (err) {
       console.error("Update error:", err);
-      alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Unknown error" });
     } finally {
       setSaving(null);
     }
@@ -75,7 +78,7 @@ export default function SourceConfidencePage() {
       fetchScores();
     } catch (err) {
       console.error("Delete error:", err);
-      alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Unknown error" });
     } finally {
       setSaving(null);
     }
@@ -87,7 +90,7 @@ export default function SourceConfidencePage() {
 
     const confidence = parseFloat(newScore);
     if (isNaN(confidence) || confidence < 0 || confidence > 1) {
-      alert("Score must be between 0 and 1");
+      addToast({ type: "error", message: "Score must be between 0 and 1" });
       return;
     }
 
@@ -148,7 +151,7 @@ export default function SourceConfidencePage() {
         </ul>
       </div>
 
-      {loading && <div className="loading">Loading...</div>}
+      {loading && <div style={{ padding: "1rem 0" }}><SkeletonTable rows={5} columns={4} /></div>}
 
       {error && (
         <div className="empty" style={{ color: "red" }}>

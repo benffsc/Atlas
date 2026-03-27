@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface MergeResult {
@@ -24,6 +25,7 @@ export async function POST(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "organization");
     const body = await request.json();
     const dryRun = body.dry_run !== false; // Default to dry run for safety
 
@@ -87,6 +89,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "organization");
     // Get the org
     const org = await queryOne<{ org_name: string; canonical_person_id: string | null }>(
       `SELECT org_name, canonical_person_id FROM sot.known_organizations WHERE org_id = $1`,

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { usePermission } from "@/hooks/usePermission";
 import { postApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Message {
   id: string;
@@ -32,8 +33,8 @@ export default function ClaudeCodeAdminPage() {
   // Check if user has admin access
   if (userLoading) {
     return (
-      <div style={{ padding: "24px", textAlign: "center", color: "var(--muted)" }}>
-        Loading...
+      <div style={{ padding: "24px" }}>
+        <SkeletonList items={3} />
       </div>
     );
   }

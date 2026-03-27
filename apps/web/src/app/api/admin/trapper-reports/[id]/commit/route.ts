@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 
 /**
@@ -19,6 +20,7 @@ export async function POST(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "trapper_report");
     // Get submission
     const submission = await queryOne<{ submission_id: string; extraction_status: string }>(
       `SELECT submission_id::text, extraction_status

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiUnauthorized, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
@@ -14,6 +15,7 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "media");
 
     const media = await queryOne<{
       media_id: string;
@@ -62,6 +64,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    requireValidUUID(id, "media");
 
     // Check if media exists
     const media = await queryOne<{ media_id: string }>(

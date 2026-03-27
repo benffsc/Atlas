@@ -8,12 +8,15 @@ import { DedupSummaryBar } from "./DedupSummaryBar";
 import { DedupBatchBar } from "./DedupBatchBar";
 import { DedupPagination } from "./DedupPagination";
 import { DedupCard } from "./DedupCard";
+import { useToast } from "@/components/feedback/Toast";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface Props<C> {
   config: DedupConfig<C>;
 }
 
 export function DedupPageLayout<C>({ config }: Props<C>) {
+  const { addToast } = useToast();
   const {
     data,
     loading,
@@ -35,17 +38,38 @@ export function DedupPageLayout<C>({ config }: Props<C>) {
 
   // Header action loading states
   const [headerLoading, setHeaderLoading] = useState<Record<string, boolean>>({});
+  const [pendingHeaderAction, setPendingHeaderAction] = useState<{
+    key: string;
+    handler: () => Promise<string | void>;
+  } | null>(null);
 
-  const handleHeaderAction = async (key: string, handler: () => Promise<void>, confirmMsg?: string) => {
-    if (confirmMsg && !confirm(confirmMsg)) return;
+  // Batch action confirm state
+  const [pendingBatchAction, setPendingBatchAction] = useState<{
+    action: string;
+    label: string;
+    count: number;
+  } | null>(null);
+
+  const runHeaderAction = async (key: string, handler: () => Promise<string | void>) => {
     setHeaderLoading((prev) => ({ ...prev, [key]: true }));
     try {
-      await handler();
+      const message = await handler();
+      if (message) {
+        addToast({ type: "info", message });
+      }
       fetchCandidates();
     } catch (err) {
       console.error(`${key} failed:`, err);
     } finally {
       setHeaderLoading((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleHeaderAction = (key: string, handler: () => Promise<string | void>, confirmMsg?: string) => {
+    if (confirmMsg) {
+      setPendingHeaderAction({ key, handler });
+    } else {
+      runHeaderAction(key, handler);
     }
   };
 
@@ -170,9 +194,10 @@ export function DedupPageLayout<C>({ config }: Props<C>) {
         config={config}
         selectedCount={selected.size}
         batchAction={batchAction}
-        onBatchResolve={(action) =>
-          handleBatchResolve(action, selected, data?.candidates || [], clearSelection)
-        }
+        onBatchResolve={(action) => {
+          const actionLabel = config.actions.find((a) => a.key === action)?.batchLabel || action;
+          setPendingBatchAction({ action, label: actionLabel, count: selected.size });
+        }}
         onClearSelection={clearSelection}
       />
 
@@ -231,6 +256,41 @@ export function DedupPageLayout<C>({ config }: Props<C>) {
           candidateCount={data.candidates.length}
           onPrevious={() => setOffset(Math.max(0, offset - limit))}
           onNext={() => setOffset(offset + limit)}
+        />
+      )}
+
+      {/* Header action confirm dialog */}
+      {pendingHeaderAction && (
+        <ConfirmDialog
+          open={true}
+          title="Confirm action"
+          message={
+            config.headerActions?.find((ha) => ha.key === pendingHeaderAction.key)?.confirmMessage ||
+            "Are you sure?"
+          }
+          confirmLabel="Continue"
+          onConfirm={() => {
+            const { key, handler } = pendingHeaderAction;
+            setPendingHeaderAction(null);
+            runHeaderAction(key, handler);
+          }}
+          onCancel={() => setPendingHeaderAction(null)}
+        />
+      )}
+
+      {/* Batch resolve confirm dialog */}
+      {pendingBatchAction && (
+        <ConfirmDialog
+          open={true}
+          title={pendingBatchAction.label}
+          message={`${pendingBatchAction.label} ${pendingBatchAction.count} selected pair(s)?`}
+          confirmLabel={pendingBatchAction.label}
+          onConfirm={() => {
+            const { action } = pendingBatchAction;
+            setPendingBatchAction(null);
+            handleBatchResolve(action, selected, data?.candidates || [], clearSelection);
+          }}
+          onCancel={() => setPendingBatchAction(null)}
         />
       )}
     </div>

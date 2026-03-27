@@ -48,9 +48,9 @@ interface SearchResult {
 }
 
 const SCENARIO_COLORS = {
-  baseline: "#6b7280",
-  optimistic: "var(--primary, #3b82f6)",
-  aggressive: "#16a34a",
+  baseline: "var(--text-secondary)",
+  optimistic: "var(--primary)",
+  aggressive: "var(--healthy-text)",
 };
 
 export default function ScenariosPage() {
@@ -190,7 +190,7 @@ export default function ScenariosPage() {
               <InfoStat
                 label="Alteration Rate"
                 value={`${forecast.current.alteration_rate}%`}
-                color={forecast.current.alteration_rate >= 70 ? "#16a34a" : forecast.current.alteration_rate >= 50 ? "#f59e0b" : "#dc2626"}
+                color={forecast.current.alteration_rate >= 70 ? "var(--healthy-text)" : forecast.current.alteration_rate >= 50 ? "var(--caution-text)" : "var(--critical-text)"}
               />
               <InfoStat label="Monthly Alt. Rate" value={`${forecast.current.monthly_alteration_rate}%`} />
               <InfoStat label="Monthly Intake" value={`${forecast.current.monthly_intake_rate} cats`} />
@@ -274,7 +274,7 @@ export default function ScenariosPage() {
                 <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
                   {forecast.scenarios.baseline.description}
                 </div>
-                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#dc2626" }}>
+                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--critical-text)" }}>
                   {forecast.scenarios.baseline.final_population.toLocaleString()} cats
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
@@ -303,7 +303,7 @@ export default function ScenariosPage() {
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                       <div>
                         <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Fewer Cats</div>
-                        <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#16a34a" }}>
+                        <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--healthy-text)" }}>
                           {popDelta > 0 ? `-${popDelta.toLocaleString()}` : `+${Math.abs(popDelta).toLocaleString()}`}
                         </div>
                       </div>
@@ -351,7 +351,7 @@ export default function ScenariosPage() {
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                       <div>
                         <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Fewer Cats</div>
-                        <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#16a34a" }}>
+                        <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--healthy-text)" }}>
                           {popDelta > 0 ? `-${popDelta.toLocaleString()}` : `+${Math.abs(popDelta).toLocaleString()}`}
                         </div>
                       </div>
@@ -496,7 +496,7 @@ function ScenarioCard({ scenario, color }: { scenario: ScenarioData; color: stri
           <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>Final Rate</div>
           <div style={{
             fontSize: "1.1rem", fontWeight: 700,
-            color: scenario.final_alteration_rate >= 75 ? "#16a34a" : scenario.final_alteration_rate >= 50 ? "#f59e0b" : "#dc2626",
+            color: scenario.final_alteration_rate >= 75 ? "var(--healthy-text)" : scenario.final_alteration_rate >= 50 ? "var(--caution-text)" : "var(--critical-text)",
           }}>
             {scenario.final_alteration_rate}%
           </div>
@@ -606,9 +606,9 @@ function ForecastChart({ scenarios, showBaseline, showOptimistic, showAggressive
         {/* 75% threshold reference line */}
         <line x1={padding.left} x2={width - padding.right}
           y1={threshold75Y} y2={threshold75Y}
-          stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="6 3" />
+          stroke="var(--caution-text)" strokeWidth="1.5" strokeDasharray="6 3" />
         <text x={width - padding.right - 5} y={threshold75Y - 5}
-          textAnchor="end" fontSize="9" fill="#f59e0b" fontWeight="600">
+          textAnchor="end" fontSize="9" fill="var(--caution-text)" fontWeight="600">
           75% target
         </text>
 

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    requireValidUUID(id, "data_improvement");
 
     const improvement = await queryOne(
       `
@@ -65,6 +67,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    requireValidUUID(id, "data_improvement");
     const body = await request.json();
     const {
       status,

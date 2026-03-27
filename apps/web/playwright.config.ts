@@ -80,7 +80,7 @@ dotenv.config({ path: '.env.local' });
 function buildGrepInvert(): RegExp | undefined {
   const skipPatterns: string[] = [];
 
-  if (!process.env.INCLUDE_REAL_API) {
+  if (!process.env.INCLUDE_REAL_API && process.env.VCR_MODE !== 'replay') {
     skipPatterns.push('@real-api');
   }
   if (!process.env.INCLUDE_VISION_API) {

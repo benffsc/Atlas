@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DataQualityBadge } from "@/components/badges";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 interface ColonyEstimate {
   estimate_id: string;
@@ -39,6 +40,7 @@ const sourceTypeColors: Record<string, string> = {
 };
 
 export default function ColonyEstimatesPage() {
+  const { addToast } = useToast();
   const [estimates, setEstimates] = useState<ColonyEstimate[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,7 @@ export default function ColonyEstimatesPage() {
       setEditingEstimate(null);
       loadData();
     } catch (err) {
-      alert("Error saving changes");
+      addToast({ type: "error", message: "Error saving changes" });
     } finally {
       setSaving(false);
     }
@@ -109,7 +111,7 @@ export default function ColonyEstimatesPage() {
           await postApi(`/api/admin/beacon/colony-estimates?id=${estimateId}`, {}, { method: "DELETE" });
           loadData();
         } catch (err) {
-          alert("Error deleting estimate");
+          addToast({ type: "error", message: "Error deleting estimate" });
         }
       },
     });
@@ -133,7 +135,7 @@ export default function ColonyEstimatesPage() {
         }
         setSelectedIds(new Set());
         loadData();
-        alert(`Deleted ${deleted} of ${selectedIds.size} estimates`);
+        addToast({ type: "success", message: `Deleted ${deleted} of ${selectedIds.size} estimates` });
       },
     });
   }

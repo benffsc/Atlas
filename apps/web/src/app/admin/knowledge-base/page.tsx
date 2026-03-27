@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface KnowledgeArticle {
   article_id: string;
@@ -43,6 +45,7 @@ const ACCESS_LEVELS = [
 ];
 
 export default function KnowledgeBasePage() {
+  const { addToast } = useToast();
   const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
   const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,7 +145,7 @@ export default function KnowledgeBasePage() {
   // Save article
   const handleSave = async () => {
     if (!editorForm.title || !editorForm.content || !editorForm.category) {
-      alert("Title, content, and category are required");
+      addToast({ type: "error", message: "Title, content, and category are required" });
       return;
     }
 
@@ -170,7 +173,7 @@ export default function KnowledgeBasePage() {
       setShowEditor(false);
       loadArticles();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to save article");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to save article" });
     } finally {
       setSaving(false);
     }
@@ -189,7 +192,7 @@ export default function KnowledgeBasePage() {
       await fetchApi(`/api/knowledge/${articleId}`, { method: "DELETE" });
       loadArticles();
     } catch (err) {
-      alert("Failed to delete article");
+      addToast({ type: "error", message: "Failed to delete article" });
     }
   }
 
@@ -199,7 +202,7 @@ export default function KnowledgeBasePage() {
   };
 
   if (loading && articles.length === 0) {
-    return <div className="page-header"><h1>Loading...</h1></div>;
+    return <div style={{ padding: "2rem" }}><SkeletonTable rows={8} columns={3} /></div>;
   }
 
   return (

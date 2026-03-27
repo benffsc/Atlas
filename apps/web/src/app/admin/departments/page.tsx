@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { StatCard } from "@/components/ui/StatCard";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
+import { SkeletonList } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface Department {
   org_id: string;
@@ -131,8 +134,8 @@ export default function DepartmentsPage() {
 
       {/* Content */}
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          Loading...
+        <div style={{ padding: "2rem" }}>
+          <SkeletonList items={5} />
         </div>
       ) : !hierarchy ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
@@ -254,19 +257,6 @@ export default function DepartmentsPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={{
-      padding: "0.75rem",
-      background: "var(--card-bg, rgba(0,0,0,0.05))",
-      borderRadius: "8px",
-      textAlign: "center",
-    }}>
-      <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>{value}</div>
-      <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{label}</div>
-    </div>
-  );
-}
 
 function DeptCard({ dept, onClick }: { dept: Department; onClick: () => void }) {
   return (
@@ -540,6 +530,7 @@ function CreateDeptModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { addToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     org_code: "",
@@ -561,7 +552,7 @@ function CreateDeptModal({
       onCreated();
     } catch (err) {
       console.error("Failed to create:", err);
-      alert(err instanceof Error ? err.message : "Failed to create");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to create" });
     } finally {
       setSaving(false);
     }

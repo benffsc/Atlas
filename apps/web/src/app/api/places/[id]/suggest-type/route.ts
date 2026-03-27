@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface ContextRow {
@@ -24,6 +25,7 @@ export async function GET(
   const { id: placeId } = await params;
 
   try {
+    requireValidUUID(placeId, "place");
     const contexts = await queryRows<ContextRow>(
       `SELECT context_type FROM sot.place_contexts
        WHERE place_id = $1 AND (ended_at IS NULL OR ended_at > NOW())

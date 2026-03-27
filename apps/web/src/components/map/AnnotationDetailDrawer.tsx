@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { unwrapApiResponse } from "@/lib/api-client";
+import { Skeleton } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
+import { MAP_COLORS } from "@/lib/map-colors";
 
 interface JournalEntry {
   id: string;
@@ -33,14 +36,7 @@ interface AnnotationDetailDrawerProps {
   onClose: () => void;
 }
 
-const ANNOTATION_TYPE_COLORS: Record<string, string> = {
-  colony_sighting: "#22c55e",
-  trap_location: "#3b82f6",
-  hazard: "#ef4444",
-  feeding_site: "#f59e0b",
-  general: "#6b7280",
-  other: "#8b5cf6",
-};
+const ANNOTATION_TYPE_COLORS: Record<string, string> = { ...MAP_COLORS.annotationType };
 
 const ANNOTATION_TYPE_LABELS: Record<string, string> = {
   colony_sighting: "Colony Sighting",
@@ -63,6 +59,7 @@ function formatEntryKind(kind: string): string {
 }
 
 export function AnnotationDetailDrawer({ annotationId, onClose }: AnnotationDetailDrawerProps) {
+  const { addToast } = useToast();
   const [annotation, setAnnotation] = useState<AnnotationDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +124,7 @@ export function AnnotationDetailDrawer({ annotationId, onClose }: AnnotationDeta
       setJournalBody("");
       refetchAnnotation();
     } catch {
-      alert("Failed to save journal entry");
+      addToast({ type: "error", message: "Failed to save journal entry" });
     } finally {
       setJournalSaving(false);
     }
@@ -149,7 +146,7 @@ export function AnnotationDetailDrawer({ annotationId, onClose }: AnnotationDeta
       <div className="drawer-header">
         <div className="drawer-title">
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <h2>{annotation?.label || "Loading..."}</h2>
+            <h2>{annotation?.label || <Skeleton width="160px" height={20} />}</h2>
             {annotation && (
               <span
                 style={{
@@ -171,7 +168,7 @@ export function AnnotationDetailDrawer({ annotationId, onClose }: AnnotationDeta
             <span
               style={{
                 fontSize: "12px",
-                color: "#ef4444",
+                color: "var(--danger-text)",
                 fontWeight: 500,
                 marginTop: "4px",
                 display: "block",

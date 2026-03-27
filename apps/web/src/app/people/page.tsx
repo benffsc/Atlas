@@ -15,6 +15,7 @@ import { PersonPreviewContent } from "@/components/preview/PersonPreviewContent"
 import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
 import { DataTable, useDataTable } from "@/components/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Person {
   person_id: string;
@@ -196,7 +197,7 @@ function PeoplePageContent() {
       onClose={() => setFilter("selected", "")}
     />
   ) : filters.selected && detailLoading ? (
-    <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+    <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
   ) : null;
 
   return (

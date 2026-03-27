@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense, useRef } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { useDebounce } from "@/hooks/useDebounce";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
 
 interface Staff {
   staff_id: string;
@@ -49,6 +52,7 @@ const FILTER_DEFAULTS = {
 };
 
 function StaffManagementContent() {
+  const { addToast } = useToast();
   const { filters, setFilter, clearFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
 
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -65,6 +69,10 @@ function StaffManagementContent() {
     is_resolved: false,
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Confirm dialogs
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
+  const pendingDeactivateIdRef = useRef<string>("");
 
   // Form state
   const [formData, setFormData] = useState({
@@ -203,7 +211,7 @@ function StaffManagementContent() {
 
   const handleSave = async () => {
     if (!formData.first_name || !formData.role) {
-      alert("First name and role are required");
+      addToast({ type: "warning", message: "First name and role are required" });
       return;
     }
 
@@ -234,11 +242,15 @@ function StaffManagementContent() {
     }
   };
 
-  const handleDeactivate = async (staffId: string) => {
-    if (!confirm("Are you sure you want to deactivate this staff member?")) {
-      return;
-    }
+  const handleDeactivate = (staffId: string) => {
+    pendingDeactivateIdRef.current = staffId;
+    setShowDeactivateConfirm(true);
+  };
 
+  const handleDeactivateConfirm = async () => {
+    const staffId = pendingDeactivateIdRef.current;
+    setShowDeactivateConfirm(false);
+    pendingDeactivateIdRef.current = "";
     try {
       await postApi(`/api/staff/${staffId}`, {}, { method: "DELETE" });
       fetchStaff();
@@ -375,8 +387,8 @@ function StaffManagementContent() {
       )}
 
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          Loading...
+        <div style={{ padding: "2rem" }}>
+          <SkeletonTable rows={6} columns={4} />
         </div>
       ) : filteredStaff.length === 0 ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
@@ -861,13 +873,26 @@ function StaffManagementContent() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showDeactivateConfirm}
+        title="Deactivate Staff Member"
+        message="Are you sure you want to deactivate this staff member?"
+        confirmLabel="Deactivate"
+        variant="danger"
+        onConfirm={handleDeactivateConfirm}
+        onCancel={() => {
+          setShowDeactivateConfirm(false);
+          pendingDeactivateIdRef.current = "";
+        }}
+      />
     </div>
   );
 }
 
 export default function StaffManagementPage() {
   return (
-    <Suspense fallback={<div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>}>
+    <Suspense fallback={<div style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={4} /></div>}>
       <StaffManagementContent />
     </Suspense>
   );

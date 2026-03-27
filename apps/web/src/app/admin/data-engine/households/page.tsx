@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { Pagination } from "@/components/ui/Pagination";
+import { SkeletonList } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface Household {
   household_id: string;
@@ -30,6 +32,7 @@ interface HouseholdDetail {
 }
 
 export default function HouseholdsPage() {
+  const { addToast } = useToast();
   const [households, setHouseholds] = useState<Household[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -63,7 +66,7 @@ export default function HouseholdsPage() {
       const data = await fetchApi<HouseholdDetail>(`/api/admin/data-engine/households?household_id=${householdId}`);
       setSelectedHousehold(data);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to load household");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to load household" });
     } finally {
       setDetailLoading(false);
     }
@@ -119,7 +122,7 @@ export default function HouseholdsPage() {
           </h2>
 
           {loading ? (
-            <p className="text-muted">Loading...</p>
+            <div style={{ padding: "0.5rem 0" }}><SkeletonList items={5} /></div>
           ) : (
             <>
               <div style={{ display: "grid", gap: "0.5rem" }}>
@@ -185,7 +188,7 @@ export default function HouseholdsPage() {
           </h2>
 
           {detailLoading ? (
-            <p className="text-muted">Loading...</p>
+            <div style={{ padding: "0.5rem 0" }}><SkeletonList items={4} /></div>
           ) : selectedHousehold ? (
             <div className="card" style={{ padding: "1.25rem" }}>
               <div style={{ marginBottom: "1rem" }}>

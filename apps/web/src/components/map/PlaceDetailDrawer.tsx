@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { formatRole, formatEnum } from "@/lib/display-labels";
 import { formatRelativeTime } from "@/lib/formatters";
+import { Skeleton } from "@/components/feedback/Skeleton";
 
 interface GoogleNote {
   entry_id: string;
@@ -118,6 +121,7 @@ interface PlaceDetailDrawerProps {
 type NotesTab = "original" | "ai" | "journal";
 
 export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions, shifted, onAddToComparison, comparisonCount }: PlaceDetailDrawerProps) {
+  const { addToast } = useToast();
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +147,11 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
   const [addPersonRole, setAddPersonRole] = useState("resident");
   const [addPersonLoading, setAddPersonLoading] = useState(false);
   const [addPersonSelected, setAddPersonSelected] = useState<{ entity_id: string; display_name: string } | null>(null);
+
+  // Confirm dialogs
+  const [showWatchlistRemoveConfirm, setShowWatchlistRemoveConfirm] = useState(false);
+  const [showRemovePersonConfirm, setShowRemovePersonConfirm] = useState(false);
+  const pendingRemovePersonRef = useRef<{ personId: string; role: string } | null>(null);
 
   // Fetch place details when placeId changes
   useEffect(() => {
@@ -213,12 +222,13 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
 
     // If removing, confirm
     if (place.watch_list) {
-      if (!confirm("Remove this place from the watch list?")) return;
+      setShowWatchlistRemoveConfirm(true);
+      return;
     }
 
     // Validate reason when adding
     if (!place.watch_list && !watchlistReason.trim()) {
-      alert("Please provide a reason for adding to watch list");
+      addToast({ type: "warning", message: "Please provide a reason for adding to watch list" });
       return;
     }
 
@@ -241,7 +251,26 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       setWatchlistReason("");
       onWatchlistChange?.();
     } catch (err) {
-      alert("Failed to update watch list");
+      addToast({ type: "error", message: "Failed to update watch list" });
+    } finally {
+      setWatchlistLoading(false);
+    }
+  };
+
+  // Handle confirmed watchlist removal
+  const handleWatchlistRemoveConfirm = async () => {
+    if (!place) return;
+    setShowWatchlistRemoveConfirm(false);
+    setWatchlistLoading(true);
+    try {
+      await postApi(`/api/places/${place.place_id}/watchlist`, {
+        watch_list: false,
+        reason: "",
+      }, { method: "PUT" });
+      setPlace({ ...place, watch_list: false, watch_list_reason: null });
+      onWatchlistChange?.();
+    } catch (err) {
+      addToast({ type: "error", message: "Failed to update watch list" });
     } finally {
       setWatchlistLoading(false);
     }
@@ -269,7 +298,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       setJournalBody("");
       refetchPlace();
     } catch {
-      alert("Failed to save journal entry");
+      addToast({ type: "error", message: "Failed to save journal entry" });
     } finally {
       setJournalSaving(false);
     }
@@ -317,16 +346,24 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       setAddPersonRole("resident");
       refetchPlace();
     } catch {
-      alert("Failed to link person to place");
+      addToast({ type: "error", message: "Failed to link person to place" });
     } finally {
       setAddPersonLoading(false);
     }
   };
 
   // Remove person from place
-  const handleRemovePerson = async (personId: string, role: string) => {
+  const handleRemovePerson = (personId: string, role: string) => {
     if (!place) return;
-    if (!confirm("Remove this person link?")) return;
+    pendingRemovePersonRef.current = { personId, role };
+    setShowRemovePersonConfirm(true);
+  };
+
+  const handleRemovePersonConfirm = async () => {
+    if (!place || !pendingRemovePersonRef.current) return;
+    const { personId, role } = pendingRemovePersonRef.current;
+    setShowRemovePersonConfirm(false);
+    pendingRemovePersonRef.current = null;
     try {
       await fetchApi(
         `/api/places/${place.place_id}/people?person_id=${encodeURIComponent(personId)}&role=${encodeURIComponent(role || "")}`,
@@ -334,7 +371,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       );
       refetchPlace();
     } catch {
-      alert("Failed to remove person link");
+      addToast({ type: "error", message: "Failed to remove person link" });
     }
   };
 
@@ -345,7 +382,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       {/* Header */}
       <div className="drawer-header">
         <div className="drawer-title">
-          <h2>{place?.address || "Loading..."}</h2>
+          <h2>{place?.address || <Skeleton width="200px" height={20} />}</h2>
           {place?.display_name && (
             <span className="drawer-subtitle">{place.display_name}</span>
           )}
@@ -1057,6 +1094,31 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
           </>
         )}
       </div>
+
+      {/* Confirm: remove from watch list */}
+      <ConfirmDialog
+        open={showWatchlistRemoveConfirm}
+        title="Remove from Watch List"
+        message="Remove this place from the watch list?"
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={handleWatchlistRemoveConfirm}
+        onCancel={() => setShowWatchlistRemoveConfirm(false)}
+      />
+
+      {/* Confirm: remove person link */}
+      <ConfirmDialog
+        open={showRemovePersonConfirm}
+        title="Remove Person Link"
+        message="Remove this person link?"
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={handleRemovePersonConfirm}
+        onCancel={() => {
+          setShowRemovePersonConfirm(false);
+          pendingRemovePersonRef.current = null;
+        }}
+      />
     </div>
   );
 }

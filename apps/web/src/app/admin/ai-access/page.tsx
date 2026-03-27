@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface Staff {
   staff_id: string;
@@ -195,8 +196,8 @@ export default function AIAccessManagementPage() {
       </div>
 
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          Loading...
+        <div style={{ padding: "2rem" }}>
+          <SkeletonTable rows={5} columns={3} />
         </div>
       ) : filteredStaff.length === 0 ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>

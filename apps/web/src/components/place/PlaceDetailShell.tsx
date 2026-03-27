@@ -21,6 +21,8 @@ import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { formatDateLocal, formatPhone, formatRelativeTime } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { formatPlaceKind } from "@/lib/display-labels";
+import { useToast } from "@/components/feedback/Toast";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { PlaceKindBadge, ContextBadge, PLACE_KINDS } from "./helpers";
 
 interface PlaceDetailShellProps {
@@ -28,6 +30,7 @@ interface PlaceDetailShellProps {
 }
 
 export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
+  const { addToast } = useToast();
   const data = usePlaceDetail(id);
   const preview = useEntityPreviewModal();
   const navContext = useNavigationContext(data.place?.display_name);
@@ -46,6 +49,11 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
   const [addressInput, setAddressInput] = useState("");
   const [changeReason, setChangeReason] = useState("");
   const [changeNotes, setChangeNotes] = useState("");
+
+  // Suggest type confirm dialog
+  const [showSuggestConfirm, setShowSuggestConfirm] = useState(false);
+  const [suggestedKind, setSuggestedKind] = useState<string | null>(null);
+  const [suggestMessage, setSuggestMessage] = useState("");
 
   // Panels
   const [showHistory, setShowHistory] = useState(false);
@@ -367,11 +375,11 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
                         try {
                           const suggestData = await fetchApi<{ suggested_kind: string | null; confidence: number; reason: string }>(`/api/places/${place.place_id}/suggest-type`);
                           if (suggestData.suggested_kind) {
-                            if (confirm(`Suggestion: ${formatPlaceKind(suggestData.suggested_kind)} (${Math.round(suggestData.confidence * 100)}% confidence)\n\nReason: ${suggestData.reason}\n\nApply this?`)) {
-                              setEditPlaceKind(suggestData.suggested_kind);
-                            }
-                          } else { alert("No suggestion available."); }
-                        } catch { alert("Failed to get suggestion"); }
+                            setSuggestedKind(suggestData.suggested_kind);
+                            setSuggestMessage(`Suggestion: ${formatPlaceKind(suggestData.suggested_kind)} (${Math.round(suggestData.confidence * 100)}% confidence)\n\nReason: ${suggestData.reason}`);
+                            setShowSuggestConfirm(true);
+                          } else { addToast({ type: "warning", message: "No suggestion available." }); }
+                        } catch { addToast({ type: "error", message: "Failed to get suggestion" }); }
                       }} style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}>
                         Suggest Type
                       </button>
@@ -486,9 +494,26 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
       )}
 
       <CreateColonyModal isOpen={showColonyModal} onClose={() => setShowColonyModal(false)} placeId={place.place_id} staffName={undefined}
-        onSuccess={(result) => { setShowColonyModal(false); alert(`Colony "${result.colony_name}" created successfully!`); }} />
+        onSuccess={(result) => { setShowColonyModal(false); addToast({ type: "success", message: `Colony "${result.colony_name}" created successfully!` }); }} />
 
       <EntityPreviewModal isOpen={preview.isOpen} onClose={preview.close} entityType={preview.entityType} entityId={preview.entityId} />
+
+      <ConfirmDialog
+        open={showSuggestConfirm}
+        title="Apply Suggested Type?"
+        message={suggestMessage}
+        confirmLabel="Apply"
+        variant="default"
+        onConfirm={() => {
+          if (suggestedKind) setEditPlaceKind(suggestedKind);
+          setShowSuggestConfirm(false);
+          setSuggestedKind(null);
+        }}
+        onCancel={() => {
+          setShowSuggestConfirm(false);
+          setSuggestedKind(null);
+        }}
+      />
     </>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface ContextType {
   context_type: string;
@@ -228,7 +229,7 @@ export function PlaceContextEditor({
   );
 
   if (loading) {
-    return <div style={{ padding: "1rem", color: "#6b7280" }}>Loading...</div>;
+    return <div style={{ padding: "1rem" }}><SkeletonList items={3} /></div>;
   }
 
   return (

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { MAP_COLORS } from "@/lib/map-colors";
 import { useToast } from "@/components/feedback/Toast";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface ConfigRow {
   key: string;
@@ -96,7 +97,7 @@ function MapColorsContent() {
   }
 
   if (loading) {
-    return <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>Loading...</div>;
+    return <div style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={3} /></div>;
   }
 
   const categories = Object.keys(CATEGORY_LABELS);

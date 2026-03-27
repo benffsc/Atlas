@@ -31,13 +31,13 @@ interface MaterialsData {
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; icon: string; color: string }> = {
-  general: { label: "General Information", icon: "📚", color: "#6c757d" },
-  orientation: { label: "Orientation", icon: "🎓", color: "#0d6efd" },
-  trapping: { label: "Trapping Techniques", icon: "🪤", color: "#28a745" },
-  safety: { label: "Safety Guidelines", icon: "🛡️", color: "#dc3545" },
-  animal_care: { label: "Animal Care", icon: "🐱", color: "#fd7e14" },
-  forms: { label: "Forms & Documents", icon: "📝", color: "#6f42c1" },
-  video: { label: "Training Videos", icon: "🎥", color: "#20c997" },
+  general: { label: "General Information", icon: "📚", color: "var(--text-secondary)" },
+  orientation: { label: "Orientation", icon: "🎓", color: "var(--primary)" },
+  trapping: { label: "Trapping Techniques", icon: "🪤", color: "var(--healthy-text)" },
+  safety: { label: "Safety Guidelines", icon: "🛡️", color: "var(--critical-text)" },
+  animal_care: { label: "Animal Care", icon: "🐱", color: "var(--priority-high)" },
+  forms: { label: "Forms & Documents", icon: "📝", color: "#6f42c1" }, // purple — no direct CSS variable
+  video: { label: "Training Videos", icon: "🎥", color: "var(--status-completed)" },
 };
 
 const FILE_TYPE_ICONS: Record<string, string> = {
@@ -153,7 +153,7 @@ export default function TrapperMaterialsPage() {
             padding: "0.5rem 1rem",
             border: "1px solid var(--border)",
             borderRadius: "20px",
-            background: selectedCategory === null ? "#0d6efd" : "#fff",
+            background: selectedCategory === null ? "var(--primary)" : "var(--background)",
             color: selectedCategory === null ? "#fff" : "var(--text-primary)",
             cursor: "pointer",
             fontWeight: 500,
@@ -175,7 +175,7 @@ export default function TrapperMaterialsPage() {
                 padding: "0.5rem 1rem",
                 border: "1px solid var(--border)",
                 borderRadius: "20px",
-                background: selectedCategory === cat.category ? info.color : "#fff",
+                background: selectedCategory === cat.category ? info.color : "var(--background)",
                 color: selectedCategory === cat.category ? "#fff" : "var(--text-primary)",
                 cursor: "pointer",
                 fontWeight: 500,
@@ -188,7 +188,7 @@ export default function TrapperMaterialsPage() {
               <span>{info.label}</span>
               <span
                 style={{
-                  background: selectedCategory === cat.category ? "rgba(255,255,255,0.3)" : "#f0f0f0",
+                  background: selectedCategory === cat.category ? "rgba(255,255,255,0.3)" : "var(--bg-secondary)",
                   borderRadius: "10px",
                   padding: "0.1rem 0.4rem",
                   fontSize: "0.75rem",
@@ -268,7 +268,7 @@ export default function TrapperMaterialsPage() {
                         <div
                           key={material.material_id}
                           style={{
-                            background: "#fff",
+                            background: "var(--background)",
                             border: "1px solid var(--border)",
                             borderRadius: "8px",
                             padding: "1rem",
@@ -285,7 +285,7 @@ export default function TrapperMaterialsPage() {
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                background: "#f8f9fa",
+                                background: "var(--section-bg)",
                                 borderRadius: "8px",
                               }}
                             >
@@ -304,7 +304,7 @@ export default function TrapperMaterialsPage() {
                                 {material.is_required && (
                                   <span
                                     style={{
-                                      background: "#dc3545",
+                                      background: "var(--critical-text)",
                                       color: "#fff",
                                       padding: "0.1rem 0.4rem",
                                       borderRadius: "4px",
@@ -341,7 +341,7 @@ export default function TrapperMaterialsPage() {
                               style={{
                                 flex: 1,
                                 padding: "0.5rem",
-                                background: "#0d6efd",
+                                background: "var(--primary)",
                                 color: "#fff",
                                 border: "none",
                                 borderRadius: "4px",
@@ -356,7 +356,7 @@ export default function TrapperMaterialsPage() {
                               style={{
                                 flex: 1,
                                 padding: "0.5rem",
-                                background: "#f8f9fa",
+                                background: "var(--section-bg)",
                                 color: "var(--text-primary)",
                                 border: "1px solid var(--border)",
                                 borderRadius: "4px",
@@ -384,15 +384,15 @@ export default function TrapperMaterialsPage() {
           style={{
             marginTop: "2rem",
             padding: "1rem",
-            background: "#fff3cd",
+            background: "var(--warning-bg)",
             borderRadius: "8px",
-            border: "1px solid #ffecb5",
+            border: "1px solid var(--warning-border)",
           }}
         >
-          <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem", color: "#856404" }}>
+          <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem", color: "var(--warning-text)" }}>
             Required Materials
           </h3>
-          <p style={{ margin: 0, fontSize: "0.9rem", color: "#856404" }}>
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--warning-text)" }}>
             Some materials are marked as required for trapper onboarding.
             Please review all required materials before your orientation or training session.
           </p>

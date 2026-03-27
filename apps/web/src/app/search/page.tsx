@@ -6,6 +6,7 @@ import { fetchApi } from "@/lib/api-client";
 import { EntityPreview } from "@/components/search";
 import { GroupedSearchResult } from "@/components/search";
 import { formatPhone } from "@/lib/formatters";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 import {
   MATCH_REASON_LABELS,
   SOURCE_TABLE_LABELS,
@@ -565,7 +566,7 @@ function SearchContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="loading">Loading...</div>}>
+    <Suspense fallback={<div className="page-container"><SkeletonTable rows={5} columns={4} /></div>}>
       <SearchContent />
     </Suspense>
   );

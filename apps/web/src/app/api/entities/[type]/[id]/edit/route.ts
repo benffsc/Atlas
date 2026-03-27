@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne, withTransaction } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
+import { ENTITY_TYPE } from "@/lib/enums";
 
 /**
  * Entity Edit API
@@ -13,8 +15,6 @@ import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } f
  *   PATCH /api/entities/{type}/{id}/edit - Apply edit(s)
  *   DELETE /api/entities/{type}/{id}/edit - Release edit lock
  */
-
-const VALID_ENTITY_TYPES = ["person", "cat", "place", "request"];
 
 interface EditRequest {
   edits: Array<{
@@ -44,7 +44,7 @@ export async function GET(
 ) {
   const { type, id } = await params;
 
-  if (!VALID_ENTITY_TYPES.includes(type)) {
+  if (!ENTITY_TYPE.includes(type as (typeof ENTITY_TYPE)[number])) {
     return apiBadRequest("Invalid entity type");
   }
 
@@ -52,6 +52,7 @@ export async function GET(
   let history: unknown[] = [];
 
   try {
+    requireValidUUID(id, "entity");
     // Get current lock status
     lock = await queryOne(`
       SELECT * FROM ops.v_active_locks
@@ -89,7 +90,7 @@ export async function POST(
 ) {
   const { type, id } = await params;
 
-  if (!VALID_ENTITY_TYPES.includes(type)) {
+  if (!ENTITY_TYPE.includes(type as (typeof ENTITY_TYPE)[number])) {
     return apiBadRequest("Invalid entity type");
   }
 
@@ -99,6 +100,7 @@ export async function POST(
   const reason = body.reason || "Editing";
 
   try {
+    requireValidUUID(id, "entity");
     const result = await queryOne<{ success: boolean }>(`
       SELECT ops.acquire_edit_lock($1, $2, $3, $4, $5) as success
     `, [type, id, userId, userName, reason]);
@@ -147,7 +149,7 @@ export async function PATCH(
 ) {
   const { type, id } = await params;
 
-  if (!VALID_ENTITY_TYPES.includes(type)) {
+  if (!ENTITY_TYPE.includes(type as (typeof ENTITY_TYPE)[number])) {
     return apiBadRequest("Invalid entity type");
   }
 
@@ -163,6 +165,7 @@ export async function PATCH(
   const editorName = editRequest.editor_name || null;
 
   try {
+    requireValidUUID(id, "entity");
     const result = await withTransaction(async (tx) => {
       const editIds: string[] = [];
       const tableName = getTableName(type);
@@ -252,7 +255,7 @@ export async function DELETE(
 ) {
   const { type, id } = await params;
 
-  if (!VALID_ENTITY_TYPES.includes(type)) {
+  if (!ENTITY_TYPE.includes(type as (typeof ENTITY_TYPE)[number])) {
     return apiBadRequest("Invalid entity type");
   }
 
@@ -260,6 +263,7 @@ export async function DELETE(
   const userId = searchParams.get("user_id") || "anonymous";
 
   try {
+    requireValidUUID(id, "entity");
     const result = await queryOne<{ success: boolean }>(`
       SELECT ops.release_edit_lock($1, $2, $3) as success
     `, [type, id, userId]);

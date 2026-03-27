@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiError, apiBadRequest } from "@/lib/api-response";
 import { parsePagination } from "@/lib/api-validation";
@@ -72,18 +72,14 @@ export async function GET(request: NextRequest) {
       params
     );
 
-    return NextResponse.json(
-      apiSuccess({
-        items,
-        total: countResult?.count || 0,
-        limit,
-        offset,
-      })
-    );
+    return apiSuccess({
+      items,
+      total: countResult?.count || 0,
+      limit,
+      offset,
+    });
   } catch (err) {
-    return NextResponse.json(
-      apiError(err instanceof Error ? err.message : "Unknown error", 500)
-    );
+    return apiError(err instanceof Error ? err.message : "Unknown error", 500);
   }
 }
 
@@ -100,15 +96,11 @@ export async function PATCH(request: NextRequest) {
 
     const targetIds = ids || (id ? [id] : []);
     if (targetIds.length === 0 || !action) {
-      return NextResponse.json(apiBadRequest("id/ids and action required"), {
-        status: 400,
-      });
+      return apiBadRequest("id/ids and action required");
     }
 
     if (action !== "approve" && action !== "dismiss") {
-      return NextResponse.json(apiBadRequest("action must be approve or dismiss"), {
-        status: 400,
-      });
+      return apiBadRequest("action must be approve or dismiss");
     }
 
     let processed = 0;
@@ -159,10 +151,8 @@ export async function PATCH(request: NextRequest) {
       processed++;
     }
 
-    return NextResponse.json(apiSuccess({ processed, action, status: "done" }));
+    return apiSuccess({ processed, action, status: "done" });
   } catch (err) {
-    return NextResponse.json(
-      apiError(err instanceof Error ? err.message : "Unknown error", 500)
-    );
+    return apiError(err instanceof Error ? err.message : "Unknown error", 500);
   }
 }

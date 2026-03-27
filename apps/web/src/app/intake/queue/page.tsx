@@ -24,6 +24,16 @@ import { getIntakeColumns } from "./columns";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
+const VIEW_PREF_KEY = "intake-queue-view";
+
+function getInitialView(): string {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem(VIEW_PREF_KEY);
+    if (saved === "table" || saved === "cards" || saved === "kanban") return saved;
+  }
+  return "kanban";
+}
+
 function IntakeQueueContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -32,6 +42,16 @@ function IntakeQueueContent() {
 
   const [submissions, setSubmissions] = useState<IntakeSubmission[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Read the persisted view preference once on mount (before URL params are checked).
+  // useUrlFilters will override this if ?view= is present in the URL.
+  const defaultView = typeof window !== "undefined"
+    ? (() => {
+        const saved = localStorage.getItem(VIEW_PREF_KEY);
+        return (saved === "table" || saved === "cards" || saved === "kanban") ? saved : "kanban";
+      })()
+    : "kanban";
+
   const { filters, setFilter } = useUrlFilters({
     tab: "active",
     category: "",
@@ -41,8 +61,16 @@ function IntakeQueueContent() {
     group: "",
     legacy: "",
     test: "",
-    view: "table",
+    view: defaultView,
   });
+
+  // Persist view preference to localStorage whenever it changes
+  const handleViewChange = (newView: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(VIEW_PREF_KEY, newView);
+    }
+    setFilter("view", newView);
+  };
   const activeTab = filters.tab as TabType;
   const setActiveTab = (v: TabType) => { setFilter("tab", v); setPageIndex(0); };
   const categoryFilter = filters.category;

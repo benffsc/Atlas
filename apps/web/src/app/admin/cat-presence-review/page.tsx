@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
 
 interface PlaceNeedingReconciliation {
   place_id: string;
@@ -45,6 +47,7 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
 };
 
 export default function CatPresenceReviewPage() {
+  const { addToast } = useToast();
   const [places, setPlaces] = useState<PlaceNeedingReconciliation[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [classificationDist, setClassificationDist] = useState<ClassificationDist[]>([]);
@@ -58,6 +61,9 @@ export default function CatPresenceReviewPage() {
 
   // Selection for bulk actions
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
+
+  // Confirm dialogs
+  const [showBulkMarkDepartedConfirm, setShowBulkMarkDepartedConfirm] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -93,17 +99,18 @@ export default function CatPresenceReviewPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleBulkMarkOldDeparted = async () => {
+  const handleBulkMarkOldDeparted = () => {
     const placeIds = Array.from(selectedPlaces);
     if (placeIds.length === 0) {
-      alert("Please select at least one place");
+      addToast({ type: "warning", message: "Please select at least one place" });
       return;
     }
+    setShowBulkMarkDepartedConfirm(true);
+  };
 
-    if (!confirm(`Mark all cats >3 years old as departed for ${placeIds.length} place(s)?`)) {
-      return;
-    }
-
+  const handleBulkMarkOldDepartedConfirm = async () => {
+    const placeIds = Array.from(selectedPlaces);
+    setShowBulkMarkDepartedConfirm(false);
     setActionInProgress(true);
     try {
       const result = await postApi<{ updated_count: number }>("/api/admin/cat-presence-review", {
@@ -111,12 +118,12 @@ export default function CatPresenceReviewPage() {
         place_ids: placeIds,
       });
 
-      alert(`Updated ${result.updated_count} cat(s) across ${placeIds.length} place(s)`);
+      addToast({ type: "success", message: `Updated ${result.updated_count} cat(s) across ${placeIds.length} place(s)` });
       setSelectedPlaces(new Set());
       fetchData();
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to perform action");
+      addToast({ type: "error", message: "Failed to perform action" });
     } finally {
       setActionInProgress(false);
     }
@@ -354,6 +361,16 @@ export default function CatPresenceReviewPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showBulkMarkDepartedConfirm}
+        title="Mark Cats as Departed"
+        message={`Mark all cats >3 years old as departed for ${selectedPlaces.size} place(s)?`}
+        confirmLabel="Mark Departed"
+        variant="danger"
+        onConfirm={handleBulkMarkOldDepartedConfirm}
+        onCancel={() => setShowBulkMarkDepartedConfirm(false)}
+      />
     </div>
   );
 }

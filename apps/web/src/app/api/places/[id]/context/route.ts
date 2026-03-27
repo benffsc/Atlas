@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
@@ -151,6 +152,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "place");
     // Use the database function for comprehensive context
     const result = await queryOne<{ context: PlaceContext }>(
       `SELECT sot.get_place_context($1) as context`,

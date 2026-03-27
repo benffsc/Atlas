@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { logFieldEdits, type FieldChange } from "@/lib/audit";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface IntakeSubmission {
@@ -69,6 +70,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "intake");
     const submission = await queryOne<IntakeSubmission>(`
       SELECT *
       FROM ops.intake_submissions
@@ -104,6 +106,7 @@ export async function PATCH(
   const body = await request.json();
 
   try {
+    requireValidUUID(id, "intake");
     const updates: string[] = [];
     const values: unknown[] = [];
     let paramIndex = 1;

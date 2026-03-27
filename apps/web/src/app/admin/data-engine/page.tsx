@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { StatCard } from "@/components/ui/StatCard";
+import { SkeletonStats } from "@/components/feedback/Skeleton";
 
 interface OverallStats {
   total_decisions: number;
@@ -81,7 +82,7 @@ export default function DataEnginePage() {
     return (
       <div>
         <h1>Data Engine</h1>
-        <p className="text-muted">Loading...</p>
+        <SkeletonStats count={4} />
       </div>
     );
   }

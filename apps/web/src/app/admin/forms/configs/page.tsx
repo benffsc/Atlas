@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import Link from "next/link";
 import { useToast } from "@/components/feedback/Toast";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 const VALID_COMPONENTS = [
   "person", "place", "catDetails", "kittens", "propertyAccess", "urgencyNotes",
@@ -135,7 +136,7 @@ function FormConfigsContent() {
   }
 
   if (loading) {
-    return <div style={{ padding: "2rem", color: "var(--text-muted)" }}>Loading...</div>;
+    return <div style={{ padding: "2rem" }}><SkeletonTable rows={5} columns={3} /></div>;
   }
 
   // Components not yet in the config

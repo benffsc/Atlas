@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { requireValidUUID, withErrorHandling, ApiError } from "@/lib/api-validation";
 import { apiSuccess } from "@/lib/api-response";
+import { DATE_PRECISION, SEASON } from "@/lib/enums";
 
 /**
  * Cat Birth API Endpoint
@@ -14,17 +15,6 @@ import { apiSuccess } from "@/lib/api-response";
  * - Cat detail page birth information section
  * - Beacon birth rate calculations
  */
-
-const VALID_DATE_PRECISIONS = [
-  "exact",
-  "week",
-  "month",
-  "season",
-  "year",
-  "estimated",
-] as const;
-
-const VALID_SEASONS = ["spring", "summer", "fall", "winter"] as const;
 
 interface BirthEvent {
   birth_event_id: string;
@@ -138,13 +128,13 @@ export const POST = withErrorHandling(async (
   const body: RegisterBirthBody = await request.json();
 
   // Validate date precision if provided
-  if (body.birth_date_precision && !VALID_DATE_PRECISIONS.includes(body.birth_date_precision as typeof VALID_DATE_PRECISIONS[number])) {
-    throw new ApiError(`Invalid birth_date_precision. Must be one of: ${VALID_DATE_PRECISIONS.join(", ")}`, 400);
+  if (body.birth_date_precision && !DATE_PRECISION.includes(body.birth_date_precision as (typeof DATE_PRECISION)[number])) {
+    throw new ApiError(`Invalid birth_date_precision. Must be one of: ${DATE_PRECISION.join(", ")}`, 400);
   }
 
   // Validate season if provided
-  if (body.birth_season && !VALID_SEASONS.includes(body.birth_season as typeof VALID_SEASONS[number])) {
-    throw new ApiError(`Invalid birth_season. Must be one of: ${VALID_SEASONS.join(", ")}`, 400);
+  if (body.birth_season && !SEASON.includes(body.birth_season as (typeof SEASON)[number])) {
+    throw new ApiError(`Invalid birth_season. Must be one of: ${SEASON.join(", ")}`, 400);
   }
 
   // Validate month if provided

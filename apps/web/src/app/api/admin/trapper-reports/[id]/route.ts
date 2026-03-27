@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiForbidden, apiNotFound, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
@@ -19,6 +20,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "trapper_report");
     // Get submission
     const submission = await queryOne(
       `
@@ -128,6 +130,7 @@ export async function PATCH(
   }
 
   try {
+    requireValidUUID(id, "trapper_report");
     await execute(
       `
       UPDATE ops.trapper_report_submissions
@@ -164,6 +167,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "trapper_report");
     // Check if any items have been committed
     const committed = await queryOne<{ count: string }>(
       `SELECT COUNT(*) as count FROM ops.trapper_report_items WHERE submission_id = $1 AND committed_at IS NOT NULL`,

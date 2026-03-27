@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
@@ -32,6 +33,7 @@ export async function PUT(
   }
 
   try {
+    requireValidUUID(id, "place");
     const body = await request.json();
     const { watch_list, reason } = body;
 

@@ -6,6 +6,8 @@ import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, isValidPhone, extractPhone, extractPhones } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import type { IntakeSubmission, CommunicationLog, StaffMember } from "@/lib/intake-types";
+import { SkeletonList } from "@/components/feedback/Skeleton";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import {
   CONTACT_METHODS,
   CONTACT_RESULTS,
@@ -147,6 +149,16 @@ export function IntakeDetailPanel({
   const [showEditHistory, setShowEditHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    variant?: "default" | "danger";
+    onConfirm: () => void;
+  }>({ open: false, title: "", message: "", onConfirm: () => {} });
+
   // Reset editing states when submission changes
   useEffect(() => {
     setEditingAddress(false);
@@ -263,7 +275,8 @@ export function IntakeDetailPanel({
 
   const handleSaveAddress = async () => {
     if (!addressEdits.cats_address.trim()) {
-      alert("Street address is required");
+      setToastMessage("Street address is required");
+      setTimeout(() => setToastMessage(null), 5000);
       return;
     }
     setSaving(true);
@@ -289,7 +302,8 @@ export function IntakeDetailPanel({
       onRefresh();
     } catch (err) {
       console.error("Failed to save address:", err);
-      alert("Failed to save address");
+      setToastMessage("Failed to save address");
+      setTimeout(() => setToastMessage(null), 5000);
     } finally {
       setSaving(false);
     }
@@ -1310,7 +1324,7 @@ export function IntakeDetailPanel({
           {showEditHistory && (
             <div>
               {loadingHistory ? (
-                <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>Loading...</p>
+                <div style={{ padding: "0.5rem 0" }}><SkeletonList items={3} /></div>
               ) : editHistory.length === 0 ? (
                 <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
                   No edit history recorded yet.
@@ -1349,19 +1363,28 @@ export function IntakeDetailPanel({
                       {/* Undo button for recent changes */}
                       {new Date(edit.edited_at).getTime() > Date.now() - 24 * 60 * 60 * 1000 && (
                         <button
-                          onClick={async () => {
-                            if (!confirm(`Revert ${edit.field_name.replace(/_/g, " ")} back to "${edit.old_value}"?`)) return;
-                            try {
-                              const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${submission.submission_id}`, {
-                                [edit.field_name]: edit.old_value,
-                                edit_reason: "undo_change",
-                              }, { method: "PATCH" });
-                              onSubmissionUpdate({ ...submission, ...data.submission });
-                              fetchEditHistory(submission.submission_id);
-                              onRefresh();
-                            } catch (err) {
-                              console.error("Failed to undo:", err);
-                            }
+                          onClick={() => {
+                            setConfirmDialog({
+                              open: true,
+                              title: "Revert Change",
+                              message: `Revert ${edit.field_name.replace(/_/g, " ")} back to "${edit.old_value}"?`,
+                              confirmLabel: "Revert",
+                              variant: "default",
+                              onConfirm: async () => {
+                                setConfirmDialog(prev => ({ ...prev, open: false }));
+                                try {
+                                  const data = await postApi<{ submission: IntakeSubmission }>(`/api/intake/queue/${submission.submission_id}`, {
+                                    [edit.field_name]: edit.old_value,
+                                    edit_reason: "undo_change",
+                                  }, { method: "PATCH" });
+                                  onSubmissionUpdate({ ...submission, ...data.submission });
+                                  fetchEditHistory(submission.submission_id);
+                                  onRefresh();
+                                } catch (err) {
+                                  console.error("Failed to undo:", err);
+                                }
+                              },
+                            });
                           }}
                           style={{
                             marginTop: "0.25rem",
@@ -1606,7 +1629,7 @@ export function IntakeDetailPanel({
 
           {/* Communication Log Entries */}
           {loadingLogs ? (
-            <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>Loading...</p>
+            <div style={{ padding: "0.5rem 0" }}><SkeletonList items={3} /></div>
           ) : communicationLogs.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0, fontStyle: "italic" }}>
               No communication logged yet. Use the buttons above to add notes or log calls.
@@ -1754,9 +1777,17 @@ export function IntakeDetailPanel({
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
           <button
             onClick={() => {
-              if (confirm(`Archive "${normalizeName(submission.submitter_name)}"?\n\nThis will remove it from all views.`)) {
-                onArchive(submission.submission_id);
-              }
+              setConfirmDialog({
+                open: true,
+                title: "Archive Submission",
+                message: `Archive "${normalizeName(submission.submitter_name)}"? This will remove it from all views.`,
+                confirmLabel: "Archive",
+                variant: "danger",
+                onConfirm: () => {
+                  setConfirmDialog(prev => ({ ...prev, open: false }));
+                  onArchive(submission.submission_id);
+                },
+              });
             }}
             style={{ padding: "0.5rem 1rem", background: COLORS.gray500, color: COLORS.white, border: "none", borderRadius: "6px", cursor: "pointer" }}
           >
@@ -1785,13 +1816,21 @@ export function IntakeDetailPanel({
           {/* Mark Complete - requires confirmation */}
           {submission.submission_status !== "complete" && (
             <button
-              onClick={async () => {
-                if (confirm(`Mark "${normalizeName(submission.submitter_name)}" as Complete?\n\nThis will remove it from the active queue.`)) {
-                  await onQuickStatus(submission.submission_id, "submission_status", "complete");
-                  onSubmissionUpdate({ ...submission, submission_status: "complete" });
-                  setToastMessage(`${normalizeName(submission.submitter_name)} marked as Complete`);
-                  setTimeout(() => setToastMessage(null), 5000);
-                }
+              onClick={() => {
+                setConfirmDialog({
+                  open: true,
+                  title: "Mark as Complete",
+                  message: `Mark "${normalizeName(submission.submitter_name)}" as Complete? This will remove it from the active queue.`,
+                  confirmLabel: "Mark Complete",
+                  variant: "default",
+                  onConfirm: async () => {
+                    setConfirmDialog(prev => ({ ...prev, open: false }));
+                    await onQuickStatus(submission.submission_id, "submission_status", "complete");
+                    onSubmissionUpdate({ ...submission, submission_status: "complete" });
+                    setToastMessage(`${normalizeName(submission.submitter_name)} marked as Complete`);
+                    setTimeout(() => setToastMessage(null), 5000);
+                  },
+                });
               }}
               style={{ padding: "0.5rem 1rem", background: "#20c997", color: "#000", border: "none", borderRadius: "6px", cursor: "pointer" }}
             >
@@ -1802,13 +1841,21 @@ export function IntakeDetailPanel({
           {/* Reset status - useful for accidentally marked submissions */}
           {(submission.submission_status === "scheduled" || submission.submission_status === "complete") && (
             <button
-              onClick={async () => {
-                if (confirm("Reset this submission back to New? It will appear in Needs Attention tab again.")) {
-                  await onQuickStatus(submission.submission_id, "submission_status", "new");
-                  onSubmissionUpdate({ ...submission, submission_status: "new" });
-                  setToastMessage(`${normalizeName(submission.submitter_name)} moved back to New`);
-                  setTimeout(() => setToastMessage(null), 5000);
-                }
+              onClick={() => {
+                setConfirmDialog({
+                  open: true,
+                  title: "Reset to New",
+                  message: "Reset this submission back to New? It will appear in Needs Attention tab again.",
+                  confirmLabel: "Reset",
+                  variant: "default",
+                  onConfirm: async () => {
+                    setConfirmDialog(prev => ({ ...prev, open: false }));
+                    await onQuickStatus(submission.submission_id, "submission_status", "new");
+                    onSubmissionUpdate({ ...submission, submission_status: "new" });
+                    setToastMessage(`${normalizeName(submission.submitter_name)} moved back to New`);
+                    setTimeout(() => setToastMessage(null), 5000);
+                  },
+                });
               }}
               style={{ padding: "0.5rem 1rem", background: COLORS.warning, color: COLORS.black, border: "none", borderRadius: "6px", cursor: "pointer" }}
             >
@@ -1824,6 +1871,16 @@ export function IntakeDetailPanel({
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel={confirmDialog.confirmLabel}
+        variant={confirmDialog.variant}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PRINT_BASE_CSS, PRINT_EDITABLE_CSS } from "@/lib/print-styles";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
+import { Button } from "@/components/ui/Button";
 import {
   TemplateRenderer,
   PrintHeader,
@@ -127,17 +128,14 @@ function FormPreview({ templateKey }: { templateKey: TemplateKey }) {
               fontFamily: "monospace",
             }}
           />
-          <button
+          <Button
             onClick={() => loadRequest(requestIdInput)}
-            disabled={requestLoading}
-            style={{
-              padding: "0.25rem 0.75rem",
-              fontSize: "0.85rem",
-              cursor: requestLoading ? "wait" : "pointer",
-            }}
+            loading={requestLoading}
+            variant="secondary"
+            size="sm"
           >
-            {requestLoading ? "Loading..." : "Load from request"}
-          </button>
+            Load from request
+          </Button>
           {hasData && (
             <button
               onClick={() => {

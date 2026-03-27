@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { logFieldEdits } from "@/lib/audit";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiConflict } from "@/lib/api-response";
 
 interface PlaceEdge {
@@ -35,6 +36,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "place");
     // V2: Use V2 column names (place_id_from/to instead of place_id_a/b)
     // relationship_type is text, not FK to relationship_types table
     const edges = await queryRows<PlaceEdge>(`
@@ -121,6 +123,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(id, "place");
     // V2: Validate relationship type exists in sot.relationship_types
     const relType = await queryOne<{ type_key: string }>(`
       SELECT type_key FROM sot.relationship_types
@@ -208,6 +211,7 @@ export async function DELETE(
   }
 
   try {
+    requireValidUUID(id, "place");
     // V2: Check if edge exists using V2 column names
     const existing = await queryOne<{
       edge_id: string;

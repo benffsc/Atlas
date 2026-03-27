@@ -87,6 +87,55 @@ export const PROPERTY_TYPE = getValues(_PROPERTY_TYPE_OPTIONS) as unknown as rea
 export const KITTEN_ASSESSMENT_OUTCOME = getValues(_KITTEN_ASSESSMENT_OUTCOME_OPTIONS) as unknown as readonly ["taken_in", "tnr", "redirected", "temp_hold", "no_action"];
 
 // =============================================================================
+// VERIFICATION ENUMS
+// =============================================================================
+
+export const VERIFICATION_METHOD = [
+  "phone_call",
+  "site_visit",
+  "ui_button",
+  "import_confirmed",
+  "intake_form",
+  "adopter_record",
+] as const;
+
+export const FINANCIAL_COMMITMENT = [
+  "full",
+  "limited",
+  "emergency_only",
+  "none",
+] as const;
+
+// =============================================================================
+// JOURNAL ENUMS
+// =============================================================================
+
+export const JOURNAL_ARCHIVE_REASON = [
+  "duplicate",
+  "error",
+  "irrelevant",
+  "wrong_entity",
+  "test_data",
+  "merged",
+  "other",
+] as const;
+
+/** Archive reasons that require a notes field for context. */
+export const JOURNAL_ARCHIVE_REASONS_REQUIRING_NOTES = ["error", "wrong_entity", "other"] as const satisfies readonly (typeof JOURNAL_ARCHIVE_REASON)[number][];
+
+// =============================================================================
+// PLACE CLASSIFICATION ENUMS
+// =============================================================================
+
+export const COLONY_CLASSIFICATION = [
+  "unknown",
+  "individual_cats",
+  "small_colony",
+  "large_colony",
+  "feeding_station",
+] as const;
+
+// =============================================================================
 // HANDOFF ENUMS
 // =============================================================================
 
@@ -239,6 +288,16 @@ export const ENTITY_TYPE = ["person", "cat", "place", "request"] as const;
 // =============================================================================
 
 export const ENTITY_ENUMS = {
+  // Verification
+  VERIFICATION_METHOD,
+  FINANCIAL_COMMITMENT,
+
+  // Journal
+  JOURNAL_ARCHIVE_REASON,
+
+  // Place classification
+  COLONY_CLASSIFICATION,
+
   // Request
   REQUEST_STATUS,
   REQUEST_PRIORITY,
@@ -304,6 +363,11 @@ export type EartipEstimate = (typeof EARTIP_ESTIMATE)[number];
 export type FeedingFrequency = (typeof FEEDING_FREQUENCY)[number];
 export type PropertyType = (typeof PROPERTY_TYPE)[number];
 export type KittenAssessmentOutcome = (typeof KITTEN_ASSESSMENT_OUTCOME)[number];
+
+export type VerificationMethod = (typeof VERIFICATION_METHOD)[number];
+export type FinancialCommitment = (typeof FINANCIAL_COMMITMENT)[number];
+export type JournalArchiveReason = (typeof JOURNAL_ARCHIVE_REASON)[number];
+export type ColonyClassification = (typeof COLONY_CLASSIFICATION)[number];
 
 export type HandoffReason = (typeof HANDOFF_REASON)[number];
 

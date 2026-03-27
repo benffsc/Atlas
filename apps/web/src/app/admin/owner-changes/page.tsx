@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { formatPhone } from "@/lib/formatters";
+import { SkeletonTable, Skeleton } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface OwnerChange {
   review_id: string;
@@ -45,6 +47,7 @@ interface ActionResponse {
 }
 
 export default function OwnerChangesPage() {
+  const { addToast } = useToast();
   const [changes, setChanges] = useState<OwnerChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +79,7 @@ export default function OwnerChangesPage() {
       // Remove from list
       setChanges((prev) => prev.filter((c) => c.review_id !== reviewId));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to perform action");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to perform action" });
     } finally {
       setActionLoading(null);
     }
@@ -86,7 +89,7 @@ export default function OwnerChangesPage() {
     return (
       <div>
         <h1>Owner Change Review</h1>
-        <p className="text-muted">Loading...</p>
+        <SkeletonTable rows={6} columns={4} />
       </div>
     );
   }
@@ -329,7 +332,7 @@ function OwnerChangeCard({
             {change.cat_count} cat{change.cat_count !== 1 ? "s" : ""} affected:
           </div>
           <div style={{ fontSize: "0.875rem", color: "#475569" }}>
-            {change.cat_names?.join(", ") || "Loading..."}
+            {change.cat_names?.join(", ") || <Skeleton width="120px" height={14} style={{ display: "inline-block" }} />}
           </div>
         </div>
       )}

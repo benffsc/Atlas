@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ReminderCard } from "@/components/cards";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Reminder {
   reminder_id: string;
@@ -73,7 +74,7 @@ export function MyItemsWidget({ maxItems = 3 }: MyItemsWidgetProps) {
           padding: "1rem",
         }}
       >
-        <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>Loading...</div>
+        <SkeletonList items={3} />
       </div>
     );
   }

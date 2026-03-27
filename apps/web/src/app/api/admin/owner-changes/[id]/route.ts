@@ -3,6 +3,7 @@
 
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface ActionRequest {
@@ -32,6 +33,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(reviewId, "owner_change");
     const body: ActionRequest = await request.json();
 
     if (!body.action || !["transfer", "merge", "keep_both", "reject"].includes(body.action)) {

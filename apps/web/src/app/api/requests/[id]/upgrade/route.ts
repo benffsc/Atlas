@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface UpgradeRequestBody {
@@ -27,11 +28,8 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return apiBadRequest("Request ID is required");
-  }
-
   try {
+    requireValidUUID(id, "request");
     const body: UpgradeRequestBody = await request.json();
     // First, verify the request exists and is a legacy request
     const existingRequest = await queryOne<{

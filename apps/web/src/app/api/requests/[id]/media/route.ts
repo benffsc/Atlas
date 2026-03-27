@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
 import { createHash } from "crypto";
 import { uploadFile, isStorageAvailable, getPublicUrl } from "@/lib/supabase";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface MediaRow {
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "request");
     const media = await queryRows<MediaRow>(
       `SELECT
         media_id,
@@ -61,6 +63,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "request");
     // Verify request exists
     const requestExists = await queryOne<{ request_id: string }>(
       `SELECT request_id FROM ops.requests WHERE request_id = $1`,
@@ -178,6 +181,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    requireValidUUID(id, "request");
     const result = await queryOne<{ result: boolean }>(
       `SELECT ops.archive_media($1, $2, $3) as result`,
       [mediaId, archivedBy, reason]

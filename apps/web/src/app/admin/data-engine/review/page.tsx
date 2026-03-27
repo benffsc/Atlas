@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface PendingReview {
   decision_id: string;
@@ -32,6 +34,7 @@ interface ReviewResponse {
 }
 
 export default function DataEngineReviewPage() {
+  const { addToast } = useToast();
   const [reviews, setReviews] = useState<PendingReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export default function DataEngineReviewPage() {
       // Remove from list on success
       setReviews((prev) => prev.filter((r) => r.decision_id !== decisionId));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to perform action");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to perform action" });
     } finally {
       setActionLoading(null);
     }
@@ -69,7 +72,7 @@ export default function DataEngineReviewPage() {
     return (
       <div>
         <h1>Match Review Queue</h1>
-        <p className="text-muted">Loading...</p>
+        <SkeletonTable rows={5} columns={4} />
       </div>
     );
   }

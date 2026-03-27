@@ -4,6 +4,7 @@ import { useState } from "react";
 import { postApi } from "@/lib/api-client";
 import { ConfirmChangeModal } from "@/components/person/ConfirmChangeModal";
 import type { ConfirmChangeAction } from "@/components/person/ConfirmChangeModal";
+import { useToast } from "@/components/feedback/Toast";
 import type { SectionProps } from "@/lib/person-roles/types";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -34,6 +35,7 @@ const DANGEROUS_CHANGES = new Set(["suspended", "revoked"]);
  * Also shows profile edit form (notes, rescue name, certification, contract areas).
  */
 export function ContractProfileSection({ personId, data, onDataChange }: SectionProps) {
+  const { addToast } = useToast();
   const { trapperProfile: profile, trapperStats: stats } = data;
 
   // Profile edit state
@@ -78,7 +80,7 @@ export function ContractProfileSection({ personId, data, onDataChange }: Section
       onDataChange?.("trapper");
     } catch (err) {
       console.error("Failed to save profile:", err);
-      alert(err instanceof Error ? err.message : "Failed to save");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to save" });
     } finally {
       setSavingProfile(false);
     }
@@ -126,7 +128,7 @@ export function ContractProfileSection({ personId, data, onDataChange }: Section
       setConfirmAction(null);
       onDataChange?.("trapper");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to update" });
     } finally {
       setConfirming(false);
     }

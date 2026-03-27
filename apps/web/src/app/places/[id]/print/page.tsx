@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
 import { formatRole } from "@/lib/display-labels";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
+import { useProduct } from "@/lib/product-context";
 
 interface PlacePrint {
   place_id: string;
@@ -43,6 +44,7 @@ export default function PlacePrintPage() {
   const params = useParams();
   const id = params.id as string;
   const { nameShort } = useOrgConfig();
+  const { brandName } = useProduct();
 
   const [place, setPlace] = useState<PlacePrint | null>(null);
   const [loading, setLoading] = useState(true);
@@ -227,7 +229,7 @@ export default function PlacePrintPage() {
         display: "flex",
         justifyContent: "space-between"
       }}>
-        <span>Printed from {nameShort || "Atlas"} - FFR Management</span>
+        <span>Printed from {nameShort || brandName} - FFR Management</span>
         <span>{new Date().toLocaleString()}</span>
       </div>
 

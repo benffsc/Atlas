@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { requireRole, AuthError } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiError, apiBadRequest, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface TemplateSuggestion {
@@ -28,6 +29,7 @@ export async function GET(
   try {
     await requireRole(request, ["admin", "staff"]);
     const { id } = await params;
+    requireValidUUID(id, "suggestion");
 
     const suggestion = await queryOne<TemplateSuggestion>(`
       SELECT
@@ -71,6 +73,7 @@ export async function PATCH(
   try {
     const session = await requireRole(request, ["admin"]);
     const { id } = await params;
+    requireValidUUID(id, "suggestion");
 
     const body = await request.json();
     const { action, review_notes } = body;
@@ -169,6 +172,7 @@ export async function DELETE(
   try {
     const session = await requireRole(request, ["admin", "staff"]);
     const { id } = await params;
+    requireValidUUID(id, "suggestion");
 
     // Get the suggestion
     const suggestion = await queryOne<{ created_by: string; status: string }>(`

@@ -171,9 +171,7 @@ const config: DedupConfig<CatDedupCandidate> = {
           duplicate_id_count: number;
           phonetic_count: number;
         }>("/api/admin/cat-dedup", { action: "scan" });
-        alert(
-          `Scan complete: ${result.duplicate_id_count} duplicate IDs, ${result.chip_typo_count} chip typos, ${result.same_owner_count} same owner, ${result.phonetic_count} phonetic`
-        );
+        return `Scan complete: ${result.duplicate_id_count} duplicate IDs, ${result.chip_typo_count} chip typos, ${result.same_owner_count} same owner, ${result.phonetic_count} phonetic`;
       },
     },
   ],

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface CreateColonyModalProps {
   isOpen: boolean;
@@ -380,12 +381,10 @@ export function CreateColonyModal({
           <div
             style={{
               padding: "60px 20px",
-              textAlign: "center",
-              color: "var(--muted)",
             }}
           >
-            <div style={{ fontSize: "1.5rem", marginBottom: "12px" }}>Loading...</div>
-            <div>Analyzing nearby data and generating suggestions</div>
+            <SkeletonList items={5} />
+            <div style={{ textAlign: "center", color: "var(--muted)", marginTop: "12px", fontSize: "0.9rem" }}>Analyzing nearby data and generating suggestions</div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { TabBar } from "@/components/ui/TabBar";
 import { StatCard } from "@/components/ui/StatCard";
@@ -65,7 +66,7 @@ export default function EquipmentDetailPage() {
   if (loading) {
     return (
       <div style={{ padding: "2rem" }}>
-        <p style={{ color: "var(--muted)" }}>Loading...</p>
+        <SkeletonTable rows={5} columns={3} />
       </div>
     );
   }

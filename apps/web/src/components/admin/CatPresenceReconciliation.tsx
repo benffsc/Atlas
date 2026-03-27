@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface CatPresence {
   cat_place_id: string;
@@ -78,6 +80,7 @@ function formatDaysAgo(days: number | null): string {
 }
 
 export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
+  const { addToast } = useToast();
   const [cats, setCats] = useState<CatPresence[]>([]);
   const [summary, setSummary] = useState<ReconciliationSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,6 +90,7 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
   const [departureReason, setDepartureReason] = useState("unknown");
   const [reactivationReason, setReactivationReason] = useState("client_confirmed");
   const [dismissed, setDismissed] = useState(false);
+  const [pendingMarkAllOld, setPendingMarkAllOld] = useState(false);
 
   const fetchPresence = useCallback(async () => {
     try {
@@ -126,7 +130,7 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
       onUpdate?.();
     } catch (error) {
       console.error("Error updating cat presence:", error);
-      alert("Failed to update cat status");
+      addToast({ type: "error", message: "Failed to update cat status" });
     } finally {
       setUpdating(null);
       setShowDepartureModal(null);
@@ -134,8 +138,6 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
   };
 
   const handleMarkAllOldAsGone = async () => {
-    if (!confirm("Mark all cats not seen in 3+ years as departed?")) return;
-
     setUpdating("bulk");
     try {
       await postApi(`/api/places/${placeId}/cat-presence`, {
@@ -145,7 +147,7 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
       onUpdate?.();
     } catch (error) {
       console.error("Error marking old cats as gone:", error);
-      alert("Failed to update");
+      addToast({ type: "error", message: "Failed to update" });
     } finally {
       setUpdating(null);
     }
@@ -498,7 +500,7 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
       >
         {oldCatsCount > 0 && (
           <button
-            onClick={handleMarkAllOldAsGone}
+            onClick={() => setPendingMarkAllOld(true)}
             disabled={updating === "bulk"}
             style={{
               padding: "0.5rem 1rem",
@@ -529,6 +531,18 @@ export function CatPresenceReconciliation({ placeId, onUpdate }: Props) {
           Dismiss for Now
         </button>
       </div>
+
+      <ConfirmDialog
+        open={pendingMarkAllOld}
+        title="Mark old cats as departed"
+        message="Mark all cats not seen in 3+ years as departed?"
+        confirmLabel="Mark as Departed"
+        onConfirm={() => {
+          setPendingMarkAllOld(false);
+          handleMarkAllOldAsGone();
+        }}
+        onCancel={() => setPendingMarkAllOld(false)}
+      />
     </div>
   );
 }

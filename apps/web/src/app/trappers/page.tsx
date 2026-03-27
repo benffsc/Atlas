@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { TrapperTierBadge } from "@/components/badges/TrapperBadge";
 import { formatPhone, formatRelativeTime, getActivityColor } from "@/lib/formatters";
@@ -13,6 +14,7 @@ import { EditTrapperDrawer } from "@/components/trappers/EditTrapperDrawer";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
 import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
 import { Pagination } from "@/components/ui/Pagination";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface AssignedRequest {
   request_id: string;
@@ -72,35 +74,6 @@ interface TrappersResponse {
   };
 }
 
-function StatCard({
-  label,
-  value,
-  sublabel,
-}: {
-  label: string;
-  value: string | number;
-  sublabel?: string;
-}) {
-  return (
-    <div
-      style={{
-        textAlign: "center",
-        padding: "1rem",
-        background: "var(--card-bg)",
-        borderRadius: "8px",
-        border: "1px solid var(--card-border)",
-      }}
-    >
-      <div style={{ fontSize: "1.75rem", fontWeight: "bold" }}>{value}</div>
-      <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{label}</div>
-      {sublabel && (
-        <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginTop: "0.25rem" }}>
-          {sublabel}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function ContactInfo({ phone, email }: { phone: string | null; email: string | null }) {
   if (!phone && !email) return <span style={{ color: "var(--text-tertiary)" }}>—</span>;
@@ -558,6 +531,7 @@ const FILTER_DEFAULTS = {
 const DORMANT_DAYS = 90;
 
 function TrappersPageInner() {
+  const { addToast } = useToast();
   const { filters, setFilter, setFilters } = useUrlFilters(FILTER_DEFAULTS);
   const router = useRouter();
 
@@ -662,7 +636,7 @@ function TrappersPageInner() {
       );
       fetchTrappers();
     } catch (err) {
-      alert(`Error: ${err instanceof Error ? err.message : "Update failed"}`);
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Update failed" });
     } finally {
       setUpdating(null);
     }
@@ -708,7 +682,7 @@ function TrappersPageInner() {
       setSelectedIds(new Set());
       fetchTrappers();
     } catch (err) {
-      alert(`Batch error: ${err instanceof Error ? err.message : "Update failed"}`);
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Batch update failed" });
     } finally {
       setBatchUpdating(false);
     }
@@ -795,22 +769,22 @@ function TrappersPageInner() {
             <StatCard
               label="Active Trappers"
               value={agg.total_active_trappers}
-              sublabel={`${agg.ffsc_trappers} FFSC, ${agg.community_trappers} Community`}
+              subtitle={`${agg.ffsc_trappers} FFSC, ${agg.community_trappers} Community`}
             />
             <StatCard
               label="Available"
               value={agg.available_trappers ?? agg.total_active_trappers}
-              sublabel="ready for assignments"
+              subtitle="ready for assignments"
             />
             <StatCard
               label="Busy"
               value={agg.busy_trappers ?? 0}
-              sublabel="currently working"
+              subtitle="currently working"
             />
             <StatCard
               label="On Leave"
               value={agg.on_leave_trappers ?? 0}
-              sublabel="temporarily unavailable"
+              subtitle="temporarily unavailable"
             />
             <StatCard label="Inactive" value={agg.inactive_trappers} />
           </div>
@@ -872,7 +846,7 @@ function TrappersPageInner() {
             <StatCard
               label="Cats Fixed"
               value={agg.all_cats_caught}
-              sublabel="via request assignments"
+              subtitle="via request assignments"
             />
           </div>
         </>

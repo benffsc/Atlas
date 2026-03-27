@@ -1,23 +1,8 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
-import { PERSON_PLACE_ROLE } from "@/lib/enums";
-
-const VALID_VERIFICATION_METHODS = [
-  "phone_call",
-  "site_visit",
-  "ui_button",
-  "import_confirmed",
-  "intake_form",
-  "adopter_record",
-] as const;
-
-const VALID_FINANCIAL_COMMITMENTS = [
-  "full",
-  "limited",
-  "emergency_only",
-  "none",
-] as const;
+import { PERSON_PLACE_ROLE, VERIFICATION_METHOD, FINANCIAL_COMMITMENT, type VerificationMethod, type FinancialCommitment } from "@/lib/enums";
 
 interface VerifyRequest {
   verified_by?: string;
@@ -44,6 +29,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(personPlaceId, "person_place");
     const body: VerifyRequest = await request.json();
     const {
       verified_by,
@@ -59,8 +45,8 @@ export async function POST(
     }
 
     // Validate verification_method
-    if (!VALID_VERIFICATION_METHODS.includes(verification_method as typeof VALID_VERIFICATION_METHODS[number])) {
-      return apiBadRequest(`Invalid verification_method. Must be one of: ${VALID_VERIFICATION_METHODS.join(", ")}`);
+    if (!VERIFICATION_METHOD.includes(verification_method as VerificationMethod)) {
+      return apiBadRequest(`Invalid verification_method. Must be one of: ${VERIFICATION_METHOD.join(", ")}`);
     }
 
     // Validate relationship_type if provided
@@ -69,8 +55,8 @@ export async function POST(
     }
 
     // Validate financial_commitment if provided
-    if (financial_commitment && !VALID_FINANCIAL_COMMITMENTS.includes(financial_commitment as typeof VALID_FINANCIAL_COMMITMENTS[number])) {
-      return apiBadRequest(`Invalid financial_commitment. Must be one of: ${VALID_FINANCIAL_COMMITMENTS.join(", ")}`);
+    if (financial_commitment && !FINANCIAL_COMMITMENT.includes(financial_commitment as FinancialCommitment)) {
+      return apiBadRequest(`Invalid financial_commitment. Must be one of: ${FINANCIAL_COMMITMENT.join(", ")}`);
     }
 
     // Check if person_place exists

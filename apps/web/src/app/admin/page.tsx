@@ -5,6 +5,7 @@ import { fetchApi } from "@/lib/api-client";
 import { ClinicHQUploadModal } from "@/components/modals";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { Icon } from "@/components/ui/Icon";
+import { SkeletonStats } from "@/components/feedback/Skeleton";
 
 interface QueueStats {
   total: number;
@@ -168,7 +169,7 @@ export default function AdminPage() {
             <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem" }}>Intake Stats</h2>
 
             {loading ? (
-              <p className="text-muted">Loading...</p>
+              <SkeletonStats count={4} />
             ) : stats ? (
               <div style={{ display: "grid", gap: "1.25rem" }}>
                 {/* Total */}

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiNotFound } from "@/lib/api-response";
 
 interface LinkedCat {
@@ -23,6 +24,7 @@ export async function GET(
   const { id: colonyId } = await params;
 
   try {
+    requireValidUUID(colonyId, "colony");
     // Verify colony exists
     const colony = await queryOne<{ colony_id: string }>(
       `SELECT colony_id FROM sot.colonies WHERE colony_id = $1 AND deleted_at IS NULL`,

@@ -88,6 +88,7 @@ import {
   Crosshair,
   Layers,
   FileSearch,
+  Clock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -196,6 +197,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   crosshair: Crosshair,
   layers: Layers,
   "file-search": FileSearch,
+  clock: Clock,
 };
 
 export type IconName = keyof typeof ICON_MAP;

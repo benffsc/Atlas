@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
 import Link from "next/link";
 import { useToast } from "@/components/feedback/Toast";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 const VALID_KEYS = ["help_request", "tnr_call_sheet", "trapper_sheet"];
 
@@ -151,7 +152,7 @@ function TemplateEditor({ templateKey }: { templateKey: string }) {
     });
   }
 
-  if (loading) return <div style={{ padding: "2rem" }}>Loading...</div>;
+  if (loading) return <div style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={3} /></div>;
   if (error) return <div style={{ padding: "2rem", color: "var(--danger, #e74c3c)" }}>Error: {error}</div>;
 
   const displayFields = editing ? editFields : fields;

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi } from "@/lib/api-client";
 import { Pagination } from "@/components/ui/Pagination";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface EmailAuditEntry {
   email_id: string;
@@ -222,8 +223,8 @@ export default function EmailAuditPage() {
       {/* Results */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center" }} className="text-muted">
-            Loading...
+          <div style={{ padding: "2rem" }}>
+            <SkeletonTable rows={6} columns={4} />
           </div>
         ) : emails.length === 0 ? (
           <div style={{ padding: "2rem", textAlign: "center" }} className="text-muted">

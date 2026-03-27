@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { AtlasCatIdBadge, NoAtlasCatId } from "@/components/badges";
+import { useToast } from "@/components/feedback/Toast";
 
 export interface CatDisease {
   disease_key: string;
@@ -20,6 +21,7 @@ export interface CatCardData {
   cat_color?: string | null;
   color?: string | null;
   primary_color?: string | null;
+  secondary_color?: string | null;
   photo_url: string | null;
   microchip: string | null;
   needs_microchip: boolean;
@@ -83,6 +85,7 @@ const getColorGradient = (color: string | null | undefined): string => {
 };
 
 export function CatCard({ cat, onClick, compact = false, showAddress = true, showOwner = false, onUpdateClinicDayNumber }: CatCardProps) {
+  const { addToast } = useToast();
   const isUnchipped = cat.cat_id && !cat.microchip && cat.needs_microchip;
   const isUnlinked = !cat.cat_id;
 
@@ -120,7 +123,7 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
 
     // Validate
     if (newValue !== null && (isNaN(newValue) || newValue < 1 || newValue > 999)) {
-      alert("Number must be between 1 and 999");
+      addToast({ type: "warning", message: "Number must be between 1 and 999" });
       return;
     }
 
@@ -130,7 +133,7 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
       setIsEditingNumber(false);
     } catch (err) {
       console.error("Failed to save clinic day number:", err);
-      alert("Failed to save. Please try again.");
+      addToast({ type: "error", message: "Failed to save. Please try again." });
     } finally {
       setIsSavingNumber(false);
     }
@@ -431,7 +434,14 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
           </span>
         )}
         {sex && color && <span style={{ color: "var(--card-border)" }}>•</span>}
-        {color && <span>{color}</span>}
+        {color && (
+          <span>
+            {color}
+            {cat.secondary_color && (
+              <span style={{ color: "var(--muted)", opacity: 0.75 }}> / {cat.secondary_color}</span>
+            )}
+          </span>
+        )}
         {cat.weight_lbs && (
           <>
             <span style={{ color: "var(--card-border)" }}>•</span>

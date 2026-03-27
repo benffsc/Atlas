@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiForbidden, apiNotFound, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 /**
@@ -19,6 +20,8 @@ export async function GET(
   const { id, itemId } = await params;
 
   try {
+    requireValidUUID(id, "trapper_report");
+    requireValidUUID(itemId, "item");
     const item = await queryOne(
       `
       SELECT
@@ -89,6 +92,8 @@ export async function PATCH(
   }
 
   try {
+    requireValidUUID(id, "trapper_report");
+    requireValidUUID(itemId, "item");
     // Verify item belongs to submission
     const item = await queryOne<{ item_id: string }>(
       `SELECT item_id::text FROM ops.trapper_report_items WHERE submission_id = $1 AND item_id = $2`,

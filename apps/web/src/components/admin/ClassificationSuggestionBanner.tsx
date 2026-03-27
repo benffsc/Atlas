@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 interface ClassificationSignal {
   value: string | number | boolean;
@@ -49,6 +50,7 @@ export function ClassificationSuggestionBanner({
   currentPlaceClassification,
   onUpdate,
 }: Props) {
+  const { addToast } = useToast();
   const [expanded, setExpanded] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
   const [overrideValue, setOverrideValue] = useState("individual_cats");
@@ -92,7 +94,7 @@ export function ClassificationSuggestionBanner({
       onUpdate();
     } catch (err) {
       console.error("Error accepting suggestion:", err);
-      alert("Failed to accept suggestion");
+      addToast({ type: "error", message: "Failed to accept suggestion" });
     } finally {
       setLoading(false);
     }
@@ -100,7 +102,7 @@ export function ClassificationSuggestionBanner({
 
   const handleOverride = async () => {
     if (!overrideReason.trim()) {
-      alert("Please provide a reason for the override");
+      addToast({ type: "error", message: "Please provide a reason for the override" });
       return;
     }
     setLoading(true);
@@ -114,7 +116,7 @@ export function ClassificationSuggestionBanner({
       onUpdate();
     } catch (err) {
       console.error("Error overriding suggestion:", err);
-      alert("Failed to override suggestion");
+      addToast({ type: "error", message: "Failed to override suggestion" });
     } finally {
       setLoading(false);
       setShowOverride(false);
@@ -130,7 +132,7 @@ export function ClassificationSuggestionBanner({
       onUpdate();
     } catch (err) {
       console.error("Error dismissing suggestion:", err);
-      alert("Failed to dismiss suggestion");
+      addToast({ type: "error", message: "Failed to dismiss suggestion" });
     } finally {
       setLoading(false);
     }

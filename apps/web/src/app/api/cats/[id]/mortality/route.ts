@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
+import { DEATH_CAUSE, DATE_PRECISION, type DeathCause } from "@/lib/enums";
 
 /**
  * Cat Mortality API Endpoint
@@ -13,22 +14,6 @@ import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/ap
  * - Cat detail page "Report Deceased" button
  * - Beacon survival rate calculations
  */
-
-// Death cause enum values from MIG_290
-const VALID_DEATH_CAUSES = [
-  "natural",
-  "vehicle",
-  "predator",
-  "disease",
-  "euthanasia",
-  "injury",
-  "starvation",
-  "weather",
-  "unknown",
-  "other",
-] as const;
-
-type DeathCause = (typeof VALID_DEATH_CAUSES)[number];
 
 interface MortalityEvent {
   mortality_event_id: string;
@@ -145,14 +130,13 @@ export async function POST(
     const body: ReportMortalityBody = await request.json();
 
     // Validate death_cause
-    if (!body.death_cause || !VALID_DEATH_CAUSES.includes(body.death_cause)) {
-      return apiBadRequest(`Invalid death_cause. Must be one of: ${VALID_DEATH_CAUSES.join(", ")}`);
+    if (!body.death_cause || !DEATH_CAUSE.includes(body.death_cause as DeathCause)) {
+      return apiBadRequest(`Invalid death_cause. Must be one of: ${DEATH_CAUSE.join(", ")}`);
     }
 
     // Validate death_date_precision if provided
-    const validPrecisions = ["exact", "week", "month", "season", "year", "estimated"];
-    if (body.death_date_precision && !validPrecisions.includes(body.death_date_precision)) {
-      return apiBadRequest(`Invalid death_date_precision. Must be one of: ${validPrecisions.join(", ")}`);
+    if (body.death_date_precision && !DATE_PRECISION.includes(body.death_date_precision as (typeof DATE_PRECISION)[number])) {
+      return apiBadRequest(`Invalid death_date_precision. Must be one of: ${DATE_PRECISION.join(", ")}`);
     }
 
     // Validate death_age_months if provided

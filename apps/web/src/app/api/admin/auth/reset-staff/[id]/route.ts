@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getSession, hashPassword } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiError } from "@/lib/api-response";
 
 interface RouteParams {
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id: staffId } = await params;
+    requireValidUUID(staffId, "staff");
 
     // Default password from environment variable (secure)
     const DEFAULT_PASSWORD = process.env.STAFF_DEFAULT_PASSWORD;

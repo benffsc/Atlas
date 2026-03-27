@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
@@ -43,6 +44,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "place");
     // Check if place exists (and handle merged places)
     const placeCheck = await queryOne<{
       place_id: string;
@@ -137,6 +139,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(id, "place");
     const body: AddContextBody = await request.json();
 
     if (!body.context_type) {
@@ -253,6 +256,7 @@ export async function DELETE(
   }
 
   try {
+    requireValidUUID(id, "place");
     // Check if place exists (and handle merged places)
     const placeCheck = await queryOne<{
       place_id: string;

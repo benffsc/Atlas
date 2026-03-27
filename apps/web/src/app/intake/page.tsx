@@ -8,6 +8,8 @@ import { formatPhoneAsYouType } from "@/lib/formatters";
 import { shouldBePerson } from "@/lib/guards";
 import { useSoftBlacklist } from "@/hooks/useSoftBlacklist";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 import {
   CALL_TYPE_OPTIONS as BASE_CALL_TYPE_OPTIONS,
   callTypeToOwnership,
@@ -48,6 +50,7 @@ import { initialFormData } from "@/components/intake-form";
 const DRAFT_KEY = "atlas_intake_draft";
 
 function IntakeForm() {
+  const { addToast } = useToast();
   const searchParams = useSearchParams();
   const isPreview = searchParams.get("preview") === "true";
   const isTestMode = searchParams.get("test") === "true";
@@ -302,7 +305,7 @@ function IntakeForm() {
         currentStep,
         savedAt: new Date().toISOString(),
       }));
-      alert("Draft saved!");
+      addToast({ type: "success", message: "Draft saved!" });
     }
   };
 
@@ -316,7 +319,7 @@ function IntakeForm() {
           setCurrentStep(draft.currentStep || "call_type");
           setHasDraft(false);
         } catch {
-          alert("Could not load draft");
+          addToast({ type: "error", message: "Could not load draft" });
         }
       }
     }
@@ -858,8 +861,8 @@ function IntakeForm() {
 export default function IntakePage() {
   return (
     <Suspense fallback={
-      <div style={{ maxWidth: "700px", margin: "0 auto", padding: "1rem", textAlign: "center" }}>
-        Loading...
+      <div style={{ maxWidth: "700px", margin: "0 auto", padding: "1rem" }}>
+        <SkeletonTable rows={6} columns={2} />
       </div>
     }>
       <IntakeForm />

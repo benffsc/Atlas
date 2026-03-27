@@ -1,6 +1,14 @@
 /**
  * Centralized Map Color Configuration
- * All map-related colors in one place for consistency
+ * All map-related colors in one place for consistency.
+ *
+ * Rules:
+ * - React component inline styles: use `var(--xxx)` CSS variables where a
+ *   design token exists, or import from MAP_COLORS / the named exports here.
+ * - Leaflet HTML popup strings: must be raw hex (Leaflet renders raw HTML,
+ *   not React, so CSS variables don't resolve inside innerHTML).
+ * - Canvas drawing ops (ctx.fillStyle etc.): must be raw hex.
+ * - Use `var(--primary)` etc. for generic UI chrome that has a design token.
  */
 
 export const MAP_COLORS = {
@@ -16,25 +24,29 @@ export const MAP_COLORS = {
 
   // Layer-specific colors
   layers: {
-    places: '#3b82f6',           // Blue
-    google_pins: '#f59e0b',      // Amber
-    tnr_priority: '#dc2626',     // Red
-    zones: '#10b981',            // Emerald
-    volunteers: '#9333ea',       // Purple
-    clinic_clients: '#8b5cf6',   // Violet
+    places: '#3b82f6',             // Blue
+    google_pins: '#f59e0b',        // Amber
+    tnr_priority: '#dc2626',       // Red
+    zones: '#10b981',              // Emerald
+    volunteers: '#9333ea',         // Purple
+    volunteer_marker: '#FFD700',   // Gold — volunteer map dot
+    clinic_clients: '#8b5cf6',     // Violet
     historical_sources: '#6b7280', // Gray
-    data_coverage: '#059669',    // Green
+    data_coverage: '#059669',      // Green
+    trapper_coverage: '#0ea5e9',   // Sky blue — trapper territory layer
+    heatmap_density: '#f03b20',    // Orange-red — density heatmap
+    heatmap_disease: '#e31a1c',    // Red — disease heatmap
   },
 
   // AI Classification colors (for Google Map entries)
   classification: {
-    disease_risk: '#dc2626',     // Red - FeLV, FIV, panleuk
-    watch_list: '#f59e0b',       // Amber - safety, aggressive
-    volunteer: '#9333ea',        // Purple
-    active_colony: '#16a34a',    // Green
+    disease_risk: '#dc2626',      // Red - FeLV, FIV, panleuk
+    watch_list: '#f59e0b',        // Amber - safety, aggressive
+    volunteer: '#9333ea',         // Purple
+    active_colony: '#16a34a',     // Green
     historical_colony: '#6b7280', // Gray
     relocation_client: '#8b5cf6', // Violet
-    contact_info: '#3b82f6',     // Blue
+    contact_info: '#3b82f6',      // Blue
   },
 
   // Signal colors (pregnancy, mortality, etc.)
@@ -57,105 +69,165 @@ export const MAP_COLORS = {
 
   // Zone observation status
   zoneStatus: {
-    critical: '#dc2626',         // Red
-    high: '#ea580c',             // Orange
-    medium: '#ca8a04',           // Yellow
-    refresh: '#3b82f6',          // Blue
-    current: '#16a34a',          // Green
-    unknown: '#6b7280',          // Gray
+    critical: '#dc2626', // Red
+    high: '#ea580c',     // Orange
+    medium: '#ca8a04',   // Yellow
+    refresh: '#3b82f6',  // Blue
+    current: '#16a34a',  // Green
+    unknown: '#6b7280',  // Gray
   },
 
   // Data coverage levels
   coverage: {
-    rich: '#16a34a',             // Green
-    moderate: '#3b82f6',         // Blue
-    sparse: '#f59e0b',           // Amber
-    gap: '#dc2626',              // Red
+    rich: '#16a34a',     // Green
+    moderate: '#3b82f6', // Blue
+    sparse: '#f59e0b',   // Amber
+    gap: '#dc2626',      // Red
   },
 
-  // Disease type colors (defaults, actual colors come from disease_types table)
+  // Disease type colors (defaults; actual colors may come from disease_types table)
   disease: {
-    felv: '#dc2626',             // Red - Feline Leukemia
-    fiv: '#ea580c',              // Orange - Feline Immunodeficiency
-    ringworm: '#ca8a04',         // Yellow - Ringworm
-    heartworm: '#7c3aed',        // Purple - Heartworm
-    panleukopenia: '#be185d',    // Pink - Panleukopenia
-    fallback: '#6b7280',         // Gray - unknown/new types
+    felv: '#dc2626',        // Red - Feline Leukemia
+    fiv: '#ea580c',         // Orange - Feline Immunodeficiency
+    ringworm: '#ca8a04',    // Yellow - Ringworm
+    heartworm: '#7c3aed',   // Purple - Heartworm
+    panleukopenia: '#be185d', // Pink - Panleukopenia
+    fallback: '#6b7280',    // Gray - unknown/new types
   },
-} as const;
 
-/**
- * Get priority color based on value
- */
+  // Atlas pin style colors (teardrop marker fill)
+  pinStyle: {
+    disease: '#ea580c',        // Orange-red
+    watch_list: '#8b5cf6',     // Violet
+    active: '#22c55e',         // Green
+    active_requests: '#14b8a6', // Teal
+    has_history: '#6366f1',    // Indigo
+    minimal: '#94a3b8',        // Slate
+    default: '#3b82f6',        // Blue
+  },
+
+  // Trapper territory type colors
+  trapperType: {
+    ffsc_volunteer: '#3b82f6',   // Blue
+    ffsc_staff: '#3b82f6',       // Blue
+    ffsc_trapper: '#3b82f6',     // Blue
+    coordinator: '#3b82f6',      // Blue
+    head_trapper: '#3b82f6',     // Blue
+    community_trapper: '#d97706', // Amber
+    rescue_operator: '#8b5cf6',  // Violet
+    colony_caretaker: '#059669', // Green
+    unknown: '#6b7280',          // Gray
+  },
+
+  // Annotation type colors
+  annotationType: {
+    colony_sighting: '#22c55e', // Green
+    trap_location: '#3b82f6',   // Blue
+    hazard: '#ef4444',          // Red
+    feeding_site: '#f59e0b',    // Amber
+    general: '#6b7280',         // Gray
+    other: '#8b5cf6',           // Violet
+  },
+
+  // Person role badge colors (React component, not popup HTML)
+  personRole: {
+    staff:     { bg: 'rgba(59, 130, 246, 0.15)',  text: '#2563eb' },
+    trapper:   { bg: 'rgba(22, 163, 74, 0.15)',   text: '#16a34a' },
+    volunteer: { bg: 'rgba(139, 92, 246, 0.15)',  text: '#7c3aed' },
+    foster:    { bg: 'rgba(234, 88, 12, 0.15)',   text: '#ea580c' },
+    caretaker: { bg: 'rgba(234, 88, 12, 0.10)',   text: '#c2410c' },
+    unknown:   { bg: 'rgba(107, 114, 128, 0.15)', text: '#6b7280' },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Convenience lookup helpers
+// ---------------------------------------------------------------------------
+
+/** Get priority color based on value */
 export function getPriorityColor(priority: string): string {
   return MAP_COLORS.priority[priority as keyof typeof MAP_COLORS.priority]
     || MAP_COLORS.priority.unknown;
 }
 
-/**
- * Get layer color
- */
+/** Get layer color */
 export function getLayerColor(layerId: string): string {
   return MAP_COLORS.layers[layerId as keyof typeof MAP_COLORS.layers]
     || MAP_COLORS.layers.places;
 }
 
-/**
- * Get classification color
- */
+/** Get AI classification color */
 export function getClassificationColor(classification: string): string {
   return MAP_COLORS.classification[classification as keyof typeof MAP_COLORS.classification]
     || MAP_COLORS.classification.contact_info;
 }
 
-/**
- * Get volunteer role color
- */
+/** Get volunteer role color */
 export function getVolunteerRoleColor(role: string): string {
   return MAP_COLORS.volunteerRoles[role as keyof typeof MAP_COLORS.volunteerRoles]
     || MAP_COLORS.volunteerRoles.community_trapper;
 }
 
-/**
- * Get disease color by key (falls back to table-provided color or default gray)
- */
+/** Get disease color by key (falls back to table-provided color or default gray) */
 export function getDiseaseColor(diseaseKey: string, tableColor?: string): string {
   return MAP_COLORS.disease[diseaseKey as keyof typeof MAP_COLORS.disease]
     || tableColor
     || MAP_COLORS.disease.fallback;
 }
 
-/**
- * Lighten a hex color by a percentage
- */
+/** Get pin style color */
+export function getPinStyleColor(pinStyle: string): string {
+  return MAP_COLORS.pinStyle[pinStyle as keyof typeof MAP_COLORS.pinStyle]
+    || MAP_COLORS.pinStyle.default;
+}
+
+/** Get trapper territory type color */
+export function getTrapperTypeColor(trapperType: string): string {
+  return MAP_COLORS.trapperType[trapperType as keyof typeof MAP_COLORS.trapperType]
+    || MAP_COLORS.trapperType.unknown;
+}
+
+/** Get annotation type color */
+export function getAnnotationTypeColor(annotationType: string): string {
+  return MAP_COLORS.annotationType[annotationType as keyof typeof MAP_COLORS.annotationType]
+    || MAP_COLORS.annotationType.general;
+}
+
+/** Get person role badge color pair (bg + text) */
+export function getPersonRoleColor(role: string): { bg: string; text: string } {
+  return MAP_COLORS.personRole[role as keyof typeof MAP_COLORS.personRole]
+    || MAP_COLORS.personRole.unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Color math utilities
+// ---------------------------------------------------------------------------
+
+/** Lighten a hex color by a percentage */
 export function lightenColor(hex: string, percent: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
   const amt = Math.round(2.55 * percent);
   const R = Math.min(255, (num >> 16) + amt);
-  const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
-  const B = Math.min(255, (num & 0x0000FF) + amt);
+  const G = Math.min(255, ((num >> 8) & 0x00ff) + amt);
+  const B = Math.min(255, (num & 0x0000ff) + amt);
   return `#${((1 << 24) + (R << 16) + (G << 8) + B).toString(16).slice(1)}`;
 }
 
-/**
- * Darken a hex color by a percentage
- */
+/** Darken a hex color by a percentage */
 export function darkenColor(hex: string, percent: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
   const amt = Math.round(2.55 * percent);
   const R = Math.max(0, (num >> 16) - amt);
-  const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
-  const B = Math.max(0, (num & 0x0000FF) - amt);
+  const G = Math.max(0, ((num >> 8) & 0x00ff) - amt);
+  const B = Math.max(0, (num & 0x0000ff) - amt);
   return `#${((1 << 24) + (R << 16) + (G << 8) + B).toString(16).slice(1)}`;
 }
 
-/**
- * Get RGBA from hex with alpha
- */
+/** Get RGBA from hex with alpha */
 export function hexToRgba(hex: string, alpha: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
-  const R = (num >> 16) & 0xFF;
-  const G = (num >> 8) & 0xFF;
-  const B = num & 0xFF;
+  const R = (num >> 16) & 0xff;
+  const G = (num >> 8) & 0xff;
+  const B = num & 0xff;
   return `rgba(${R}, ${G}, ${B}, ${alpha})`;
 }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface OrgDetail {
@@ -46,6 +47,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "org");
 
     // Get org details
     const org = await queryOne<OrgDetail>(
@@ -123,6 +125,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "org");
     const body = await request.json();
 
     // Build dynamic update
@@ -214,6 +217,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "org");
     const searchParams = request.nextUrl.searchParams;
     const hardDelete = searchParams.get("hard") === "true";
 

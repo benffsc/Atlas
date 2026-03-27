@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BackButton } from "@/components/common";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 interface PlaceUnit {
   place_id: string;
@@ -44,6 +45,7 @@ interface EntryData {
 }
 
 export default function LinkGoogleMapEntryPage() {
+  const { addToast } = useToast();
   const params = useParams();
   const router = useRouter();
   const entryId = params.id as string;
@@ -81,7 +83,7 @@ export default function LinkGoogleMapEntryPage() {
   const handleLink = async () => {
     const placeToLink = selectedUnitId || selectedPlaceId;
     if (!placeToLink) {
-      alert("Please select a place to link to");
+      addToast({ type: "error", message: "Please select a place to link to" });
       return;
     }
 
@@ -92,7 +94,7 @@ export default function LinkGoogleMapEntryPage() {
       // Success - redirect back to map
       router.push("/map");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to link entry");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to link entry" });
     } finally {
       setLinking(false);
     }

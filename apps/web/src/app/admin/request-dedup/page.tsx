@@ -201,9 +201,7 @@ const config: DedupConfig<RequestDedupCandidate> = {
           tier3_count: number;
           total: number;
         }>("/api/admin/request-dedup", { action: "refresh_candidates" });
-        alert(
-          `Refresh complete: ${result.tier1_count} same-source, ${result.tier2_count} cross-source, ${result.tier3_count} place family (${result.total} total)`
-        );
+        return `Refresh complete: ${result.tier1_count} same-source, ${result.tier2_count} cross-source, ${result.tier3_count} place family (${result.total} total)`;
       },
     },
   ],

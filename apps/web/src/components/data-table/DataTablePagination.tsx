@@ -82,8 +82,14 @@ export function DataTablePagination({
           disabled={!canPrev}
           style={{
             ...buttonBase,
-            opacity: canPrev ? 1 : 0.4,
-            cursor: canPrev ? "pointer" : "default",
+            ...(canPrev
+              ? {}
+              : {
+                  color: "var(--muted)",
+                  background: "var(--bg-secondary)",
+                  borderColor: "var(--border-light, var(--border))",
+                  cursor: "not-allowed",
+                }),
           }}
         >
           Previous
@@ -118,8 +124,14 @@ export function DataTablePagination({
           disabled={!canNext}
           style={{
             ...buttonBase,
-            opacity: canNext ? 1 : 0.4,
-            cursor: canNext ? "pointer" : "default",
+            ...(canNext
+              ? {}
+              : {
+                  color: "var(--muted)",
+                  background: "var(--bg-secondary)",
+                  borderColor: "var(--border-light, var(--border))",
+                  cursor: "not-allowed",
+                }),
           }}
         >
           Next

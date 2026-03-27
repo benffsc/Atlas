@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface PlaceNeedingClassification {
   place_id: string;
@@ -49,6 +51,7 @@ const FILTER_OPTIONS = [
 ];
 
 export default function ClassificationReviewPage() {
+  const { addToast } = useToast();
   const [places, setPlaces] = useState<PlaceNeedingClassification[]>([]);
   const [stats, setStats] = useState<ClassificationStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,14 +124,14 @@ export default function ClassificationReviewPage() {
       }
 
       const result = await postApi<{ updated: number }>("/api/admin/classification-review", body);
-      alert(`Updated ${result.updated} places`);
+      addToast({ type: "success", message: `Updated ${result.updated} places` });
 
       setSelectedPlaces(new Set());
       setBulkAction(null);
       setBulkReason("");
       fetchData();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to process");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to process" });
     } finally {
       setProcessing(false);
     }
@@ -139,7 +142,7 @@ export default function ClassificationReviewPage() {
       await postApi(`/api/requests/${place.most_recent_request_id}/classification-suggestion`, { action: "accept" });
       fetchData();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to accept");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to accept" });
     }
   };
 
@@ -148,7 +151,7 @@ export default function ClassificationReviewPage() {
       await postApi(`/api/requests/${place.most_recent_request_id}/classification-suggestion`, { action: "dismiss" });
       fetchData();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to dismiss");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to dismiss" });
     }
   };
 
@@ -325,8 +328,8 @@ export default function ClassificationReviewPage() {
 
       {/* Loading */}
       {loading && (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          Loading...
+        <div style={{ padding: "2rem" }}>
+          <SkeletonTable rows={6} columns={4} />
         </div>
       )}
 

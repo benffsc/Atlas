@@ -6,6 +6,7 @@ import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { TabBar } from "@/components/ui/TabBar";
 import { StatCard } from "@/components/ui/StatCard";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
 
 interface SourceConfidence {
   source_type: string;
@@ -41,6 +42,7 @@ const CORE_SOURCE_TYPES = ["verified_cats", "trapper_report", "trapping_request"
 const CORE_PRECISION_TYPES = ["exact", "approximate", "range", "lower_bound"];
 
 export default function ColonyEstimationPage() {
+  const { addToast } = useToast();
   const [sources, setSources] = useState<SourceConfidence[]>([]);
   const [precision, setPrecision] = useState<CountPrecision[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -82,7 +84,7 @@ export default function ColonyEstimationPage() {
       fetchData();
     } catch (err) {
       if (err instanceof ApiError) {
-        alert(`Error: ${err.message}`);
+        addToast({ type: "error", message: err.message });
       } else {
         console.error("Update error:", err);
       }
@@ -98,7 +100,7 @@ export default function ColonyEstimationPage() {
       fetchData();
     } catch (err) {
       if (err instanceof ApiError) {
-        alert(`Error: ${err.message}`);
+        addToast({ type: "error", message: err.message });
       } else {
         console.error("Update error:", err);
       }
@@ -125,7 +127,7 @@ export default function ColonyEstimationPage() {
       fetchData();
     } catch (err) {
       if (err instanceof ApiError) {
-        alert(`Error: ${err.message}`);
+        addToast({ type: "error", message: err.message });
       } else {
         console.error("Delete error:", err);
       }

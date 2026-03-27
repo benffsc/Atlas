@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 interface Staff {
   staff_id: string;
@@ -43,6 +44,7 @@ const DEPARTMENTS = [
 ];
 
 export default function StaffProfilePage() {
+  const { addToast } = useToast();
   const params = useParams();
   const staffId = params.id as string;
 
@@ -88,7 +90,7 @@ export default function StaffProfilePage() {
       setEditMode(false);
     } catch (err) {
       console.error("Error saving:", err);
-      alert("Failed to save changes");
+      addToast({ type: "error", message: "Failed to save changes" });
     } finally {
       setSaving(false);
     }

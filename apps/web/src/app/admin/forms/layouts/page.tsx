@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 import {
   useAllPageConfigs,
   type PageConfigRow,
@@ -69,7 +70,7 @@ function FormLayoutsContent() {
   }
 
   if (isLoading) {
-    return <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>Loading...</div>;
+    return <div style={{ padding: "2rem" }}><SkeletonTable rows={5} columns={3} /></div>;
   }
 
   return (

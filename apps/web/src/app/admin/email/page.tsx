@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SendEmailModal } from "@/components/modals";
 import { fetchApi } from "@/lib/api-client";
+import { SkeletonStats } from "@/components/feedback/Skeleton";
 
 interface EmailHubMetrics {
   connected_accounts: number;
@@ -72,7 +73,7 @@ export default function EmailHubPage() {
       </div>
 
       {loading ? (
-        <div className="text-muted">Loading...</div>
+        <div style={{ padding: "1rem 0" }}><SkeletonStats count={4} /></div>
       ) : (
         <>
           {/* Metrics Cards */}

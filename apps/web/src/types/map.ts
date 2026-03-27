@@ -275,3 +275,18 @@ export function calculateDistance(a: LatLng, b: LatLng): number {
 
   return R * c;
 }
+
+/**
+ * Format a distance in meters for display.
+ * <400m: shows feet with meters in parens (e.g., "328 ft (100 m)")
+ * >=400m: shows miles with km in parens (e.g., "1.2 mi (1.9 km)")
+ */
+export function formatDistance(meters: number): string {
+  if (meters < 400) {
+    const feet = Math.round(meters * 3.28084);
+    return `${feet} ft (${Math.round(meters)} m)`;
+  }
+  const miles = meters / 1609.344;
+  const km = meters / 1000;
+  return `${miles.toFixed(1)} mi (${km.toFixed(1)} km)`;
+}

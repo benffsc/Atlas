@@ -5,6 +5,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Icon } from "@/components/ui/Icon";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface NavItem {
   id: string;
@@ -150,7 +151,7 @@ function NavBuilderContent() {
       </div>
 
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>Loading...</div>
+        <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
       ) : (
         Array.from(sections.entries()).map(([sectionName, sectionItems]) => (
           <div

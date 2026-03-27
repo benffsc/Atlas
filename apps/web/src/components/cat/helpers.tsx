@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FieldSourceValue, ClinicalNote } from "@/lib/cat-types";
 import { formatDateLocal } from "@/lib/formatters";
+import { Button } from "@/components/ui/Button";
 
 // Source display names
 const SOURCE_LABELS: Record<string, string> = {
@@ -439,12 +440,14 @@ export function LifecycleTimeline({
         }}
       >
         <h2>Lifecycle</h2>
-        <button
+        <Button
           onClick={fetchEvents}
-          style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}
+          loading={loading}
+          variant="secondary"
+          size="sm"
         >
-          {loading ? "Loading..." : expanded ? "Collapse" : "Show Timeline"}
-        </button>
+          {expanded ? "Collapse" : "Show Timeline"}
+        </Button>
       </div>
 
       <div

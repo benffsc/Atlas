@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
@@ -114,6 +115,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "place");
     // Check if place was merged
     const mergeCheck = await queryOne<{ merged_into_place_id: string | null }>(
       `SELECT merged_into_place_id FROM sot.places WHERE place_id = $1`,

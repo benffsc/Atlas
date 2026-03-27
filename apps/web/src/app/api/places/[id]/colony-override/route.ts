@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface SetOverrideBody {
@@ -26,6 +27,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(id, "place");
     const body: SetOverrideBody = await request.json();
 
     if (typeof body.count !== "number" || body.count < 0) {
@@ -77,6 +79,7 @@ export async function DELETE(
   }
 
   try {
+    requireValidUUID(id, "place");
     let body: ClearOverrideBody = {};
     try {
       body = await request.json();
@@ -115,6 +118,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "place");
     // Get current override from place
     const currentSql = `
       SELECT

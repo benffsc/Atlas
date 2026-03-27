@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiUnauthorized, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    requireValidUUID(id, "entry");
 
     const entry = await queryOne(
       `SELECT * FROM ops.v_clinic_day_entries WHERE entry_id = $1`,
@@ -50,6 +52,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    requireValidUUID(id, "entry");
     const body = await request.json();
 
     // Check entry exists
@@ -131,6 +134,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    requireValidUUID(id, "entry");
 
     // Check entry exists
     const existing = await queryOne<{ entry_id: string }>(

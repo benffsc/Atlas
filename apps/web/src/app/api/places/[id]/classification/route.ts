@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
+import { COLONY_CLASSIFICATION, type ColonyClassification } from "@/lib/enums";
 
 /**
  * GET /api/places/[id]/classification
@@ -83,16 +84,8 @@ export async function POST(
     } = body;
 
     // Validate classification
-    const validClassifications = [
-      "unknown",
-      "individual_cats",
-      "small_colony",
-      "large_colony",
-      "feeding_station",
-    ];
-
-    if (!classification || !validClassifications.includes(classification)) {
-      return apiBadRequest(`Invalid classification. Must be one of: ${validClassifications.join(", ")}`);
+    if (!classification || !COLONY_CLASSIFICATION.includes(classification as ColonyClassification)) {
+      return apiBadRequest(`Invalid classification. Must be one of: ${COLONY_CLASSIFICATION.join(", ")}`);
     }
 
     // Validate authoritative_count if provided

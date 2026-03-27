@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface TemplateSuggestion {
   suggestion_id: string;
@@ -26,6 +28,7 @@ interface TemplateSuggestion {
 }
 
 export default function TemplateSuggestionsPage() {
+  const { addToast } = useToast();
   const [suggestions, setSuggestions] = useState<TemplateSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("pending");
@@ -67,7 +70,7 @@ export default function TemplateSuggestionsPage() {
       fetchSuggestions();
     } catch (err) {
       console.error("Failed to process suggestion:", err);
-      alert(err instanceof Error ? err.message : "Failed to process suggestion");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to process suggestion" });
     } finally {
       setProcessing(false);
     }
@@ -113,8 +116,8 @@ export default function TemplateSuggestionsPage() {
       {/* Suggestions List */}
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center" }} className="text-muted">
-            Loading...
+          <div style={{ padding: "2rem" }}>
+            <SkeletonTable rows={5} columns={3} />
           </div>
         ) : suggestions.length === 0 ? (
           <div style={{ padding: "2rem", textAlign: "center" }} className="text-muted">

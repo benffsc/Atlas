@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
 import {
   ReviewComparisonCard,
   BatchActionBar,
@@ -93,6 +95,7 @@ export default function IdentityReviewPage() {
 }
 
 function IdentityReviewContent() {
+  const { addToast } = useToast();
   const searchParams = useSearchParams();
   const initialFilter = searchParams.get("filter") || "all";
 
@@ -103,6 +106,10 @@ function IdentityReviewContent() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [resolving, setResolving] = useState<string | null>(null);
   const [batchProcessing, setBatchProcessing] = useState(false);
+
+  // Confirm dialogs
+  const [showBatchResolveConfirm, setShowBatchResolveConfirm] = useState(false);
+  const pendingBatchActionRef = { current: "" as "merge" | "keep_separate" | "dismiss" | "" };
 
   const limit = 30;
 
@@ -146,18 +153,22 @@ function IdentityReviewContent() {
       });
     } catch (error) {
       console.error("Failed to resolve:", error);
-      alert(`Error: ${error instanceof Error ? error.message : "Failed to resolve"}`);
+      addToast({ type: "error", message: error instanceof Error ? error.message : "Failed to resolve" });
     } finally {
       setResolving(null);
     }
   };
 
-  const handleBatchResolve = async (action: "merge" | "keep_separate" | "dismiss") => {
+  const handleBatchResolve = (action: "merge" | "keep_separate" | "dismiss") => {
     if (!selected.size) return;
-    const actionLabel =
-      action === "merge" ? "Merge" : action === "keep_separate" ? "Keep separate" : "Dismiss";
-    if (!confirm(`${actionLabel} ${selected.size} selected item(s)?`)) return;
+    pendingBatchActionRef.current = action;
+    setShowBatchResolveConfirm(true);
+  };
 
+  const handleBatchResolveConfirm = async () => {
+    const action = pendingBatchActionRef.current as "merge" | "keep_separate" | "dismiss";
+    setShowBatchResolveConfirm(false);
+    pendingBatchActionRef.current = "";
     setBatchProcessing(true);
     const ids = Array.from(selected);
     let successCount = 0;
@@ -173,7 +184,7 @@ function IdentityReviewContent() {
     }
 
     if (errorCount > 0) {
-      alert(`${successCount} succeeded, ${errorCount} failed`);
+      addToast({ type: "error", message: `${successCount} succeeded, ${errorCount} failed` });
     }
     setSelected(new Set());
     fetchItems();
@@ -398,6 +409,31 @@ function IdentityReviewContent() {
           onNext={() => setOffset(offset + limit)}
         />
       )}
+
+      <ConfirmDialog
+        open={showBatchResolveConfirm}
+        title="Batch Resolve Reviews"
+        message={`${
+          pendingBatchActionRef.current === "merge"
+            ? "Merge"
+            : pendingBatchActionRef.current === "keep_separate"
+              ? "Keep separate"
+              : "Dismiss"
+        } ${selected.size} selected item(s)?`}
+        confirmLabel={
+          pendingBatchActionRef.current === "merge"
+            ? "Merge"
+            : pendingBatchActionRef.current === "keep_separate"
+              ? "Keep Separate"
+              : "Dismiss"
+        }
+        variant={pendingBatchActionRef.current === "merge" ? "danger" : "default"}
+        onConfirm={handleBatchResolveConfirm}
+        onCancel={() => {
+          setShowBatchResolveConfirm(false);
+          pendingBatchActionRef.current = "";
+        }}
+      />
     </div>
   );
 }

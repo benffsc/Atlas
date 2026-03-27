@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 import { logFieldEdit } from "@/lib/audit";
 
@@ -11,6 +12,7 @@ export async function POST(
   const { id: colonyId } = await params;
 
   try {
+    requireValidUUID(colonyId, "colony");
     const body = await request.json();
     const {
       place_id,
@@ -86,6 +88,7 @@ export async function DELETE(
   }
 
   try {
+    requireValidUUID(colonyId, "colony");
     const result = await queryOne<{ colony_id: string }>(
       `UPDATE sot.colony_places
        SET deactivated_at = NOW(), is_active = FALSE

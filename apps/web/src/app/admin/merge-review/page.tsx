@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { Pagination } from "@/components/ui/Pagination";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
 
 interface Tier4ReviewItem {
   duplicate_id: string;
@@ -91,6 +93,7 @@ function PersonStats({
 }
 
 export default function MergeReviewPage() {
+  const { addToast } = useToast();
   const [data, setData] = useState<ReviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [matchType, setMatchType] = useState<string | null>(null);
@@ -98,6 +101,10 @@ export default function MergeReviewPage() {
   const [resolving, setResolving] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchAction, setBatchAction] = useState(false);
+
+  // Confirm dialogs
+  const [showBatchResolveConfirm, setShowBatchResolveConfirm] = useState(false);
+  const pendingBatchActionRef = { current: "" as "merge" | "keep_separate" | "dismiss" | "" };
 
   const limit = 30;
 
@@ -146,7 +153,7 @@ export default function MergeReviewPage() {
       });
     } catch (error) {
       if (error instanceof ApiError) {
-        alert(`Error: ${error.message}`);
+        addToast({ type: "error", message: error.message });
       } else {
         console.error("Failed to resolve:", error);
       }
@@ -155,16 +162,16 @@ export default function MergeReviewPage() {
     }
   };
 
-  const handleBatchResolve = async (action: "merge" | "keep_separate" | "dismiss") => {
+  const handleBatchResolve = (action: "merge" | "keep_separate" | "dismiss") => {
     if (!selected.size) return;
-    const actionLabel =
-      action === "merge"
-        ? "Merge"
-        : action === "keep_separate"
-          ? "Keep separate"
-          : "Dismiss";
-    if (!confirm(`${actionLabel} ${selected.size} selected review(s)?`)) return;
+    pendingBatchActionRef.current = action;
+    setShowBatchResolveConfirm(true);
+  };
 
+  const handleBatchResolveConfirm = async () => {
+    const action = pendingBatchActionRef.current as "merge" | "keep_separate" | "dismiss";
+    setShowBatchResolveConfirm(false);
+    pendingBatchActionRef.current = "";
     setBatchAction(true);
     const ids = Array.from(selected);
     let successCount = 0;
@@ -183,7 +190,7 @@ export default function MergeReviewPage() {
     }
 
     if (errorCount > 0) {
-      alert(`${successCount} succeeded, ${errorCount} failed`);
+      addToast({ type: "error", message: `${successCount} succeeded, ${errorCount} failed` });
     }
     setSelected(new Set());
     fetchReviews();
@@ -767,6 +774,31 @@ export default function MergeReviewPage() {
           onNext={() => setOffset(offset + limit)}
         />
       )}
+
+      <ConfirmDialog
+        open={showBatchResolveConfirm}
+        title="Batch Resolve Reviews"
+        message={`${
+          pendingBatchActionRef.current === "merge"
+            ? "Merge"
+            : pendingBatchActionRef.current === "keep_separate"
+              ? "Keep separate"
+              : "Dismiss"
+        } ${selected.size} selected review(s)?`}
+        confirmLabel={
+          pendingBatchActionRef.current === "merge"
+            ? "Merge"
+            : pendingBatchActionRef.current === "keep_separate"
+              ? "Keep Separate"
+              : "Dismiss"
+        }
+        variant={pendingBatchActionRef.current === "merge" ? "danger" : "default"}
+        onConfirm={handleBatchResolveConfirm}
+        onCancel={() => {
+          setShowBatchResolveConfirm(false);
+          pendingBatchActionRef.current = "";
+        }}
+      />
     </div>
   );
 }

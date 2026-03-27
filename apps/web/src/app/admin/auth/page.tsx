@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { StatCard } from "@/components/ui/StatCard";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface AuthStats {
   total_staff: number;
@@ -37,6 +38,11 @@ export default function AdminAuthPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Confirm dialogs
+  const [showDefaultPasswordConfirm, setShowDefaultPasswordConfirm] = useState(false);
+  const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
+  const pendingResetStaffRef = useRef<{ staffId: string; displayName: string } | null>(null);
+
   const fetchData = useCallback(async () => {
     try {
       const data = await fetchApi<{ stats: AuthStats; staff: StaffAuth[] }>("/api/admin/auth/status");
@@ -53,11 +59,12 @@ export default function AdminAuthPage() {
     fetchData();
   }, [fetchData]);
 
-  const setDefaultPasswords = async () => {
-    if (!confirm("This will set the default password for all staff without passwords. They will be required to change it on first login. (Password is configured in STAFF_DEFAULT_PASSWORD env var) Continue?")) {
-      return;
-    }
+  const setDefaultPasswords = () => {
+    setShowDefaultPasswordConfirm(true);
+  };
 
+  const setDefaultPasswordsConfirm = async () => {
+    setShowDefaultPasswordConfirm(false);
     setActionLoading("default");
     setMessage(null);
 
@@ -79,11 +86,16 @@ export default function AdminAuthPage() {
     }
   };
 
-  const resetStaffPassword = async (staffId: string, displayName: string) => {
-    if (!confirm(`Reset password for ${displayName}? They will need to change it on next login.`)) {
-      return;
-    }
+  const resetStaffPassword = (staffId: string, displayName: string) => {
+    pendingResetStaffRef.current = { staffId, displayName };
+    setShowResetPasswordConfirm(true);
+  };
 
+  const resetStaffPasswordConfirm = async () => {
+    if (!pendingResetStaffRef.current) return;
+    const { staffId, displayName } = pendingResetStaffRef.current;
+    setShowResetPasswordConfirm(false);
+    pendingResetStaffRef.current = null;
     setActionLoading(staffId);
     setMessage(null);
 
@@ -361,6 +373,31 @@ export default function AdminAuthPage() {
           <li>Communicate passwords securely (in person or via secure channel, never in Atlas)</li>
         </ul>
       </div>
+
+      {/* Confirm: set default passwords for all staff */}
+      <ConfirmDialog
+        open={showDefaultPasswordConfirm}
+        title="Set Default Passwords"
+        message="This will set the default password for all staff without passwords. They will be required to change it on first login. (Password is configured in STAFF_DEFAULT_PASSWORD env var)"
+        confirmLabel="Set Passwords"
+        variant="danger"
+        onConfirm={setDefaultPasswordsConfirm}
+        onCancel={() => setShowDefaultPasswordConfirm(false)}
+      />
+
+      {/* Confirm: reset individual staff password */}
+      <ConfirmDialog
+        open={showResetPasswordConfirm}
+        title="Reset Staff Password"
+        message={pendingResetStaffRef.current ? `Reset password for ${pendingResetStaffRef.current.displayName}? They will need to change it on next login.` : "Reset this staff member's password?"}
+        confirmLabel="Reset Password"
+        variant="danger"
+        onConfirm={resetStaffPasswordConfirm}
+        onCancel={() => {
+          setShowResetPasswordConfirm(false);
+          pendingResetStaffRef.current = null;
+        }}
+      />
     </div>
   );
 }

@@ -99,7 +99,6 @@ export default function VolunteerDashboard() {
           icon="❓"
           label="Ask Tippy"
           description="Get help navigating Atlas"
-          href="#"
           onClick={() => {
             // Tippy chat is available via the floating button
             const tippy = document.querySelector(
@@ -173,44 +172,69 @@ function QuickAction({
   icon: string;
   label: string;
   description: string;
-  href: string;
+  href?: string;
   onClick?: () => void;
 }) {
-  const handleClick = (e: React.MouseEvent) => {
-    if (onClick) {
-      e.preventDefault();
-      onClick();
-    }
+  const sharedStyle: React.CSSProperties = {
+    padding: "1.25rem",
+    textDecoration: "none",
+    color: "inherit",
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    transition: "transform 0.15s, box-shadow 0.15s",
+    cursor: "pointer",
+    background: "none",
+    border: "none",
+    textAlign: "left",
+    width: "100%",
   };
 
-  return (
-    <a
-      href={href}
-      onClick={handleClick}
-      className="card"
-      style={{
-        padding: "1.25rem",
-        textDecoration: "none",
-        color: "inherit",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.5rem",
-        transition: "transform 0.15s, box-shadow 0.15s",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    >
+  const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.transform = "translateY(-2px)";
+    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.transform = "none";
+    e.currentTarget.style.boxShadow = "none";
+  };
+
+  const inner = (
+    <>
       <span style={{ fontSize: "1.5rem" }}>{icon}</span>
       <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{label}</div>
       <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
         {description}
       </div>
+    </>
+  );
+
+  if (onClick && !href) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="card"
+        style={sharedStyle}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <a
+      href={href}
+      onClick={onClick}
+      className="card"
+      style={sharedStyle}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {inner}
     </a>
   );
 }

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiUnauthorized, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface StaffMessage {
@@ -39,6 +40,7 @@ export async function GET(
     }
 
     const { id } = await params;
+    requireValidUUID(id, "message");
 
     const message = await queryOne<StaffMessage>(
       `SELECT
@@ -74,7 +76,7 @@ export async function GET(
   } catch (error: any) {
     if (error?.code === '42P01') {
       // Table ops.staff_messages doesn't exist yet
-      return NextResponse.json({ success: true, data: { message: null } });
+      return apiSuccess({ message: null });
     }
     console.error("Error fetching message:", error);
     return apiServerError("Failed to fetch message");
@@ -98,6 +100,7 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    requireValidUUID(id, "message");
     const body = await request.json();
     const { status } = body;
 
@@ -143,7 +146,7 @@ export async function PATCH(
   } catch (error: any) {
     if (error?.code === '42P01') {
       // Table ops.staff_messages doesn't exist yet
-      return NextResponse.json({ success: true, data: { message: null } });
+      return apiSuccess({ message: null });
     }
     console.error("Error updating message:", error);
     return apiServerError("Failed to update message");
@@ -167,6 +170,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    requireValidUUID(id, "message");
 
     // Verify ownership (must be recipient) and archive
     const result = await queryOne<{ message_id: string }>(
@@ -188,7 +192,7 @@ export async function DELETE(
   } catch (error: any) {
     if (error?.code === '42P01') {
       // Table ops.staff_messages doesn't exist yet
-      return NextResponse.json({ success: true, data: { message: null } });
+      return apiSuccess({ message: null });
     }
     console.error("Error archiving message:", error);
     return apiServerError("Failed to archive message");

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable, Skeleton } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface ReviewRecord {
   person_id: string;
@@ -34,6 +36,7 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 
 export default function DataQualityReviewPage() {
+  const { addToast } = useToast();
   const [data, setData] = useState<ReviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +88,7 @@ export default function DataQualityReviewPage() {
         });
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Action failed");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Action failed" });
     } finally {
       setActionLoading(null);
     }
@@ -106,7 +109,7 @@ export default function DataQualityReviewPage() {
         <div>
           <h1 style={{ marginBottom: "0.25rem" }}>Data Quality Review</h1>
           <p className="text-muted">
-            {data ? `${data.total} records` : "Loading..."} needing review
+            {data ? `${data.total} records` : <Skeleton width="60px" height={14} style={{ display: "inline-block" }} />} needing review
           </p>
         </div>
         <a
@@ -210,7 +213,7 @@ export default function DataQualityReviewPage() {
         </div>
       )}
 
-      {loading && <p className="text-muted">Loading...</p>}
+      {loading && <div style={{ padding: "1rem 0" }}><SkeletonTable rows={5} columns={4} /></div>}
 
       {!loading && data && data.records.length === 0 && (
         <div

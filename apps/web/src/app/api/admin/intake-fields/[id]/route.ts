@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface CustomField {
@@ -27,6 +28,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "intake_field");
     const field = await queryOne<CustomField>(`
       SELECT * FROM ops.intake_custom_fields WHERE field_id = $1
     `, [id]);
@@ -50,6 +52,7 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "intake_field");
     const body = await request.json();
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -113,6 +116,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "intake_field");
     const result = await queryOne<{ field_id: string }>(`
       UPDATE ops.intake_custom_fields
       SET is_active = FALSE

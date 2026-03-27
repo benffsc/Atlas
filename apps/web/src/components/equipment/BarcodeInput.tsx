@@ -13,12 +13,15 @@ interface BarcodeInputProps {
  * Auto-focused barcode input that works with USB scanners and manual entry.
  * USB scanners act as keyboard wedge devices — they type characters rapidly then send Enter.
  * We detect scanner input by checking if characters arrive faster than 80ms apart.
+ * For scanners that don't send Enter, we auto-submit after a 100ms gap in input.
  */
 export function BarcodeInput({ onScan, loading, placeholder = "Scan barcode or type ID...", autoFocus = true }: BarcodeInputProps) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const lastKeyTime = useRef(0);
   const isScanner = useRef(false);
+  // Debounce timer: fires when scanner stops sending characters (100ms gap)
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-focus on mount and after each scan
   useEffect(() => {
@@ -27,11 +30,23 @@ export function BarcodeInput({ onScan, loading, placeholder = "Scan barcode or t
     }
   }, [autoFocus, loading]);
 
-  const handleSubmit = useCallback(() => {
-    const trimmed = value.trim();
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
+  const handleSubmit = useCallback((overrideValue?: string) => {
+    const trimmed = (overrideValue ?? value).trim();
     if (trimmed && !loading) {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
       onScan(trimmed);
       setValue("");
+      isScanner.current = false;
       // Re-focus for next scan
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -50,9 +65,26 @@ export function BarcodeInput({ onScan, loading, placeholder = "Scan barcode or t
     if (e.key === "Enter") {
       e.preventDefault();
       handleSubmit();
-      isScanner.current = false;
+      return;
     }
-  }, [value, handleSubmit]);
+
+    // Debounce: if we're in scanner mode, auto-submit after 100ms gap
+    // (handles scanners that don't terminate with Enter)
+    if (isScanner.current) {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      debounceTimer.current = setTimeout(() => {
+        // Read from the input directly to capture the latest value
+        const currentValue = inputRef.current?.value.trim();
+        if (currentValue && !loading) {
+          onScan(currentValue);
+          setValue("");
+          isScanner.current = false;
+          setTimeout(() => inputRef.current?.focus(), 100);
+        }
+        debounceTimer.current = null;
+      }, 100);
+    }
+  }, [value, loading, onScan, handleSubmit]);
 
   return (
     <div style={{ position: "relative" }}>
@@ -100,7 +132,7 @@ export function BarcodeInput({ onScan, loading, placeholder = "Scan barcode or t
       )}
       {!loading && value && (
         <button
-          onClick={handleSubmit}
+          onClick={() => handleSubmit()}
           style={{
             position: "absolute",
             right: "0.5rem",

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface DiseaseType {
   disease_key: string;
@@ -416,7 +417,7 @@ export default function DiseaseTypesPage() {
 
       {/* Disease Types Table */}
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+        <div style={{ padding: "2rem" }}><SkeletonTable rows={5} columns={3} /></div>
       ) : diseaseTypes.length === 0 ? (
         <div
           style={{

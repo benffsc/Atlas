@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiForbidden, apiConflict } from "@/lib/api-response";
 
 interface RouteParams {
@@ -36,6 +37,7 @@ interface KnowledgeArticle {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "knowledge");
     const session = await getSession(request);
 
     // Determine user's access level
@@ -112,6 +114,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    requireValidUUID(id, "knowledge");
     const body = await request.json();
 
     // Check article exists
@@ -192,6 +195,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    requireValidUUID(id, "knowledge");
 
     // Check article exists
     const existing = await queryOne<{ article_id: string }>(

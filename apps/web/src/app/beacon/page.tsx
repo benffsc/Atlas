@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { SeasonalAlertsCard } from "@/components/cards";
+import { StatCard } from "@/components/ui/StatCard";
 import { YoYComparisonChart } from "@/components/charts";
+import { Button } from "@/components/ui/Button";
 
 interface ZoneRollup {
   zone_id: string;
@@ -204,17 +206,17 @@ export default function BeaconPage() {
         <StatCard
           value={loading ? "-" : summary?.places_with_cats?.toLocaleString() || "0"}
           label="Active Colonies"
-          color="#6b7280"
+          valueColor="var(--text-secondary)"
         />
         <StatCard
           value={loading ? "-" : summary?.total_verified_cats?.toLocaleString() || "0"}
           label="Verified Cats"
-          color="#8b5cf6"
+          valueColor="#8b5cf6"  // purple — no direct CSS variable
         />
         <StatCard
           value={loading ? "-" : summary?.total_altered_cats?.toLocaleString() || "0"}
           label="Cats Altered"
-          color="#16a34a"
+          valueColor="var(--healthy-text)"
         />
         <StatCard
           value={
@@ -229,18 +231,18 @@ export default function BeaconPage() {
               ? `Alteration Rate (of ${(summary?.known_status_cats || 0).toLocaleString()} known)`
               : "Alteration Rate"
           }
-          color={
+          valueColor={
             summary?.overall_alteration_rate && summary.overall_alteration_rate >= 70
-              ? "#16a34a"
+              ? "var(--healthy-text)"
               : summary?.overall_alteration_rate && summary.overall_alteration_rate >= 50
-              ? "#f59e0b"
-              : "#dc2626"
+              ? "var(--caution-text)"
+              : "var(--critical-text)"
           }
         />
         <StatCard
           value={loading ? "-" : (summary?.clusters_needs_attention || 0).toString()}
           label="Needs Attention"
-          color="#dc2626"
+          valueColor="var(--critical-text)"
         />
       </div>
 
@@ -250,14 +252,14 @@ export default function BeaconPage() {
         style={{
           padding: "1.5rem",
           marginBottom: "2rem",
-          background: "linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)",
-          border: "1px solid #a7f3d0",
+          background: "linear-gradient(135deg, var(--healthy-bg) 0%, var(--success-bg) 100%)",
+          border: "1px solid var(--healthy-border)",
         }}
       >
-        <h2 style={{ margin: "0 0 0.75rem 0", fontSize: "1.125rem", color: "#065f46" }}>
+        <h2 style={{ margin: "0 0 0.75rem 0", fontSize: "1.125rem", color: "var(--healthy-text)" }}>
           About Beacon
         </h2>
-        <p style={{ margin: 0, fontSize: "0.9rem", color: "#047857", lineHeight: 1.6 }}>
+        <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--healthy-text)", lineHeight: 1.6 }}>
           Beacon tracks ecological metrics across TNR sites to measure impact and identify areas needing attention.
           Colony estimates are derived from intake forms, trapper observations, and post-clinic surveys.
           The <strong>70% alteration threshold</strong> is the scientifically-supported target for population stabilization
@@ -295,23 +297,14 @@ export default function BeaconPage() {
               fontSize: "0.85rem",
             }}
           />
-          <button
+          <Button
             onClick={applyDateFilter}
-            disabled={dateFilterLoading}
-            style={{
-              padding: "0.4rem 1rem",
-              borderRadius: "4px",
-              border: "none",
-              background: "var(--foreground)",
-              color: "var(--background)",
-              cursor: "pointer",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              opacity: dateFilterLoading ? 0.6 : 1,
-            }}
+            loading={dateFilterLoading}
+            variant="primary"
+            size="sm"
           >
-            {dateFilterLoading ? "Loading..." : "Apply"}
-          </button>
+            Apply
+          </Button>
           {(dateFrom || dateTo) && (
             <button
               onClick={() => { setDateFrom(""); setDateTo(""); setDateFiltered(null); setDateFilteredPlaces([]); }}
@@ -351,7 +344,7 @@ export default function BeaconPage() {
             <MiniStat
               label="Needs Attention"
               value={dateFiltered.status_breakdown?.needs_attention || 0}
-              color="#dc2626"
+              color="var(--critical-text)"
             />
           </div>
         )}
@@ -387,11 +380,11 @@ export default function BeaconPage() {
           style={{
             padding: "1.25rem",
             marginBottom: "2rem",
-            background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-            border: "1px solid #93c5fd",
+            background: "linear-gradient(135deg, var(--info-bg) 0%, var(--primary-bg, #dbeafe) 100%)",
+            border: "1px solid var(--info-border)",
           }}
         >
-          <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem", fontWeight: 600, color: "#1e40af" }}>
+          <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem", fontWeight: 600, color: "var(--info-text)" }}>
             County Impact Overview
           </h2>
           {/* Summary totals */}
@@ -401,34 +394,34 @@ export default function BeaconPage() {
             gap: "1rem",
             marginBottom: "1rem",
             paddingBottom: "1rem",
-            borderBottom: "1px solid #93c5fd40",
+            borderBottom: "1px solid color-mix(in srgb, var(--info-border) 25%, transparent)",
           }}>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1e40af" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--info-text)" }}>
                 {countyData.summary.total_places.toLocaleString()}
               </div>
               <div style={{ fontSize: "0.75rem", color: "var(--primary, #3b82f6)" }}>Active Sites</div>
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}> {/* purple — no direct CSS var */}
                 {countyData.summary.total_cats.toLocaleString()}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#8b5cf6" }}>Total Cats</div>
+              <div style={{ fontSize: "0.75rem", color: "#8b5cf6" }}>Total Cats</div> {/* purple — no direct CSS var */}
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#16a34a" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--healthy-text)" }}>
                 {countyData.summary.total_altered.toLocaleString()}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#22c55e" }}>Altered</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--healthy-text)" }}>Altered</div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{
                 fontSize: "1.5rem", fontWeight: 700,
                 color: countyData.summary.alteration_rate_pct !== null && countyData.summary.alteration_rate_pct >= 70
-                  ? "#16a34a"
+                  ? "var(--healthy-text)"
                   : countyData.summary.alteration_rate_pct !== null && countyData.summary.alteration_rate_pct >= 50
-                  ? "#f59e0b"
-                  : "#dc2626",
+                  ? "var(--caution-text)"
+                  : "var(--critical-text)",
               }}>
                 {countyData.summary.alteration_rate_pct !== null ? `${countyData.summary.alteration_rate_pct}%` : "—"}
               </div>
@@ -441,10 +434,10 @@ export default function BeaconPage() {
               .filter(c => c.total_cats > 0)
               .map(c => {
                 const rate = c.alteration_rate_pct ?? 0;
-                const barColor = rate >= 75 ? "#16a34a" : rate >= 50 ? "#f59e0b" : "#dc2626";
+                const barColor = rate >= 75 ? "var(--healthy-text)" : rate >= 50 ? "var(--caution-text)" : "var(--critical-text)";
                 return (
                   <div key={c.county} style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <div style={{ width: "100px", fontSize: "0.85rem", fontWeight: 600, color: "#1e40af", flexShrink: 0 }}>
+                    <div style={{ width: "100px", fontSize: "0.85rem", fontWeight: 600, color: "var(--info-text)", flexShrink: 0 }}>
                       {c.county}
                     </div>
                     <div style={{
@@ -481,11 +474,11 @@ export default function BeaconPage() {
           style={{
             padding: "1.25rem",
             marginBottom: "2rem",
-            background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-            border: "1px solid #93c5fd",
+            background: "linear-gradient(135deg, var(--info-bg) 0%, var(--primary-bg, #dbeafe) 100%)",
+            border: "1px solid var(--info-border)",
           }}
         >
-          <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem", fontWeight: 600, color: "#1e40af" }}>
+          <h2 style={{ margin: "0 0 1rem 0", fontSize: "1.125rem", fontWeight: 600, color: "var(--info-text)" }}>
             Service Area Overview
           </h2>
           <div style={{
@@ -494,31 +487,31 @@ export default function BeaconPage() {
             gap: "1rem",
           }}>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1e40af" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--info-text)" }}>
                 {zones.summary.total_places.toLocaleString()}
               </div>
               <div style={{ fontSize: "0.75rem", color: "var(--primary, #3b82f6)" }}>Active Sites</div>
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#7c3aed" }}> {/* purple — no direct CSS var */}
                 {zones.summary.total_cats.toLocaleString()}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#8b5cf6" }}>Total Cats</div>
+              <div style={{ fontSize: "0.75rem", color: "#8b5cf6" }}>Total Cats</div> {/* purple — no direct CSS var */}
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#16a34a" }}>
+              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--healthy-text)" }}>
                 {zones.summary.total_altered.toLocaleString()}
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#22c55e" }}>Altered</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--healthy-text)" }}>Altered</div>
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{
                 fontSize: "1.5rem", fontWeight: 700,
                 color: zones.summary.alteration_rate_pct !== null && zones.summary.alteration_rate_pct >= 70
-                  ? "#16a34a"
+                  ? "var(--healthy-text)"
                   : zones.summary.alteration_rate_pct !== null && zones.summary.alteration_rate_pct >= 50
-                  ? "#f59e0b"
-                  : "#dc2626",
+                  ? "var(--caution-text)"
+                  : "var(--critical-text)",
               }}>
                 {zones.summary.alteration_rate_pct !== null ? `${zones.summary.alteration_rate_pct}%` : "—"}
               </div>
@@ -716,32 +709,6 @@ export default function BeaconPage() {
   );
 }
 
-function StatCard({
-  value,
-  label,
-  color,
-}: {
-  value: string;
-  label: string;
-  color: string;
-}) {
-  return (
-    <div
-      className="card card-elevated"
-      style={{
-        padding: "1.25rem",
-        textAlign: "center",
-      }}
-    >
-      <div style={{ fontSize: "2rem", fontWeight: 700, color, lineHeight: 1 }}>
-        {value}
-      </div>
-      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
-        {label}
-      </div>
-    </div>
-  );
-}
 
 function AnalyticsCard({
   title,
@@ -821,11 +788,11 @@ function MiniStat({
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  managed: { bg: "#dcfce7", text: "#166534", label: "Managed" },
-  in_progress: { bg: "#fef3c7", text: "#92400e", label: "In Progress" },
-  needs_work: { bg: "#fed7aa", text: "#9a3412", label: "Needs Work" },
-  needs_attention: { bg: "#fecaca", text: "#991b1b", label: "Needs Attention" },
-  no_data: { bg: "#f3f4f6", text: "#6b7280", label: "No Data" },
+  managed: { bg: "var(--healthy-bg)", text: "var(--healthy-text)", label: "Managed" },
+  in_progress: { bg: "var(--caution-bg)", text: "var(--caution-text)", label: "In Progress" },
+  needs_work: { bg: "var(--warning-bg)", text: "#9a3412", label: "Needs Work" },      // amber-dark, no exact var
+  needs_attention: { bg: "var(--critical-bg)", text: "var(--critical-text)", label: "Needs Attention" },
+  no_data: { bg: "var(--bg-secondary)", text: "var(--text-secondary)", label: "No Data" },
 };
 
 function ZoneStatusBadge({ status }: { status: string }) {
@@ -879,17 +846,18 @@ function DateFilteredMap({ places }: { places: DateFilteredPlace[] }) {
     const toX = (lng: number) => ((lng - minLng) / (maxLng - minLng)) * (w - 20) + 10;
     const toY = (lat: number) => ((maxLat - lat) / (maxLat - minLat)) * (h - 20) + 10;
 
-    // Background
+    // Background — canvas can't use CSS vars; using equivalent of var(--surface-1)
     ctx.fillStyle = "#f8fafc";
     ctx.fillRect(0, 0, w, h);
 
-    // Draw places
+    // Draw places — canvas can't use CSS vars; hex values mirror design tokens
     places.forEach(p => {
       if (!p.lat || !p.lng) return;
       const x = toX(p.lng);
       const y = toY(p.lat);
       const radius = Math.min(Math.max(p.cat_count * 0.5, 3), 12);
 
+      // Colors mirror: healthy-text / caution-text / priority-high / critical-text / text-secondary
       const color = p.colony_status === "managed" ? "#16a34a"
         : p.colony_status === "in_progress" ? "#f59e0b"
         : p.colony_status === "needs_work" ? "#ea580c"

@@ -14,6 +14,7 @@ import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { CatPreviewContent } from "@/components/preview/CatPreviewContent";
 import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup } from "@/components/filters";
 import { DataTable, useDataTable } from "@/components/data-table";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Cat {
   cat_id: string;
@@ -34,6 +35,7 @@ interface Cat {
   created_at: string;
   last_appointment_date: string | null;
   appointment_count: number;
+  source_system: string | null;
   is_deceased?: boolean;
   weight_lbs?: number | null;
   age_group?: string | null;
@@ -201,7 +203,7 @@ function CatsPageContent() {
       onClose={() => setFilter("selected", "")}
     />
   ) : filters.selected && detailLoading ? (
-    <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+    <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
   ) : null;
 
   return (

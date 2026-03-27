@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
-import { apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 import { getMapBounds } from "@/lib/geo-config";
 
@@ -123,11 +123,7 @@ export async function GET(request: NextRequest) {
       pins = await fetchRequestPins(layer, search, county);
     }
 
-    return NextResponse.json({ pins }, {
-      headers: {
-        "Cache-Control": "private, max-age=120, stale-while-revalidate=300",
-      },
-    });
+    return apiSuccess({ pins }, { headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" } });
   } catch (error) {
     console.error("Error fetching dashboard map pins:", error);
     return apiServerError("Failed to fetch map pins");

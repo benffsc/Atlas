@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiUnauthorized, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 /**
@@ -20,6 +21,7 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    requireValidUUID(id, "reminder");
     const body = await request.json();
     const { status, snooze_until } = body;
 
@@ -113,6 +115,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    requireValidUUID(id, "reminder");
 
     // Verify ownership and archive
     const result = await queryOne<{ reminder_id: string }>(

@@ -42,16 +42,17 @@ export function useMapColors(): {
   }
 
   // Merge DB values on top of hardcoded defaults
-  const merged = { ...MAP_COLORS } as Record<string, Record<string, string>>;
+  // Only flat string-valued groups are admin-configurable (not personRole which has {bg,text} objects).
+  const merged = { ...MAP_COLORS } as unknown as Record<string, Record<string, string>>;
 
   for (const row of data.configs) {
     // Keys are like "map.colors.priority"
     const match = row.key.match(/^map\.colors\.(\w+)$/);
     if (match && typeof row.value === "object" && row.value !== null) {
       const category = match[1];
-      if (category in MAP_COLORS) {
+      if (category in MAP_COLORS && category !== "personRole") {
         merged[category] = {
-          ...MAP_COLORS[category as keyof MapColorsType],
+          ...(MAP_COLORS[category as keyof MapColorsType] as Record<string, string>),
           ...(row.value as Record<string, string>),
         };
       }

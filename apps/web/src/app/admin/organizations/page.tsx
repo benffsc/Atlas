@@ -5,6 +5,7 @@ import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
 import { StatCard } from "@/components/ui/StatCard";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
@@ -186,8 +187,8 @@ export default function OrganizationsPage() {
 
       {/* Org List */}
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          Loading...
+        <div style={{ padding: "2rem" }}>
+          <SkeletonTable rows={5} columns={3} />
         </div>
       ) : orgs.length === 0 ? (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>

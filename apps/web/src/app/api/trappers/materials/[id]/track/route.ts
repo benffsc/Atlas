@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { query } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 // POST /api/trappers/materials/[id]/track - Track view/download
@@ -10,6 +11,7 @@ export async function POST(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "material");
     const body = await request.json();
     const action = body.action as string;
 

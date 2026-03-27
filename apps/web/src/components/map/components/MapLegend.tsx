@@ -19,23 +19,23 @@ interface MapLegendProps {
 }
 
 const ACTIVE_PINS = [
-  { color: "#ea580c", label: "Disease Risk", pinStyle: "disease" },
-  { color: "#8b5cf6", label: "Watch List", pinStyle: "watch_list" },
-  { color: "#22c55e", label: "Verified Cats", pinStyle: "active" },
-  { color: "#14b8a6", label: "Requests Only", pinStyle: "active_requests" },
+  { color: MAP_COLORS.pinStyle.disease, label: "Disease Risk", pinStyle: "disease" },
+  { color: MAP_COLORS.pinStyle.watch_list, label: "Watch List", pinStyle: "watch_list" },
+  { color: MAP_COLORS.pinStyle.active, label: "Verified Cats", pinStyle: "active" },
+  { color: MAP_COLORS.pinStyle.active_requests, label: "Requests Only", pinStyle: "active_requests" },
 ];
 
 const REFERENCE_PINS = [
-  { color: "#6366f1", label: "History Only", pinStyle: "has_history" },
-  { color: "#94a3b8", label: "Minimal Data", pinStyle: "minimal" },
+  { color: MAP_COLORS.pinStyle.has_history, label: "History Only", pinStyle: "has_history" },
+  { color: MAP_COLORS.pinStyle.minimal, label: "Minimal Data", pinStyle: "minimal" },
 ];
 
 const DEFAULT_DISEASE_BADGES = [
-  { colorKey: "felv" as const, code: "F", label: "FeLV", fallback: "#dc2626" },
-  { colorKey: "fiv" as const, code: "V", label: "FIV", fallback: "#ea580c" },
-  { colorKey: "ringworm" as const, code: "R", label: "Ringworm", fallback: "#ca8a04" },
-  { colorKey: "heartworm" as const, code: "H", label: "Heartworm", fallback: "#7c3aed" },
-  { colorKey: "panleukopenia" as const, code: "P", label: "Panleukopenia", fallback: "#be185d" },
+  { colorKey: "felv" as const, code: "F", label: "FeLV", fallback: MAP_COLORS.disease.felv },
+  { colorKey: "fiv" as const, code: "V", label: "FIV", fallback: MAP_COLORS.disease.fiv },
+  { colorKey: "ringworm" as const, code: "R", label: "Ringworm", fallback: MAP_COLORS.disease.ringworm },
+  { colorKey: "heartworm" as const, code: "H", label: "Heartworm", fallback: MAP_COLORS.disease.heartworm },
+  { colorKey: "panleukopenia" as const, code: "P", label: "Panleukopenia", fallback: MAP_COLORS.disease.panleukopenia },
 ];
 
 export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendProps) {
@@ -69,7 +69,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
             style={{
               fontSize: 10,
               fontWeight: 600,
-              color: "#9ca3af",
+              color: "var(--text-tertiary)",
               marginBottom: 4,
               textTransform: "uppercase",
               letterSpacing: "0.5px",
@@ -99,7 +99,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
             style={{
               fontSize: 10,
               fontWeight: 600,
-              color: "#9ca3af",
+              color: "var(--text-tertiary)",
               marginTop: 8,
               marginBottom: 4,
               textTransform: "uppercase",
@@ -131,7 +131,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
             style={{
               fontSize: 10,
               fontWeight: 600,
-              color: "#9ca3af",
+              color: "var(--text-tertiary)",
               marginTop: 8,
               marginBottom: 4,
               textTransform: "uppercase",
@@ -149,7 +149,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
                 width: 14,
                 height: 14,
                 borderRadius: "50%",
-                background: "#7c3aed",
+                background: MAP_COLORS.volunteerRoles.coordinator,
                 flexShrink: 0,
               }}
             >
@@ -172,7 +172,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
                 width: 14,
                 height: 14,
                 borderRadius: "50%",
-                background: "#f97316",
+                background: MAP_COLORS.priority.high,
                 flexShrink: 0,
                 color: "white",
                 fontSize: 9,
@@ -189,7 +189,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
             style={{
               fontSize: 10,
               fontWeight: 600,
-              color: "#9ca3af",
+              color: "var(--text-tertiary)",
               marginTop: 8,
               marginBottom: 4,
               textTransform: "uppercase",
@@ -229,7 +229,7 @@ export function MapLegend({ showLegend, onToggle, isMobile, colors }: MapLegendP
                 marginTop: 8,
                 paddingTop: 6,
                 fontSize: 10,
-                color: "#9ca3af",
+                color: "var(--text-tertiary)",
               }}
             >
               <kbd

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface KnownOrganization {
@@ -39,6 +40,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "organization");
     const org = await queryOne<KnownOrganization & {
       person_display_name: string | null;
       place_address: string | null;
@@ -85,6 +87,7 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "organization");
     const body = await request.json();
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -162,6 +165,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "organization");
     const result = await queryOne<{ org_id: string }>(
       `
       UPDATE sot.known_organizations

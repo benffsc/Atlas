@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface CommunicationLog {
@@ -29,6 +30,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "intake");
     // Fetch from journal entries (unified communication log)
     // This includes both contact_attempt and note entries
     // Check both primary_submission_id (V2) and submission_id (V1) for backwards compatibility
@@ -100,6 +102,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(id, "intake");
     const body = await request.json();
     const { contact_method, contact_result, notes, contacted_by, is_journal_only } = body;
 

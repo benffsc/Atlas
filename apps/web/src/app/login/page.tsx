@@ -3,6 +3,7 @@
 import { useState, FormEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
+import { SkeletonCard } from "@/components/feedback/Skeleton";
 
 function LoginForm() {
   const router = useRouter();
@@ -238,7 +239,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading...</div>}>
+    <Suspense fallback={<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}><SkeletonCard /></div>}>
       <LoginForm />
     </Suspense>
   );

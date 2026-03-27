@@ -422,6 +422,15 @@ export const LAYER_CONFIGS: LayerConfig[] = [
   ...LEGACY_LAYER_CONFIGS,
 ];
 
+// Google Places Text Search result
+export interface TextSearchResult {
+  place_id: string;
+  name: string;
+  formatted_address: string;
+  geometry: { location: { lat: number; lng: number } };
+  types: string[];
+}
+
 export const SERVICE_ZONES = [
   "All Zones",
   "Santa Rosa",

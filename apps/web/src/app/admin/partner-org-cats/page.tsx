@@ -5,6 +5,8 @@ import Link from "next/link";
 import { formatDateLocal } from "@/lib/formatters";
 import { BackButton } from "@/components/common";
 import { fetchApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface PartnerOrgCat {
   cat_id: string;
@@ -40,6 +42,7 @@ interface ApiResponse {
 }
 
 export default function PartnerOrgCatsPage() {
+  const { addToast } = useToast();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +106,7 @@ export default function PartnerOrgCatsPage() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Export failed: " + (err instanceof Error ? err.message : "Unknown error"));
+      addToast({ type: "error", message: "Export failed: " + (err instanceof Error ? err.message : "Unknown error") });
     } finally {
       setExporting(false);
     }
@@ -300,7 +303,7 @@ export default function PartnerOrgCatsPage() {
 
       {/* Loading State */}
       {loading && (
-        <div style={{ textAlign: "center", padding: "2rem 0" }}>Loading...</div>
+        <div style={{ padding: "2rem 0" }}><SkeletonTable rows={6} columns={4} /></div>
       )}
 
       {/* Cats Table */}

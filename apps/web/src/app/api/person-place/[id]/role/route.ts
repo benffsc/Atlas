@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 import { PERSON_PLACE_ROLE } from "@/lib/enums";
 
@@ -25,6 +26,7 @@ export async function PATCH(
   }
 
   try {
+    requireValidUUID(personPlaceId, "person_place");
     const body: RoleUpdateRequest = await request.json();
     const { relationship_type, edited_by } = body;
 
@@ -115,6 +117,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(personPlaceId, "person_place");
     const relationship = await queryOne<{
       id: string;
       person_id: string;

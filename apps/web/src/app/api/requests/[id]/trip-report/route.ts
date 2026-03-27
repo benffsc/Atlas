@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { query, queryOne, queryRows } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError, apiUnauthorized } from "@/lib/api-response";
 
 interface RouteParams {
@@ -37,6 +38,7 @@ interface TripReport {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "request");
 
     const reports = await queryRows<TripReport>(
       `
@@ -143,6 +145,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id: requestId } = await params;
+    requireValidUUID(requestId, "request");
     const body = await request.json();
 
     const {

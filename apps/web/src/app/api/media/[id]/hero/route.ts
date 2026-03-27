@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { execute, queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface MediaRow {
@@ -17,6 +18,7 @@ export async function PATCH(
   const { id: mediaId } = await params;
 
   try {
+    requireValidUUID(mediaId, "media");
     const media = await queryOne<MediaRow>(
       `SELECT media_id, request_id, place_id, cat_id, person_id
        FROM ops.request_media WHERE media_id = $1 AND is_archived = FALSE`,

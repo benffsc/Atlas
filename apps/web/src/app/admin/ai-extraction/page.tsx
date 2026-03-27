@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { StatCard } from "@/components/ui/StatCard";
+import { SkeletonStats } from "@/components/feedback/Skeleton";
 
 interface SourceProgress {
   total: number;
@@ -87,20 +89,6 @@ function ProgressBar({ value, max, color = "var(--primary, #3b82f6)" }: { value:
   );
 }
 
-function StatCard({ label, value, subtitle }: { label: string; value: string | number; subtitle?: string }) {
-  return (
-    <div style={{
-      background: "var(--background)",
-      border: "1px solid var(--border)",
-      borderRadius: "8px",
-      padding: "16px"
-    }}>
-      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "4px" }}>{label}</div>
-      <div style={{ fontSize: "24px", fontWeight: 600 }}>{value.toLocaleString()}</div>
-      {subtitle && <div style={{ fontSize: "11px", color: "#9ca3af" }}>{subtitle}</div>}
-    </div>
-  );
-}
 
 export default function AIExtractionPage() {
   const [data, setData] = useState<ExtractionData | null>(null);
@@ -132,7 +120,7 @@ export default function AIExtractionPage() {
     return (
       <div style={{ padding: "24px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "24px" }}>AI Extraction Progress</h1>
-        <p>Loading...</p>
+        <SkeletonStats count={4} />
       </div>
     );
   }

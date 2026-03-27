@@ -3,6 +3,7 @@
 import { formatPhone, formatRelativeTime, formatDateLocal, getActivityColor } from "@/lib/formatters";
 import { formatPlaceKind, formatRole, formatStatus } from "@/lib/display-labels";
 import { CatHealthBadges, buildHealthFlags, PlaceRiskBadges, PersonStatusBadges } from "@/components/badges";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 // Re-export types and hook from canonical location for backwards compatibility
 export { useEntityDetail } from "@/hooks/useEntityDetail";
@@ -20,7 +21,7 @@ interface EntityPreviewContentProps {
 
 export function EntityPreviewContent({ entityType, detail, loading }: EntityPreviewContentProps) {
   if (loading) {
-    return <div style={{ color: "var(--muted)", textAlign: "center", padding: "1rem" }}>Loading...</div>;
+    return <div style={{ padding: "1rem" }}><SkeletonList items={4} /></div>;
   }
 
   if (!detail) {

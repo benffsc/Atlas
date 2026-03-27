@@ -5,6 +5,8 @@ import Link from "next/link";
 import { DataQualityBadge } from "@/components/badges";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface MortalityEvent {
   mortality_event_id: string;
@@ -57,6 +59,7 @@ const causeOptions = [
 const ageOptions = ["kitten", "juvenile", "adult", "senior", "unknown"];
 
 export default function MortalityPage() {
+  const { addToast } = useToast();
   const [events, setEvents] = useState<MortalityEvent[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,7 +128,7 @@ export default function MortalityPage() {
       await loadData();
       closeEditModal();
     } catch (err) {
-      alert("Error saving changes");
+      addToast({ type: "error", message: "Error saving changes" });
     } finally {
       setSaving(false);
     }
@@ -141,7 +144,7 @@ export default function MortalityPage() {
           await postApi(`/api/admin/beacon/mortality?id=${eventId}`, {}, { method: "DELETE" });
           await loadData();
         } catch (err) {
-          alert("Error deleting");
+          addToast({ type: "error", message: "Error deleting" });
         }
       },
     });
@@ -163,7 +166,7 @@ export default function MortalityPage() {
           setSelectedIds(new Set());
           await loadData();
         } catch (err) {
-          alert("Error during bulk delete");
+          addToast({ type: "error", message: "Error during bulk delete" });
         } finally {
           setBulkDeleting(false);
         }
@@ -344,7 +347,7 @@ export default function MortalityPage() {
 
       {/* Results */}
       {loading ? (
-        <div className="card" style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>
+        <div className="card" style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={4} /></div>
       ) : (
         <div className="card">
           <table style={{ width: "100%", borderCollapse: "collapse" }}>

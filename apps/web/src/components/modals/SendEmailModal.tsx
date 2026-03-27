@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface OutlookAccount {
   account_id: string;
@@ -208,8 +209,8 @@ export function SendEmailModal({
         {/* Content */}
         <div style={{ padding: "1.5rem" }}>
           {loading ? (
-            <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem" }}>
-              Loading...
+            <div style={{ padding: "2rem" }}>
+              <SkeletonList items={4} />
             </div>
           ) : (
             <>

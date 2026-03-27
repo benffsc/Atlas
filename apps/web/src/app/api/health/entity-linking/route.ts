@@ -1,6 +1,5 @@
 import { withTransaction } from "@/lib/db";
-import { apiSuccess, apiServerError } from "@/lib/api-response";
-import { NextResponse } from "next/server";
+import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 
 /**
  * Entity Linking Health Check (FFS-294)
@@ -236,17 +235,7 @@ export async function GET() {
     // Check for statement_timeout (PostgreSQL error code 57014)
     const pgError = error as { code?: string };
     if (pgError.code === "57014") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            message: "Entity linking health check timed out (>10s)",
-            code: "QUERY_TIMEOUT",
-          },
-          status: "timeout",
-        },
-        { status: 504 }
-      );
+      return apiError("Entity linking health check timed out (>10s)", 504);
     }
     return apiServerError(error instanceof Error ? error.message : "Entity linking health check failed");
   }

@@ -5,6 +5,7 @@ import type { IntakeSubmission } from "@/lib/intake-types";
 import { normalizeName } from "@/components/intake/IntakeBadges";
 import { postApi } from "@/lib/api-client";
 import { Modal } from "@/components/ui";
+import { useToast } from "@/components/feedback/Toast";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
 interface DeclineModalProps {
@@ -20,6 +21,7 @@ export function DeclineModal({
   onClose,
   onDeclined,
 }: DeclineModalProps) {
+  const { addToast } = useToast();
   const [declining, setDeclining] = useState(false);
   const [declineForm, setDeclineForm] = useState({
     reason_code: "",
@@ -30,7 +32,7 @@ export function DeclineModal({
 
   const handleDecline = async () => {
     if (!declineForm.reason_code) {
-      alert("Please select a decline reason");
+      addToast({ type: "warning", message: "Please select a decline reason" });
       return;
     }
     setDeclining(true);
@@ -44,7 +46,7 @@ export function DeclineModal({
       });
       onDeclined();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to decline submission");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Failed to decline submission" });
     } finally {
       setDeclining(false);
     }

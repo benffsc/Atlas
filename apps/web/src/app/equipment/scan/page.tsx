@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { BarcodeInput } from "@/components/equipment/BarcodeInput";
@@ -10,6 +10,10 @@ import type { VEquipmentInventoryRow } from "@/lib/types/view-contracts";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 
 type ScannedItem = VEquipmentInventoryRow & { available_actions: string[] };
+
+function todayISO() {
+  return new Date().toISOString().split("T")[0];
+}
 
 export default function EquipmentScanPage() {
   const { success, error: showError } = useToast();
@@ -23,20 +27,42 @@ export default function EquipmentScanPage() {
   const [person, setPerson] = useState<PersonReference>({ person_id: null, display_name: "", is_resolved: false });
   const [conditionAfter, setConditionAfter] = useState("");
   const [notes, setNotes] = useState("");
+  const [dueDate, setDueDate] = useState(todayISO());
+
+  // AbortController ref — cancel in-flight lookup when a new scan arrives
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   const handleScan = useCallback(async (barcode: string) => {
+    // Cancel any previous in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setScanError(null);
     setEquipment(null);
     setActiveAction(null);
 
     try {
-      const data = await fetchApi<ScannedItem>(`/api/equipment/scan?barcode=${encodeURIComponent(barcode)}`);
-      setEquipment(data);
+      const data = await fetchApi<ScannedItem>(
+        `/api/equipment/scan?barcode=${encodeURIComponent(barcode)}`,
+        { signal: controller.signal }
+      );
+      if (!controller.signal.aborted) {
+        setEquipment(data);
+      }
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       setScanError(err instanceof Error ? err.message : "Equipment not found");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -49,6 +75,7 @@ export default function EquipmentScanPage() {
     } else if (action === "check_out") {
       setActiveAction("check_out");
       setPerson({ person_id: null, display_name: "", is_resolved: false });
+      setDueDate(todayISO());
       setNotes("");
     } else {
       setActiveAction(action);
@@ -66,6 +93,7 @@ export default function EquipmentScanPage() {
         event_type: activeAction,
         custodian_person_id: person.person_id || undefined,
         condition_after: conditionAfter || undefined,
+        due_date: activeAction === "check_out" && dueDate ? dueDate : undefined,
         notes: notes || undefined,
       });
 
@@ -80,12 +108,13 @@ export default function EquipmentScanPage() {
       setPerson({ person_id: null, display_name: "", is_resolved: false });
       setNotes("");
       setConditionAfter("");
+      setDueDate(todayISO());
     } catch (err) {
       showError(err instanceof Error ? err.message : "Action failed");
     } finally {
       setActionLoading(false);
     }
-  }, [equipment, activeAction, person, conditionAfter, notes, success, showError]);
+  }, [equipment, activeAction, person, conditionAfter, dueDate, notes, success, showError]);
 
   const quickReCheckout = useCallback(async () => {
     if (!equipment) return;
@@ -168,14 +197,34 @@ export default function EquipmentScanPage() {
               </h3>
 
               {activeAction === "check_out" && (
-                <div style={{ marginBottom: "0.75rem" }}>
-                  <PersonReferencePicker
-                    value={person}
-                    onChange={setPerson}
-                    placeholder="Search for trapper or staff..."
-                    label="Person"
-                  />
-                </div>
+                <>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <PersonReferencePicker
+                      value={person}
+                      onChange={setPerson}
+                      placeholder="Search for trapper or staff..."
+                      label="Person"
+                    />
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 500, marginBottom: "0.25rem" }}>
+                      Due Back
+                    </label>
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "0.5rem",
+                        fontSize: "0.9rem",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border)",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                </>
               )}
 
               {(activeAction === "check_in" || activeAction === "condition_change") && (

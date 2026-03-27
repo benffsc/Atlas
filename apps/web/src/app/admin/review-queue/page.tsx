@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable, Skeleton } from "@/components/feedback/Skeleton";
 
 interface QueueItem {
   id: string;
@@ -146,7 +147,7 @@ export default function ReviewQueuePage() {
         <div>
           <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Data Quality Review Queue</h1>
           <p style={{ margin: "0.25rem 0 0", color: "var(--muted)", fontSize: "0.9rem" }}>
-            {data ? `${data.total} pending item${data.total !== 1 ? "s" : ""}` : "Loading..."}
+            {data ? `${data.total} pending item${data.total !== 1 ? "s" : ""}` : <Skeleton width="80px" height={14} style={{ display: "inline-block" }} />}
           </p>
         </div>
         <a href="/admin" style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
@@ -217,7 +218,7 @@ export default function ReviewQueuePage() {
       )}
 
       {loading && !data && (
-        <div style={{ textAlign: "center", padding: "3rem", color: "var(--muted)" }}>Loading...</div>
+        <div style={{ padding: "2rem" }}><SkeletonTable rows={5} columns={4} /></div>
       )}
 
       {data && data.items.length === 0 && (

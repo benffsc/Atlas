@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne, query } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
@@ -45,6 +46,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "place");
     const sql = `
       SELECT
         e.estimate_id,
@@ -90,6 +92,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(id, "place");
     const body: ObservationBody = await request.json();
 
     // Validate required fields

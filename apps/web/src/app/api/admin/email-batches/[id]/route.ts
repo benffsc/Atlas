@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { queryOne, query, queryRows } from "@/lib/db";
 import { sendOutlookEmail } from "@/lib/outlook";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiError } from "@/lib/api-response";
 
 interface EmailBatch {
@@ -32,6 +33,7 @@ export async function GET(
   try {
     await requireRole(request, ["admin", "staff"]);
     const { id } = await params;
+    requireValidUUID(id, "email_batch");
 
     const batch = await queryOne<EmailBatch & {
       from_email: string;
@@ -103,6 +105,7 @@ export async function PATCH(
   try {
     const staff = await requireRole(request, ["admin", "staff"]);
     const { id } = await params;
+    requireValidUUID(id, "email_batch");
 
     const body = await request.json();
     const { action, ...updates } = body;
@@ -272,6 +275,7 @@ export async function DELETE(
   try {
     await requireRole(request, ["admin", "staff"]);
     const { id } = await params;
+    requireValidUUID(id, "email_batch");
 
     const batch = await queryOne<{ status: string }>(`
       SELECT status FROM ops.email_batches WHERE batch_id = $1

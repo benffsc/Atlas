@@ -4,6 +4,7 @@ import { formatDateLocal } from "@/lib/formatters";
 import { MyItemsWidget } from "@/components/common";
 import { StatusBadge, PriorityDot } from "@/components/badges";
 import { AttentionBar } from "./AttentionBar";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface ActiveRequest {
   request_id: string;
@@ -135,9 +136,7 @@ export function ActionPanel({
         </h2>
 
         {loadingRequests ? (
-          <p className="text-muted" style={{ textAlign: "center", padding: "0.75rem 0" }}>
-            Loading...
-          </p>
+          <div style={{ padding: "0.5rem 0" }}><SkeletonList items={3} /></div>
         ) : requests.length === 0 ? (
           <p className="text-muted" style={{ textAlign: "center", padding: "0.75rem 0" }}>
             No active requests
@@ -192,9 +191,7 @@ export function ActionPanel({
         </h2>
 
         {loadingIntake ? (
-          <p className="text-muted" style={{ textAlign: "center", padding: "0.75rem 0" }}>
-            Loading...
-          </p>
+          <div style={{ padding: "0.5rem 0" }}><SkeletonList items={3} /></div>
         ) : intake.length === 0 ? (
           <p className="text-muted" style={{ textAlign: "center", padding: "0.75rem 0" }}>
             No pending submissions

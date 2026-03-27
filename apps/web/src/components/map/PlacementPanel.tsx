@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/components/feedback/Toast";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
@@ -27,6 +28,7 @@ type AnnotationType = 'general' | 'colony_sighting' | 'trap_location' | 'hazard'
 type ExpiresOption = 'never' | 'tomorrow' | '1_week' | '1_month' | 'custom';
 
 export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotationCreated, onCancel }: PlacementPanelProps) {
+  const { addToast } = useToast();
   // Place mode state
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [loadingNearby, setLoadingNearby] = useState(false);
@@ -82,7 +84,7 @@ export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotatio
       onPlaceSelected(data.place_id);
     } catch (err) {
       console.error("Error creating place:", err);
-      alert("Failed to create place from coordinates");
+      addToast({ type: "error", message: "Failed to create place from coordinates" });
     } finally {
       setCreatingPlace(false);
     }
@@ -115,7 +117,7 @@ export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotatio
       setUploadedPhotoUrl(data.storage_path || data.url);
     } catch (err) {
       console.error("Error uploading photo:", err);
-      alert("Failed to upload photo");
+      addToast({ type: "error", message: "Failed to upload photo" });
     } finally {
       setUploadingPhoto(false);
     }
@@ -125,7 +127,7 @@ export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotatio
   const handleSaveAnnotation = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!label.trim()) {
-      alert("Label is required");
+      addToast({ type: "warning", message: "Label is required" });
       return;
     }
 
@@ -168,7 +170,7 @@ export function PlacementPanel({ mode, coordinates, onPlaceSelected, onAnnotatio
       onAnnotationCreated();
     } catch (err) {
       console.error("Error creating annotation:", err);
-      alert("Failed to create annotation");
+      addToast({ type: "error", message: "Failed to create annotation" });
     } finally {
       setSavingAnnotation(false);
     }

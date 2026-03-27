@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
-import { apiError } from "@/lib/api-response";
+import { apiSuccess, apiError } from "@/lib/api-response";
 
 // Cache stats for 5 minutes - they don't need to be real-time
 export const revalidate = 300;
@@ -78,7 +77,7 @@ export async function GET() {
       // Views might not exist, gracefully continue
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       total: stats?.total || 0,
       by_status: stats?.by_status || {},
       by_source: stats?.by_source || {},
@@ -90,11 +89,7 @@ export async function GET() {
         ready_to_process: geocodingQueue.ready_to_process,
         recent_failures: geocodingFailures,
       } : null,
-    }, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-      }
-    });
+    }, { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } });
   } catch (err) {
     console.error("Error fetching admin stats:", err);
     return apiError("Failed to fetch stats", 500);

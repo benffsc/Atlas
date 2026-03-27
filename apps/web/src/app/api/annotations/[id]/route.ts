@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // GET /api/annotations/[id] - Get annotation details with journal entries
@@ -9,6 +10,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "annotation");
 
     const annotation = await queryOne<{
       annotation_id: string;
@@ -87,6 +89,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "annotation");
     const body = await request.json();
 
     const updates: string[] = [];
@@ -165,6 +168,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "annotation");
 
     const result = await queryOne<{ annotation_id: string }>(
       `UPDATE ops.map_annotations

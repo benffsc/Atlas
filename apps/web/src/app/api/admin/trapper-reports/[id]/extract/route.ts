@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiForbidden, apiNotFound, apiServerError } from "@/lib/api-response";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -181,6 +182,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(id, "trapper_report");
     // Get submission with pre-filled data
     const submission = await queryOne<{
       submission_id: string;

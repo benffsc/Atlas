@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface CustomField {
   field_id: string;
@@ -343,7 +344,7 @@ export default function IntakeFieldsAdminPage() {
 
       {/* Fields List */}
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+        <div style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={3} /></div>
       ) : fields.length === 0 ? (
         <div
           style={{

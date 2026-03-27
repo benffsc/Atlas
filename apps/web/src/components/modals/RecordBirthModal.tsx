@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { postApi, fetchApi } from '@/lib/api-client';
+import { ConfirmDialog } from '@/components/feedback/ConfirmDialog';
 
 interface RecordBirthModalProps {
   isOpen: boolean;
@@ -79,6 +80,7 @@ export default function RecordBirthModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const isEditing = !!existingBirthEvent;
 
@@ -138,9 +140,8 @@ export default function RecordBirthModal({
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('Remove birth information for this cat?')) return;
-
+  const handleDeleteConfirm = async () => {
+    setShowDeleteConfirm(false);
     setSubmitting(true);
     try {
       await fetchApi(`/api/cats/${catId}/birth`, { method: 'DELETE' });
@@ -496,7 +497,7 @@ export default function RecordBirthModal({
               {isEditing && (
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={() => setShowDeleteConfirm(true)}
                   style={{
                     padding: '0.75rem',
                     background: '#dc3545',
@@ -564,6 +565,16 @@ export default function RecordBirthModal({
           </form>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Remove Birth Information"
+        message="Remove birth information for this cat? This action cannot be undone."
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

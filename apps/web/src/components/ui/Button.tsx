@@ -83,6 +83,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const isDisabled = disabled || loading;
     const sizeStyle = SIZE_STYLES[size];
     const variantStyle = VARIANT_STYLES[variant];
+    const disabledStyle: React.CSSProperties = isDisabled
+      ? {
+          color: "var(--muted)",
+          background: "var(--bg-secondary)",
+          borderColor: "var(--border-light, var(--border))",
+          cursor: "not-allowed",
+        }
+      : {};
 
     return (
       <button
@@ -94,13 +102,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           justifyContent: "center",
           fontWeight: 500,
           cursor: isDisabled ? "not-allowed" : "pointer",
-          opacity: isDisabled ? 0.55 : 1,
-          transition: "background 150ms ease, box-shadow 150ms ease, opacity 150ms ease",
+          transition: "background 150ms ease, box-shadow 150ms ease",
           width: fullWidth ? "100%" : undefined,
           whiteSpace: "nowrap",
           lineHeight: 1.4,
           ...sizeStyle,
           ...variantStyle,
+          ...disabledStyle,
           ...style,
         }}
         {...rest}

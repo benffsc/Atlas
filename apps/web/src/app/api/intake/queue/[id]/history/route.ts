@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface EditHistoryEntry {
@@ -19,6 +20,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "intake");
     // Fetch edit history from entity_edits table
     const history = await queryRows<EditHistoryEntry>(`
       SELECT

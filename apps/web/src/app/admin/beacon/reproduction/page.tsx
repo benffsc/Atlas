@@ -5,6 +5,8 @@ import Link from "next/link";
 import { DataQualityBadge, AIParsedBadge } from "@/components/badges";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface ReproductionRecord {
   vitals_id: string;
@@ -28,6 +30,7 @@ interface Stats {
 }
 
 export default function ReproductionPage() {
+  const { addToast } = useToast();
   const [records, setRecords] = useState<ReproductionRecord[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,7 +97,7 @@ export default function ReproductionPage() {
       await loadData();
       closeEditModal();
     } catch (err) {
-      alert("Error saving changes");
+      addToast({ type: "error", message: "Error saving changes" });
     } finally {
       setSaving(false);
     }
@@ -110,7 +113,7 @@ export default function ReproductionPage() {
           await postApi(`/api/admin/beacon/reproduction?id=${vitalsId}`, {}, { method: "DELETE" });
           await loadData();
         } catch (err) {
-          alert("Error deleting");
+          addToast({ type: "error", message: "Error deleting" });
         }
       },
     });
@@ -132,7 +135,7 @@ export default function ReproductionPage() {
           setSelectedIds(new Set());
           await loadData();
         } catch (err) {
-          alert("Error during bulk delete");
+          addToast({ type: "error", message: "Error during bulk delete" });
         } finally {
           setBulkDeleting(false);
         }
@@ -303,7 +306,7 @@ export default function ReproductionPage() {
 
       {/* Results */}
       {loading ? (
-        <div className="card" style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>
+        <div className="card" style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={4} /></div>
       ) : (
         <div className="card">
           <table style={{ width: "100%", borderCollapse: "collapse" }}>

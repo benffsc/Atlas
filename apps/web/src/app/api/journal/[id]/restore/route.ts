@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 // POST /api/journal/[id]/restore - Restore an archived journal entry
@@ -13,6 +14,7 @@ export async function POST(
   const restoredBy = request.nextUrl.searchParams.get("restored_by") || user.displayName;
 
   try {
+    requireValidUUID(id, "journal");
     const result = await queryOne<{ id: string }>(
       `UPDATE ops.journal_entries
        SET is_archived = FALSE,

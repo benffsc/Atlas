@@ -8,6 +8,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS } from "@/lib/design-tokens";
 import { MB_LG, MB_XL, SECTION_DIVIDER } from "../styles";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 import {
   OWNERSHIP_OPTIONS,
   HANDLEABILITY_OPTIONS,
@@ -1511,7 +1512,7 @@ function NewRequestForm() {
 
 export default function NewRequestPage() {
   return (
-    <Suspense fallback={<div className="loading">Loading...</div>}>
+    <Suspense fallback={<div className="page-container"><SkeletonTable rows={6} columns={3} /></div>}>
       <NewRequestForm />
     </Suspense>
   );

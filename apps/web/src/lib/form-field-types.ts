@@ -21,6 +21,9 @@ export type FieldType =
   | "phone"
   | "email";
 
+/** Runtime-checkable array of all valid field types. */
+export const FIELD_TYPES = ["text", "number", "boolean", "select", "multi_select", "date", "textarea", "phone", "email"] as const satisfies readonly FieldType[];
+
 export type FieldCategory =
   | "contact"
   | "location"
@@ -31,6 +34,9 @@ export type FieldCategory =
   | "medical"
   | "staff"
   | "referral";
+
+/** Runtime-checkable array of all valid field categories. */
+export const FIELD_CATEGORIES = ["contact", "location", "cat_info", "logistics", "trapping", "kitten", "medical", "staff", "referral"] as const satisfies readonly FieldCategory[];
 
 /** All known field_key values in the registry. */
 export type FieldKey =
@@ -149,9 +155,18 @@ export interface FormFieldDefinition {
 
 export type TemplateKey = "help_request" | "tnr_call_sheet" | "trapper_sheet";
 
+/** Runtime-checkable array of all valid template keys. */
+export const FORM_TEMPLATE_KEYS = ["help_request", "tnr_call_sheet", "trapper_sheet"] as const satisfies readonly TemplateKey[];
+
 export type FormEntityType = "request" | "cat" | "place";
 
+/** Runtime-checkable array of all valid form entity types. */
+export const FORM_ENTITY_TYPES = ["request", "cat", "place"] as const satisfies readonly FormEntityType[];
+
 export type FieldWidth = "sm" | "md" | "lg" | "xl";
+
+/** Runtime-checkable array of all valid field widths. */
+export const FIELD_WIDTHS = ["sm", "md", "lg", "xl"] as const satisfies readonly FieldWidth[];
 
 export interface PrintLayout {
   pages: number;
@@ -222,6 +237,9 @@ export interface TemplateSection {
 
 export type SubmissionSource = "atlas_ui" | "paper_entry" | "web_intake" | "import";
 
+/** Runtime-checkable array of all valid submission sources. */
+export const SUBMISSION_SOURCES = ["atlas_ui", "paper_entry", "web_intake", "import"] as const satisfies readonly SubmissionSource[];
+
 /** Data stored in form_submissions.data — keyed by FieldKey. */
 export type FormData = Partial<Record<FieldKey, unknown>>;
 
@@ -238,3 +256,10 @@ export interface FormSubmission {
   paper_scan_url: string | null;
   notes: string | null;
 }
+
+// ── Admin form config section components ──
+
+export type FormSectionComponent = "person" | "place" | "catDetails" | "kittens" | "propertyAccess" | "urgencyNotes";
+
+/** Runtime-checkable array of all valid form section components. */
+export const FORM_SECTION_COMPONENTS = ["person", "place", "catDetails", "kittens", "propertyAccess", "urgencyNotes"] as const satisfies readonly FormSectionComponent[];

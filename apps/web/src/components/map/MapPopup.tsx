@@ -3,7 +3,7 @@
  * Google Maps-inspired popup designs
  */
 
-import { MAP_COLORS, getPriorityColor, getClassificationColor } from '@/lib/map-colors';
+import { MAP_COLORS, getPriorityColor } from '@/lib/map-colors';
 
 // Helper to escape HTML
 export function escapeHtml(text: string): string {
@@ -45,7 +45,7 @@ export function buildPlacePopup(place: PlaceData): string {
       : '';
     personInfo = `
       <div class="map-popup__person">
-        <span style="color: #6366f1; font-weight: 500;">
+        <span style="color: ${MAP_COLORS.pinStyle.has_history}; font-weight: 500;">
           ${escapeHtml(place.primary_person_name)}
         </span>${catText}
       </div>
@@ -67,7 +67,7 @@ export function buildPlacePopup(place: PlaceData): string {
         ${place.service_zone ? `
           <span class="map-popup__zone">${place.service_zone}</span>
         ` : ''}
-        <span style="color: ${place.has_observation ? '#16a34a' : '#ca8a04'}">
+        <span style="color: ${place.has_observation ? MAP_COLORS.priority.managed : MAP_COLORS.priority.medium}">
           ${place.has_observation ? 'Has observation data' : 'Needs observation'}
         </span>
       </div>
@@ -100,13 +100,7 @@ interface TNRPriorityData {
  * Build popup content for a TNR priority marker
  */
 export function buildTNRPriorityPopup(data: TNRPriorityData): string {
-  const priorityColors: Record<string, string> = {
-    critical: '#dc2626',
-    high: '#ea580c',
-    medium: '#ca8a04',
-    managed: '#16a34a',
-  };
-  const priorityColor = priorityColors[data.tnr_priority || 'unknown'] || '#6b7280';
+  const priorityColor = getPriorityColor(data.tnr_priority || 'unknown');
   const rate = data.alteration_rate !== undefined ? Math.round(data.alteration_rate * 100) : 0;
 
   return `
@@ -193,19 +187,19 @@ export function buildGooglePinPopup(pin: GooglePinData): string {
       <header class="map-popup__header">
         <h3 class="map-popup__title">${escapeHtml(pin.name || 'Historical Pin')}</h3>
         ${pin.display_label ? `
-          <span class="map-popup__badge" style="background: ${pin.display_color || '#6b7280'}20; color: ${pin.display_color || '#6b7280'}">
+          <span class="map-popup__badge" style="background: ${pin.display_color || MAP_COLORS.priority.unknown}20; color: ${pin.display_color || MAP_COLORS.priority.unknown}">
             ${pin.display_label}
           </span>
         ` : ''}
       </header>
       <div class="map-popup__meta">
         ${confidencePercent ? `
-          <span style="font-size: 12px; color: #6b7280">
+          <span style="font-size: 12px; color: ${MAP_COLORS.priority.unknown}">
             AI confidence: ${confidencePercent}%
           </span>
         ` : ''}
         ${pin.cat_count ? `
-          <span style="font-size: 12px; color: #6b7280">
+          <span style="font-size: 12px; color: ${MAP_COLORS.priority.unknown}">
             ${pin.cat_count} cats mentioned
           </span>
         ` : ''}
@@ -246,13 +240,8 @@ interface VolunteerData {
  * Build popup content for a volunteer marker
  */
 export function buildVolunteerPopup(volunteer: VolunteerData): string {
-  const roleColors: Record<string, string> = {
-    coordinator: '#7c3aed',
-    head_trapper: '#2563eb',
-    ffsc_trapper: '#16a34a',
-    community_trapper: '#f59e0b',
-  };
-  const roleColor = roleColors[volunteer.role || ''] || '#6b7280';
+  const roleColor = MAP_COLORS.volunteerRoles[volunteer.role as keyof typeof MAP_COLORS.volunteerRoles]
+    || MAP_COLORS.priority.unknown;
 
   return `
     <div class="map-popup map-popup--volunteer">
@@ -266,7 +255,7 @@ export function buildVolunteerPopup(volunteer: VolunteerData): string {
         ${volunteer.service_zone ? `
           <span class="map-popup__zone">${volunteer.service_zone}</span>
         ` : ''}
-        <span style="color: ${volunteer.is_active ? '#16a34a' : '#6b7280'}">
+        <span style="color: ${volunteer.is_active ? MAP_COLORS.priority.managed : MAP_COLORS.priority.unknown}">
           ${volunteer.is_active ? 'Active' : 'Inactive'}
         </span>
       </div>
@@ -309,7 +298,7 @@ export function buildClinicClientPopup(client: ClinicClientData): string {
           <span class="map-popup__zone">${client.service_zone}</span>
         ` : ''}
         ${lastVisitDate ? `
-          <span style="font-size: 12px; color: #6b7280">
+          <span style="font-size: 12px; color: ${MAP_COLORS.priority.unknown}">
             Last: ${lastVisitDate}
           </span>
         ` : ''}
@@ -347,15 +336,8 @@ interface ZoneData {
  * Build popup content for a zone marker
  */
 export function buildZonePopup(zone: ZoneData): string {
-  const statusColors: Record<string, string> = {
-    critical: '#dc2626',
-    high: '#ea580c',
-    medium: '#ca8a04',
-    refresh: '#3b82f6',
-    current: '#16a34a',
-    unknown: '#6b7280',
-  };
-  const statusColor = statusColors[zone.observation_status || 'unknown'] || '#6b7280';
+  const statusColor = MAP_COLORS.zoneStatus[zone.observation_status as keyof typeof MAP_COLORS.zoneStatus]
+    || MAP_COLORS.zoneStatus.unknown;
 
   return `
     <div class="map-popup map-popup--zone">
@@ -389,7 +371,7 @@ export function buildLoadingPopup(): string {
     <div class="map-popup">
       <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0;">
         <div class="map-loading-spinner"></div>
-        <span style="color: #6b7280;">Loading...</span>
+        <span style="color: ${MAP_COLORS.priority.unknown};">Loading...</span>
       </div>
     </div>
   `;

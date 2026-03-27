@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface LinkedCat {
@@ -49,11 +50,8 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  if (!id) {
-    return apiBadRequest("Request ID is required");
-  }
-
   try {
+    requireValidUUID(id, "request");
     const sql = `
       SELECT
         request_id,

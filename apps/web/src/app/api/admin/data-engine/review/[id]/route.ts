@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 
 /**
@@ -22,6 +23,7 @@ export async function POST(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "review");
     const body = await request.json();
     const { action, notes } = body;
 
@@ -67,6 +69,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "review");
     const decision = await queryOne<{
       decision_id: string;
       source_system: string;

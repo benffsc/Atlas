@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface Staff {
@@ -30,6 +31,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "staff");
     const staff = await queryOne<Staff>(`
       SELECT
         staff_id,
@@ -72,6 +74,7 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "staff");
     const body = await request.json();
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -149,6 +152,7 @@ export async function DELETE(
   const hardDelete = searchParams.get("hard") === "true";
 
   try {
+    requireValidUUID(id, "staff");
     if (hardDelete) {
       // Hard delete - only if no Airtable source
       const result = await queryOne<{ staff_id: string }>(`

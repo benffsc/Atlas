@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { TabBar } from "@/components/ui/TabBar";
+import { SkeletonStats } from "@/components/feedback/Skeleton";
 
 type TabType = "dashboard" | "alerts" | "trends";
 
@@ -177,7 +178,7 @@ export default function DataQualityPage() {
     return (
       <div>
         <h1>Data Quality</h1>
-        <p className="text-muted">Loading...</p>
+        <SkeletonStats count={4} />
       </div>
     );
   }

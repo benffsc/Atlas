@@ -4,6 +4,9 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { TabBar } from "@/components/ui/TabBar";
+import { StatCard } from "@/components/ui/StatCard";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 // ============================================================================
 // Types
@@ -158,37 +161,37 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
               label="Tier 1: Email Match"
               value={data.identity.tier1_email}
               href="/admin/person-dedup?tier=1"
-              color="var(--primary, #3b82f6)"
+              accentColor="var(--primary, #3b82f6)"
             />
             <StatCard
               label="Tier 2: Phone + Name"
               value={data.identity.tier2_phone_name}
               href="/admin/person-dedup?tier=2"
-              color="#8b5cf6"
+              accentColor="#8b5cf6"
             />
             <StatCard
               label="Tier 3: Phone Only"
               value={data.identity.tier3_phone_only}
               href="/admin/person-dedup?tier=3"
-              color="#f59e0b"
+              accentColor="#f59e0b"
             />
             <StatCard
               label="Tier 4: Name + Address"
               value={data.identity.tier4_name_address}
               href="/admin/merge-review"
-              color="#ef4444"
+              accentColor="#ef4444"
             />
             <StatCard
               label="Tier 5: Name Only"
               value={data.identity.tier5_name_only}
               href="/admin/person-dedup?tier=5"
-              color="#6b7280"
+              accentColor="#6b7280"
             />
             <StatCard
               label="Data Engine Pending"
               value={data.identity.data_engine_pending}
               href="/admin/data-engine/review"
-              color="#10b981"
+              accentColor="#10b981"
             />
           </div>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -210,13 +213,13 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
               label="Close Similar"
               value={data.places.close_similar}
               href="/admin/place-dedup?type=similar"
-              color="var(--primary, #3b82f6)"
+              accentColor="var(--primary, #3b82f6)"
             />
             <StatCard
               label="Close Different"
               value={data.places.close_different}
               href="/admin/place-dedup?type=different"
-              color="#f59e0b"
+              accentColor="#f59e0b"
             />
           </div>
           <Link href="/admin/place-dedup" className="btn btn-primary">
@@ -233,7 +236,7 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
               label="Quality Issues"
               value={data.quality.total}
               href="/admin/data-quality/review"
-              color="#ef4444"
+              accentColor="#ef4444"
             />
           </div>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -255,19 +258,19 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
               label="Colony Estimates"
               value={data.ai_parsed.colony_estimates}
               href="/admin/beacon/colony-estimates"
-              color="#10b981"
+              accentColor="#10b981"
             />
             <StatCard
               label="Reproduction Data"
               value={data.ai_parsed.reproduction}
               href="/admin/beacon/reproduction"
-              color="#8b5cf6"
+              accentColor="#8b5cf6"
             />
             <StatCard
               label="Mortality Data"
               value={data.ai_parsed.mortality}
               href="/admin/beacon/mortality"
-              color="#6b7280"
+              accentColor="#6b7280"
             />
           </div>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -302,19 +305,19 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
                   label="Ownership Transfers"
                   value={data.owner_changes?.transfers || 0}
                   href="/admin/owner-changes?type=transfer"
-                  color="#dc2626"
+                  accentColor="#dc2626"
                 />
                 <StatCard
                   label="Household Changes"
                   value={data.owner_changes?.household || 0}
                   href="/admin/owner-changes?type=household"
-                  color="#f59e0b"
+                  accentColor="#f59e0b"
                 />
                 <StatCard
                   label="Total Pending"
                   value={data.owner_changes?.total || 0}
                   href="/admin/owner-changes"
-                  color="var(--primary, #3b82f6)"
+                  accentColor="var(--primary, #3b82f6)"
                 />
               </div>
               <div style={{
@@ -340,6 +343,7 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
 }
 
 function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRefresh?: () => void }) {
+  const { addToast } = useToast();
   const [runningJobs, setRunningJobs] = useState(false);
 
   if (!data) {
@@ -352,13 +356,13 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
       const res = await fetch("/api/admin/data/processing", { method: "POST" });
       const result = await res.json();
       if (result.success) {
-        alert(result.message);
+        addToast({ type: "success", message: result.message });
         onRefresh?.();
       } else {
-        alert(result.error || "Failed to start jobs");
+        addToast({ type: "error", message: result.error || "Failed to start jobs" });
       }
     } catch (err) {
-      alert("Failed to start jobs");
+      addToast({ type: "error", message: "Failed to start jobs" });
     } finally {
       setRunningJobs(false);
     }
@@ -467,9 +471,9 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
       {/* Entity Linking */}
       <h3 style={{ marginBottom: "1rem" }}>Entity Linking Pipeline</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Appointments Linked" value={data.entity_linking.appointments_linked} color="var(--primary, #3b82f6)" />
-        <StatCard label="Cats Linked" value={data.entity_linking.cats_linked} color="#10b981" />
-        <StatCard label="Places Inferred" value={data.entity_linking.places_inferred} color="#8b5cf6" />
+        <StatCard label="Appointments Linked" value={data.entity_linking.appointments_linked} accentColor="var(--primary, #3b82f6)" />
+        <StatCard label="Cats Linked" value={data.entity_linking.cats_linked} accentColor="#10b981" />
+        <StatCard label="Places Inferred" value={data.entity_linking.places_inferred} accentColor="#8b5cf6" />
       </div>
 
       {/* Job Queue */}
@@ -495,10 +499,10 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
         )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
-        <StatCard label="Pending" value={data.jobs.pending} color="#f59e0b" />
-        <StatCard label="Running" value={data.jobs.running} color="var(--primary, #3b82f6)" />
-        <StatCard label="Completed (24h)" value={data.jobs.completed_24h} color="#10b981" />
-        <StatCard label="Failed (24h)" value={data.jobs.failed_24h} color="#ef4444" />
+        <StatCard label="Pending" value={data.jobs.pending} accentColor="#f59e0b" />
+        <StatCard label="Running" value={data.jobs.running} accentColor="var(--primary, #3b82f6)" />
+        <StatCard label="Completed (24h)" value={data.jobs.completed_24h} accentColor="#10b981" />
+        <StatCard label="Failed (24h)" value={data.jobs.failed_24h} accentColor="#ef4444" />
       </div>
     </div>
   );
@@ -591,12 +595,12 @@ function HealthTab({ health }: { health: HealthData | null }) {
 
       {/* Metrics Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Total Decisions" value={h.total_decisions} color="var(--primary, #3b82f6)" />
-        <StatCard label="Decisions (24h)" value={h.decisions_24h} color="#10b981" />
-        <StatCard label="Pending Reviews" value={h.pending_reviews} color="#f59e0b" />
-        <StatCard label="Total Households" value={h.total_households} color="#8b5cf6" />
-        <StatCard label="Active Rules" value={h.active_rules} color="#6b7280" />
-        <StatCard label="Avg Processing" value={`${h.avg_processing_ms}ms`} color="var(--primary, #3b82f6)" />
+        <StatCard label="Total Decisions" value={h.total_decisions} accentColor="var(--primary, #3b82f6)" />
+        <StatCard label="Decisions (24h)" value={h.decisions_24h} accentColor="#10b981" />
+        <StatCard label="Pending Reviews" value={h.pending_reviews} accentColor="#f59e0b" />
+        <StatCard label="Total Households" value={h.total_households} accentColor="#8b5cf6" />
+        <StatCard label="Active Rules" value={h.active_rules} accentColor="#6b7280" />
+        <StatCard label="Avg Processing" value={`${h.avg_processing_ms}ms`} accentColor="var(--primary, #3b82f6)" />
       </div>
 
       {/* Links */}
@@ -616,38 +620,6 @@ function HealthTab({ health }: { health: HealthData | null }) {
 // Helper Components
 // ============================================================================
 
-function StatCard({
-  label,
-  value,
-  href,
-  color,
-}: {
-  label: string;
-  value: number | string;
-  href?: string;
-  color: string;
-}) {
-  const content = (
-    <div
-      style={{
-        padding: "1rem",
-        background: "var(--background)",
-        borderRadius: "8px",
-        border: "1px solid var(--border)",
-        borderLeft: `4px solid ${color}`,
-        cursor: href ? "pointer" : "default",
-        transition: "box-shadow 0.15s",
-      }}
-      onMouseEnter={(e) => href && (e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0,0,0,0.1)")}
-      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
-    >
-      <div style={{ fontSize: "0.75rem", color: "#6b7280", marginBottom: "0.25rem" }}>{label}</div>
-      <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>{typeof value === "number" ? value.toLocaleString() : value}</div>
-    </div>
-  );
-
-  return href ? <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>{content}</Link> : content;
-}
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; color: string }> = {
@@ -782,7 +754,7 @@ function DataHubContent() {
       {/* Tab Content */}
       <div style={{ background: "var(--bg-secondary, #f9fafb)", padding: "1.5rem", borderRadius: "8px", minHeight: "400px" }}>
         {loading ? (
-          <p className="text-muted">Loading...</p>
+          <div style={{ padding: "1rem 0" }}><SkeletonTable rows={5} columns={4} /></div>
         ) : (
           <>
             {activeTab === "review" && <ReviewQueueTab data={queueData} />}

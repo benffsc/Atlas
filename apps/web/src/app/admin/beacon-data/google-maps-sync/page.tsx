@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface ImportHistory {
   import_id: string;
@@ -148,8 +149,8 @@ export default function GoogleMapsSyncPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
-        Loading...
+      <div style={{ padding: "2rem" }}>
+        <SkeletonTable rows={6} columns={4} />
       </div>
     );
   }

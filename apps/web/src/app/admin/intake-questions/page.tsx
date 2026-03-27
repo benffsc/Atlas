@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface QuestionOption {
   option_id?: string;
@@ -37,6 +39,7 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 export default function IntakeQuestionsAdmin() {
+  const { addToast } = useToast();
   const [questions, setQuestions] = useState<IntakeQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingQuestion, setEditingQuestion] = useState<IntakeQuestion | null>(null);
@@ -86,7 +89,7 @@ export default function IntakeQuestionsAdmin() {
       fetchQuestions();
     } catch (err) {
       console.error("Error saving question:", err);
-      alert(err instanceof ApiError ? err.message : "Failed to save question");
+      addToast({ type: "error", message: err instanceof ApiError ? err.message : "Failed to save question" });
     } finally {
       setSaving(false);
     }
@@ -94,7 +97,7 @@ export default function IntakeQuestionsAdmin() {
 
   const handleAddCustomQuestion = async () => {
     if (!newQuestion.question_key || !newQuestion.question_text) {
-      alert("Question key and text are required");
+      addToast({ type: "error", message: "Question key and text are required" });
       return;
     }
 
@@ -114,7 +117,7 @@ export default function IntakeQuestionsAdmin() {
       fetchQuestions();
     } catch (err) {
       console.error("Error adding question:", err);
-      alert(err instanceof ApiError ? err.message : "Failed to add question");
+      addToast({ type: "error", message: err instanceof ApiError ? err.message : "Failed to add question" });
     } finally {
       setSaving(false);
     }
@@ -133,7 +136,7 @@ export default function IntakeQuestionsAdmin() {
       fetchQuestions();
     } catch (err) {
       console.error("Error deleting question:", err);
-      alert(err instanceof ApiError ? err.message : "Failed to delete question");
+      addToast({ type: "error", message: err instanceof ApiError ? err.message : "Failed to delete question" });
     }
   }
 
@@ -147,7 +150,7 @@ export default function IntakeQuestionsAdmin() {
     return (
       <div style={{ padding: "2rem" }}>
         <h1>Intake Questions Configuration</h1>
-        <p>Loading...</p>
+        <SkeletonTable rows={6} columns={3} />
       </div>
     );
   }

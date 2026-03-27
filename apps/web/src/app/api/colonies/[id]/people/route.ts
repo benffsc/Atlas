@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 import { logFieldEdit } from "@/lib/audit";
 
@@ -27,6 +28,7 @@ export async function GET(
   const { id: colonyId } = await params;
 
   try {
+    requireValidUUID(colonyId, "colony");
     const people = await queryRows<ColonyPerson>(
       `SELECT
         cp.colony_people_id,
@@ -85,6 +87,7 @@ export async function POST(
   const { id: colonyId } = await params;
 
   try {
+    requireValidUUID(colonyId, "colony");
     const body = await request.json();
     const { person_id, role_type, notes, assigned_by } = body;
 
@@ -159,6 +162,7 @@ export async function PATCH(
   const { id: colonyId } = await params;
 
   try {
+    requireValidUUID(colonyId, "colony");
     const body = await request.json();
     const { person_id, role_type, action, end_reason } = body;
 
@@ -198,6 +202,7 @@ export async function DELETE(
   }
 
   try {
+    requireValidUUID(colonyId, "colony");
     const result = await queryOne<{ colony_people_id: string }>(
       `UPDATE sot.colony_people
        SET is_active = FALSE, ended_at = NOW()

@@ -15,6 +15,7 @@ import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { PlacePreviewContent } from "@/components/preview/PlacePreviewContent";
 import { FilterBar, FilterDivider, SearchInput } from "@/components/filters";
 import { DataTable, useDataTable } from "@/components/data-table";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Place {
   place_id: string;
@@ -211,7 +212,7 @@ function PlacesPageContent() {
       onClose={() => setFilter("selected", "")}
     />
   ) : filters.selected && detailLoading ? (
-    <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+    <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
   ) : null;
 
   return (

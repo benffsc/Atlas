@@ -65,9 +65,6 @@ export function useDedupData<C>(config: DedupConfig<C>) {
     ) => {
       if (!selectedKeys.size) return;
 
-      const actionLabel = config.actions.find((a) => a.key === action)?.batchLabel || action;
-      if (!confirm(`${actionLabel} ${selectedKeys.size} selected pair(s)?`)) return;
-
       setBatchAction(true);
       const pairs = Array.from(selectedKeys).map((key) =>
         config.getBatchPairPayload(key, candidates)
@@ -84,7 +81,7 @@ export function useDedupData<C>(config: DedupConfig<C>) {
             .filter((r) => !r.success)
             .map((r) => r.error)
             .join(", ");
-          alert(`${result.success} succeeded, ${result.errors} failed: ${failed}`);
+          toastError(`${result.success} succeeded, ${result.errors} failed: ${failed}`);
         }
         onClearSelection();
         fetchCandidates();
@@ -94,7 +91,7 @@ export function useDedupData<C>(config: DedupConfig<C>) {
         setBatchAction(false);
       }
     },
-    [config, fetchCandidates]
+    [config, fetchCandidates, toastError]
   );
 
   const totalPairs = data?.summary.reduce((sum, s) => sum + s.pair_count, 0) || 0;

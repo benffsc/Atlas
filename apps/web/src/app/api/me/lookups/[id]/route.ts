@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiUnauthorized, apiBadRequest, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface LookupDetail {
@@ -33,6 +34,7 @@ export async function GET(
     }
 
     const { id } = await params;
+    requireValidUUID(id, "lookup");
 
     const lookup = await queryOne<LookupDetail>(
       `SELECT
@@ -73,7 +75,7 @@ export async function GET(
   } catch (error: any) {
     if (error?.code === '42P01') {
       // Table ops.staff_lookups doesn't exist yet
-      return NextResponse.json({ success: true, data: { lookup: null } });
+      return apiSuccess({ lookup: null });
     }
     console.error("Error fetching lookup:", error);
     return apiServerError("Failed to fetch lookup");
@@ -97,6 +99,7 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    requireValidUUID(id, "lookup");
     const body = await request.json();
     const { status } = body;
 
@@ -126,7 +129,7 @@ export async function PATCH(
   } catch (error: any) {
     if (error?.code === '42P01') {
       // Table ops.staff_lookups doesn't exist yet
-      return NextResponse.json({ success: true, data: { lookup: null } });
+      return apiSuccess({ lookup: null });
     }
     console.error("Error updating lookup:", error);
     return apiServerError("Failed to update lookup");
@@ -150,6 +153,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    requireValidUUID(id, "lookup");
 
     const result = await queryOne<{ lookup_id: string }>(
       `UPDATE ops.staff_lookups
@@ -170,7 +174,7 @@ export async function DELETE(
   } catch (error: any) {
     if (error?.code === '42P01') {
       // Table ops.staff_lookups doesn't exist yet
-      return NextResponse.json({ success: true, data: { lookup: null } });
+      return apiSuccess({ lookup: null });
     }
     console.error("Error deleting lookup:", error);
     return apiServerError("Failed to delete lookup");

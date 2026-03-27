@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 interface MovementEvent {
   movement_id: string;
@@ -66,6 +67,7 @@ const movementTypeLabels: Record<string, string> = {
 };
 
 export function CatMovementSection({ catId }: CatMovementSectionProps) {
+  const { addToast } = useToast();
   const [timeline, setTimeline] = useState<MovementEvent[]>([]);
   const [pattern, setPattern] = useState<MovementPattern | null>(null);
   const [reunifications, setReunifications] = useState<Reunification[]>([]);
@@ -124,7 +126,7 @@ export function CatMovementSection({ catId }: CatMovementSectionProps) {
       setShowReunionForm(false);
       setReunionNotes("");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Error recording reunification");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Error recording reunification" });
     } finally {
       setSavingReunion(false);
     }

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { SkeletonTable, SkeletonList } from "@/components/feedback/Skeleton";
 
 interface OutlookAccount {
   account_id: string;
@@ -210,8 +211,8 @@ function EmailSettingsContent() {
         </div>
 
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
-            Loading...
+          <div style={{ padding: "2rem" }}>
+            <SkeletonList items={3} />
           </div>
         ) : accounts.length === 0 ? (
           <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
@@ -400,7 +401,7 @@ function EmailSettingsContent() {
 
 export default function EmailSettingsPage() {
   return (
-    <Suspense fallback={<div style={{ padding: "2rem", textAlign: "center" }}>Loading...</div>}>
+    <Suspense fallback={<div style={{ padding: "2rem" }}><SkeletonTable rows={5} columns={3} /></div>}>
       <EmailSettingsContent />
     </Suspense>
   );

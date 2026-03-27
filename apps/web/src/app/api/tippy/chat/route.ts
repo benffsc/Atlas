@@ -710,6 +710,11 @@ async function getOrCreateConversation(
     [staffId || null]
   );
 
+  // FFS-864: Fire-and-forget summary generation for the previous conversation
+  if (staffId) {
+    generateConversationSummary(staffId).catch(() => {});
+  }
+
   return result?.conversation_id || `conv_${Date.now()}`;
 }
 
@@ -896,10 +901,135 @@ async function storeMessage(
           tokens || null,
         ]
       );
+      // FFS-863: Increment message_count
+      execute(
+        `UPDATE ops.tippy_conversations
+         SET message_count = message_count + 1, updated_at = NOW()
+         WHERE conversation_id = $1`,
+        [conversationId]
+      ).catch(() => {});
     }
   } catch (error) {
     // Don't fail the chat if storage fails
     console.error("Failed to store Tippy message:", error);
+  }
+}
+
+/**
+ * FFS-864: Generate summary for the most recent unsummarized conversation.
+ * Triggered fire-and-forget when a new conversation starts.
+ */
+async function generateConversationSummary(staffId: string): Promise<void> {
+  try {
+    // Find most recent unsummarized conversation with enough messages
+    const unsummarized = await queryOne<{ conversation_id: string }>(
+      `SELECT conversation_id FROM ops.tippy_conversations
+       WHERE staff_id = $1 AND summary IS NULL AND message_count >= 2
+       ORDER BY started_at DESC LIMIT 1`,
+      [staffId]
+    );
+
+    if (!unsummarized) return;
+
+    // Fetch last 10 user/assistant messages
+    const msgs = await queryRows<{ role: string; content: string }>(
+      `SELECT role, LEFT(content, 100) as content
+       FROM ops.tippy_messages
+       WHERE conversation_id = $1
+         AND role IN ('user', 'assistant')
+         AND content != '__shift_briefing__'
+       ORDER BY created_at DESC
+       LIMIT 10`,
+      [unsummarized.conversation_id]
+    );
+
+    if (msgs.length < 2) return;
+
+    const transcript = msgs
+      .reverse()
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n");
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return;
+
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 100,
+      messages: [
+        {
+          role: "user",
+          content: `Summarize this Tippy (Atlas TNR assistant) conversation in 1-2 sentences. Focus on locations, people, cats discussed and what was resolved.\n\n${transcript}`,
+        },
+      ],
+    });
+
+    const summary =
+      response.content[0]?.type === "text"
+        ? response.content[0].text
+        : null;
+
+    if (!summary) return;
+
+    // Idempotent: only update if still null
+    const updated = await queryOne<{ conversation_id: string }>(
+      `UPDATE ops.tippy_conversations
+       SET summary = $2
+       WHERE conversation_id = $1 AND summary IS NULL
+       RETURNING conversation_id`,
+      [unsummarized.conversation_id, summary]
+    );
+
+    if (updated) {
+      // Also store in memory table
+      await execute(
+        `INSERT INTO ops.tippy_staff_memory (staff_id, conversation_id, summary)
+         VALUES ($1, $2, $3)`,
+        [staffId, unsummarized.conversation_id, summary]
+      );
+    }
+  } catch (error) {
+    console.error("Failed to generate conversation summary:", error);
+  }
+}
+
+/**
+ * FFS-864: Build cross-session memory context from recent conversation summaries.
+ * Returns a ~200 token block for injection into the system prompt.
+ */
+async function buildMemoryContext(staffId: string): Promise<string | null> {
+  try {
+    const memories = await Promise.race([
+      queryRows<{ summary: string; created_at: string }>(
+        `SELECT summary, created_at FROM ops.tippy_staff_memory
+         WHERE staff_id = $1
+         ORDER BY created_at DESC LIMIT 5`,
+        [staffId]
+      ),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 2000)
+      ),
+    ]);
+
+    if (!memories || memories.length === 0) return null;
+
+    let text = "CROSS-SESSION MEMORY (recent conversations with this user):";
+    for (const mem of memories) {
+      const diff = Date.now() - new Date(mem.created_at).getTime();
+      const days = Math.floor(diff / 86400000);
+      const label =
+        days === 0
+          ? "today"
+          : days === 1
+            ? "yesterday"
+            : `${days} days ago`;
+      text += `\n- [${label}] ${mem.summary}`;
+    }
+
+    return text;
+  } catch {
+    return null;
   }
 }
 
@@ -1436,6 +1566,16 @@ Think: How would a veteran coordinator give an honest assessment?`;
         }
       } catch {
         // Don't fail the chat if onboarding check fails
+      }
+    }
+
+    // FFS-864: Inject cross-session memory context
+    if (session?.staff_id) {
+      try {
+        const memoryContext = await buildMemoryContext(session.staff_id);
+        if (memoryContext) systemPrompt += "\n\n" + memoryContext;
+      } catch {
+        // Don't fail the chat if memory retrieval fails
       }
     }
 

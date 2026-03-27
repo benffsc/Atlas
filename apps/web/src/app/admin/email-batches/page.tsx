@@ -6,6 +6,7 @@ import { BackButton } from "@/components/common";
 import { TabBar } from "@/components/ui/TabBar";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface ReadyRequest {
   request_id: string;
@@ -306,7 +307,7 @@ export default function EmailBatchesPage() {
       />
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading...</div>
+        <div style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={4} /></div>
       ) : activeTab === "ready" ? (
         /* Ready to Email Tab */
         <div className="space-y-6">

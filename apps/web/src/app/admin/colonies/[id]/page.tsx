@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface ColonyDetail {
   colony_id: string;
@@ -190,6 +191,10 @@ export default function ColonyDetailPage() {
   const [addingObs, setAddingObs] = useState(false);
   const [obsWarning, setObsWarning] = useState<string | null>(null);
 
+  // Confirm dialogs
+  const [showRemovePlaceConfirm, setShowRemovePlaceConfirm] = useState(false);
+  const pendingRemovePlaceIdRef = useRef("");
+
   const fetchColony = useCallback(async () => {
     try {
       const data = await fetchApi<ColonyDetail>(`/api/colonies/${id}`);
@@ -268,15 +273,20 @@ export default function ColonyDetailPage() {
     }
   };
 
-  const handleRemovePlace = async (placeId: string) => {
-    if (!confirm("Remove this place from the colony?")) return;
+  const handleRemovePlace = (placeId: string) => {
+    pendingRemovePlaceIdRef.current = placeId;
+    setShowRemovePlaceConfirm(true);
+  };
 
+  const handleRemovePlaceConfirm = async () => {
+    const placeId = pendingRemovePlaceIdRef.current;
+    setShowRemovePlaceConfirm(false);
+    pendingRemovePlaceIdRef.current = "";
     try {
       await fetchApi(
         `/api/colonies/${id}/places?placeId=${placeId}`,
         { method: "DELETE" }
       );
-
       await Promise.all([fetchColony(), fetchCats()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove place");
@@ -905,6 +915,19 @@ export default function ColonyDetailPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showRemovePlaceConfirm}
+        title="Remove Place"
+        message="Remove this place from the colony?"
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={handleRemovePlaceConfirm}
+        onCancel={() => {
+          setShowRemovePlaceConfirm(false);
+          pendingRemovePlaceIdRef.current = "";
+        }}
+      />
     </div>
   );
 }

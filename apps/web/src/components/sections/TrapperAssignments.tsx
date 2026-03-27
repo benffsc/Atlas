@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { TrapperBadge } from "@/components/badges";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { Skeleton } from "@/components/feedback/Skeleton";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface TrapperAssignment {
   assignment_id: string;
@@ -105,6 +107,8 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
   const [selectedTrapperId, setSelectedTrapperId] = useState("");
   const [isPrimary, setIsPrimary] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [showUnassignConfirm, setShowUnassignConfirm] = useState(false);
+  const [pendingUnassign, setPendingUnassign] = useState<{ id: string; name: string } | null>(null);
   // Mode: "official" shows only FFSC/Community trappers, "search" searches all people
   const [assignMode, setAssignMode] = useState<AssignMode>("official");
   // Person search for when searching all people
@@ -293,8 +297,9 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
     }
   };
 
-  const handleUnassign = async (trapperPersonId: string, trapperName: string) => {
-    if (!confirm(`Unassign ${trapperName} from this request?`)) return;
+  const doUnassign = async (trapperPersonId: string, trapperName: string) => {
+    setShowUnassignConfirm(false);
+    setPendingUnassign(null);
     setUnassigningId(trapperPersonId);
     try {
       await postApi(
@@ -331,7 +336,7 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
   }, [showAddForm, trappers]);
 
   if (loading) {
-    return <span className="text-muted">Loading...</span>;
+    return <Skeleton width="120px" height={16} style={{ display: "inline-block" }} />;
   }
 
   // Group trappers by type for display
@@ -877,7 +882,7 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
               </div>
             </div>
             <button
-              onClick={() => handleUnassign(t.trapper_person_id, t.trapper_name)}
+              onClick={() => { setPendingUnassign({ id: t.trapper_person_id, name: t.trapper_name }); setShowUnassignConfirm(true); }}
               disabled={unassigningId === t.trapper_person_id}
               title="Unassign trapper"
               style={{
@@ -987,6 +992,16 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showUnassignConfirm}
+        title="Unassign Trapper"
+        message={pendingUnassign ? `Unassign ${pendingUnassign.name} from this request?` : ""}
+        confirmLabel="Unassign"
+        variant="danger"
+        onConfirm={() => { if (pendingUnassign) doUnassign(pendingUnassign.id, pendingUnassign.name); }}
+        onCancel={() => { setShowUnassignConfirm(false); setPendingUnassign(null); }}
+      />
     </div>
   );
 }

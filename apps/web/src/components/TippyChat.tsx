@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback, FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import { TippyFeedbackModal } from "@/components/modals";
+import { Icon } from "@/components/ui/Icon";
+import { fetchApi } from "@/lib/api-client";
 
 interface Message {
   id: string;
@@ -91,6 +93,28 @@ const QUICK_ACTIONS = [
   { label: "What is TNR?", icon: "❓" },
 ];
 
+interface ConversationSummary {
+  conversation_id: string;
+  started_at: string;
+  ended_at: string | null;
+  message_count: number;
+  summary: string | null;
+  first_message: string | null;
+}
+
+function relativeDate(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+}
+
 // Map context from AtlasMap events
 interface MapContext {
   center?: { lat: number; lng: number };
@@ -114,6 +138,9 @@ export function TippyChat() {
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [mapContext, setMapContext] = useState<MapContext | null>(null);
   const [hasBriefed, setHasBriefed] = useState(false);
+  const [view, setView] = useState<"chat" | "history">("chat");
+  const [historyList, setHistoryList] = useState<ConversationSummary[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const streamingMsgIdRef = useRef<string | null>(null);
@@ -151,6 +178,16 @@ export function TippyChat() {
   const sendMessage = useCallback(async (userMessage: string) => {
     if (isLoading) return;
 
+    // FFS-863: 30-minute inactivity auto-close
+    let activeConversationId = conversationId;
+    if (conversationId && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (Date.now() - lastMsg.timestamp.getTime() > 30 * 60 * 1000) {
+        activeConversationId = undefined;
+        setConversationId(undefined);
+      }
+    }
+
     // Add user message
     const userMsg: Message = {
       id: `user-${Date.now()}`,
@@ -178,7 +215,7 @@ export function TippyChat() {
         },
         body: JSON.stringify({
           message: userMessage,
-          conversationId,
+          conversationId: activeConversationId,
           stream: true,
           history: messages.slice(-10).map((m) => ({
             role: m.role,
@@ -307,6 +344,56 @@ export function TippyChat() {
     inputRef.current?.focus();
   };
 
+  // FFS-863: Fetch conversation history
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const data = await fetchApi<{ conversations: ConversationSummary[] }>("/api/tippy/conversations?limit=20");
+      setHistoryList(data.conversations || []);
+    } catch {
+      setHistoryList([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  // FFS-863: Toggle history view
+  const toggleHistory = useCallback(() => {
+    if (view === "history") {
+      setView("chat");
+    } else {
+      setView("history");
+      fetchHistory();
+    }
+  }, [view, fetchHistory]);
+
+  // FFS-863: Load a past conversation
+  const loadConversation = useCallback(async (id: string) => {
+    try {
+      const data = await fetchApi<{ conversation_id: string; started_at: string; messages: { message_id: string; role: string; content: string; created_at: string }[] }>(`/api/tippy/conversations/${id}`);
+      const restored: Message[] = (data.messages || []).map((m) => ({
+        id: m.message_id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        timestamp: new Date(m.created_at),
+      }));
+      setMessages(restored);
+      setConversationId(id);
+      setView("chat");
+      setHasBriefed(true);
+    } catch {
+      // If load fails, stay in history view
+    }
+  }, []);
+
+  // FFS-863: Start new conversation
+  const startNewConversation = useCallback(() => {
+    setMessages([]);
+    setConversationId(undefined);
+    setView("chat");
+    setHasBriefed(false);
+  }, []);
+
   if (!isOpen) {
     return (
       <button
@@ -385,23 +472,61 @@ export function TippyChat() {
             </div>
           </div>
         </div>
-        <button
-          onClick={() => setIsOpen(false)}
-          style={{
-            background: "rgba(255,255,255,0.2)",
-            border: "none",
-            borderRadius: "8px",
-            padding: "8px",
-            cursor: "pointer",
-            color: "#fff",
-            fontSize: "1rem",
-          }}
-        >
-          ×
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <button
+            onClick={startNewConversation}
+            title="New conversation"
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
+              borderRadius: "8px",
+              padding: "6px",
+              cursor: "pointer",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="plus" size={16} />
+          </button>
+          <button
+            onClick={toggleHistory}
+            title="Conversation history"
+            style={{
+              background: view === "history" ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.2)",
+              border: "none",
+              borderRadius: "8px",
+              padding: "6px",
+              cursor: "pointer",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="clock" size={16} />
+          </button>
+          <button
+            onClick={() => setIsOpen(false)}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
+              borderRadius: "8px",
+              padding: "6px",
+              cursor: "pointer",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="x" size={16} />
+          </button>
+        </div>
       </div>
 
-      {/* Messages */}
+      {/* Content area — chat or history view */}
       <div
         style={{
           flex: 1,
@@ -412,7 +537,47 @@ export function TippyChat() {
           gap: "12px",
         }}
       >
-        {messages.length === 0 ? (
+        {view === "history" ? (
+          /* FFS-863: Conversation history view */
+          historyLoading ? (
+            <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: "0.85rem" }}>Loading conversations...</div>
+            </div>
+          ) : historyList.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: "0.85rem" }}>No past conversations yet</div>
+            </div>
+          ) : (
+            historyList.map((conv) => (
+              <button
+                key={conv.conversation_id}
+                onClick={() => loadConversation(conv.conversation_id)}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                  padding: "10px 14px",
+                  background: "var(--card-border, #f3f4f6)",
+                  border: "none",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#e5e7eb")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "var(--card-border, #f3f4f6)")}
+              >
+                <div style={{ fontSize: "0.85rem", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {(conv.first_message || conv.summary || "Conversation")?.slice(0, 60)}
+                </div>
+                <div style={{ fontSize: "0.7rem", color: "var(--text-muted, #9ca3af)", display: "flex", gap: "8px" }}>
+                  <span>{relativeDate(conv.started_at)}</span>
+                  <span>{conv.message_count} message{conv.message_count !== 1 ? "s" : ""}</span>
+                </div>
+              </button>
+            ))
+          )
+        ) : messages.length === 0 ? (
           <div style={{ textAlign: "center", padding: "24px 0" }}>
             <div
               style={{

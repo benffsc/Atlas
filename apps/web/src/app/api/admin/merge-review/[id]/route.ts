@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiError, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 
 /**
@@ -43,6 +44,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "merge_review");
     const review = await queryOne<DuplicateReview>(`
       SELECT
         ppd.duplicate_id::text,
@@ -116,6 +118,7 @@ export async function POST(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "merge_review");
     const body = await request.json();
     const { action, notes, resolved_by } = body;
 

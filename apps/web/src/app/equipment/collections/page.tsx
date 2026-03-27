@@ -5,6 +5,7 @@ import { fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { StatCard } from "@/components/ui/StatCard";
 import { getLabel, EQUIPMENT_COLLECTION_STATUS_OPTIONS } from "@/lib/form-options";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 import type { EquipmentCollectionTaskRow } from "@/lib/types/view-contracts";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -98,7 +99,7 @@ export default function CollectionsPage() {
 
       {/* Task List */}
       {loading ? (
-        <p style={{ color: "var(--muted)" }}>Loading...</p>
+        <div style={{ padding: "0.5rem 0" }}><SkeletonList items={5} /></div>
       ) : tasks.length === 0 ? (
         <div className="card" style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
           No collection tasks found.

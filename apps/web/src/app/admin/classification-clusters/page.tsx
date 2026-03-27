@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 
 interface ClusterPlace {
   place_id: string;
@@ -49,6 +50,7 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function ClassificationClustersPage() {
+  const { addToast } = useToast();
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +90,7 @@ export default function ClassificationClustersPage() {
       fetchClusters();
     } catch (error) {
       console.error("Action failed:", error);
-      alert(`Error: ${error instanceof Error ? error.message : "Action failed"}`);
+      addToast({ type: "error", message: error instanceof Error ? error.message : "Action failed" });
     } finally {
       setActionInProgress(null);
     }

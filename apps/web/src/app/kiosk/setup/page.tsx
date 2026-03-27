@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { PRINT_BASE_CSS } from "@/lib/print-styles";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 /* ─────────────────────────────────────────────────────────
  * Kiosk Setup Guide
@@ -727,16 +728,8 @@ export default function KioskSetupPage() {
           fontFamily: "-apple-system, BlinkMacSystemFont, system-ui, sans-serif",
         }}
       >
-        <div
-          style={{
-            height: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "var(--text-tertiary)",
-          }}
-        >
-          Loading...
+        <div style={{ padding: "2rem 0" }}>
+          <SkeletonList items={4} />
         </div>
       </div>
     );

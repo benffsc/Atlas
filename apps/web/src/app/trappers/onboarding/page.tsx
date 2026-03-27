@@ -48,18 +48,18 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  interested: "#6c757d",
-  contacted: "#0dcaf0",
-  orientation_scheduled: "#ffc107",
-  orientation_complete: "#20c997",
-  training_scheduled: "#fd7e14",
-  training_complete: "#198754",
-  contract_sent: "#6f42c1",
-  contract_signed: "#0d6efd",
-  approved: "#198754",
-  declined: "#dc3545",
-  withdrawn: "#6c757d",
-  on_hold: "#ffc107",
+  interested: "var(--status-cancelled)",    // muted gray
+  contacted: "var(--accent-blue)",
+  orientation_scheduled: "var(--status-on-hold)",
+  orientation_complete: "var(--status-completed)",
+  training_scheduled: "var(--priority-high)",
+  training_complete: "var(--status-scheduled)",
+  contract_sent: "#6f42c1",                 // purple — no direct CSS variable
+  contract_signed: "var(--status-new)",
+  approved: "var(--status-scheduled)",
+  declined: "var(--priority-urgent)",
+  withdrawn: "var(--status-cancelled)",
+  on_hold: "var(--status-on-hold)",
 };
 
 const NEXT_STATUS: Record<string, string> = {
@@ -182,7 +182,7 @@ export default function TrapperOnboardingPage() {
           onClick={() => setShowNewForm(true)}
           style={{
             padding: "0.5rem 1rem",
-            background: "#198754",
+            background: "var(--status-scheduled)",
             color: "#fff",
             border: "none",
             borderRadius: "6px",
@@ -205,7 +205,7 @@ export default function TrapperOnboardingPage() {
           onClick={() => setStatusFilter("all")}
           style={{
             padding: "0.375rem 0.75rem",
-            background: statusFilter === "all" ? "#0d6efd" : "var(--bg-secondary)",
+            background: statusFilter === "all" ? "var(--primary)" : "var(--bg-secondary)",
             color: statusFilter === "all" ? "#fff" : "inherit",
             border: "1px solid var(--border)",
             borderRadius: "4px",
@@ -319,8 +319,8 @@ export default function TrapperOnboardingPage() {
                 key={c.person_id}
                 style={{
                   padding: "0.25rem 0.5rem",
-                  background: "#d1e7dd",
-                  color: "#0f5132",
+                  background: "var(--success-bg)",
+                  color: "var(--success-text)",
                   borderRadius: "4px",
                   fontSize: "0.85rem",
                 }}
@@ -417,7 +417,7 @@ export default function TrapperOnboardingPage() {
                   disabled={saving}
                   style={{
                     padding: "0.5rem 1rem",
-                    background: "#198754",
+                    background: "var(--status-scheduled)",
                     color: "#fff",
                     border: "none",
                     borderRadius: "4px",
@@ -434,7 +434,7 @@ export default function TrapperOnboardingPage() {
                     disabled={saving}
                     style={{
                       padding: "0.5rem 1rem",
-                      background: "#ffc107",
+                      background: "var(--status-on-hold)",
                       color: "#000",
                       border: "none",
                       borderRadius: "4px",
@@ -448,7 +448,7 @@ export default function TrapperOnboardingPage() {
                     disabled={saving}
                     style={{
                       padding: "0.5rem 1rem",
-                      background: "#dc3545",
+                      background: "var(--priority-urgent)",
                       color: "#fff",
                       border: "none",
                       borderRadius: "4px",
@@ -581,7 +581,7 @@ export default function TrapperOnboardingPage() {
                   style={{
                     flex: 1,
                     padding: "0.5rem",
-                    background: "#198754",
+                    background: "var(--status-scheduled)",
                     color: "#fff",
                     border: "none",
                     borderRadius: "4px",

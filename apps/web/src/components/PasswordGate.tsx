@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
+import { SkeletonCard } from "@/components/feedback/Skeleton";
 
 const STORAGE_KEY = "atlas_authenticated";
 const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -69,9 +70,9 @@ export default function PasswordGate({ children }: { children: React.ReactNode }
         alignItems: "center",
         justifyContent: "center",
         background: "var(--background)",
-        color: "var(--foreground)",
+        padding: "2rem",
       }}>
-        Loading...
+        <SkeletonCard />
       </div>
     );
   }

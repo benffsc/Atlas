@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError, apiBadRequest, apiNotFound } from "@/lib/api-response";
 
 interface Observation {
@@ -30,6 +31,7 @@ export async function GET(
   const { id: colonyId } = await params;
 
   try {
+    requireValidUUID(colonyId, "colony");
     const observations = await queryRows<Observation>(
       `SELECT
         observation_id,
@@ -63,6 +65,7 @@ export async function POST(
   const { id: colonyId } = await params;
 
   try {
+    requireValidUUID(colonyId, "colony");
     const body = await request.json();
     const {
       observation_date,

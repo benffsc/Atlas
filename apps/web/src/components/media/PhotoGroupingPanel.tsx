@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 
 interface MediaItem {
   media_id: string;
@@ -61,6 +63,8 @@ export function PhotoGroupingPanel({
   const [draggedMediaId, setDraggedMediaId] = useState<string | null>(null);
   const [identifyingGroup, setIdentifyingGroup] = useState<string | null>(null);
   const [selectedCatId, setSelectedCatId] = useState<string>("");
+  const [showDeleteGroupConfirm, setShowDeleteGroupConfirm] = useState(false);
+  const [pendingDeleteGroupId, setPendingDeleteGroupId] = useState<string | null>(null);
   const [selectedConfidence, setSelectedConfidence] = useState<ConfidenceLevel>("confirmed");
 
   // Fetch groups
@@ -206,8 +210,16 @@ export function PhotoGroupingPanel({
   };
 
   // Delete a group
-  const deleteGroup = async (groupId: string) => {
-    if (!confirm("Delete this group? Photos will be moved to ungrouped.")) return;
+  const deleteGroup = (groupId: string) => {
+    setPendingDeleteGroupId(groupId);
+    setShowDeleteGroupConfirm(true);
+  };
+
+  const deleteGroupConfirm = async () => {
+    const groupId = pendingDeleteGroupId;
+    setShowDeleteGroupConfirm(false);
+    setPendingDeleteGroupId(null);
+    if (!groupId) return;
 
     try {
       await fetchApi(`/api/media/group?collection_id=${groupId}`, {
@@ -310,7 +322,7 @@ export function PhotoGroupingPanel({
   };
 
   if (loading) {
-    return <div style={{ padding: "1rem", textAlign: "center" }}>Loading...</div>;
+    return <div style={{ padding: "1rem" }}><SkeletonTable rows={4} columns={3} /></div>;
   }
 
   return (
@@ -649,6 +661,16 @@ export function PhotoGroupingPanel({
           </span>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={showDeleteGroupConfirm}
+        title="Delete Group"
+        message="Delete this group? Photos will be moved to ungrouped."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={deleteGroupConfirm}
+        onCancel={() => { setShowDeleteGroupConfirm(false); setPendingDeleteGroupId(null); }}
+      />
     </div>
   );
 }

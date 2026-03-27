@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 interface BlacklistEntry {
   id: string;
@@ -156,7 +157,7 @@ function BlacklistContent() {
 
       {/* Entries table */}
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>Loading...</div>
+        <div style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={3} /></div>
       ) : (
         <div style={{ border: "1px solid var(--card-border)", borderRadius: "8px", overflow: "hidden" }}>
           <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 60px", padding: "0.5rem 1rem", background: "var(--card-bg, #f9fafb)", borderBottom: "1px solid var(--card-border)", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted)" }}>

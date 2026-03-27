@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface MatchLogEntry {
@@ -35,6 +36,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "organization");
     const searchParams = request.nextUrl.searchParams;
     const limit = parseInt(searchParams.get("limit") || "50", 10);
     const offset = parseInt(searchParams.get("offset") || "0", 10);

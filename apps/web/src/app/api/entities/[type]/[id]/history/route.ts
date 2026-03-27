@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID, withErrorHandling } from "@/lib/api-validation";
 import { apiSuccess } from "@/lib/api-response";
 
 /**
@@ -29,11 +30,12 @@ interface EditHistoryRow {
   related_entity_name: string | null;
 }
 
-export async function GET(
+export const GET = withErrorHandling(async (
   request: NextRequest,
   { params }: { params: Promise<{ type: string; id: string }> }
-) {
+) => {
   const { type, id } = await params;
+  requireValidUUID(id, "entity");
   const { searchParams } = new URL(request.url);
   const limit = parseInt(searchParams.get("limit") || "50");
 
@@ -91,4 +93,4 @@ export async function GET(
     individual_changes: ungrouped,
     total: history.length,
   });
-}
+});

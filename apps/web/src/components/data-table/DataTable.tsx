@@ -11,6 +11,7 @@ import { COLORS, TYPOGRAPHY, TRANSITIONS } from "@/lib/design-tokens";
 import { EmptyFilteredResults, EmptyList } from "@/components/feedback/EmptyState";
 import { DataTablePagination } from "./DataTablePagination";
 import type { DataTableProps } from "./types";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 // Skeleton loading rows
 function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number }) {
@@ -79,8 +80,8 @@ export function DataTable<TData>({
   if (isMobile && renderCard) {
     if (loading) {
       return (
-        <div style={{ padding: "2rem", textAlign: "center", color: COLORS.textSecondary }}>
-          Loading...
+        <div style={{ padding: "1rem" }}>
+          <SkeletonList items={5} />
         </div>
       );
     }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
 interface LinkBody {
@@ -19,6 +20,7 @@ export async function POST(
   }
 
   try {
+    requireValidUUID(id, "google_map_entry");
     const body: LinkBody = await request.json();
 
     if (!body.place_id) {
@@ -58,6 +60,7 @@ export async function DELETE(
   }
 
   try {
+    requireValidUUID(id, "google_map_entry");
     let unlinkedBy = "web_app";
     try {
       const body = await request.json();

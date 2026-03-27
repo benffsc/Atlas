@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { formatPhone, formatRelativeTime } from "@/lib/formatters";
 import { unwrapApiResponse } from "@/lib/api-client";
+import { getPersonRoleColor } from "@/lib/map-colors";
 import { formatPlaceKind, formatEnum } from "@/lib/display-labels";
+import { Skeleton } from "@/components/feedback/Skeleton";
 
 interface PersonIdentifier {
   id_type: string;
@@ -58,16 +60,8 @@ interface PersonDetailDrawerProps {
   onClose: () => void;
 }
 
-const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
-  staff:      { bg: "rgba(59, 130, 246, 0.15)", text: "#2563eb" },
-  trapper:    { bg: "rgba(22, 163, 74, 0.15)",  text: "#16a34a" },
-  volunteer:  { bg: "rgba(139, 92, 246, 0.15)", text: "#7c3aed" },
-  foster:     { bg: "rgba(234, 88, 12, 0.15)",  text: "#ea580c" },
-  caretaker:  { bg: "rgba(234, 88, 12, 0.10)",  text: "#c2410c" },
-};
-
 function getRoleColor(role: string) {
-  return ROLE_COLORS[role] || { bg: "rgba(107, 114, 128, 0.15)", text: "#6b7280" };
+  return getPersonRoleColor(role);
 }
 
 function formatEntityType(type: string | null): string {
@@ -165,7 +159,7 @@ export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProp
       {/* Header */}
       <div className="drawer-header">
         <div className="drawer-title">
-          <h2>{person?.display_name || "Loading..."}</h2>
+          <h2>{person?.display_name || <Skeleton width="160px" height={20} />}</h2>
           {person && (
             <span className="person-entity-type-badge">
               {formatEntityType(person.entity_type)}
@@ -217,14 +211,14 @@ export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProp
             {/* DNC Banner */}
             {person.do_not_contact && (
               <div style={{
-                background: "#fee2e2",
-                color: "#dc2626",
+                background: "var(--danger-bg)",
+                color: "var(--danger-text)",
                 padding: "0.5rem 0.75rem",
                 borderRadius: "6px",
                 fontSize: "0.85rem",
                 fontWeight: 600,
                 marginBottom: "0.75rem",
-                border: "1px solid #fecaca",
+                border: "1px solid var(--danger-border)",
               }}>
                 Do Not Contact
                 {person.do_not_contact_reason && (

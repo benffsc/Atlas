@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
+import { requireValidUUID, withErrorHandling } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError } from "@/lib/api-response";
 
 interface RouteParams {
@@ -92,8 +93,9 @@ const PLACE_MARKER_SIZES = {
  * GET /api/requests/[id]/map
  * Returns a Google Static Maps URL with nearby request AND place markers
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withErrorHandling(async (request: NextRequest, { params }: RouteParams) => {
   const { id } = await params;
+  requireValidUUID(id, "request");
   const searchParams = request.nextUrl.searchParams;
   // Default to 2x resolution for retina displays
   const scale = parseInt(searchParams.get("scale") || "2");
@@ -289,4 +291,4 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   );
 
   return response;
-}
+});

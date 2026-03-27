@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { requireValidUUID, parseBody } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
 import { UpdateJournalEntrySchema } from "@/lib/schemas";
+import { JOURNAL_ARCHIVE_REASON, JOURNAL_ARCHIVE_REASONS_REQUIRING_NOTES, type JournalArchiveReason } from "@/lib/enums";
 
 interface JournalEntryRow {
   id: string;
@@ -179,24 +180,8 @@ export async function PATCH(
   }
 }
 
-// Valid archive reasons
-const ARCHIVE_REASONS = [
-  "duplicate",     // Entry duplicates another journal note
-  "error",         // Data entry error (requires notes)
-  "irrelevant",    // No longer relevant
-  "wrong_entity",  // Attached to wrong cat/person/place (requires notes)
-  "test_data",     // Created for testing
-  "merged",        // Entity was merged, entry redundant
-  "other",         // Other reason (requires notes)
-] as const;
-
-type ArchiveReason = typeof ARCHIVE_REASONS[number];
-
-// Reasons that require notes for context
-const REASONS_REQUIRING_NOTES: ArchiveReason[] = ["error", "wrong_entity", "other"];
-
 interface ArchiveBody {
-  reason: ArchiveReason;
+  reason: JournalArchiveReason;
   notes?: string;
 }
 
@@ -222,16 +207,16 @@ export async function DELETE(
 
     // Validate reason is provided
     if (!body.reason) {
-      return apiBadRequest(`Archive reason is required. Must be one of: ${ARCHIVE_REASONS.join(", ")}`);
+      return apiBadRequest(`Archive reason is required. Must be one of: ${JOURNAL_ARCHIVE_REASON.join(", ")}`);
     }
 
     // Validate reason is from predefined list
-    if (!ARCHIVE_REASONS.includes(body.reason)) {
-      return apiBadRequest(`Invalid archive reason. Must be one of: ${ARCHIVE_REASONS.join(", ")}`);
+    if (!JOURNAL_ARCHIVE_REASON.includes(body.reason as JournalArchiveReason)) {
+      return apiBadRequest(`Invalid archive reason. Must be one of: ${JOURNAL_ARCHIVE_REASON.join(", ")}`);
     }
 
     // Validate notes are provided for reasons that require them
-    if (REASONS_REQUIRING_NOTES.includes(body.reason) && !body.notes?.trim()) {
+    if (JOURNAL_ARCHIVE_REASONS_REQUIRING_NOTES.includes(body.reason as (typeof JOURNAL_ARCHIVE_REASONS_REQUIRING_NOTES)[number]) && !body.notes?.trim()) {
       return apiBadRequest(`Notes are required when archive reason is "${body.reason}"`);
     }
 

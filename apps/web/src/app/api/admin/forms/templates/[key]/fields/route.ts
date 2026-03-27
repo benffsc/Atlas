@@ -9,9 +9,7 @@ import {
   apiNotFound,
   apiServerError,
 } from "@/lib/api-response";
-
-const VALID_TEMPLATE_KEYS = ["help_request", "tnr_call_sheet", "trapper_sheet"];
-const VALID_WIDTHS = ["sm", "md", "lg", "xl"];
+import { FORM_TEMPLATE_KEYS, FIELD_WIDTHS, type TemplateKey, type FieldWidth } from "@/lib/form-field-types";
 
 interface FieldUpdate {
   /** form_template_fields.id */
@@ -50,7 +48,7 @@ export async function GET(
   if (!session) return apiUnauthorized();
 
   const { key } = await params;
-  if (!VALID_TEMPLATE_KEYS.includes(key)) {
+  if (!FORM_TEMPLATE_KEYS.includes(key as TemplateKey)) {
     return apiBadRequest(`Invalid template key: ${key}`);
   }
 
@@ -103,7 +101,7 @@ export async function PUT(
   if (session.auth_role !== "admin") return apiForbidden("Only admins can edit template fields");
 
   const { key } = await params;
-  if (!VALID_TEMPLATE_KEYS.includes(key)) {
+  if (!FORM_TEMPLATE_KEYS.includes(key as TemplateKey)) {
     return apiBadRequest(`Invalid template key: ${key}`);
   }
 
@@ -124,8 +122,8 @@ export async function PUT(
 
     // Validate field_width values
     for (const f of fields) {
-      if (f.field_width && !VALID_WIDTHS.includes(f.field_width)) {
-        return apiBadRequest(`Invalid field_width: ${f.field_width}. Valid: ${VALID_WIDTHS.join(", ")}`);
+      if (f.field_width && !FIELD_WIDTHS.includes(f.field_width as FieldWidth)) {
+        return apiBadRequest(`Invalid field_width: ${f.field_width}. Valid: ${FIELD_WIDTHS.join(", ")}`);
       }
     }
 

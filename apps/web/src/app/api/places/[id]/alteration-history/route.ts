@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface YearlyBreakdown {
@@ -36,6 +37,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "place");
     const sql = `
       SELECT
         place_id,

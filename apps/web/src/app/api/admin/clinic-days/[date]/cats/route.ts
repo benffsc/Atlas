@@ -33,6 +33,8 @@ interface ClinicDayCat {
   booking_address: string | null;
   // Weight
   weight_lbs: number | null;
+  // FFS-862: Rebooked cat indicator
+  rebooked_to_date: string | null;
   // Deceased and health status fields
   is_deceased: boolean;
   deceased_date: string | null;
@@ -47,6 +49,7 @@ interface CatGalleryResponse {
   chipped_count: number;
   unchipped_count: number;
   unlinked_count: number;
+  rebooked_count: number;
   cats: ClinicDayCat[];
 }
 
@@ -123,6 +126,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           a.owner_address AS booking_address,
           NULL AS trapper_name,
           a.cat_weight_lbs AS weight_lbs,
+          NULL::TEXT AS rebooked_to_date,
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
           c.deceased_at AS deceased_date,
           (
@@ -213,6 +217,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           a.owner_address AS booking_address,
           NULL AS trapper_name,
           a.cat_weight_lbs AS weight_lbs,
+          NULL::TEXT AS rebooked_to_date,
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
           c.deceased_at AS deceased_date,
           (
@@ -235,11 +240,77 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // FFS-862: Fetch rebooked cats that were originally scheduled for this date
+    // but got rebooked to a later date (invisible in appointment_info for this date)
+    try {
+      const rebooked = await queryRows<ClinicDayCat>(
+        `
+        SELECT
+          rb.appointment_id,
+          rb.cat_id,
+          rb.clinic_day_number,
+          rb.animal_number AS appointment_number,
+          rb.service_type,
+          COALESCE(rb.is_spay, FALSE) AS is_spay,
+          COALESCE(rb.is_neuter, FALSE) AS is_neuter,
+          c.name AS cat_name,
+          c.sex AS cat_sex,
+          c.breed AS cat_breed,
+          c.primary_color AS cat_color,
+          c.secondary_color AS cat_secondary_color,
+          CASE WHEN (rb.is_spay OR rb.is_neuter) AND COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = rb.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            c.microchip
+          ) IS NULL THEN TRUE ELSE FALSE END AS needs_microchip,
+          COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = rb.cat_id AND ci.id_type = 'microchip' LIMIT 1),
+            c.microchip
+          ) AS microchip,
+          COALESCE(
+            (SELECT ci.id_value FROM sot.cat_identifiers ci WHERE ci.cat_id = rb.cat_id AND ci.id_type = 'clinichq_animal_id' LIMIT 1),
+            c.clinichq_animal_id
+          ) AS clinichq_animal_id,
+          (
+            SELECT rm.storage_path
+            FROM ops.request_media rm
+            WHERE rm.cat_id = c.cat_id AND rm.is_archived = FALSE
+            ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC
+            LIMIT 1
+          ) AS photo_url,
+          per.display_name AS owner_name,
+          ca.display_name AS booked_as,
+          pl.formatted_address AS place_address,
+          rb.owner_address AS booking_address,
+          NULL AS trapper_name,
+          rb.cat_weight_lbs AS weight_lbs,
+          TO_CHAR(rb.rebooked_to_date, 'YYYY-MM-DD') AS rebooked_to_date,
+          COALESCE(c.is_deceased, FALSE) AS is_deceased,
+          c.deceased_at AS deceased_date,
+          NULL AS death_cause,
+          NULL AS felv_status,
+          NULL AS fiv_status
+        FROM ops.v_rebooked_cats rb
+        LEFT JOIN sot.cats c ON c.cat_id = rb.cat_id AND c.merged_into_cat_id IS NULL
+        LEFT JOIN sot.people per ON per.person_id = rb.person_id AND per.merged_into_person_id IS NULL
+        LEFT JOIN ops.clinic_accounts ca ON ca.account_id = rb.owner_account_id AND ca.merged_into_account_id IS NULL
+        LEFT JOIN sot.places pl ON pl.place_id = COALESCE(rb.inferred_place_id, rb.place_id) AND pl.merged_into_place_id IS NULL
+        WHERE rb.original_date = $1
+          AND rb.cat_id IS NOT NULL
+        `,
+        [date]
+      );
+      cats.push(...rebooked);
+    } catch (rebookError) {
+      // v_rebooked_cats view may not exist yet (MIG_2989 not applied)
+      console.warn("ops.v_rebooked_cats not available:", rebookError);
+    }
+
     // Calculate counts
     const totalCats = cats.length;
     const chippedCount = cats.filter(c => c.microchip !== null).length;
     const unchippedCount = cats.filter(c => c.cat_id !== null && c.microchip === null && c.needs_microchip).length;
     const unlinkedCount = cats.filter(c => c.cat_id === null).length;
+    const rebookedCount = cats.filter(c => c.rebooked_to_date !== null).length;
 
     const response: CatGalleryResponse = {
       date,
@@ -247,6 +318,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       chipped_count: chippedCount,
       unchipped_count: unchippedCount,
       unlinked_count: unlinkedCount,
+      rebooked_count: rebookedCount,
       cats,
     };
 

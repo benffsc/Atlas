@@ -4,6 +4,7 @@ import { useState } from "react";
 import { postApi } from "@/lib/api-client";
 import { useAllDisplayLabels } from "@/hooks/useDisplayLabels";
 import { useToast } from "@/components/feedback/Toast";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 const REGISTRY_LABELS: Record<string, string> = {
   place_kind: "Place Kinds",
@@ -52,7 +53,7 @@ function LabelsContent() {
   }
 
   if (isLoading) {
-    return <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>Loading...</div>;
+    return <div style={{ padding: "2rem" }}><SkeletonTable rows={8} columns={3} /></div>;
   }
 
   return (

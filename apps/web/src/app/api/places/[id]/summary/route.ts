@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiNotFound, apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
@@ -99,6 +100,7 @@ export async function GET(
   }
 
   try {
+    requireValidUUID(id, "place");
     // Call the database function
     const result = await queryOne<{ get_place_summary: PlaceSummary | null }>(
       `SELECT sot.get_place_summary($1) as get_place_summary`,

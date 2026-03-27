@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { SkeletonTable, SkeletonList } from "@/components/feedback/Skeleton";
+import { useToast } from "@/components/feedback/Toast";
 
 interface EquipmentItem {
   equipment_id: string;
@@ -53,6 +55,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 export default function EquipmentAdminPage() {
+  const { addToast } = useToast();
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [stats, setStats] = useState<EquipmentStats | null>(null);
   const [equipmentTypes, setEquipmentTypes] = useState<string[]>([]);
@@ -134,7 +137,7 @@ export default function EquipmentAdminPage() {
       if (updated) openDetail({ ...updated, is_available: false, active_checkout_person: checkoutPerson.display_name, active_checkout_date: new Date().toISOString() });
       else setSelectedItem(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Checkout failed");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Checkout failed" });
     } finally {
       setActionLoading(false);
     }
@@ -151,7 +154,7 @@ export default function EquipmentAdminPage() {
       await fetchEquipment();
       openDetail({ ...selectedItem, is_available: true, active_checkout_person: null, active_checkout_date: null });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Return failed");
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Return failed" });
     } finally {
       setActionLoading(false);
     }
@@ -161,7 +164,7 @@ export default function EquipmentAdminPage() {
     return (
       <div style={{ padding: "2rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1rem" }}>Equipment Inventory</h1>
-        <p style={{ color: "var(--muted)" }}>Loading...</p>
+        <SkeletonTable rows={8} columns={5} />
       </div>
     );
   }
@@ -490,7 +493,7 @@ export default function EquipmentAdminPage() {
               Checkout History
             </h3>
             {loadingCheckouts ? (
-              <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Loading...</p>
+              <SkeletonList items={3} />
             ) : checkouts.length === 0 ? (
               <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No checkout records.</p>
             ) : (

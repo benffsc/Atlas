@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
-import { apiServerError } from "@/lib/api-response";
+import { apiSuccess, apiServerError } from "@/lib/api-response";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
 // Cache for 5 minutes
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
       FROM active, my_active, intake, cats, stale, overdue, unassigned, with_location, person_dedup, place_dedup, cats_prev
     `, [staffPersonId || null]);
 
-    return NextResponse.json(stats || {
+    return apiSuccess(stats || {
       active_requests: 0,
       my_active_requests: 0,
       pending_intake: 0,
@@ -132,11 +132,7 @@ export async function GET(request: NextRequest) {
       person_dedup_pending: 0,
       place_dedup_pending: 0,
       cats_last_month: 0,
-    }, {
-      headers: {
-        "Cache-Control": "private, max-age=300, stale-while-revalidate=600",
-      },
-    });
+    }, { headers: { "Cache-Control": "private, max-age=300, stale-while-revalidate=600" } });
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);
     return apiServerError("Failed to fetch dashboard stats");

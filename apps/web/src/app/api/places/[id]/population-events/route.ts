@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface PopulationEvent {
@@ -20,6 +21,7 @@ export async function GET(
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "place");
     // Fetch birth events for cats at this place
     const birthsSql = `
       SELECT

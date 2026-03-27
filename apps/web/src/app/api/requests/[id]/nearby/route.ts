@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows, queryOne } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 
@@ -73,11 +74,8 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const radius = parseInt(searchParams.get("radius") || "5000", 10); // Default 5km
 
-  if (!id) {
-    return apiBadRequest("Request ID is required");
-  }
-
   try {
+    requireValidUUID(id, "request");
     // Get the request's place coordinates
     const requestInfo = await queryOne<{
       lat: number | null;

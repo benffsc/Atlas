@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, execute } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import {
   apiSuccess,
   apiNotFound,
@@ -14,6 +15,7 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "partner_org");
 
     const org = await queryOne(
       `
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "partner_org");
     const body = await request.json();
 
     const allowedFields = [
@@ -122,6 +125,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    requireValidUUID(id, "partner_org");
 
     // Soft delete - just mark as inactive
     await execute(

@@ -9,6 +9,7 @@ import {
   apiNotFound,
   apiServerError,
 } from "@/lib/api-response";
+import { FORM_SECTION_COMPONENTS, type FormSectionComponent } from "@/lib/form-field-types";
 
 interface FormConfigRow {
   key: string;
@@ -25,9 +26,6 @@ interface FormConfigRow {
   updated_at: string;
 }
 
-const VALID_COMPONENTS = [
-  "person", "place", "catDetails", "kittens", "propertyAccess", "urgencyNotes",
-];
 
 /**
  * GET /api/admin/forms/configs
@@ -89,8 +87,8 @@ export async function PUT(request: NextRequest) {
     if (sections) {
       if (!Array.isArray(sections)) return apiBadRequest("sections must be an array");
       for (const s of sections) {
-        if (!s.component || !VALID_COMPONENTS.includes(s.component)) {
-          return apiBadRequest(`Invalid section component: ${s.component}. Valid: ${VALID_COMPONENTS.join(", ")}`);
+        if (!s.component || !FORM_SECTION_COMPONENTS.includes(s.component as FormSectionComponent)) {
+          return apiBadRequest(`Invalid section component: ${s.component}. Valid: ${FORM_SECTION_COMPONENTS.join(", ")}`);
         }
       }
     }

@@ -22,7 +22,8 @@ export interface DedupHeaderAction {
   confirmMessage?: string;
   /** Only show when this filter value is active */
   showWhenFilter?: string;
-  handler: () => Promise<void>;
+  /** Handler may return a string to show as a success toast */
+  handler: () => Promise<string | void>;
 }
 
 export interface DedupConfig<C> {

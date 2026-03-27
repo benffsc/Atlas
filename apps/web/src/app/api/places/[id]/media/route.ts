@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryRows } from "@/lib/db";
+import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 interface MediaRow {
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
 
   try {
+    requireValidUUID(id, "place");
     // Include both direct place photos AND photos from requests linked to this place
     const media = await queryRows<MediaRow>(
       `SELECT

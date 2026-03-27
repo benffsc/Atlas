@@ -5,6 +5,7 @@ import { unwrapApiResponse } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/formatters";
 import { formatRole } from "@/lib/display-labels";
 import { CatHealthBadges, buildHealthFlags } from "@/components/badges";
+import { Skeleton } from "@/components/feedback/Skeleton";
 
 /* ------------------------------------------------------------------ */
 /*  Type definitions matching the GET /api/cats/:id response shape     */
@@ -173,7 +174,7 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
       {/* Header */}
       <div className="drawer-header">
         <div className="drawer-title">
-          <h2>{cat?.display_name || "Loading..."}</h2>
+          <h2>{cat?.display_name || <Skeleton width="160px" height={20} />}</h2>
           {cat?.microchip && (
             <span className="drawer-subtitle" style={{ fontFamily: '"SF Mono", "Cascadia Code", "Fira Code", monospace', fontSize: "12px" }}>
               {cat.microchip}

@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { TabBar } from "@/components/ui/TabBar";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
 
 interface TrapperReportSubmission {
   submission_id: string;
@@ -144,6 +147,7 @@ function ConfidenceBadge({ score }: { score: number | null }) {
 }
 
 export default function TrapperReportsPage() {
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState("all");
   const [submissions, setSubmissions] = useState<TrapperReportSubmission[]>([]);
   const [stats, setStats] = useState<SubmissionStats | null>(null);
@@ -151,6 +155,10 @@ export default function TrapperReportsPage() {
   const [error, setError] = useState("");
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionDetail | null>(null);
   const [updating, setUpdating] = useState(false);
+
+  // Confirm dialogs
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const pendingDeleteIdRef = useRef<string>("");
 
   // New submission form state
   const [showNewForm, setShowNewForm] = useState(false);
@@ -366,7 +374,7 @@ export default function TrapperReportsPage() {
         `/api/admin/trapper-reports/${id}/extract`,
         {}
       );
-      alert(`Extracted ${data.sites_processed} sites, created ${data.items_created} items for review`);
+      addToast({ type: "success", message: `Extracted ${data.sites_processed} sites, created ${data.items_created} items for review` });
 
       fetchSubmissions();
       if (selectedSubmission?.submission.submission_id === id) {
@@ -379,15 +387,18 @@ export default function TrapperReportsPage() {
     }
   };
 
-  const deleteSubmission = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this submission? This cannot be undone.")) {
-      return;
-    }
+  const deleteSubmission = (id: string) => {
+    pendingDeleteIdRef.current = id;
+    setShowDeleteConfirm(true);
+  };
 
+  const deleteSubmissionConfirm = async () => {
+    const id = pendingDeleteIdRef.current;
+    setShowDeleteConfirm(false);
+    pendingDeleteIdRef.current = "";
     setUpdating(true);
     try {
       await postApi(`/api/admin/trapper-reports/${id}`, {}, { method: "DELETE" });
-
       setSelectedSubmission(null);
       fetchSubmissions();
     } catch (err) {
@@ -425,7 +436,7 @@ export default function TrapperReportsPage() {
         `/api/admin/trapper-reports/${selectedSubmission.submission.submission_id}/commit`,
         {}
       );
-      alert(`Committed ${data.committed} items, ${data.failed} failed`);
+      addToast({ type: "success", message: `Committed ${data.committed} items, ${data.failed} failed` });
 
       fetchSubmissions();
       fetchSubmissionDetail(selectedSubmission.submission.submission_id);
@@ -512,7 +523,7 @@ export default function TrapperReportsPage() {
 
       {/* List */}
       {loading ? (
-        <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+        <div style={{ padding: "2rem" }}><SkeletonTable rows={6} columns={4} /></div>
       ) : submissions.length === 0 ? (
         <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>
           No submissions found. Click &quot;Submit Report&quot; to add one.
@@ -1422,6 +1433,19 @@ export default function TrapperReportsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete Submission"
+        message="Are you sure you want to delete this submission? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={deleteSubmissionConfirm}
+        onCancel={() => {
+          setShowDeleteConfirm(false);
+          pendingDeleteIdRef.current = "";
+        }}
+      />
     </div>
   );
 }
