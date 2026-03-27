@@ -85,7 +85,7 @@ export const GET = withErrorHandling(async (
       `SELECT
          ev.event_id,
          ev.created_at::text,
-         COALESCE(eq.display_name, 'Equipment') AS equipment_name,
+         COALESCE(eq.equipment_name, eq.barcode, eq.equipment_type, 'Equipment') AS equipment_name,
          COALESCE(pl.formatted_address, '') AS place_address
        FROM ops.equipment_events ev
        JOIN ops.equipment eq ON eq.equipment_id = ev.equipment_id
