@@ -136,6 +136,46 @@ function mapRecord(f: Record<string, unknown>) {
   const handleabilityRaw = str("Handleability") || "";
   const handleability = HANDLEABILITY_MAP[handleabilityRaw] || handleabilityRaw || null;
 
+  // Fixed status: DB constraint requires lowercase ('none_fixed', 'some_fixed', etc.)
+  const FIXED_STATUS_MAP: Record<string, string> = {
+    "none_fixed": "none_fixed", "some_fixed": "some_fixed", "most_fixed": "most_fixed",
+    "all_fixed": "all_fixed", "unknown": "unknown",
+    "None are fixed": "none_fixed", "Some are fixed": "some_fixed",
+    "All are fixed": "all_fixed", "Unknown": "unknown",
+  };
+  const fixedStatusRaw = str("Fixed Status") || "";
+  const fixedStatus = FIXED_STATUS_MAP[fixedStatusRaw] || fixedStatusRaw?.toLowerCase() || null;
+
+  // Feeding: DB may have constraint too
+  const FEEDING_MAP: Record<string, string> = {
+    "caller_feeds_daily": "caller_feeds_daily", "caller_feeds_sometimes": "caller_feeds_sometimes",
+    "someone_else_feeds": "someone_else_feeds", "no_feeding": "no_feeding", "unknown": "unknown",
+    "I feed them daily": "caller_feeds_daily", "I feed them sometimes": "caller_feeds_sometimes",
+    "Someone else feeds them": "someone_else_feeds", "No regular feeding": "no_feeding", "Unknown": "unknown",
+  };
+  const feedingRaw = str("Feeding Situation") || "";
+  const feedingSituation = FEEDING_MAP[feedingRaw] || feedingRaw || null;
+
+  // Mom present: lowercase
+  const MOM_MAP: Record<string, string> = {
+    "yes": "yes", "no": "no", "unsure": "unsure",
+    "Yes": "yes", "No": "no", "Unsure": "unsure",
+  };
+  const momRaw = str("Mom Present") || "";
+  const momPresent = MOM_MAP[momRaw] || momRaw?.toLowerCase() || null;
+
+  // Property owner: lowercase
+  const isPropertyOwnerRaw = str("Is Property Owner") || "";
+  const isPropertyOwner = isPropertyOwnerRaw ? isPropertyOwnerRaw.toLowerCase().replace("unsure", "unsure") : null;
+
+  // Property access: lowercase + map
+  const ACCESS_MAP: Record<string, string> = {
+    "yes": "yes", "no": "no", "need_permission": "need_permission",
+    "Yes": "yes", "No": "no", "Need permission first": "need_permission",
+  };
+  const accessRaw = str("Has Property Access") || "";
+  const hasPropertyAccess = ACCESS_MAP[accessRaw] || accessRaw?.toLowerCase() || null;
+
   // Address: use Street Address, or fall back to Requester Address if same-as-requester
   const sameAsRequester = str("Same As Requester")?.includes("Yes") || false;
   const catsAddress = str("Street Address") || (sameAsRequester ? str("Requester Address") : null);
@@ -167,20 +207,20 @@ function mapRecord(f: Record<string, unknown>) {
     cat_count: num("Cat Count"),
     cat_description: str("Cat Description"),
     handleability,
-    fixed_status: str("Fixed Status"),
+    fixed_status: fixedStatus,
     peak_count: num("Peak Count"),
     eartip_count: num("Eartip Count"),
-    feeding_situation: str("Feeding Situation"),
+    feeding_situation: feedingSituation,
     has_kittens: bool("Has Kittens"),
     kitten_count: num("Kitten Count"),
     kitten_age: str("Kitten Age"),
     kitten_behavior: str("Kitten Socialization"),
-    mom_present: str("Mom Present"),
+    mom_present: momPresent,
     has_medical_concerns: bool("Has Medical Concerns"),
     medical_description: str("Medical Description"),
     is_emergency: bool("Is Emergency"),
-    is_property_owner: str("Is Property Owner"),
-    has_property_access: str("Has Property Access"),
+    is_property_owner: isPropertyOwner,
+    has_property_access: hasPropertyAccess,
     notes: str("Notes"),
     referral_source: str("Referral Source"),
   };
