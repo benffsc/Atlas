@@ -2385,10 +2385,28 @@ function AtlasMapInner() {
     <div
       className={`map-container${streetViewCoords && !streetViewConeOnly && !streetViewFullscreen ? " map-sv-active" : ""}`}
       style={{ position: "relative", height: "100dvh", width: "100%", display: "flex", flexDirection: "column" }}
+      role="application"
+      aria-label="Interactive map"
     >
+      {/* Skip to content link for keyboard users */}
+      <a
+        href="#map-search"
+        style={{
+          position: "absolute", top: -9999, left: -9999, zIndex: 9999,
+          background: "var(--primary)", color: "white", padding: "8px 16px",
+          borderRadius: 4, fontSize: 14, fontWeight: 500,
+        }}
+        onFocus={(e) => { e.currentTarget.style.top = "8px"; e.currentTarget.style.left = "8px"; }}
+        onBlur={(e) => { e.currentTarget.style.top = "-9999px"; e.currentTarget.style.left = "-9999px"; }}
+      >
+        Skip to search
+      </a>
+
       {/* Map container */}
       <div
         ref={mapContainerRef}
+        role="region"
+        aria-label="Map view"
         style={{
           flex: (streetViewCoords && !streetViewConeOnly) ? (streetViewFullscreen ? "0 0 0%" : "0 0 55%") : "1 1 100%",
           width: "100%",
@@ -2470,8 +2488,14 @@ function AtlasMapInner() {
           </a>
           <span style={{ width: 1, height: 20, background: "var(--bg-secondary)", marginRight: 10, flexShrink: 0 }} />
           <input
+            id="map-search"
             ref={searchInputRef}
             type="text"
+            role="combobox"
+            aria-label="Search people, places, or cats"
+            aria-expanded={showSearchResults}
+            aria-autocomplete="list"
+            aria-controls="map-search-results"
             placeholder={isMobile ? "Search..." : "Search people, places, or cats... (press /)"}
             value={searchQuery}
             onChange={(e) => {
@@ -3090,9 +3114,16 @@ function AtlasMapInner() {
         />
       )}
 
+      {/* Screen reader announcements for dynamic updates */}
+      <div aria-live="polite" aria-atomic="true" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>
+        {loading && "Loading map data"}
+        {error && `Map error: ${error}`}
+        {!loading && !error && atlasLayerEnabled && `${atlasPins.length} places shown on map`}
+      </div>
+
       {/* Loading overlay */}
       {loading && (
-        <div className="map-loading-overlay">
+        <div className="map-loading-overlay" role="status">
           <div className="map-loading-spinner" />
           <span className="map-loading-text">Loading map data...</span>
         </div>
@@ -3100,7 +3131,7 @@ function AtlasMapInner() {
 
       {/* Error message */}
       {error && (
-        <div style={{
+        <div role="alert" style={{
           position: "absolute",
           top: "50%",
           left: "50%",

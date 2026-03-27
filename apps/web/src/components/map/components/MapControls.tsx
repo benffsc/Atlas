@@ -178,6 +178,8 @@ export function MapControls({
 
   return (
     <div
+      role="region"
+      aria-label="Map controls"
       style={{
         position: "absolute",
         top: 16,
@@ -336,11 +338,11 @@ export function MapControls({
       </button>
 
       {/* Zoom controls */}
-      <div className="map-zoom-controls">
-        <button onClick={onZoomIn} title="Zoom in (+)">
+      <div className="map-zoom-controls" role="group" aria-label="Zoom controls">
+        <button onClick={onZoomIn} title="Zoom in (+)" aria-label="Zoom in">
           +
         </button>
-        <button onClick={onZoomOut} title="Zoom out (-)">
+        <button onClick={onZoomOut} title="Zoom out (-)" aria-label="Zoom out">
           −
         </button>
       </div>

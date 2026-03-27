@@ -630,6 +630,11 @@
   transform: translateY(-1px);
 }
 
+.map-control-btn:focus-visible {
+  outline: 2px solid var(--primary, #3b82f6);
+  outline-offset: 2px;
+}
+
 .map-control-btn:active {
   transform: translateY(0);
   box-shadow: var(--map-shadow-xs);
@@ -675,6 +680,11 @@
 
 .map-zoom-controls button:hover {
   background: var(--map-control-hover);
+}
+
+.map-zoom-controls button:focus-visible {
+  outline: 2px solid var(--primary, #3b82f6);
+  outline-offset: -2px;
 }
 
 /* Add Point Menu */
@@ -3413,6 +3423,12 @@
 }
 
 .map-context-menu__item:hover {
+  background: #f3f4f6;
+}
+
+.map-context-menu__item:focus-visible {
+  outline: 2px solid var(--primary, #3b82f6);
+  outline-offset: -2px;
   background: #f3f4f6;
 }
 
