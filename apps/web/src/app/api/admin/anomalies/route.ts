@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         a.resolved_by::text,
         a.resolution_notes,
         a.created_at,
+        a.linear_issue_id,
         s.display_name as flagged_by_name,
         rs.display_name as resolved_by_name,
         CASE a.entity_type

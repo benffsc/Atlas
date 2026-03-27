@@ -1,4 +1,4 @@
-import { queryOne, queryRows } from "@/lib/db";
+import { queryOne, queryRows, execute } from "@/lib/db";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 // Domain knowledge & data quality modules (Part 2)
 import { interpretPlaceSituation, expandRegion } from "./domain-knowledge";
@@ -129,7 +129,7 @@ Example queries:
         },
         time_period: {
           type: "string",
-          enum: ["all_time", "this_year", "last_30_days"],
+          enum: ["all_time", "this_year", "this_month", "this_week", "last_30_days", "last_7_days", "today"],
           description: "Time period for stats",
         },
       },
@@ -1664,6 +1664,8 @@ async function runReadOnlySql(
   }
 
   try {
+    // Set a 15-second statement timeout to prevent runaway queries from consuming the time budget
+    await execute("SET LOCAL statement_timeout = '15s'");
     const results = await queryRows(sql, []);
 
     // Limit results to prevent huge responses
@@ -1681,9 +1683,12 @@ async function runReadOnlySql(
       },
     };
   } catch (error) {
+    const errMsg = error instanceof Error ? error.message : "Query failed";
     return {
       success: false,
-      error: `SQL error: ${error instanceof Error ? error.message : "Query failed"}`,
+      error: errMsg.includes("statement timeout")
+        ? "Query took too long (>15s). Try a simpler query with LIMIT, fewer JOINs, or a more specific WHERE clause."
+        : `SQL error: ${errMsg}`,
     };
   }
 }
@@ -1950,8 +1955,16 @@ async function queryFfrImpact(
   let dateFilter = "";
   if (timePeriod === "this_year") {
     dateFilter = "AND a.appointment_date >= DATE_TRUNC('year', CURRENT_DATE)";
+  } else if (timePeriod === "this_month") {
+    dateFilter = "AND a.appointment_date >= DATE_TRUNC('month', CURRENT_DATE)";
+  } else if (timePeriod === "this_week") {
+    dateFilter = "AND a.appointment_date >= DATE_TRUNC('week', CURRENT_DATE)";
   } else if (timePeriod === "last_30_days") {
     dateFilter = "AND a.appointment_date > NOW() - INTERVAL '30 days'";
+  } else if (timePeriod === "last_7_days") {
+    dateFilter = "AND a.appointment_date > NOW() - INTERVAL '7 days'";
+  } else if (timePeriod === "today") {
+    dateFilter = "AND a.appointment_date >= CURRENT_DATE";
   }
 
   const areaFilter = area ? "AND p.formatted_address ILIKE $1" : "";

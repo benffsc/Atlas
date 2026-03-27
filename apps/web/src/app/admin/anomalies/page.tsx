@@ -22,6 +22,7 @@ interface Anomaly {
   created_at: string;
   flagged_by_name: string | null;
   resolved_by_name: string | null;
+  linear_issue_id: string | null;
 }
 
 const SEVERITY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -85,6 +86,24 @@ export default function AnomaliesPage() {
       });
       setUpdateStatus(null);
       fetchAnomalies();
+    } catch {
+      // Ignore
+    }
+  };
+
+  // FFS-760: Create Linear issue from anomaly
+  const createLinearIssue = async (anomaly: Anomaly) => {
+    try {
+      const res = await fetch("/api/admin/anomalies/linear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anomaly_id: anomaly.anomaly_id }),
+      });
+      const data = await res.json();
+      const payload = data?.success === true && "data" in data ? data.data : data;
+      if (payload?.identifier) {
+        fetchAnomalies();
+      }
     } catch {
       // Ignore
     }
@@ -315,24 +334,65 @@ export default function AnomaliesPage() {
                           </button>
                         </>
                       )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyToClipboard(a);
-                        }}
-                        title="Copy as markdown (for Linear issue)"
-                        style={{
-                          padding: "4px 12px",
-                          borderRadius: "4px",
-                          border: "1px solid var(--card-border)",
-                          background: "var(--card-bg)",
-                          fontSize: "0.8rem",
-                          cursor: "pointer",
-                          marginLeft: "auto",
-                        }}
-                      >
-                        Copy for Linear
-                      </button>
+                      {a.linear_issue_id ? (
+                        <a
+                          href={`https://linear.app/ffsc/issue/${a.linear_issue_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "4px",
+                            border: "1px solid #818cf8",
+                            background: "#eef2ff",
+                            color: "#4338ca",
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                            marginLeft: "auto",
+                            textDecoration: "none",
+                          }}
+                        >
+                          {a.linear_issue_id}
+                        </a>
+                      ) : a.severity !== "low" ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            createLinearIssue(a);
+                          }}
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "4px",
+                            border: "1px solid #818cf8",
+                            background: "#eef2ff",
+                            color: "#4338ca",
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                            marginLeft: "auto",
+                          }}
+                        >
+                          Create Linear Issue
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(a);
+                          }}
+                          title="Copy as markdown"
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "4px",
+                            border: "1px solid var(--card-border)",
+                            background: "var(--card-bg)",
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                            marginLeft: "auto",
+                          }}
+                        >
+                          Copy for Linear
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
