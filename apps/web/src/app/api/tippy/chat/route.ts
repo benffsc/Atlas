@@ -1124,29 +1124,77 @@ async function handleStreamingChat({
         };
         const toolsUsedInThisRequest: string[] = [];
 
-        // Initial API call (non-streaming, to check for tool use)
+        // Helper: stream an API call and collect content blocks (tool_use + text)
+        // Streaming detects tool_use in ~2s vs 15-40s for non-streaming
+        async function streamAndCollect(
+          apiMessages: Anthropic.MessageParam[],
+          toolChoice?: ReturnType<typeof detectIntentAndForceToolChoice>
+        ): Promise<{ content: Anthropic.ContentBlock[]; stopReason: string | null }> {
+          const collected: Anthropic.ContentBlock[] = [];
+          let currentToolUse: { id: string; name: string; inputJson: string } | null = null;
+          let textContent = "";
+          let stopReason: string | null = null;
+
+          const apiStream = client.messages.stream({
+            model: TIPPY_MODEL,
+            max_tokens: 4096,
+            system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+            messages: apiMessages,
+            tools: availableTools.length > 0 ? (availableTools as Anthropic.Tool[]) : undefined,
+            ...(toolChoice && { tool_choice: toolChoice }),
+          });
+
+          for await (const event of apiStream) {
+            if (event.type === "content_block_start") {
+              const block = event.content_block;
+              if (block.type === "tool_use") {
+                currentToolUse = { id: block.id, name: block.name, inputJson: "" };
+              } else if (block.type === "text") {
+                textContent = "";
+              }
+            } else if (event.type === "content_block_delta") {
+              if (event.delta.type === "input_json_delta" && currentToolUse) {
+                currentToolUse.inputJson += event.delta.partial_json;
+              } else if (event.delta.type === "text_delta") {
+                textContent += event.delta.text;
+              }
+            } else if (event.type === "content_block_stop") {
+              if (currentToolUse) {
+                collected.push({
+                  type: "tool_use",
+                  id: currentToolUse.id,
+                  name: currentToolUse.name,
+                  input: JSON.parse(currentToolUse.inputJson || "{}"),
+                } as Anthropic.ToolUseBlock);
+                currentToolUse = null;
+              } else if (textContent) {
+                collected.push({ type: "text", text: textContent } as Anthropic.TextBlock);
+                textContent = "";
+              }
+            } else if (event.type === "message_delta") {
+              stopReason = event.delta.stop_reason ?? null;
+            }
+          }
+
+          return { content: collected, stopReason };
+        }
+
+        // Initial API call (STREAMED — detects tool_use fast + prompt caching)
         const startTime = Date.now();
-        let response = await client.messages.create({
-          model: TIPPY_MODEL,
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages,
-          tools: availableTools.length > 0 ? availableTools : undefined,
-          ...(forcedToolChoice && { tool_choice: forcedToolChoice }),
-        });
-        console.log(`[Tippy] Initial API call: ${Date.now() - startTime}ms, stop_reason=${response.stop_reason}, prompt_tokens=${systemPrompt.length}`);
+        let { content: responseContent, stopReason } = await streamAndCollect(messages, forcedToolChoice);
+        console.log(`[Tippy] Initial streamed call: ${Date.now() - startTime}ms, stop_reason=${stopReason}`);
 
         // Tool loop (max 3 iterations, with time budget — FFS-809)
         let iterations = 0;
         const maxIterations = 3;
         const TIME_BUDGET_MS = 110_000; // 10s buffer before Vercel kills us
 
-        while (response.stop_reason === "tool_use" && iterations < maxIterations) {
+        while (stopReason === "tool_use" && iterations < maxIterations) {
           // Check time budget before starting another tool iteration
           const remaining = TIME_BUDGET_MS - (Date.now() - startTime);
           if (remaining < 25_000) {
             // Not enough time for another API round-trip — force summarize
-            const pendingBlocks = response.content.filter(
+            const pendingBlocks = responseContent.filter(
               (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
             );
             const pendingResults = pendingBlocks.map((toolUse) => ({
@@ -1154,7 +1202,7 @@ async function handleStreamingChat({
               tool_use_id: toolUse.id,
               content: JSON.stringify({ success: false, error: "Skipped: time budget exceeded" }),
             }));
-            messages.push({ role: "assistant", content: response.content });
+            messages.push({ role: "assistant", content: responseContent });
             messages.push({
               role: "user",
               content: [
@@ -1167,7 +1215,7 @@ async function handleStreamingChat({
 
           iterations++;
 
-          const toolUseBlocks = response.content.filter(
+          const toolUseBlocks = responseContent.filter(
             (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
           );
           if (toolUseBlocks.length === 0) break;
@@ -1201,24 +1249,20 @@ async function handleStreamingChat({
             })
           );
 
-          messages.push({ role: "assistant", content: response.content });
+          messages.push({ role: "assistant", content: responseContent });
           messages.push({ role: "user", content: toolResultsContent });
 
-          // Next API call (non-streaming, to check for more tool use)
+          // Next API call (streamed + cached)
           const toolCallStart = Date.now();
-          response = await client.messages.create({
-            model: TIPPY_MODEL,
-            max_tokens: 4096,
-            system: systemPrompt,
-            messages,
-            tools: availableTools.length > 0 ? availableTools : undefined,
-          });
-          console.log(`[Tippy] Tool loop API call #${iterations}: ${Date.now() - toolCallStart}ms, stop_reason=${response.stop_reason}, elapsed=${Date.now() - startTime}ms`);
+          const nextResult = await streamAndCollect(messages);
+          responseContent = nextResult.content;
+          stopReason = nextResult.stopReason;
+          console.log(`[Tippy] Tool loop call #${iterations}: ${Date.now() - toolCallStart}ms, stop_reason=${stopReason}, elapsed=${Date.now() - startTime}ms`);
         }
 
         // Handle max iterations exceeded (same as non-streaming path)
-        if (response.stop_reason === "tool_use" && iterations >= maxIterations) {
-          const pendingToolUseBlocks = response.content.filter(
+        if (stopReason === "tool_use" && iterations >= maxIterations) {
+          const pendingToolUseBlocks = responseContent.filter(
             (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
           );
 
@@ -1250,7 +1294,7 @@ async function handleStreamingChat({
             })
           );
 
-          messages.push({ role: "assistant", content: response.content });
+          messages.push({ role: "assistant", content: responseContent });
           messages.push({
             role: "user",
             content: [
@@ -1267,8 +1311,8 @@ async function handleStreamingChat({
         send("status", { phase: "responding" });
 
         // If the last response already has text (no more tool use), extract and stream it as deltas
-        const existingText = response.stop_reason !== "tool_use"
-          ? response.content.find((c) => c.type === "text")
+        const existingText = stopReason !== "tool_use"
+          ? responseContent.find((c): c is Anthropic.TextBlock => c.type === "text")
           : null;
 
         let fullText = "";
@@ -1279,11 +1323,11 @@ async function handleStreamingChat({
           fullText = existingText.text;
           send("delta", { text: fullText });
         } else {
-          // Stream the final text generation
+          // Stream the final text generation (with prompt caching)
           const finalStream = client.messages.stream({
             model: TIPPY_MODEL,
             max_tokens: 4096,
-            system: systemPrompt,
+            system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
             messages,
             // No tools — forces text-only response
           });
