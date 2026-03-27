@@ -1478,20 +1478,45 @@ function AtlasMapV2Inner() {
 export default function AtlasMapV2() {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  // Suppress Google Maps auth failure dialog — show our own inline banner instead
+  // Suppress Google Maps auth failure dialog globally before API loads.
+  // Google calls gm_authFailure on every tile request when domain isn't verified,
+  // which spawns modal dialogs that freeze the tab. Noop it + hide via CSS.
   useEffect(() => {
-    const w = window as any;
-    w.gm_authFailure = () => {
-      // Hide Google's default error dialog
-      const dialog = document.querySelector('.dismissButton, .gm-err-container') as HTMLElement;
-      dialog?.closest('.gm-style-pbc')?.remove();
-      // Also hide via CSS in case the dialog structure changes
-      const style = document.createElement('style');
-      style.textContent = '.gm-style-pbc, .gm-err-container, div[style*="background-color: white"][style*="z-index"] > div > div:has(.dismissButton) { display: none !important; }';
+    // 1. Noop the callback so Google never creates the dialog
+    (window as any).gm_authFailure = () => {};
+
+    // 2. CSS nuclear option — hide any dialog Google manages to create
+    const style = document.createElement("style");
+    style.id = "gm-auth-suppress";
+    style.textContent = [
+      ".gm-style-pbc { display: none !important; }",
+      ".gm-err-container { display: none !important; }",
+      ".dismissButton { display: none !important; }",
+      // Google's modal overlay
+      'div[style*="background-color: white"][style*="position: absolute"][style*="z-index"] { display: none !important; }',
+    ].join("\n");
+    if (!document.getElementById("gm-auth-suppress")) {
       document.head.appendChild(style);
-      console.warn('[AtlasMapV2] Google Maps auth warning suppressed — map tiles still load');
+    }
+
+    // 3. MutationObserver to catch and remove any dialog Google injects
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof HTMLElement) {
+            if (node.classList?.contains("gm-style-pbc") || node.querySelector?.(".dismissButton")) {
+              node.remove();
+            }
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      document.getElementById("gm-auth-suppress")?.remove();
     };
-    return () => { delete w.gm_authFailure; };
   }, []);
 
   if (!apiKey) {
