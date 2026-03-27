@@ -162,6 +162,31 @@ function AtlasMapInner() {
   const [poiResults, setPoiResults] = useState<TextSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [searchOffset, setSearchOffset] = useState(0);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Search history (localStorage)
+  const SEARCH_HISTORY_KEY = "map-search-history";
+  const MAX_HISTORY = 10;
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]"); } catch { return []; }
+  });
+
+  const addToSearchHistory = useCallback((query: string) => {
+    setSearchHistory(prev => {
+      const filtered = prev.filter(q => q !== query);
+      const next = [query, ...filtered].slice(0, MAX_HISTORY);
+      try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const clearSearchHistory = useCallback(() => {
+    setSearchHistory([]);
+    try { localStorage.removeItem(SEARCH_HISTORY_KEY); } catch {}
+  }, []);
 
   const [navigatedLocation, setNavigatedLocation] = useState<NavigatedLocation | null>(null);
   const navigatedMarkerRef = useRef<L.Marker | null>(null);
@@ -1647,10 +1672,13 @@ function AtlasMapInner() {
       setGoogleSuggestions([]);
       setPoiResults([]);
       setSearchLoading(false);
+      setSearchOffset(0);
+      setSearchHasMore(false);
       return;
     }
 
     setSearchLoading(true);
+    setSearchOffset(0);
     const timer = setTimeout(async () => {
       searchAbortRef.current?.abort();
       const controller = new AbortController();
@@ -1660,8 +1688,8 @@ function AtlasMapInner() {
 
       try {
         const results = await Promise.allSettled([
-          fetchApi<{ suggestions?: AtlasSearchResult[] }>(
-            `/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&suggestions=true`,
+          fetchApi<{ suggestions?: AtlasSearchResult[]; pagination?: { total: number } }>(
+            `/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&offset=0&suggestions=true`,
             { signal: controller.signal }
           ),
           fetchApi<{ predictions?: PlacePrediction[] }>(
@@ -1685,6 +1713,7 @@ function AtlasMapInner() {
         const newAtlas = atlasData?.suggestions || [];
         const newGoogle = googleData?.predictions || [];
         let newPoi: TextSearchResult[] = textData?.results || [];
+        const total = atlasData?.pagination?.total || 0;
 
         // Only show Google address suggestions if <3 Atlas results
         const showGoogle = newAtlas.length < 3;
@@ -1698,6 +1727,8 @@ function AtlasMapInner() {
         setAtlasSearchResults(newAtlas);
         setGoogleSuggestions(showGoogle ? newGoogle : []);
         setPoiResults(newPoi);
+        setSearchHasMore(total > 8);
+        setSearchOffset(8);
         setSearchLoading(false);
       } catch {
         if (!controller.signal.aborted) setSearchLoading(false);
@@ -1707,13 +1738,32 @@ function AtlasMapInner() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Load more search results
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || !searchHasMore || searchQuery.length < 3) return;
+    setLoadingMore(true);
+    try {
+      const data = await fetchApi<{ suggestions?: AtlasSearchResult[]; pagination?: { total: number } }>(
+        `/api/search?q=${encodeURIComponent(searchQuery)}&limit=8&offset=${searchOffset}&suggestions=true`
+      );
+      const more = data?.suggestions || [];
+      if (more.length > 0) {
+        setAtlasSearchResults(prev => [...prev, ...more]);
+        setSearchOffset(prev => prev + more.length);
+      }
+      const total = data?.pagination?.total || 0;
+      setSearchHasMore(searchOffset + more.length < total);
+    } catch { /* ignore load more errors */ }
+    setLoadingMore(false);
+  }, [loadingMore, searchHasMore, searchQuery, searchOffset]);
+
   const handleSearchSelect = (result: typeof searchResults[0]) => {
     const item = result.item as Place | GooglePin | Volunteer;
     if (mapRef.current && item.lat && item.lng) {
       mapRef.current.setView([item.lat, item.lng], 16, { animate: true, duration: 0.5 });
-      // Clear any navigated location marker
       setNavigatedLocation(null);
     }
+    if (searchQuery.trim()) addToSearchHistory(searchQuery.trim());
     setSearchQuery("");
     setShowSearchResults(false);
   };
@@ -1721,6 +1771,7 @@ function AtlasMapInner() {
   // Handle Atlas fuzzy search result selection — always try to pan on map
   // For person/cat results, opens Place drawer first then overlays entity drawer (Place→Entity pattern)
   const handleAtlasSearchSelect = async (result: AtlasSearchResult) => {
+    if (searchQuery.trim()) addToSearchHistory(searchQuery.trim());
     setSearchQuery("");
     setShowSearchResults(false);
 
@@ -2446,8 +2497,24 @@ function AtlasMapInner() {
           )}
         </div>
 
+        {/* Recent searches (shown when focused with empty query) */}
+        {showSearchResults && !searchQuery && searchHistory.length > 0 && (
+          <div style={{ background: "var(--background)", borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", marginTop: 8, maxHeight: 300, overflowY: "auto" }}>
+            <div style={{ padding: "8px 16px 4px", fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", background: "var(--section-bg)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              Recent Searches
+              <button onClick={clearSearchHistory} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--text-tertiary)", padding: "2px 6px" }}>Clear</button>
+            </div>
+            {searchHistory.map((q, i) => (
+              <div key={i} onClick={() => { setSearchQuery(q); setShowSearchResults(true); }} style={{ padding: "10px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-default)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")} onMouseLeave={(e) => (e.currentTarget.style.background = "var(--background)")}>
+                <span style={{ fontSize: 14, color: "var(--text-tertiary)" }}>&#x1F50D;</span>
+                <span style={{ fontSize: 14 }}>{q}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Search results dropdown */}
-        {showSearchResults && (searchResults.length > 0 || atlasSearchResults.length > 0 || poiResults.length > 0 || googleSuggestions.length > 0 || searchLoading || (searchQuery.length >= 3 && !searchLoading)) && (
+        {showSearchResults && searchQuery && (searchResults.length > 0 || atlasSearchResults.length > 0 || poiResults.length > 0 || googleSuggestions.length > 0 || searchLoading || (searchQuery.length >= 3 && !searchLoading)) && (
           <div style={{
             background: "var(--background)",
             borderRadius: 12,
@@ -2674,6 +2741,33 @@ function AtlasMapInner() {
                 <div style={{ fontSize: 14, marginBottom: 4 }}>No matches found</div>
                 <div style={{ fontSize: 12 }}>Try a different search term</div>
               </div>
+            )}
+
+            {/* Load more button */}
+            {searchHasMore && atlasSearchResults.length > 0 && !searchLoading && (
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                style={{
+                  width: "100%",
+                  padding: "10px 16px",
+                  background: "none",
+                  border: "none",
+                  borderTop: "1px solid var(--border-default)",
+                  cursor: loadingMore ? "wait" : "pointer",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "var(--primary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                {loadingMore ? "Loading..." : "Load more results"}
+              </button>
             )}
           </div>
         )}
