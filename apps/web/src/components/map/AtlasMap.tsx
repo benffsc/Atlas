@@ -1022,15 +1022,15 @@ function AtlasMapInner() {
 
       marker.bindPopup(`
         <div style="min-width:180px">
-          <strong><a href="/trappers/${escapeHtml(t.person_id)}" style="color:#0d6efd">${escapeHtml(t.trapper_name)}</a></strong>
+          <strong><a href="/trappers/${escapeHtml(t.person_id)}" style="color:${MAP_COLORS.popup.link}">${escapeHtml(t.trapper_name)}</a></strong>
           <div style="margin-top:4px;font-size:12px">
             <span style="display:inline-block;padding:1px 6px;border-radius:3px;background:${color}20;color:${color};font-weight:500">${serviceLabel}</span>
             <span style="display:inline-block;padding:1px 6px;border-radius:3px;color:${availColor};font-weight:500;margin-left:4px">${availLabel}</span>
           </div>
-          <div style="margin-top:4px;font-size:11px;color:#666">
+          <div style="margin-top:4px;font-size:11px;color:${MAP_COLORS.popup.textSecondary}">
             ${escapeHtml(t.place_name)}
           </div>
-          <div style="margin-top:2px;font-size:11px;color:#888">
+          <div style="margin-top:2px;font-size:11px;color:${MAP_COLORS.popup.textTertiary}">
             ${t.active_assignments} active assignment${t.active_assignments !== 1 ? "s" : ""}
             ${t.tier ? ` · ${escapeHtml(t.tier)}` : ""}
           </div>
@@ -1120,29 +1120,29 @@ function AtlasMapInner() {
           </div>
           <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">${source.address}</div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 16px; font-weight: 700; color: #374151;">${source.peak_cat_count || "?"}</div>
-              <div style="font-size: 10px; color: #6b7280;">Peak Cats</div>
+            <div style="background: ${MAP_COLORS.popup.bgMuted}; padding: 8px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 16px; font-weight: 700; color: ${MAP_COLORS.popup.textPrimary};">${source.peak_cat_count || "?"}</div>
+              <div style="font-size: 10px; color: ${MAP_COLORS.popup.textSecondary};">Peak Cats</div>
             </div>
             <div style="background: ${color}15; padding: 8px; border-radius: 6px; text-align: center;">
               <div style="font-size: 12px; font-weight: 600; color: ${color};">${source.severity}</div>
-              <div style="font-size: 10px; color: #6b7280;">Severity</div>
+              <div style="font-size: 10px; color: ${MAP_COLORS.popup.textSecondary};">Severity</div>
             </div>
           </div>
-          <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+          <div style="font-size: 12px; color: ${MAP_COLORS.popup.textSecondary}; margin-bottom: 8px;">
             <strong>Period:</strong> ${validFrom} — ${validTo}
           </div>
           ${source.ecological_impact ? `
-            <div style="font-size: 12px; background: #fef3c7; color: #92400e; padding: 6px 8px; border-radius: 6px; margin-bottom: 8px;">
+            <div style="font-size: 12px; background: ${MAP_COLORS.popup.warningBg}; color: ${MAP_COLORS.popup.warningText}; padding: 6px 8px; border-radius: 6px; margin-bottom: 8px;">
               ⚠️ Ecological Impact: <strong>${source.ecological_impact}</strong>
             </div>
           ` : ""}
           ${source.description ? `
-            <div style="font-size: 12px; color: #374151; background: #f9fafb; padding: 8px; border-radius: 6px; max-height: 80px; overflow-y: auto;">
+            <div style="font-size: 12px; color: ${MAP_COLORS.popup.textPrimary}; background: ${MAP_COLORS.popup.bgSubtle}; padding: 8px; border-radius: 6px; max-height: 80px; overflow-y: auto;">
               ${source.description}
             </div>
           ` : ""}
-          <div style="font-size: 10px; color: #9ca3af; margin-top: 8px;">
+          <div style="font-size: 10px; color: ${MAP_COLORS.popup.textTertiary}; margin-top: 8px;">
             📜 Historical ecological context (${source.valid_to ? "resolved" : "ongoing"})
           </div>
         </div>
@@ -1208,7 +1208,7 @@ function AtlasMapInner() {
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
               <span style="width: 12px; height: 12px; border-radius: 3px; background: ${color};"></span>
               <span style="flex: 1; font-weight: 500;">${zone.zone_name}</span>
-              <span style="color: #6b7280;">${totalPoints} pts</span>
+              <span style="color: ${MAP_COLORS.popup.textSecondary};">${totalPoints} pts</span>
               <span style="
                 background: ${color}20;
                 color: ${color};
@@ -1325,7 +1325,7 @@ function AtlasMapInner() {
           const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
           const dim = sizeClass === "small" ? 24 : sizeClass === "medium" ? 30 : 38;
           return L.divIcon({
-            html: `<div style="width:${dim}px;height:${dim}px;border-radius:50%;background:rgba(148,163,184,0.65);color:#475569;font-size:${dim < 30 ? 10 : 11}px;font-weight:600;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 3px rgba(0,0,0,0.15);">${count}</div>`,
+            html: `<div style="width:${dim}px;height:${dim}px;border-radius:50%;background:rgba(148,163,184,0.65);color:${MAP_COLORS.popup.textPrimary};font-size:${dim < 30 ? 10 : 11}px;font-weight:600;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.8);box-shadow:0 1px 3px rgba(0,0,0,0.15);">${count}</div>`,
             className: "map-cluster-icon",
             iconSize: L.point(dim, dim),
           });
@@ -1368,12 +1368,12 @@ function AtlasMapInner() {
           ? String(pin.google_summaries[0].summary).replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, "")
           : "";
         const gmSnippet = gmRawSummary
-          ? `<div style="color:#6b7280;font-size:11px;margin-top:4px;line-height:1.3;max-height:40px;overflow:hidden;">"${gmRawSummary.substring(0, 120)}${gmRawSummary.length > 120 ? "…" : ""}"</div>`
+          ? `<div style="color:${MAP_COLORS.popup.textSecondary};font-size:11px;margin-top:4px;line-height:1.3;max-height:40px;overflow:hidden;">"${gmRawSummary.substring(0, 120)}${gmRawSummary.length > 120 ? "…" : ""}"</div>`
           : "";
 
         // People names
         const peopleNames = pin.people && pin.people.length > 0
-          ? `<div style="color:#374151;font-size:11px;margin-top:4px;">${pin.people.slice(0, 3).map((p: any) => p.name).join(", ")}${pin.people.length > 3 ? ` +${pin.people.length - 3}` : ""}</div>`
+          ? `<div style="color:${MAP_COLORS.popup.textPrimary};font-size:11px;margin-top:4px;">${pin.people.slice(0, 3).map((p: any) => p.name).join(", ")}${pin.people.length > 3 ? ` +${pin.people.length - 3}` : ""}</div>`
           : "";
 
         const refPopup = `<div class="map-popup" style="min-width:220px;padding:12px;">
@@ -1483,13 +1483,13 @@ function AtlasMapInner() {
       // Role badge colors
       const roleBadgeStyle = (role: string): string => {
         const styles: Record<string, string> = {
-          staff: "background:#eef2ff;color:#4338ca;",
-          trapper: "background:#ecfdf5;color:#065f46;",
-          foster: "background:#fdf2f8;color:#9d174d;",
-          caretaker: "background:#ecfeff;color:#0e7490;",
-          volunteer: "background:#f5f3ff;color:#6d28d9;",
+          staff: "background:${MAP_COLORS.popup.staffBadgeBg};color:${MAP_COLORS.popup.staffBadgeText};",
+          trapper: "background:${MAP_COLORS.popup.successBg};color:${MAP_COLORS.popup.successText};",
+          foster: "background:${MAP_COLORS.popup.fosterBadgeBg};color:${MAP_COLORS.popup.fosterBadgeText};",
+          caretaker: "background:${MAP_COLORS.popup.caretakerBadgeBg};color:${MAP_COLORS.popup.caretakerBadgeText};",
+          volunteer: "background:${MAP_COLORS.popup.volunteerBadgeBg};color:${MAP_COLORS.popup.volunteerBadgeText};",
         };
-        return styles[role] || "background:#f3f4f6;color:#374151;";
+        return styles[role] || "background:${MAP_COLORS.popup.bgMuted};color:#374151;";
       };
       const roleLabel = (role: string): string => {
         const labels: Record<string, string> = {
@@ -1510,7 +1510,7 @@ function AtlasMapInner() {
               .map((r: string) => `<span style="display:inline-block;padding:1px 5px;border-radius:9999px;font-size:9px;font-weight:600;margin-left:4px;${roleBadgeStyle(r)}">${roleLabel(r)}</span>`)
               .join("");
             const staffBadge = p.is_staff && !(p.roles || []).includes("staff")
-              ? `<span style="display:inline-block;padding:1px 5px;border-radius:9999px;font-size:9px;font-weight:600;margin-left:4px;background:#eef2ff;color:#4338ca;">Staff</span>`
+              ? `<span style="display:inline-block;padding:1px 5px;border-radius:9999px;font-size:9px;font-weight:600;margin-left:4px;background:${MAP_COLORS.popup.staffBadgeBg};color:${MAP_COLORS.popup.staffBadgeText};">Staff</span>`
               : "";
             // If they only have volunteer role, show it
             const volOnly = (p.roles || []).length === 1 && (p.roles || [])[0] === "volunteer"
@@ -1541,9 +1541,9 @@ function AtlasMapInner() {
 
       const historySummaries = validSummaries.length > 0
         ? validSummaries.slice(0, 2).map((s: { summary: string; meaning: string | null; date: string | null }) =>
-            `<div style="font-size: 11px; color: #6b7280; margin-top: 4px; padding: 4px; background: #f9fafb; border-radius: 4px;">
+            `<div style="font-size: 11px; color: ${MAP_COLORS.popup.textSecondary}; margin-top: 4px; padding: 4px; background: ${MAP_COLORS.popup.bgSubtle}; border-radius: 4px;">
               ${s.summary?.substring(0, 120) || ""}${s.summary && s.summary.length > 120 ? "..." : ""}
-              ${s.date ? `<span style="color: #9ca3af;"> (${s.date})</span>` : ""}
+              ${s.date ? `<span style="color: ${MAP_COLORS.popup.textTertiary};"> (${s.date})</span>` : ""}
             </div>`
           ).join("")
         : "";
@@ -1553,7 +1553,7 @@ function AtlasMapInner() {
 
       // Unit identifier for individual apartment units
       const unitLabel = pin.unit_identifier
-        ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">Unit: ${pin.unit_identifier}</div>`
+        ? `<div style="font-size: 12px; color: ${MAP_COLORS.popup.textSecondary}; margin-top: 2px;">Unit: ${pin.unit_identifier}</div>`
         : "";
 
       marker.bindPopup(`
@@ -1562,44 +1562,44 @@ function AtlasMapInner() {
           ${unitLabel}
 
           ${pin.disease_risk ? `
-            <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 8px; margin: 8px 0; border-radius: 6px;">
-              <div style="color: #dc2626; font-weight: 600; font-size: 13px;">⚠️ Disease Risk</div>
-              ${pin.disease_risk_notes ? `<div style="font-size: 12px; color: #7f1d1d; margin-top: 4px;">${pin.disease_risk_notes}</div>` : ""}
+            <div style="background: ${MAP_COLORS.popup.dangerBg}; border: 1px solid ${MAP_COLORS.popup.dangerBorder}; padding: 8px; margin: 8px 0; border-radius: 6px;">
+              <div style="color: ${MAP_COLORS.popup.danger}; font-weight: 600; font-size: 13px;">⚠️ Disease Risk</div>
+              ${pin.disease_risk_notes ? `<div style="font-size: 12px; color: ${MAP_COLORS.popup.dangerDark}; margin-top: 4px;">${pin.disease_risk_notes}</div>` : ""}
             </div>
           ` : ""}
 
           ${pin.watch_list && !pin.disease_risk ? `
-            <div style="background: #f5f3ff; border: 1px solid #c4b5fd; padding: 8px; margin: 8px 0; border-radius: 6px;">
-              <div style="color: #7c3aed; font-weight: 600; font-size: 13px;">👁️ Watch List</div>
+            <div style="background: ${MAP_COLORS.popup.watchBg}; border: 1px solid ${MAP_COLORS.popup.watchBorder}; padding: 8px; margin: 8px 0; border-radius: 6px;">
+              <div style="color: ${MAP_COLORS.popup.watchText}; font-weight: 600; font-size: 13px;">👁️ Watch List</div>
             </div>
           ` : ""}
 
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0;">
-            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 18px; font-weight: 700; color: #374151;">${pin.cat_count}</div>
-              <div style="font-size: 10px; color: #6b7280;">Cats</div>
+            <div style="background: ${MAP_COLORS.popup.bgMuted}; padding: 8px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: ${MAP_COLORS.popup.textPrimary};">${pin.cat_count}</div>
+              <div style="font-size: 10px; color: ${MAP_COLORS.popup.textSecondary};">Cats</div>
             </div>
-            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 18px; font-weight: 700; color: #374151;">${filteredPeople.length}</div>
-              <div style="font-size: 10px; color: #6b7280;">People</div>
+            <div style="background: ${MAP_COLORS.popup.bgMuted}; padding: 8px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: ${MAP_COLORS.popup.textPrimary};">${filteredPeople.length}</div>
+              <div style="font-size: 10px; color: ${MAP_COLORS.popup.textSecondary};">People</div>
             </div>
-            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 18px; font-weight: 700; color: ${pin.active_request_count > 0 ? "#dc2626" : "#374151"};">${pin.request_count}</div>
-              <div style="font-size: 10px; color: #6b7280;">Requests</div>
+            <div style="background: ${MAP_COLORS.popup.bgMuted}; padding: 8px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: ${pin.active_request_count > 0 ? MAP_COLORS.popup.danger : MAP_COLORS.popup.textPrimary};">${pin.request_count}</div>
+              <div style="font-size: 10px; color: ${MAP_COLORS.popup.textSecondary};">Requests</div>
             </div>
           </div>
 
           ${filteredPeople.length > 0 ? `
             <div style="margin-top: 8px;">
-              <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px;">People:</div>
+              <div style="font-size: 12px; font-weight: 600; color: ${MAP_COLORS.popup.textPrimary}; margin-bottom: 4px;">People:</div>
               ${peopleList}
-              ${filteredPeople.length > 3 ? `<div style="font-size: 11px; color: #9ca3af;">+${filteredPeople.length - 3} more</div>` : ""}
+              ${filteredPeople.length > 3 ? `<div style="font-size: 11px; color: ${MAP_COLORS.popup.textTertiary};">+${filteredPeople.length - 3} more</div>` : ""}
             </div>
           ` : ""}
 
           ${validSummaries.length > 0 ? `
-            <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
-              <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px;">
+            <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid ${MAP_COLORS.popup.border};">
+              <div style="font-size: 12px; font-weight: 600; color: ${MAP_COLORS.popup.textPrimary}; margin-bottom: 4px;">
                 📜 Historical Notes (${pin.google_entry_count})
               </div>
               ${historySummaries}
@@ -1607,13 +1607,13 @@ function AtlasMapInner() {
           ` : ""}
 
           ${pin.total_altered > 0 ? `
-            <div style="margin-top: 8px; font-size: 12px; color: #059669;">
+            <div style="margin-top: 8px; font-size: 12px; color: ${MAP_COLORS.popup.success};">
               ✓ ${pin.total_altered} cats altered${lastAlterationLabel ? ` · Last: ${lastAlterationLabel}` : ''}
             </div>
           ` : ""}
 
           ${pin.needs_trapper_count > 0 ? `
-            <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 6px 8px; margin-top: 8px; border-radius: 6px; font-size: 12px; color: #c2410c; font-weight: 500;">
+            <div style="background: ${MAP_COLORS.popup.warningBannerBg}; border: 1px solid ${MAP_COLORS.popup.warningBannerBorder}; padding: 6px 8px; margin-top: 8px; border-radius: 6px; font-size: 12px; color: ${MAP_COLORS.popup.warningBannerText}; font-weight: 500;">
               ${pin.needs_trapper_count} ${pin.needs_trapper_count === 1 ? 'request needs' : 'requests need'} trapper
             </div>
           ` : ""}
@@ -1927,7 +1927,7 @@ function AtlasMapInner() {
         html: `<div style="
           width: 32px;
           height: 32px;
-          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+          background: linear-gradient(135deg, var(--primary), var(--primary-dark, #1d4ed8));
           border: 3px solid white;
           border-radius: 50% 50% 50% 0;
           transform: rotate(-45deg);
@@ -1990,15 +1990,15 @@ function AtlasMapInner() {
     const nearbyExtra = nearbyPeople.length - displayNearby.length;
 
     const nearbyHtml = displayNearby.length > 0 ? `
-      <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb;">
-        <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:#374151;">Nearby People</div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid ${MAP_COLORS.popup.border};">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:${MAP_COLORS.popup.textPrimary};">Nearby People</div>
         ${displayNearby.map(n => `
-          <div style="font-size:12px;color:#6b7280;padding:2px 0;">
-            <span style="font-weight:500;color:#374151;">${n.name}</span>
-            <span style="color:#9ca3af;"> — ${n.dist}m</span>
+          <div style="font-size:12px;color:${MAP_COLORS.popup.textSecondary};padding:2px 0;">
+            <span style="font-weight:500;color:${MAP_COLORS.popup.textPrimary};">${n.name}</span>
+            <span style="color:${MAP_COLORS.popup.textTertiary};"> — ${n.dist}m</span>
           </div>
         `).join("")}
-        ${nearbyExtra > 0 ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px;">+${nearbyExtra} more</div>` : ""}
+        ${nearbyExtra > 0 ? `<div style="font-size:11px;color:${MAP_COLORS.popup.textTertiary};margin-top:4px;">+${nearbyExtra} more</div>` : ""}
       </div>
     ` : "";
 
@@ -2006,7 +2006,7 @@ function AtlasMapInner() {
       <div style="min-width: 240px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
         <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">${navigatedLocation.address}</div>
         ${existsInAtlas
-          ? `<div style="color: #059669; font-size: 12px; margin-bottom: 8px;">This location has Atlas data</div>
+          ? `<div style="color: ${MAP_COLORS.popup.success}; font-size: 12px; margin-bottom: 8px;">This location has Atlas data</div>
             <div class="map-popup__actions" style="margin-top: 12px; flex-wrap: wrap;">
               <button onclick="window.atlasMapExpandPlace('${matchingPin!.id}')" class="map-popup__btn map-popup__btn--success" style="padding: 6px 12px; font-size: 12px;">
                 View Details
@@ -2285,7 +2285,7 @@ function AtlasMapInner() {
     for (const ann of annotations) {
       const icon = createAnnotationMarker(ann.annotation_type, ann.label);
       const marker = L.marker([ann.lat, ann.lng], { icon });
-      const expiryText = ann.expires_at ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;">Expires: ${new Date(ann.expires_at).toLocaleDateString()}</div>` : '';
+      const expiryText = ann.expires_at ? `<div style="font-size:10px;color:${MAP_COLORS.popup.textTertiary};margin-top:4px;">Expires: ${new Date(ann.expires_at).toLocaleDateString()}</div>` : '';
       const photoHtml = ann.photo_url ? `<img src="${ann.photo_url}" style="width:100%;max-height:120px;object-fit:cover;border-radius:4px;margin-top:6px;" />` : '';
       const typeLabel = ann.annotation_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       marker.bindPopup(`
@@ -2367,7 +2367,7 @@ function AtlasMapInner() {
           </linearGradient>
         </defs>
         <path d="M40,40 L15,5 A35,35 0 0,1 65,5 Z" fill="url(#coneGrad)" stroke="rgba(66,133,244,0.5)" stroke-width="1"/>
-        <circle cx="40" cy="40" r="7" fill="#4285f4" stroke="white" stroke-width="2.5"/>
+        <circle cx="40" cy="40" r="7" fill="${MAP_COLORS.googleBrandBlue}" stroke="white" stroke-width="2.5"/>
       </svg>
     `;
 
