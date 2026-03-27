@@ -138,6 +138,44 @@ export const MAP_COLORS = {
     caretaker: { bg: 'rgba(234, 88, 12, 0.10)',   text: '#c2410c' },
     unknown:   { bg: 'rgba(107, 114, 128, 0.15)', text: '#6b7280' },
   },
+
+  // Popup HTML palette — Leaflet popups render raw HTML so CSS vars don't work.
+  // Reference these constants instead of raw hex inside template strings.
+  popup: {
+    textPrimary: '#374151',   // Gray-700
+    textSecondary: '#6b7280', // Gray-500
+    textTertiary: '#9ca3af',  // Gray-400
+    bgMuted: '#f3f4f6',      // Gray-100
+    bgSubtle: '#f9fafb',     // Gray-50
+    border: '#e5e7eb',       // Gray-200
+    link: '#0d6efd',         // Primary link blue
+    danger: '#dc2626',       // Red-600
+    dangerDark: '#7f1d1d',   // Red-900
+    dangerBg: '#fef2f2',     // Red-50
+    dangerBorder: '#fecaca', // Red-200
+    success: '#059669',      // Emerald-600
+    successBg: '#ecfdf5',    // Emerald-50
+    successText: '#065f46',  // Emerald-800
+    warningBg: '#fef3c7',    // Amber-100
+    warningText: '#92400e',  // Amber-800
+    watchBg: '#f5f3ff',      // Violet-50
+    watchBorder: '#c4b5fd',  // Violet-300
+    watchText: '#7c3aed',    // Violet-600
+    staffBadgeBg: '#eef2ff', // Indigo-50
+    staffBadgeText: '#4338ca', // Indigo-700
+    fosterBadgeBg: '#fdf2f8', // Pink-50
+    fosterBadgeText: '#9d174d', // Pink-800
+    caretakerBadgeBg: '#ecfeff', // Cyan-50
+    caretakerBadgeText: '#0e7490', // Cyan-700
+    volunteerBadgeBg: '#f5f3ff', // Violet-50
+    volunteerBadgeText: '#6d28d9', // Violet-700
+    warningBannerBg: '#fff7ed', // Orange-50
+    warningBannerBorder: '#fed7aa', // Orange-200
+    warningBannerText: '#c2410c', // Orange-700
+  },
+
+  // Misc
+  googleBrandBlue: '#4285f4', // Google Maps brand color (don't change)
 };
 
 // ---------------------------------------------------------------------------
