@@ -58,6 +58,22 @@ async function askTippyStreaming(
   const toolsUsed: string[] = [];
   let error: string | null = null;
 
+  // Handle non-streaming JSON fallback (when API returns JSON instead of SSE)
+  if (body.startsWith("{")) {
+    try {
+      const json = JSON.parse(body);
+      const payload = json?.success === true && "data" in json ? json.data : json;
+      content = payload?.message || payload?.response || "";
+      if (content.includes("doesn't have access")) {
+        error = content;
+        content = "";
+      }
+    } catch {
+      // Not JSON either
+    }
+    return { content, durationMs, toolsUsed, error };
+  }
+
   const parts = body.split("\n\n");
   for (const part of parts) {
     if (!part.trim()) continue;

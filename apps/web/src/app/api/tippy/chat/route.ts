@@ -20,8 +20,9 @@ const TIPPY_MODEL =
   (process.env.NODE_ENV !== "production" && process.env.TIPPY_TEST_MODEL) ||
   "claude-sonnet-4-20250514";
 
-// Extend Vercel function timeout for multi-turn tool calls (FFS-809: 60→120s)
-export const maxDuration = 120;
+// Extend Vercel function timeout for multi-turn tool calls (FFS-809: 60→120→300s)
+// 300s available on Vercel Pro — gives Tippy room for multi-tool conversations
+export const maxDuration = 300;
 
 /**
  * Tippy Chat API
@@ -1187,7 +1188,7 @@ async function handleStreamingChat({
         // Tool loop (max 3 iterations, with time budget — FFS-809)
         let iterations = 0;
         const maxIterations = 3;
-        const TIME_BUDGET_MS = 110_000; // 10s buffer before Vercel kills us
+        const TIME_BUDGET_MS = 280_000; // 20s buffer before Vercel's 300s limit
 
         while (stopReason === "tool_use" && iterations < maxIterations) {
           // Check time budget before starting another tool iteration
@@ -1766,7 +1767,7 @@ ${JSON.stringify(briefingData, null, 2)}`;
     let iterations = 0;
     const maxIterations = 3;
     const nsStartTime = Date.now();
-    const NS_TIME_BUDGET_MS = 110_000; // 10s buffer before Vercel kills us
+    const NS_TIME_BUDGET_MS = 280_000; // 20s buffer before Vercel's 300s limit
 
     while (response.stop_reason === "tool_use" && iterations < maxIterations) {
       // Check time budget before starting another tool iteration
