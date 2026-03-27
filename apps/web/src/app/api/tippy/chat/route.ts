@@ -1109,6 +1109,7 @@ async function handleStreamingChat({
 
       // Declare outside try so catch block can access partial results (FFS-811)
       const recentToolResults: ToolResult[] = [];
+      const streamStartTime = Date.now();
 
       try {
         send("status", { phase: "thinking" });
@@ -1124,6 +1125,7 @@ async function handleStreamingChat({
         const toolsUsedInThisRequest: string[] = [];
 
         // Initial API call (non-streaming, to check for tool use)
+        const startTime = Date.now();
         let response = await client.messages.create({
           model: TIPPY_MODEL,
           max_tokens: 4096,
@@ -1132,11 +1134,11 @@ async function handleStreamingChat({
           tools: availableTools.length > 0 ? availableTools : undefined,
           ...(forcedToolChoice && { tool_choice: forcedToolChoice }),
         });
+        console.log(`[Tippy] Initial API call: ${Date.now() - startTime}ms, stop_reason=${response.stop_reason}, prompt_tokens=${systemPrompt.length}`);
 
         // Tool loop (max 3 iterations, with time budget — FFS-809)
         let iterations = 0;
         const maxIterations = 3;
-        const startTime = Date.now();
         const TIME_BUDGET_MS = 110_000; // 10s buffer before Vercel kills us
 
         while (response.stop_reason === "tool_use" && iterations < maxIterations) {
@@ -1203,6 +1205,7 @@ async function handleStreamingChat({
           messages.push({ role: "user", content: toolResultsContent });
 
           // Next API call (non-streaming, to check for more tool use)
+          const toolCallStart = Date.now();
           response = await client.messages.create({
             model: TIPPY_MODEL,
             max_tokens: 4096,
@@ -1210,6 +1213,7 @@ async function handleStreamingChat({
             messages,
             tools: availableTools.length > 0 ? availableTools : undefined,
           });
+          console.log(`[Tippy] Tool loop API call #${iterations}: ${Date.now() - toolCallStart}ms, stop_reason=${response.stop_reason}, elapsed=${Date.now() - startTime}ms`);
         }
 
         // Handle max iterations exceeded (same as non-streaming path)
@@ -1316,7 +1320,8 @@ async function handleStreamingChat({
         send("done", { conversationId });
         controller.close();
       } catch (error) {
-        console.error("Tippy streaming error:", error);
+        const totalElapsed = Date.now() - streamStartTime;
+        console.error(`[Tippy] Streaming error after ${totalElapsed}ms:`, error);
         const errMsg = error instanceof Error ? error.message : String(error);
 
         // Return partial results if any tools succeeded (FFS-811)
