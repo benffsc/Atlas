@@ -16,6 +16,15 @@ import { EQUIPMENT_CUSTODY_STATUS_OPTIONS, EQUIPMENT_CONDITION_OPTIONS, EQUIPMEN
 import type { VEquipmentInventoryRow, EquipmentStatsRow } from "@/lib/types/view-contracts";
 import { getCustodyStyle, getConditionStyle, getCategoryStyle } from "@/lib/equipment-styles";
 import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+
+// Category → fallback icon for items without photos
+const CATEGORY_ICONS: Record<string, string> = {
+  trap: "target",
+  cage: "package-plus",
+  camera: "camera",
+  accessory: "wrench",
+};
 
 export default function EquipmentPage() {
   return (
@@ -83,6 +92,43 @@ function FilterPill({
 // ---------------------------------------------------------------------------
 // Grouped table view — mimics Airtable's grouped-by-type layout
 // ---------------------------------------------------------------------------
+
+const EQUIPMENT_STYLES = `
+  .eq-row { transition: background-color 0.15s ease, transform 0.1s ease; }
+  .eq-row:hover { background-color: var(--muted-bg, #f9fafb); transform: translateX(2px); }
+  .eq-row[data-selected="true"] { background-color: var(--primary-bg, rgba(59,130,246,0.06)); border-left: 3px solid var(--primary, #3b82f6); }
+  .eq-row[data-selected="true"]:hover { background-color: var(--primary-bg, rgba(59,130,246,0.1)); }
+  .eq-group-header { position: sticky; top: 0; z-index: 2; }
+  .eq-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; position: relative; flex-shrink: 0; }
+  .eq-dot--pulse::before {
+    content: ""; position: absolute; top: 50%; left: 50%; width: 100%; height: 100%;
+    background: inherit; border-radius: 50%; transform: translate(-50%, -50%);
+    animation: eq-pulse 2s infinite ease-out;
+  }
+  @keyframes eq-pulse {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .eq-dot--pulse::before { animation: none; } }
+`;
+
+function StatusDot({ status, dueDate }: { status: string; dueDate?: string | null }) {
+  const isOverdue = dueDate && new Date(dueDate) < new Date();
+  const needsPulse = status === "missing" || isOverdue;
+  const color = status === "missing" ? "var(--danger-text)"
+    : isOverdue ? "var(--danger-text)"
+    : status === "checked_out" ? "var(--warning-text)"
+    : status === "available" ? "var(--success-text)"
+    : "var(--muted)";
+
+  return (
+    <span
+      className={`eq-dot${needsPulse ? " eq-dot--pulse" : ""}`}
+      style={{ background: color }}
+    />
+  );
+}
+
 function GroupedEquipmentView({
   equipment,
   selectedId,
@@ -97,13 +143,12 @@ function GroupedEquipmentView({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const groups = useMemo(() => {
-    const map = new Map<string, VEquipmentInventoryRow[]>();
+    const map = new Map<string, { items: VEquipmentInventoryRow[]; category: string }>();
     for (const item of equipment) {
       const key = item.type_display_name || item.legacy_type || "Other";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
+      if (!map.has(key)) map.set(key, { items: [], category: item.type_category || "" });
+      map.get(key)!.items.push(item);
     }
-    // Sort groups by name, put "Other" last
     return Array.from(map.entries()).sort((a, b) => {
       if (a[0] === "Other") return 1;
       if (b[0] === "Other") return -1;
@@ -125,154 +170,171 @@ function GroupedEquipmentView({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-      {groups.map(([typeName, items]) => {
-        const isCollapsed = collapsed.has(typeName);
-        const catStyle = getCategoryStyle(items[0]?.type_category || "");
-        return (
-          <div key={typeName}>
-            {/* Group header */}
-            <button
-              onClick={() => toggleGroup(typeName)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                width: "100%",
-                padding: "0.5rem 0.75rem",
-                border: "none",
-                background: "var(--muted-bg, #f9fafb)",
-                cursor: "pointer",
-                textAlign: "left",
-                borderRadius: "6px",
-              }}
-            >
-              <span style={{
-                fontSize: "0.7rem",
-                color: "var(--muted)",
-                transition: "transform 0.15s",
-                transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-              }}>
-                &#9660;
-              </span>
-              <span style={{
-                fontSize: "0.8rem",
-                padding: "0.125rem 0.5rem",
-                borderRadius: "4px",
-                background: catStyle.bg,
-                color: catStyle.text,
-                fontWeight: 600,
-              }}>
-                {typeName}
-              </span>
-              <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 500 }}>
-                {items.length}
-              </span>
-            </button>
+    <>
+      <style>{EQUIPMENT_STYLES}</style>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+        {groups.map(([typeName, { items, category }]) => {
+          const isCollapsed = collapsed.has(typeName);
+          const catStyle = getCategoryStyle(category);
+          const availCount = items.filter((i) => i.custody_status === "available").length;
+          const outCount = items.filter((i) => i.custody_status === "checked_out" || i.custody_status === "in_field").length;
+          return (
+            <div key={typeName}>
+              {/* Group header — sticky, with category color strip */}
+              <button
+                className="eq-group-header"
+                onClick={() => toggleGroup(typeName)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  width: "100%",
+                  padding: "0.5rem 0.75rem",
+                  border: "none",
+                  borderLeft: `4px solid ${catStyle.text}`,
+                  background: "var(--card-bg, #fff)",
+                  borderBottom: "1px solid var(--border-light, #f0f0f0)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <span style={{
+                  fontSize: "0.65rem",
+                  color: "var(--muted)",
+                  transition: "transform 0.15s",
+                  transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                  lineHeight: 1,
+                }}>
+                  &#9660;
+                </span>
+                <span style={{
+                  fontSize: "0.8rem",
+                  padding: "0.125rem 0.5rem",
+                  borderRadius: "4px",
+                  background: catStyle.bg,
+                  color: catStyle.text,
+                  fontWeight: 600,
+                }}>
+                  {typeName}
+                </span>
+                <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>
+                  {items.length}
+                </span>
+                {/* Inline availability summary */}
+                <span style={{ fontSize: "0.7rem", color: "var(--muted)", marginLeft: "auto" }}>
+                  {availCount > 0 && <span style={{ color: "var(--success-text)" }}>{availCount} avail</span>}
+                  {availCount > 0 && outCount > 0 && <span> · </span>}
+                  {outCount > 0 && <span style={{ color: "var(--warning-text)" }}>{outCount} out</span>}
+                </span>
+              </button>
 
-            {/* Items table */}
-            {!isCollapsed && (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-                <tbody>
-                  {items.map((item) => {
-                    const custodyStyle = getCustodyStyle(item.custody_status);
-                    const isSelected = item.equipment_id === selectedId;
-                    const isOut = item.custody_status === "checked_out" || item.custody_status === "in_field";
-                    return (
-                      <tr
-                        key={item.equipment_id}
-                        onClick={() => onSelect(item.equipment_id)}
-                        style={{
-                          cursor: "pointer",
-                          background: isSelected ? "var(--primary-bg, rgba(59,130,246,0.06))" : undefined,
-                          borderBottom: "1px solid var(--border-light, #f0f0f0)",
-                        }}
-                      >
-                        {/* Photo */}
-                        <td style={{ width: 44, padding: "0.375rem 0.5rem" }}>
-                          <div style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: "4px",
-                            overflow: "hidden",
-                            background: "var(--muted-bg, #f3f4f6)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}>
-                            {item.photo_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={item.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                            ) : (
-                              <span style={{ fontSize: "0.6rem", color: "var(--muted)" }}>—</span>
-                            )}
-                          </div>
-                        </td>
-                        {/* Name */}
-                        <td style={{ padding: "0.375rem 0.5rem", fontWeight: 500 }}>
-                          {item.display_name}
-                        </td>
-                        {/* Barcode */}
-                        <td style={{ padding: "0.375rem 0.5rem", fontFamily: "monospace", color: "var(--muted)", fontSize: "0.8rem" }}>
-                          {item.barcode || "—"}
-                        </td>
-                        {/* Status */}
-                        <td style={{ padding: "0.375rem 0.5rem" }}>
-                          <span style={{
-                            fontSize: "0.75rem",
-                            padding: "0.125rem 0.5rem",
-                            borderRadius: "4px",
-                            background: custodyStyle.bg,
-                            color: custodyStyle.text,
-                            fontWeight: 600,
-                          }}>
-                            {getLabel(EQUIPMENT_CUSTODY_STATUS_OPTIONS, item.custody_status)}
-                          </span>
-                        </td>
-                        {/* Functional status */}
-                        <td style={{ padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {item.functional_status && item.functional_status !== "functional" ? (
-                            <span style={{
-                              fontSize: "0.75rem",
-                              padding: "0.125rem 0.5rem",
-                              borderRadius: "4px",
-                              background: "var(--warning-bg)",
-                              color: "var(--warning-text)",
-                              fontWeight: 500,
+              {/* Items table */}
+              {!isCollapsed && (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                  <tbody>
+                    {items.map((item) => {
+                      const custodyStyle = getCustodyStyle(item.custody_status);
+                      const isSelected = item.equipment_id === selectedId;
+                      const isOut = item.custody_status === "checked_out" || item.custody_status === "in_field";
+                      const dueDate = item.current_due_date || item.expected_return_date;
+                      const isOverdue = dueDate && new Date(dueDate) < new Date();
+                      const fallbackIcon = CATEGORY_ICONS[item.type_category || ""] || "wrench";
+                      return (
+                        <tr
+                          key={item.equipment_id}
+                          className="eq-row"
+                          data-selected={isSelected || undefined}
+                          onClick={() => onSelect(item.equipment_id)}
+                          style={{
+                            cursor: "pointer",
+                            borderBottom: "1px solid var(--border-light, #f0f0f0)",
+                            borderLeft: isOverdue
+                              ? "3px solid var(--danger-text)"
+                              : isSelected
+                                ? undefined // handled by data-selected CSS
+                                : "3px solid transparent",
+                          }}
+                        >
+                          {/* Photo */}
+                          <td style={{ width: 44, padding: "0.375rem 0.5rem" }}>
+                            <div style={{
+                              width: 36, height: 36, borderRadius: "4px", overflow: "hidden",
+                              background: "var(--muted-bg, #f3f4f6)", border: "1px solid var(--border-light, #e5e7eb)",
+                              display: "flex", alignItems: "center", justifyContent: "center",
                             }}>
-                              {getLabel(EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS, item.functional_status)}
+                              {item.photo_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={item.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ) : (
+                                <Icon name={fallbackIcon} size={16} color="var(--muted)" />
+                              )}
+                            </div>
+                          </td>
+                          {/* Name */}
+                          <td style={{ padding: "0.375rem 0.5rem", fontWeight: 500 }}>
+                            {item.display_name}
+                          </td>
+                          {/* Barcode */}
+                          <td style={{ padding: "0.375rem 0.5rem", fontFamily: "monospace", color: "var(--muted)", fontSize: "0.8rem" }}>
+                            {item.barcode || "—"}
+                          </td>
+                          {/* Status with dot */}
+                          <td style={{ padding: "0.375rem 0.5rem" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center" }}>
+                              <StatusDot status={item.custody_status} dueDate={dueDate} />
+                              <span style={{
+                                fontSize: "0.75rem", padding: "0.125rem 0.5rem", borderRadius: "4px",
+                                background: custodyStyle.bg, color: custodyStyle.text, fontWeight: 600,
+                              }}>
+                                {getLabel(EQUIPMENT_CUSTODY_STATUS_OPTIONS, item.custody_status)}
+                              </span>
                             </span>
-                          ) : "—"}
-                        </td>
-                        {/* Custodian */}
-                        <td style={{ padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: isOut ? "var(--text-primary)" : "var(--muted)" }}>
-                          {item.custodian_name || item.current_holder_name || "—"}
-                        </td>
-                        {/* Due date */}
-                        <td style={{ padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {(item.current_due_date || item.expected_return_date)
-                            ? new Date(item.current_due_date || item.expected_return_date!).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })
-                            : "—"
-                          }
-                        </td>
-                        {/* Actions */}
-                        <td style={{ padding: "0.375rem 0.25rem", width: 36 }} onClick={(e) => e.stopPropagation()}>
-                          <RowActionMenu actions={[
-                            ...(item.custody_status === "available" ? [{ label: "Check Out", onClick: () => onAction(item.equipment_id, "check_out") }] : []),
-                            ...(item.custody_status === "checked_out" ? [{ label: "Check In", onClick: () => onAction(item.equipment_id, "check_in") }] : []),
-                            ...(item.custody_status !== "missing" ? [{ label: "Report Missing", onClick: () => onAction(item.equipment_id, "reported_missing"), variant: "danger" as const, dividerBefore: true }] : []),
-                          ]} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        );
-      })}
-    </div>
+                          </td>
+                          {/* Functional status */}
+                          <td style={{ padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
+                            {item.functional_status && item.functional_status !== "functional" ? (
+                              <span style={{
+                                fontSize: "0.75rem", padding: "0.125rem 0.5rem", borderRadius: "4px",
+                                background: "var(--warning-bg)", color: "var(--warning-text)", fontWeight: 500,
+                              }}>
+                                {getLabel(EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS, item.functional_status)}
+                              </span>
+                            ) : "—"}
+                          </td>
+                          {/* Custodian */}
+                          <td style={{ padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: isOut ? "var(--text-primary)" : "var(--muted)" }}>
+                            {item.custodian_name || item.current_holder_name || "—"}
+                          </td>
+                          {/* Due date */}
+                          <td style={{
+                            padding: "0.375rem 0.5rem", fontSize: "0.8rem",
+                            color: isOverdue ? "var(--danger-text)" : "var(--muted)",
+                            fontWeight: isOverdue ? 600 : 400,
+                          }}>
+                            {dueDate
+                              ? new Date(dueDate).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })
+                              : "—"
+                            }
+                          </td>
+                          {/* Actions */}
+                          <td style={{ padding: "0.375rem 0.25rem", width: 36 }} onClick={(e) => e.stopPropagation()}>
+                            <RowActionMenu actions={[
+                              ...(item.custody_status === "available" ? [{ label: "Check Out", onClick: () => onAction(item.equipment_id, "check_out") }] : []),
+                              ...(item.custody_status === "checked_out" ? [{ label: "Check In", onClick: () => onAction(item.equipment_id, "check_in") }] : []),
+                              ...(item.custody_status !== "missing" ? [{ label: "Report Missing", onClick: () => onAction(item.equipment_id, "reported_missing"), variant: "danger" as const, dividerBefore: true }] : []),
+                            ]} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
