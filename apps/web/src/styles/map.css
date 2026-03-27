@@ -1336,21 +1336,72 @@
     max-width: 280px;
   }
 
+  /* WCAG touch target minimum: 44x44px */
   .map-control-btn {
-    padding: 8px 12px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
     font-size: 13px;
   }
 
   .map-control-btn--icon {
-    width: 36px;
-    height: 36px;
-    padding: 8px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+  }
+
+  /* Zoom buttons touch-friendly */
+  .map-zoom-controls button {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 20px;
+  }
+
+  /* Place drawer as bottom sheet on mobile */
+  .place-detail-drawer {
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    max-height: 70dvh;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+  }
+
+  /* Context menu touch-friendly */
+  .map-context-menu__item {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  /* Add-point menu touch-friendly */
+  .map-add-point-menu__item {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  /* Basemap menu touch-friendly */
+  .map-basemap-menu__item {
+    min-height: 44px;
+    padding: 10px 16px;
   }
 }
 
 /* ============================================================
    Place Detail Drawer
    ============================================================ */
+
+/* When embedded in BottomSheet, remove fixed positioning */
+.place-detail-drawer.embedded {
+  position: static;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  box-shadow: none;
+  z-index: auto;
+  overflow-y: visible;
+}
 
 .place-detail-drawer {
   position: fixed;
@@ -3157,11 +3208,12 @@
   right: 0;
   top: auto;
   z-index: 1200;
-  background: white;
+  background: var(--background, white);
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
-  max-height: 60dvh;
+  max-height: 75dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   width: auto;
   animation: map-panel-slide-up 0.25s ease-out;
 }
@@ -3171,9 +3223,29 @@
   display: block;
   width: 36px;
   height: 4px;
-  background: #d1d5db;
+  background: var(--border, #d1d5db);
   border-radius: 2px;
-  margin: 8px auto 4px;
+  margin: 10px auto 6px;
+}
+
+/* Touch-friendly layer toggles inside mobile panel */
+.map-layer-panel--mobile .map-layer-toggle {
+  min-height: 44px;
+  padding: 10px 16px;
+}
+
+/* Backdrop for mobile layer panel */
+.map-layer-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 1199;
+  animation: map-fade-in 0.15s ease-out;
+}
+
+@keyframes map-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes map-panel-slide-up {

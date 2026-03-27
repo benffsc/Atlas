@@ -116,11 +116,13 @@ interface PlaceDetailDrawerProps {
   shifted?: boolean;
   onAddToComparison?: (placeId: string) => void;
   comparisonCount?: number;
+  /** When true, renders content without fixed positioning (for embedding in BottomSheet) */
+  embedded?: boolean;
 }
 
 type NotesTab = "original" | "ai" | "journal";
 
-export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions, shifted, onAddToComparison, comparisonCount }: PlaceDetailDrawerProps) {
+export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions, shifted, onAddToComparison, comparisonCount, embedded }: PlaceDetailDrawerProps) {
   const { addToast } = useToast();
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
@@ -378,7 +380,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
   if (!placeId) return null;
 
   return (
-    <div className={`place-detail-drawer${shifted ? " shifted" : ""}`}>
+    <div className={`place-detail-drawer${shifted ? " shifted" : ""}${embedded ? " embedded" : ""}`}>
       {/* Header */}
       <div className="drawer-header">
         <div className="drawer-title">

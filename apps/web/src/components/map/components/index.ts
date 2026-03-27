@@ -12,3 +12,4 @@ export { MapContextMenu } from "./MapContextMenu";
 export { MeasurementPanel } from "./MeasurementPanel";
 export { SavedViewsPanel } from "./SavedViewsPanel";
 export { SearchResultsPanel } from "./SearchResultsPanel";
+export { BottomSheet } from "./BottomSheet";

@@ -51,6 +51,7 @@ import { useMapViews } from "@/components/map/hooks/useMapViews";
 import { useMapExport } from "@/components/map/hooks/useMapExport";
 import { useMapFullscreen } from "@/components/map/hooks/useMapFullscreen";
 import { MapContextMenu } from "@/components/map/components/MapContextMenu";
+import { BottomSheet } from "@/components/map/components/BottomSheet";
 import { MeasurementPanel } from "@/components/map/components/MeasurementPanel";
 import { SavedViewsPanel } from "@/components/map/components/SavedViewsPanel";
 import { SearchResultsPanel } from "@/components/map/components/SearchResultsPanel";
@@ -2727,6 +2728,9 @@ function AtlasMapInner() {
       />
 
       {/* Layer panel */}
+      {showLayerPanel && isMobile && (
+        <div className="map-layer-panel-backdrop" onClick={() => setShowLayerPanel(false)} />
+      )}
       {showLayerPanel && (
         <div className={isMobile ? "map-layer-panel--mobile" : "map-layer-panel"}>
           <div className="map-layer-panel__header">
@@ -3209,22 +3213,47 @@ function AtlasMapInner() {
         />
       )}
 
-      {/* Place Detail Drawer */}
+      {/* Place Detail Drawer — BottomSheet on mobile, side drawer on desktop */}
       {selectedPlaceId && (
-        <PlaceDetailDrawer
-          placeId={selectedPlaceId}
-          onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
-          onWatchlistChange={refreshMapData}
-          showQuickActions={drawerFromAddPoint}
-          shifted={!!(selectedPersonId || selectedCatId)}
-          coordinates={(() => {
-            const pin = atlasPins.find(p => p.id === selectedPlaceId) ||
-                        places.find(p => p.id === selectedPlaceId);
-            return pin?.lat && pin?.lng ? { lat: pin.lat, lng: pin.lng } : undefined;
-          })()}
-          onAddToComparison={handleAddToComparison}
-          comparisonCount={comparisonPlaceIds.length}
-        />
+        isMobile ? (
+          <BottomSheet
+            isOpen={!!selectedPlaceId}
+            onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
+            initialHeight={45}
+            maxHeight={90}
+          >
+            <PlaceDetailDrawer
+              placeId={selectedPlaceId}
+              onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
+              onWatchlistChange={refreshMapData}
+              showQuickActions={drawerFromAddPoint}
+              shifted={false}
+              coordinates={(() => {
+                const pin = atlasPins.find(p => p.id === selectedPlaceId) ||
+                            places.find(p => p.id === selectedPlaceId);
+                return pin?.lat && pin?.lng ? { lat: pin.lat, lng: pin.lng } : undefined;
+              })()}
+              onAddToComparison={handleAddToComparison}
+              comparisonCount={comparisonPlaceIds.length}
+              embedded
+            />
+          </BottomSheet>
+        ) : (
+          <PlaceDetailDrawer
+            placeId={selectedPlaceId}
+            onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
+            onWatchlistChange={refreshMapData}
+            showQuickActions={drawerFromAddPoint}
+            shifted={!!(selectedPersonId || selectedCatId)}
+            coordinates={(() => {
+              const pin = atlasPins.find(p => p.id === selectedPlaceId) ||
+                          places.find(p => p.id === selectedPlaceId);
+              return pin?.lat && pin?.lng ? { lat: pin.lat, lng: pin.lng } : undefined;
+            })()}
+            onAddToComparison={handleAddToComparison}
+            comparisonCount={comparisonPlaceIds.length}
+          />
+        )
       )}
 
       {/* Person Detail Drawer */}
