@@ -52,6 +52,7 @@ import { useMapExport } from "@/components/map/hooks/useMapExport";
 import { useMapFullscreen } from "@/components/map/hooks/useMapFullscreen";
 import { MapContextMenu } from "@/components/map/components/MapContextMenu";
 import { BottomSheet } from "@/components/map/components/BottomSheet";
+import { BulkActionBar } from "@/components/map/components/BulkActionBar";
 import { MeasurementPanel } from "@/components/map/components/MeasurementPanel";
 import { SavedViewsPanel } from "@/components/map/components/SavedViewsPanel";
 import { SearchResultsPanel } from "@/components/map/components/SearchResultsPanel";
@@ -202,6 +203,20 @@ function AtlasMapInner() {
   useEffect(() => {
     atlasPinsRef.current = atlasPins;
   }, [atlasPins]);
+
+  // Bulk selection state (Ctrl/Cmd+click on pins)
+  const [bulkSelectedPlaceIds, setBulkSelectedPlaceIds] = useState<Set<string>>(new Set());
+  const bulkPlaceRequestMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const pin of atlasPins) {
+      if (bulkSelectedPlaceIds.has(pin.id) && pin.active_request_count > 0) {
+        // Request IDs aren't on the pin data, but we can use the place ID
+        // The bulk-assign API will look up requests by place
+        m.set(pin.id, [pin.id]); // placeholder — actual request IDs resolved server-side
+      }
+    }
+    return m;
+  }, [atlasPins, bulkSelectedPlaceIds]);
 
   // Drawer state for place details
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -1617,9 +1632,18 @@ function AtlasMapInner() {
         </div>
       `);
 
-      // Click-switching: if drawer is open, switch directly instead of showing popup
+      // Click handling: Ctrl/Cmd+click for bulk select, normal click for drawer switching
       marker.on('click', (e: L.LeafletMouseEvent) => {
-        if (selectedPlaceIdRef.current) {
+        const isMultiSelect = e.originalEvent.ctrlKey || e.originalEvent.metaKey;
+        if (isMultiSelect) {
+          setBulkSelectedPlaceIds(prev => {
+            const next = new Set(prev);
+            if (next.has(pin.id)) next.delete(pin.id); else next.add(pin.id);
+            return next;
+          });
+          mapRef.current?.closePopup();
+          L.DomEvent.stopPropagation(e);
+        } else if (selectedPlaceIdRef.current) {
           setSelectedPlaceId(pin.id);
           mapRef.current?.closePopup();
           mapRef.current?.panTo([pin.lat, pin.lng], { animate: true });
@@ -3113,6 +3137,13 @@ function AtlasMapInner() {
           }}
         />
       )}
+
+      {/* Bulk action bar for multi-selected places */}
+      <BulkActionBar
+        selectedPlaceIds={bulkSelectedPlaceIds}
+        onClear={() => setBulkSelectedPlaceIds(new Set())}
+        placeRequestMap={bulkPlaceRequestMap}
+      />
 
       {/* Screen reader announcements for dynamic updates */}
       <div aria-live="polite" aria-atomic="true" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>
