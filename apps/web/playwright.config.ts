@@ -33,7 +33,8 @@ dotenv.config({ path: '.env.local' });
  * To run Tippy tests (when ready to pay for API calls):
  *   INCLUDE_REAL_API=1 npm run test:e2e
  *
- * Tippy test files (13 total):
+ * Tippy test files (14 total):
+ *   - tippy-reliability.spec.ts          ← STREAMING PATH + curated demo questions
  *   - tippy-capabilities.spec.ts
  *   - tippy-accuracy-verification.spec.ts
  *   - tippy-complex-queries.spec.ts
