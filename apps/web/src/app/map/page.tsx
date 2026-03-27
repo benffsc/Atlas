@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/feedback/Toast";
@@ -46,7 +46,7 @@ const AtlasMapV2 = dynamic(() => import("@/components/map/AtlasMapV2"), {
   loading: MapSpinner,
 });
 
-export default function AtlasMapPage() {
+function MapPageInner() {
   const searchParams = useSearchParams();
   const [useV2, setUseV2] = useState(searchParams.get("v2") === "1");
 
@@ -83,5 +83,13 @@ export default function AtlasMapPage() {
 
       {useV2 ? <AtlasMapV2 /> : <AtlasMap />}
     </ToastProvider>
+  );
+}
+
+export default function AtlasMapPage() {
+  return (
+    <Suspense fallback={<MapSpinner />}>
+      <MapPageInner />
+    </Suspense>
   );
 }
