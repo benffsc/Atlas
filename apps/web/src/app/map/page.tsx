@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { ToastProvider } from "@/components/feedback/Toast";
 
 // Dynamically import the AtlasMap component to avoid SSR issues with Leaflet
 const AtlasMap = dynamic(() => import("@/components/map/AtlasMap"), {
@@ -36,5 +37,9 @@ const AtlasMap = dynamic(() => import("@/components/map/AtlasMap"), {
 });
 
 export default function AtlasMapPage() {
-  return <AtlasMap />;
+  return (
+    <ToastProvider>
+      <AtlasMap />
+    </ToastProvider>
+  );
 }
