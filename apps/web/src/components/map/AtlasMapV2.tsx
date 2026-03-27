@@ -1478,6 +1478,22 @@ function AtlasMapV2Inner() {
 export default function AtlasMapV2() {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
+  // Suppress Google Maps auth failure dialog — show our own inline banner instead
+  useEffect(() => {
+    const w = window as any;
+    w.gm_authFailure = () => {
+      // Hide Google's default error dialog
+      const dialog = document.querySelector('.dismissButton, .gm-err-container') as HTMLElement;
+      dialog?.closest('.gm-style-pbc')?.remove();
+      // Also hide via CSS in case the dialog structure changes
+      const style = document.createElement('style');
+      style.textContent = '.gm-style-pbc, .gm-err-container, div[style*="background-color: white"][style*="z-index"] > div > div:has(.dismissButton) { display: none !important; }';
+      document.head.appendChild(style);
+      console.warn('[AtlasMapV2] Google Maps auth warning suppressed — map tiles still load');
+    };
+    return () => { delete w.gm_authFailure; };
+  }, []);
+
   if (!apiKey) {
     return (
       <div style={{ height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8 }}>
