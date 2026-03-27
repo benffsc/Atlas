@@ -404,11 +404,17 @@ function AtlasMapV2Inner() {
     };
   }, [map, measureActive, measurePoints]);
 
-  // Rubber band line for measurement
+  // Rubber band line + live distance label for measurement
+  const rubberBandLabelRef = useRef<google.maps.InfoWindow | null>(null);
+  const [measureCursorDistance, setMeasureCursorDistance] = useState(0);
+
   useEffect(() => {
     if (!map || !measureActive || measurePoints.length === 0) {
       rubberBandRef.current?.setMap(null);
       rubberBandRef.current = null;
+      rubberBandLabelRef.current?.close();
+      rubberBandLabelRef.current = null;
+      setMeasureCursorDistance(0);
       return;
     }
 
@@ -417,7 +423,9 @@ function AtlasMapV2Inner() {
     const listener = map.addListener("mousemove", (e: google.maps.MapMouseEvent) => {
       if (!e.latLng) return;
       const to = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+      const segDist = haversine(lastPt, to);
 
+      // Update rubber band polyline
       if (rubberBandRef.current) {
         rubberBandRef.current.setPath([lastPt, to]);
       } else {
@@ -429,14 +437,29 @@ function AtlasMapV2Inner() {
           map,
         });
       }
+
+      // Update live distance label at cursor
+      const totalPlusCursor = measureTotalDistance + segDist;
+      setMeasureCursorDistance(totalPlusCursor);
+
+      if (!rubberBandLabelRef.current) {
+        rubberBandLabelRef.current = new google.maps.InfoWindow({ disableAutoPan: true });
+      }
+      rubberBandLabelRef.current.setPosition(to);
+      rubberBandLabelRef.current.setContent(
+        `<div style="font-size:11px;font-weight:600;padding:1px 4px;color:#3b82f6;white-space:nowrap;">${formatDistance(segDist)}${measurePoints.length >= 2 ? ` (total: ${formatDistance(totalPlusCursor)})` : ""}</div>`
+      );
+      rubberBandLabelRef.current.open(map);
     });
 
     return () => {
       google.maps.event.removeListener(listener);
       rubberBandRef.current?.setMap(null);
       rubberBandRef.current = null;
+      rubberBandLabelRef.current?.close();
+      rubberBandLabelRef.current = null;
     };
-  }, [map, measureActive, measurePoints]);
+  }, [map, measureActive, measurePoints, measureTotalDistance]);
 
   // Clean up measurement when deactivated
   useEffect(() => {
@@ -1259,8 +1282,10 @@ function AtlasMapV2Inner() {
         <MeasurementPanel
           points={measurePoints}
           totalDistance={measureTotalDistance}
+          cursorDistance={measureCursorDistance}
           onUndo={undoMeasurePoint}
           onClear={clearMeasurement}
+          onCancel={() => setMeasureActive(false)}
         />
       )}
 
