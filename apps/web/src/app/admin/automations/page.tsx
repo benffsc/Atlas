@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { EmptyState } from "@/components/feedback/EmptyState";
 
 interface AutomationRule {
   rule_id: string;
@@ -367,9 +368,10 @@ export default function AutomationsAdminPage() {
       {loading ? (
         <div className="loading">Loading automations...</div>
       ) : rules.length === 0 ? (
-        <div className="empty">
-          No automations configured. Create your first automation to automate repetitive tasks.
-        </div>
+        <EmptyState
+          title="No automations configured"
+          description="Create your first automation to automate repetitive tasks."
+        />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {rules.map((rule) => {

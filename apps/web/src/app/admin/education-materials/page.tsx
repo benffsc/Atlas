@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { EmptyState } from "@/components/feedback/EmptyState";
 
 interface EducationMaterial {
   material_id: string;
@@ -252,9 +253,10 @@ export default function EducationMaterialsAdminPage() {
       {loading ? (
         <div className="loading">Loading materials...</div>
       ) : materials.length === 0 ? (
-        <div className="empty">
-          No materials found. Upload your first training resource to get started.
-        </div>
+        <EmptyState
+          title="No materials found"
+          description="Upload your first training resource to get started."
+        />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {materials.map((material) => {

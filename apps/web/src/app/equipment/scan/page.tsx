@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { EmptyState } from "@/components/feedback/EmptyState";
 import { BarcodeInput } from "@/components/equipment/BarcodeInput";
 import { QuickActionCard } from "@/components/equipment/QuickActionCard";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
@@ -361,19 +362,11 @@ export default function EquipmentScanPage() {
 
       {/* Helper text */}
       {!equipment && !scanError && !loading && (
-        <div style={{
-          marginTop: "3rem",
-          textAlign: "center",
-          color: "var(--muted)",
-          fontSize: "0.85rem",
-        }}>
-          <p style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
-            {/* barcode icon emoji-free */}
-            |||||||
-          </p>
-          <p>Point USB scanner at barcode and scan</p>
-          <p style={{ marginTop: "0.25rem" }}>or type a barcode / trap number and press Enter</p>
-        </div>
+        <EmptyState
+          title="Scan Equipment"
+          description="Point USB scanner at barcode and scan, or type a barcode / trap number and press Enter"
+          style={{ marginTop: "2rem" }}
+        />
       )}
     </div>
   );

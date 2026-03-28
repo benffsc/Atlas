@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { ReviewStatsBar } from "@/components/reviews";
+import { EmptyState } from "@/components/feedback/EmptyState";
 
 interface QueueSummary {
   identity: {
@@ -263,13 +264,11 @@ export default function ReviewsDashboard() {
 
       {/* Empty State */}
       {totalPending === 0 && (
-        <div
-          className="card"
-          style={{ padding: "3rem", textAlign: "center" }}
-        >
-          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>All clear!</div>
-          <p className="text-muted">No items pending review. Great job!</p>
-        </div>
+        <EmptyState
+          title="All clear!"
+          description="No items pending review. Great job!"
+          size="lg"
+        />
       )}
 
       {/* Quick Links */}

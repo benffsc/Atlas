@@ -5,6 +5,7 @@ import Link from "next/link";
 import DOMPurify from "dompurify";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { usePermission } from "@/hooks/usePermission";
+import { EmptyState } from "@/components/feedback/EmptyState";
 
 interface EmailTemplate {
   template_id: string;
@@ -295,7 +296,7 @@ export default function EmailTemplatesAdminPage() {
       {loading ? (
         <div className="loading">Loading templates...</div>
       ) : templates.length === 0 ? (
-        <div className="empty">No email templates configured.</div>
+        <EmptyState title="No email templates" description="Create your first email template to get started." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {templates.map((template) => (

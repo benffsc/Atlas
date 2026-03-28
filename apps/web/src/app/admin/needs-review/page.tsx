@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { fetchApi } from "@/lib/api-client";
 import { DataQualityBadge, VerificationBadge } from "@/components/badges";
+import { EmptyState } from "@/components/feedback/EmptyState";
 
 interface ReviewItem {
   entity_type: string;
@@ -176,11 +177,9 @@ export default function NeedsReviewPage() {
       {loading ? (
         <div className="text-muted">Loading items for review...</div>
       ) : filteredItems.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: "2rem" }}>
-          <p className="text-muted">
-            {filter === "all" ? "No items need review" : `No ${filter.replace("_", " ")} items need review`}
-          </p>
-        </div>
+        <EmptyState
+          title={filter === "all" ? "No items need review" : `No ${filter.replace("_", " ")} items need review`}
+        />
       ) : (
         <div className="table-container">
           <table>

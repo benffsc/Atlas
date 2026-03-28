@@ -8,6 +8,7 @@ import type { JournalEntry } from "@/components/sections";
 import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
+import { ErrorState } from "@/components/feedback/EmptyState";
 import { RequestSection, GuidedActionBar, REQUEST_SECTIONS } from "@/components/request";
 import { LegacyUpgradeWizard } from "@/components/forms";
 import { LogSiteVisitModal, CompleteRequestModal, CloseRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal, TripReportModal } from "@/components/modals";
@@ -268,7 +269,7 @@ export default function RequestDetailPage() {
     return (
       <div>
         <Breadcrumbs items={breadcrumbs} />
-        <div className="empty" style={{ marginTop: "2rem" }}><p>{error}</p></div>
+        <ErrorState title="Request not found" description={error || undefined} />
       </div>
     );
   }

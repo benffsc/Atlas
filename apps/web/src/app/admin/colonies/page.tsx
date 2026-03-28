@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { EmptyState, ErrorState } from "@/components/feedback/EmptyState";
 
 interface Colony {
   colony_id: string;
@@ -138,11 +139,7 @@ export default function ColoniesPage() {
 
   if (error) {
     return (
-      <div className="empty">
-        <h2 style={{ color: "#dc3545" }}>Error</h2>
-        <p>{error}</p>
-        <button onClick={() => fetchColonies()}>Retry</button>
-      </div>
+      <ErrorState title="Error" description={error} onRetry={() => fetchColonies()} />
     );
   }
 
@@ -239,12 +236,10 @@ export default function ColoniesPage() {
       {loading ? (
         <div className="loading">Loading colonies...</div>
       ) : colonies.length === 0 ? (
-        <div className="empty">
-          <h3>No colonies found</h3>
-          <p className="text-muted">
-            Create a verified colony to link related places and track colony data.
-          </p>
-        </div>
+        <EmptyState
+          title="No colonies found"
+          description="Create a verified colony to link related places and track colony data."
+        />
       ) : (
         <div
           style={{

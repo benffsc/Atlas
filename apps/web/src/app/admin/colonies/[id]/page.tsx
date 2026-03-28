@@ -6,6 +6,7 @@ import { BackButton } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { SkeletonStats, SkeletonTable } from "@/components/feedback/Skeleton";
+import { ErrorState } from "@/components/feedback/EmptyState";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
@@ -349,9 +350,7 @@ export default function ColonyDetailPage() {
     return (
       <div>
         <Breadcrumbs items={breadcrumbs} />
-        <div className="empty" style={{ marginTop: "2rem" }}>
-          <h2 style={{ color: "#dc3545" }}>{error || "Colony not found"}</h2>
-        </div>
+        <ErrorState title={error || "Colony not found"} />
       </div>
     );
   }

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { EmptyState } from "@/components/feedback/EmptyState";
 import { BarcodeInput } from "@/components/equipment/BarcodeInput";
 import { KioskEquipmentCard } from "@/components/kiosk/KioskEquipmentCard";
 import { CheckoutForm } from "@/components/kiosk/CheckoutForm";
@@ -334,18 +335,11 @@ export default function KioskScanPage() {
 
       {/* Idle hint */}
       {state === "idle" && (
-        <div
-          style={{
-            textAlign: "center",
-            color: "var(--muted)",
-            padding: "3rem 1rem",
-          }}
-        >
-          <Icon name="scan-barcode" size={56} color="var(--border)" />
-          <p style={{ fontSize: "1rem", marginTop: "1rem" }}>
-            Scan a barcode or type the 4-digit ID to look up equipment.
-          </p>
-        </div>
+        <EmptyState
+          title="Scan Equipment"
+          description="Scan a barcode or type the 4-digit ID to look up equipment."
+          size="lg"
+        />
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { formatPhone } from "@/lib/formatters";
 import { SkeletonList } from "@/components/feedback/Skeleton";
+import { EmptyState } from "@/components/feedback/EmptyState";
 import { useToast } from "@/components/feedback/Toast";
 
 interface PendingTrapperLink {
@@ -166,11 +167,10 @@ export default function TrapperLinkingPage() {
       {loading && <div style={{ padding: "1rem 0" }}><SkeletonList items={5} /></div>}
 
       {!loading && data?.pending.length === 0 && (
-        <div className="empty" style={{ padding: "3rem", textAlign: "center" }}>
-          {status === "pending"
-            ? "No pending trappers to link. All trappers have been resolved."
-            : `No ${status} records.`}
-        </div>
+        <EmptyState
+          title={status === "pending" ? "All trappers resolved" : `No ${status} records`}
+          description={status === "pending" ? "No pending trappers to link." : undefined}
+        />
       )}
 
       {!loading && data?.pending.map((pending) => (

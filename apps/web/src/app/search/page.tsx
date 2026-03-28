@@ -7,6 +7,7 @@ import { EntityPreview } from "@/components/search";
 import { GroupedSearchResult } from "@/components/search";
 import { formatPhone } from "@/lib/formatters";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { EmptySearchResults, EmptyState } from "@/components/feedback/EmptyState";
 import {
   MATCH_REASON_LABELS,
   SOURCE_TABLE_LABELS,
@@ -280,7 +281,7 @@ function SearchContent() {
           {mode === "canonical" && isCanonicalResponse(data) && (
             <>
               {data.results.length === 0 && (!data.possible_matches || data.possible_matches.length === 0) ? (
-                <div className="empty">No results found</div>
+                <EmptySearchResults query={data.query} />
               ) : (
                 <>
                   {data.results.length > 0 && (
@@ -524,7 +525,7 @@ function SearchContent() {
           {mode === "deep" && !isCanonicalResponse(data) && (
             <>
               {data.results.length === 0 ? (
-                <div className="empty">No additional records found</div>
+                <EmptyState title="No additional records found" variant="search" />
               ) : (
                 <div className="results-section">
                   <p className="text-sm text-muted mb-4">
@@ -556,9 +557,11 @@ function SearchContent() {
       )}
 
       {!loading && !error && !data && (
-        <div className="empty">
-          Enter a search term to find cats, people, and places
-        </div>
+        <EmptyState
+          variant="search"
+          title="Search Atlas"
+          description="Enter a search term to find cats, people, and places"
+        />
       )}
     </div>
   );

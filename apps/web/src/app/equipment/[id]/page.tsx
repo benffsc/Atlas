@@ -6,6 +6,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { EmptyState } from "@/components/feedback/EmptyState";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { TabBar } from "@/components/ui/TabBar";
 import { StatCard } from "@/components/ui/StatCard";
@@ -75,7 +76,7 @@ export default function EquipmentDetailPage() {
     return (
       <div style={{ padding: "2rem" }}>
         <Breadcrumbs items={breadcrumbs} />
-        <h1 style={{ fontSize: "1.25rem", marginTop: "1rem" }}>Equipment Not Found</h1>
+        <EmptyState variant="error" title="Equipment Not Found" description="The requested equipment could not be found." />
       </div>
     );
   }
