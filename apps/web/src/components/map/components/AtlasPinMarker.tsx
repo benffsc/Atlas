@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 
 interface AtlasPinMarkerProps {
   color: string;
@@ -16,15 +16,12 @@ interface AtlasPinMarkerProps {
   size?: number;
 }
 
-function lightenColor(hex: string, percent: number): string {
-  const num = parseInt(hex.replace("#", ""), 16);
-  const r = Math.min(255, ((num >> 16) & 0xff) + Math.round(255 * percent / 100));
-  const g = Math.min(255, ((num >> 8) & 0xff) + Math.round(255 * percent / 100));
-  const b = Math.min(255, (num & 0xff) + Math.round(255 * percent / 100));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
-}
+// Shared SVG defs injected once into the page via CSS drop-shadow instead of per-instance SVG filters.
+// Gradient is replaced with a simple fill + lighter stroke for performance.
 
-export function AtlasPinMarker({
+const EMPTY_BADGES: Array<{ short_code: string; color: string }> = [];
+
+function AtlasPinMarkerInner({
   color,
   pinStyle = "minimal",
   isClustered = false,
@@ -32,14 +29,11 @@ export function AtlasPinMarker({
   catCount = 0,
   hasVolunteer = false,
   needsTrapper = false,
-  diseaseBadges = [],
+  diseaseBadges = EMPTY_BADGES,
   isSelected = false,
   isReference = false,
   size = 32,
 }: AtlasPinMarkerProps) {
-  const uniqueId = useMemo(() => Math.random().toString(36).substr(2, 9), []);
-  const lighterColor = lightenColor(color, 15);
-
   // Inner icon by status
   let innerContent: React.ReactNode;
   if (isClustered && unitCount > 1) {
@@ -110,57 +104,33 @@ export function AtlasPinMarker({
   const heightScale = viewBoxTotalHeight / 32;
   const svgHeight = Math.round(size * 1.35 * heightScale);
 
-  const pinTipPixelY = Math.round(((30 - viewBoxTop) / viewBoxTotalHeight) * svgHeight);
-
-  const opacity = isReference ? 0.65 : 1;
   const finalSize = isReference ? size * 0.8 : size;
   const finalSvgHeight = isReference ? Math.round(svgHeight * 0.8) : svgHeight;
 
   return (
     <div
       style={{
-        opacity,
-        transform: `translate(-${finalSize / 2}px, -${isReference ? Math.round(pinTipPixelY * 0.8) : pinTipPixelY}px)${isSelected ? " scale(1.2)" : ""}`,
+        opacity: isReference ? 0.65 : 1,
+        transform: isSelected ? "scale(1.2)" : undefined,
         transition: "transform 0.15s ease",
         cursor: "pointer",
-        filter: isSelected ? "drop-shadow(0 0 4px #facc15)" : undefined,
+        // CSS drop-shadow is GPU-composited — far cheaper than per-instance SVG feDropShadow
+        filter: isSelected
+          ? "drop-shadow(0 0 4px #facc15) drop-shadow(0 2px 1.5px rgba(0,0,0,0.35))"
+          : "drop-shadow(0 2px 1.5px rgba(0,0,0,0.35))",
       }}
     >
-      {isSelected && (
-        <div
-          style={{
-            position: "absolute",
-            top: -4,
-            left: -4,
-            right: -4,
-            bottom: -4,
-            border: "3px solid #facc15",
-            borderRadius: "50% 50% 50% 50% / 40% 40% 60% 60%",
-            pointerEvents: "none",
-          }}
-        />
-      )}
       <svg
         width={finalSize}
         height={finalSvgHeight}
         viewBox={`0 ${viewBoxTop} 24 ${viewBoxTotalHeight}`}
         xmlns="http://www.w3.org/2000/svg"
       >
-        <defs>
-          <linearGradient id={`pin-grad-${uniqueId}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={lighterColor} />
-            <stop offset="100%" stopColor={color} />
-          </linearGradient>
-          <filter id={`pin-shadow-${uniqueId}`} x="-30%" y="-10%" width="160%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="1.5" floodOpacity="0.35" />
-          </filter>
-        </defs>
         {/* Ground shadow */}
         <ellipse cx="12" cy="30" rx="5" ry="2" fill="rgba(0,0,0,0.2)" />
-        {/* Pin body */}
+        {/* Pin body — solid fill (no per-instance gradient/filter) */}
         <path
-          filter={`url(#pin-shadow-${uniqueId})`}
-          fill={`url(#pin-grad-${uniqueId})`}
+          fill={color}
           stroke="#fff"
           strokeWidth="1.5"
           d="M12 0C6.5 0 2 4.5 2 10c0 7 10 20 10 20s10-13 10-20c0-5.5-4.5-10-10-10z"
@@ -208,3 +178,7 @@ export function AtlasPinMarker({
     </div>
   );
 }
+
+// React.memo prevents re-rendering when props haven't changed.
+// Without this, every click/pan/zoom re-renders ALL pin components.
+export const AtlasPinMarker = React.memo(AtlasPinMarkerInner);

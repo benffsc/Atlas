@@ -977,6 +977,9 @@ function AtlasMapV2Inner() {
           if (!pin) return null;
 
           const isSelected = bulkSelectedPlaceIds.has(pin.id);
+          const hasVol = Array.isArray(pin.people) && pin.people.some(
+            (p: { roles: string[]; is_staff: boolean }) => p.is_staff || p.roles?.some((r: string) => r === 'trapper' || r === 'foster' || r === 'staff' || r === 'caretaker')
+          );
 
           return (
             <AdvancedMarker
@@ -1002,7 +1005,7 @@ function AtlasMapV2Inner() {
                 color={getPinColor(pin.pin_style)}
                 pinStyle={pin.pin_style as any}
                 catCount={pin.cat_count}
-                hasVolunteer={Array.isArray(pin.people) && pin.people.some((p: { roles: string[]; is_staff: boolean }) => p.is_staff || (p.roles && p.roles.some((r: string) => ['trapper', 'foster', 'staff', 'caretaker'].includes(r))))}
+                hasVolunteer={hasVol}
                 needsTrapper={pin.needs_trapper_count > 0}
                 diseaseBadges={pin.disease_badges}
                 isSelected={isSelected}
