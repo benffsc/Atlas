@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { APIProvider, Map, AdvancedMarker, InfoWindow, useMap } from "@vis.gl/react-google-maps";
+import { AtlasPinMarker } from "@/components/map/components/AtlasPinMarker";
 import { useMapData } from "@/hooks/useMapData";
 import { useMapColors } from "@/hooks/useMapColors";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
@@ -69,17 +70,6 @@ function getPinColor(style: string): string {
     case "active_requests": return MAP_COLORS.pinStyle.active_requests;
     case "has_history": return MAP_COLORS.pinStyle.has_history;
     default: return MAP_COLORS.pinStyle.default;
-  }
-}
-
-function getPinSize(style: string): number {
-  switch (style) {
-    case "disease": return 14;
-    case "watch_list": return 13;
-    case "active": return 12;
-    case "active_requests": return 11;
-    case "has_history": return 10;
-    default: return 8;
   }
 }
 
@@ -312,7 +302,6 @@ function AtlasMapV2Inner() {
   const measurePolylineRef = useRef<google.maps.Polyline | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const measureMarkersRef = useRef<any[]>([]);
-  const measureInfoWindowsRef = useRef<google.maps.InfoWindow[]>([]);
   const rubberBandRef = useRef<google.maps.Polyline | null>(null);
 
   const measureTotalDistance = measurePoints.reduce((sum, pt, i) => {
@@ -332,7 +321,20 @@ function AtlasMapV2Inner() {
     setMeasurePoints([]);
   }, []);
 
-  // Draw/redraw measurement polylines & markers on Google Maps
+  // Compute segment midpoints + distances for declarative AdvancedMarker labels
+  const measureSegments = useMemo(() => {
+    if (measurePoints.length < 2) return [];
+    return measurePoints.slice(1).map((pt, i) => {
+      const a = measurePoints[i];
+      return {
+        lat: (a.lat + pt.lat) / 2,
+        lng: (a.lng + pt.lng) / 2,
+        distance: haversine(a, pt),
+      };
+    });
+  }, [measurePoints]);
+
+  // Draw/redraw measurement polylines & point markers on Google Maps
   useEffect(() => {
     if (!map || !measureActive) {
       // Clean up
@@ -340,17 +342,13 @@ function AtlasMapV2Inner() {
       measurePolylineRef.current = null;
       measureMarkersRef.current.forEach(m => m.setMap(null));
       measureMarkersRef.current = [];
-      measureInfoWindowsRef.current.forEach(iw => iw.close());
-      measureInfoWindowsRef.current = [];
       return;
     }
 
     // Remove old
     measurePolylineRef.current?.setMap(null);
     measureMarkersRef.current.forEach(m => m.setMap(null));
-    measureInfoWindowsRef.current.forEach(iw => iw.close());
     measureMarkersRef.current = [];
-    measureInfoWindowsRef.current = [];
 
     if (measurePoints.length === 0) return;
 
@@ -382,38 +380,19 @@ function AtlasMapV2Inner() {
       measureMarkersRef.current.push(marker);
     }
 
-    // Draw segment distance labels
-    for (let i = 0; i < measurePoints.length - 1; i++) {
-      const a = measurePoints[i];
-      const b = measurePoints[i + 1];
-      const midLat = (a.lat + b.lat) / 2;
-      const midLng = (a.lng + b.lng) / 2;
-      const dist = haversine(a, b);
-
-      const iw = new google.maps.InfoWindow({
-        content: `<div style="font-size:12px;font-weight:600;padding:2px 6px;">${formatDistance(dist)}</div>`,
-        position: { lat: midLat, lng: midLng },
-        disableAutoPan: true,
-      });
-      iw.open(map);
-      measureInfoWindowsRef.current.push(iw);
-    }
-
     return () => {
       polyline.setMap(null);
     };
   }, [map, measureActive, measurePoints]);
 
-  // Rubber band line + live distance label for measurement
-  const rubberBandLabelRef = useRef<google.maps.InfoWindow | null>(null);
+  // Rubber band line (no cursor-following label — live distance shows in MeasurementPanel)
   const [measureCursorDistance, setMeasureCursorDistance] = useState(0);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!map || !measureActive || measurePoints.length === 0) {
       rubberBandRef.current?.setMap(null);
       rubberBandRef.current = null;
-      rubberBandLabelRef.current?.close();
-      rubberBandLabelRef.current = null;
       setMeasureCursorDistance(0);
       return;
     }
@@ -423,9 +402,8 @@ function AtlasMapV2Inner() {
     const listener = map.addListener("mousemove", (e: google.maps.MapMouseEvent) => {
       if (!e.latLng) return;
       const to = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-      const segDist = haversine(lastPt, to);
 
-      // Update rubber band polyline
+      // Update rubber band polyline (lightweight — no DOM creation)
       if (rubberBandRef.current) {
         rubberBandRef.current.setPath([lastPt, to]);
       } else {
@@ -438,26 +416,19 @@ function AtlasMapV2Inner() {
         });
       }
 
-      // Update live distance label at cursor
-      const totalPlusCursor = measureTotalDistance + segDist;
-      setMeasureCursorDistance(totalPlusCursor);
-
-      if (!rubberBandLabelRef.current) {
-        rubberBandLabelRef.current = new google.maps.InfoWindow({ disableAutoPan: true });
-      }
-      rubberBandLabelRef.current.setPosition(to);
-      rubberBandLabelRef.current.setContent(
-        `<div style="font-size:11px;font-weight:600;padding:1px 4px;color:#3b82f6;white-space:nowrap;">${formatDistance(segDist)}${measurePoints.length >= 2 ? ` (total: ${formatDistance(totalPlusCursor)})` : ""}</div>`
-      );
-      rubberBandLabelRef.current.open(map);
+      // Throttle React state updates to animation frames
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const segDist = haversine(lastPt, to);
+        setMeasureCursorDistance(measureTotalDistance + segDist);
+      });
     });
 
     return () => {
       google.maps.event.removeListener(listener);
       rubberBandRef.current?.setMap(null);
       rubberBandRef.current = null;
-      rubberBandLabelRef.current?.close();
-      rubberBandLabelRef.current = null;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [map, measureActive, measurePoints, measureTotalDistance]);
 
@@ -1006,7 +977,6 @@ function AtlasMapV2Inner() {
           if (!pin) return null;
 
           const isSelected = bulkSelectedPlaceIds.has(pin.id);
-          const pinSize = getPinSize(pin.pin_style) * 2;
 
           return (
             <AdvancedMarker
@@ -1028,20 +998,16 @@ function AtlasMapV2Inner() {
                 setSelectedPlaceId(pin.id);
               }}
             >
-              <div style={{
-                width: pinSize, height: pinSize,
-                borderRadius: "50%",
-                background: getPinColor(pin.pin_style),
-                border: isSelected ? "3px solid #facc15" : "2px solid white",
-                boxShadow: isSelected ? "0 0 0 2px #facc15, 0 1px 4px rgba(0,0,0,0.3)" : "0 1px 4px rgba(0,0,0,0.3)",
-                cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 9, fontWeight: 700, color: "white",
-                transform: isSelected ? "scale(1.3)" : undefined,
-                transition: "transform 0.15s ease",
-              }}>
-                {pin.cat_count > 0 ? pin.cat_count : ""}
-              </div>
+              <AtlasPinMarker
+                color={getPinColor(pin.pin_style)}
+                pinStyle={pin.pin_style as any}
+                catCount={pin.cat_count}
+                hasVolunteer={Array.isArray(pin.people) && pin.people.some((p: { roles: string[]; is_staff: boolean }) => p.is_staff || (p.roles && p.roles.some((r: string) => ['trapper', 'foster', 'staff', 'caretaker'].includes(r))))}
+                needsTrapper={pin.needs_trapper_count > 0}
+                diseaseBadges={pin.disease_badges}
+                isSelected={isSelected}
+                isReference={pin.pin_style === 'has_history' || pin.pin_style === 'minimal'}
+              />
             </AdvancedMarker>
           );
         })}
@@ -1089,6 +1055,19 @@ function AtlasMapV2Inner() {
             </div>
           </AdvancedMarker>
         )}
+
+        {/* ── Measurement segment distance labels (declarative AdvancedMarkers) ── */}
+        {measureActive && measureSegments.map((seg, i) => (
+          <AdvancedMarker key={`measure-seg-${i}`} position={{ lat: seg.lat, lng: seg.lng }}>
+            <div style={{
+              background: "white", borderRadius: 4, padding: "2px 6px",
+              fontSize: 12, fontWeight: 600, boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              whiteSpace: "nowrap", pointerEvents: "none",
+            }}>
+              {formatDistance(seg.distance)}
+            </div>
+          </AdvancedMarker>
+        ))}
 
         {/* ── InfoWindow for selected pin ── */}
         {selectedPin && !selectedPlaceId && (
@@ -1478,45 +1457,21 @@ function AtlasMapV2Inner() {
 export default function AtlasMapV2() {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-  // Suppress Google Maps auth failure dialog globally before API loads.
-  // Google calls gm_authFailure on every tile request when domain isn't verified,
-  // which spawns modal dialogs that freeze the tab. Noop it + hide via CSS.
+  // CSS fallback to hide any auth error UI Google manages to create.
+  // The main gm_authFailure noop is in layout.tsx <head> (runs before Google's script).
   useEffect(() => {
-    // 1. Noop the callback so Google never creates the dialog
-    (window as any).gm_authFailure = () => {};
-
-    // 2. CSS nuclear option — hide any dialog Google manages to create
     const style = document.createElement("style");
     style.id = "gm-auth-suppress";
     style.textContent = [
       ".gm-style-pbc { display: none !important; }",
       ".gm-err-container { display: none !important; }",
       ".dismissButton { display: none !important; }",
-      // Google's modal overlay
       'div[style*="background-color: white"][style*="position: absolute"][style*="z-index"] { display: none !important; }',
     ].join("\n");
     if (!document.getElementById("gm-auth-suppress")) {
       document.head.appendChild(style);
     }
-
-    // 3. MutationObserver to catch and remove any dialog Google injects
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (node instanceof HTMLElement) {
-            if (node.classList?.contains("gm-style-pbc") || node.querySelector?.(".dismissButton")) {
-              node.remove();
-            }
-          }
-        }
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      observer.disconnect();
-      document.getElementById("gm-auth-suppress")?.remove();
-    };
+    return () => { document.getElementById("gm-auth-suppress")?.remove(); };
   }, []);
 
   if (!apiKey) {

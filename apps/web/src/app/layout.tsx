@@ -20,6 +20,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Suppress Google Maps auth failure dialog — must run before Google's script loads */}
+        <script dangerouslySetInnerHTML={{ __html: 'window.gm_authFailure=function(){};' }} />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <link rel="manifest" href="/manifest.json" />
