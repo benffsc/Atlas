@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { postApi, fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { Skeleton } from "@/components/feedback/Skeleton";
 import { useFormAutoSave } from "@/hooks/useFormAutoSave";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 import { Button } from "@/components/ui/Button";
@@ -515,9 +516,7 @@ export function CheckoutForm({
               />
               Context
               {contextLoading && (
-                <span style={{ fontWeight: 400, fontStyle: "italic", textTransform: "none" }}>
-                  Loading...
-                </span>
+                <Skeleton width={60} height={14} style={{ display: "inline-block", verticalAlign: "middle" }} />
               )}
               {!contextLoading && context && (
                 <span style={{ fontWeight: 400, textTransform: "none", color: "var(--muted)" }}>

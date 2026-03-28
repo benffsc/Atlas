@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { SkeletonTable } from "@/components/feedback/Skeleton";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { DataTable } from "@/components/data-table";
 import { useDataTable } from "@/components/data-table/useDataTable";
@@ -28,7 +29,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 export default function EquipmentPage() {
   return (
-    <Suspense fallback={<div style={{ padding: "2rem", color: "var(--muted)" }}>Loading equipment...</div>}>
+    <Suspense fallback={<div style={{ padding: "2rem" }}><SkeletonTable rows={8} columns={5} /></div>}>
       <EquipmentPageContent />
     </Suspense>
   );
@@ -628,7 +629,7 @@ function EquipmentPageContent() {
         }
       >
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>Loading...</div>
+          <SkeletonTable rows={8} columns={5} />
         ) : isSearching ? (
           /* Flat DataTable when searching */
           <DataTable

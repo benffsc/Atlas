@@ -2,6 +2,7 @@
 
 import { useParams, useSearchParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
+import { SkeletonCard } from "@/components/feedback/Skeleton";
 import { PRINT_BASE_CSS, PRINT_EDITABLE_CSS } from "@/lib/print-styles";
 import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { Button } from "@/components/ui/Button";
@@ -76,7 +77,7 @@ function FormPreview({ templateKey }: { templateKey: TemplateKey }) {
   }, [searchParams, loadRequest]);
 
   if (loading) {
-    return <div style={{ padding: "2rem" }}>Loading template...</div>;
+    return <div style={{ padding: "2rem" }}><SkeletonCard /></div>;
   }
   if (error) {
     return (

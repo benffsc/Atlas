@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { SkeletonText } from "@/components/feedback/Skeleton";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
 
 interface Trapper {
@@ -149,7 +150,7 @@ export function BulkActionBar({ selectedPlaceIds, onClear, placeRequestMap }: Bu
             Select Trapper ({requestIds.length} request{requestIds.length !== 1 ? "s" : ""})
           </div>
           {loadingTrappers ? (
-            <div style={{ padding: 16, textAlign: "center", color: "var(--text-secondary)", fontSize: 13 }}>Loading...</div>
+            <div style={{ padding: 16 }}><SkeletonText lines={3} /></div>
           ) : trappers.length === 0 ? (
             <div style={{ padding: 16, textAlign: "center", color: "var(--text-secondary)", fontSize: 13 }}>No active trappers</div>
           ) : (

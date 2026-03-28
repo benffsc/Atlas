@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
+import { SkeletonCard } from "@/components/feedback/Skeleton";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
@@ -141,8 +142,10 @@ export default function StaffProfilePage() {
 
   if (loading) {
     return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
-        Loading profile...
+      <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+        <Breadcrumbs items={breadcrumbs} />
+        <div style={{ marginTop: "1rem" }}><SkeletonCard /></div>
+        <div style={{ marginTop: "1rem" }}><SkeletonCard /></div>
       </div>
     );
   }

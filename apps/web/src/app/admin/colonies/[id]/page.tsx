@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
+import { SkeletonStats, SkeletonTable } from "@/components/feedback/Skeleton";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
@@ -333,7 +334,15 @@ export default function ColonyDetailPage() {
   };
 
   if (loading) {
-    return <div className="loading">Loading colony...</div>;
+    return (
+      <div>
+        <Breadcrumbs items={breadcrumbs} />
+        <div style={{ marginTop: "1rem" }}>
+          <SkeletonStats count={4} />
+          <div style={{ marginTop: "1.5rem" }}><SkeletonTable rows={3} columns={3} /></div>
+        </div>
+      </div>
+    );
   }
 
   if (error || !colony) {
