@@ -9,6 +9,8 @@ import { extractPhones, formatPhone, isValidPhone } from "@/lib/formatters";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS } from "@/lib/design-tokens";
 import { MB_LG, MB_XL, SECTION_DIVIDER } from "../styles";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
 import {
   OWNERSHIP_OPTIONS,
@@ -97,8 +99,7 @@ function NewRequestForm() {
   const [trapsOvernightSafe, setTrapsOvernightSafe] = useState<boolean | null>(null);
   const [accessWithoutContact, setAccessWithoutContact] = useState<boolean | null>(null);
 
-  // Trapping Logistics (FFS-151)
-  const [showTrappingLogistics, setShowTrappingLogistics] = useState(false);
+  // Trapping Details (moved from collapsed section to inline in new layout)
   const [ownershipStatus, setOwnershipStatus] = useState("");
   const [handleability, setHandleability] = useState("");
   const [fixedStatus, setFixedStatus] = useState("");
@@ -752,11 +753,37 @@ function NewRequestForm() {
     }
   };
 
+  // ─── Section Configuration (FFS-930 UX Overhaul) ──────────────────────────
+  const FORM_SECTIONS = [
+    { id: "caller", icon: "phone" as const, label: "Who\u2019s calling?", shortLabel: "Caller" },
+    { id: "location", icon: "map-pin" as const, label: "Where are the cats?", shortLabel: "Location" },
+    { id: "cats", icon: "cat" as const, label: "Tell me about the cats", shortLabel: "Cats" },
+    { id: "urgency", icon: "zap" as const, label: "How urgent is this?", shortLabel: "Urgency" },
+    { id: "wrapup", icon: "clipboard-list" as const, label: "Wrap up", shortLabel: "Details" },
+  ];
+
+  // Section completeness for step indicators (FFS-933)
+  const sectionStatus = {
+    caller: requestorFirstName && requestorPhone ? "complete" : requestorFirstName || requestorPhone ? "partial" : "empty",
+    location: selectedPlace ? "complete" : "empty",
+    cats: (estimatedCatCount !== "" && (catsAreFriendly !== null || handleability)) ? "complete" : estimatedCatCount !== "" ? "partial" : "empty",
+    urgency: priority !== "normal" || urgencyNotes ? "complete" : "empty",
+    wrapup: summary ? "complete" : notes || internalNotes ? "partial" : "empty",
+  } as Record<string, "complete" | "partial" | "empty">;
+
+  const sectionDotColor = (status: string) =>
+    status === "complete" ? "var(--success-text, #16a34a)" :
+    status === "partial" ? "var(--warning-text, #ca8a04)" :
+    "var(--text-tertiary, #9ca3af)";
+
   return (
-    <div>
+    <div style={{ maxWidth: "720px", margin: "0 auto" }}>
       <BackButton fallbackHref="/requests" />
 
-      <h1 style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>New FFR Request</h1>
+      <h1 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "1.5rem", fontWeight: 700, color: "var(--foreground)" }}>New Request</h1>
+      <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
+        {entryMode === "phone" ? "Capture the caller\u2019s information as you talk" : entryMode === "complete" ? "Record a completed request" : "Enter request details"}
+      </p>
 
       {/* Entry Mode Selector */}
       <div style={{ marginBottom: "1.5rem" }}>
@@ -1039,64 +1066,64 @@ function NewRequestForm() {
         </div>
       )}
 
-      {/* Step indicator */}
+      {/* Step indicator — jump nav with completeness dots */}
       <div style={{
         display: 'flex',
-        gap: SPACING.xs,
+        gap: '6px',
         marginBottom: SPACING.xl,
-        padding: `${SPACING.sm} 0`,
+        padding: '10px 0',
         overflowX: 'auto',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        background: 'var(--background)',
+        borderBottom: '1px solid var(--border-light, transparent)',
       }}>
-        {['Location', 'Requestor', 'Access', 'Cats', 'Kittens', 'Feeding', 'Urgency', 'Details'].map((step, i) => (
+        {FORM_SECTIONS.map((section) => (
           <a
-            key={step}
-            href={`#section-${i + 1}`}
+            key={section.id}
+            href={`#section-${section.id}`}
             style={{
-              padding: `${SPACING.xs} ${SPACING.sm}`,
-              fontSize: TYPOGRAPHY.size.xs,
-              fontWeight: TYPOGRAPHY.weight.medium,
-              color: COLORS.textSecondary,
-              background: COLORS.gray100,
-              borderRadius: BORDERS.radius.full,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              color: 'var(--text-secondary)',
+              background: 'var(--bg-secondary, #f3f4f6)',
+              borderRadius: '9999px',
               textDecoration: 'none',
               whiteSpace: 'nowrap',
-              transition: `background ${TRANSITIONS.fast}`,
+              transition: 'background 150ms, box-shadow 150ms',
+              border: '1px solid transparent',
             }}
-            onMouseOver={(e) => { e.currentTarget.style.background = COLORS.gray200; }}
-            onMouseOut={(e) => { e.currentTarget.style.background = COLORS.gray100; }}
+            onMouseOver={(e) => { e.currentTarget.style.background = 'var(--surface-raised, #e5e7eb)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg-secondary, #f3f4f6)'; e.currentTarget.style.borderColor = 'transparent'; }}
           >
-            {i + 1}. {step}
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: sectionDotColor(sectionStatus[section.id]),
+              flexShrink: 0,
+            }} />
+            <Icon name={section.icon} size={14} />
+            {section.shortLabel}
           </a>
         ))}
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* SECTION 1: Location (FFS-493) */}
-        <div id="section-1">
-          <PlaceSection
-            value={placeValue}
-            onChange={handlePlaceChange}
-          />
-
-          {/* Smart matching - show warning if active requests found at this location */}
-          {duplicateMatches.length > 0 && !duplicatesDismissed && (
-            <ActiveRequestWarning
-              matches={duplicateMatches}
-              onDismiss={() => setDuplicatesDismissed(true)}
-              onLinkToRequest={(requestId) => router.push(`/requests/${requestId}`)}
-            />
-          )}
-
-          {checkingDuplicates && (
-            <p className="text-muted text-sm" style={{ marginTop: "0.5rem", marginBottom: "1rem" }}>
-              Checking for existing requests...
-            </p>
-          )}
-        </div>
-
-        {/* SECTION 2: Requestor */}
-        <div id="section-2" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Requestor</h2>
+        {/* ─── SECTION 1: Who's calling? ─────────────────────────────── */}
+        <div id="section-caller" className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+            <Icon name="phone" size={20} color="var(--primary)" />
+            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600, color: "var(--foreground)" }}>Who&apos;s calling?</h2>
+          </div>
+          <p style={{ color: "var(--text-tertiary)", fontSize: "0.8rem", marginBottom: "1rem", marginLeft: "30px" }}>
+            Ask: &ldquo;May I have your name and the best number to reach you?&rdquo;
+          </p>
 
           <PersonSection
             role="requestor"
@@ -1294,235 +1321,157 @@ function NewRequestForm() {
           </div>
         </div>
 
-        {/* SECTION 3: Permission & Access (FFS-493) */}
-        <div id="section-3">
-          <PropertyAccessSection
-            value={propertyAccessValue}
-            onChange={handlePropertyAccessChange}
+        {/* ─── SECTION 2: Where are the cats? ──────────────────────── */}
+        <div id="section-location" className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+            <Icon name="map-pin" size={20} color="var(--primary)" />
+            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600, color: "var(--foreground)" }}>Where are the cats?</h2>
+          </div>
+          <p style={{ color: "var(--text-tertiary)", fontSize: "0.8rem", marginBottom: "1rem", marginLeft: "30px" }}>
+            Ask: &ldquo;What&apos;s the address where the cats are?&rdquo;
+          </p>
+
+          <PlaceSection
+            value={placeValue}
+            onChange={handlePlaceChange}
           />
-        </div>
 
-        {/* SECTION 3b: Trapping Logistics (FFS-151) - collapsible */}
-        <div className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <button
-            type="button"
-            onClick={() => setShowTrappingLogistics(!showTrappingLogistics)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: "1.25rem" }}>Trapping Logistics</h2>
-            <span style={{ fontSize: "0.85rem", color: COLORS.textSecondary }}>
-              {showTrappingLogistics ? "Collapse" : "Expand"}
-            </span>
-          </button>
+          {/* Smart matching - show warning if active requests found at this location */}
+          {duplicateMatches.length > 0 && !duplicatesDismissed && (
+            <ActiveRequestWarning
+              matches={duplicateMatches}
+              onDismiss={() => setDuplicatesDismissed(true)}
+              onLinkToRequest={(requestId) => router.push(`/requests/${requestId}`)}
+            />
+          )}
 
-          {showTrappingLogistics && (
-            <div style={{ marginTop: "1rem" }}>
-              {/* Row 1: Ownership, Handleability, Fixed Status */}
-              <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                <div style={{ flex: "1 1 200px" }}>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Ownership Status
-                  </label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    {OWNERSHIP_OPTIONS.map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="ownershipStatus"
-                          checked={ownershipStatus === opt.value}
-                          onChange={() => setOwnershipStatus(opt.value)}
-                        />
-                        {opt.shortLabel}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ flex: "1 1 200px" }}>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Handleability
-                  </label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    {HANDLEABILITY_OPTIONS.map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="handleability"
-                          checked={handleability === opt.value}
-                          onChange={() => setHandleability(opt.value)}
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ flex: "1 1 200px" }}>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Fixed Status
-                  </label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                    {FIXED_STATUS_OPTIONS.map((opt) => (
-                      <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input
-                          type="radio"
-                          name="fixedStatus"
-                          checked={fixedStatus === opt.value}
-                          onChange={() => setFixedStatus(opt.value)}
-                        />
-                        {opt.shortLabel}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
+          {checkingDuplicates && (
+            <p style={{ marginTop: "0.5rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--text-tertiary)" }}>
+              Checking for existing requests...
+            </p>
+          )}
 
-              {/* Row 2: Dogs, Trap Savvy, Previous TNR */}
-              <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Dogs on site?
-                  </label>
-                  <div style={{ display: "flex", gap: "1rem" }}>
-                    {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }].map((o) => (
-                      <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input type="radio" name="dogsOnSite" checked={dogsOnSite === o.v} onChange={() => setDogsOnSite(o.v)} />
-                        {o.l}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Trap-savvy cats?
-                  </label>
-                  <div style={{ display: "flex", gap: "1rem" }}>
-                    {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }, { v: "unknown", l: "Unknown" }].map((o) => (
-                      <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input type="radio" name="trapSavvy" checked={trapSavvy === o.v} onChange={() => setTrapSavvy(o.v)} />
-                        {o.l}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                    Previous TNR?
-                  </label>
-                  <div style={{ display: "flex", gap: "1rem" }}>
-                    {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }, { v: "partial", l: "Partial" }].map((o) => (
-                      <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
-                        <input type="radio" name="previousTnr" checked={previousTnr === o.v} onChange={() => setPreviousTnr(o.v)} />
-                        {o.l}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
+          {/* Permission & Access — inline in location section */}
+          <div style={{ marginTop: SPACING.lg, paddingTop: SPACING.lg, borderTop: "1px solid var(--border-light, #e5e7eb)" }}>
+            <PropertyAccessSection
+              value={propertyAccessValue}
+              onChange={handlePropertyAccessChange}
+              compact
+            />
+          </div>
 
-              {/* Row 3: Best trapping time + Cat description */}
-              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-                <div style={{ flex: "1 1 250px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Best Trapping Time
-                  </label>
-                  <input
-                    type="text"
-                    value={bestTrappingTime}
-                    onChange={(e) => setBestTrappingTime(e.target.value)}
-                    placeholder="e.g., Weekday evenings"
-                    style={{ width: "100%" }}
-                  />
-                </div>
-                <div style={{ flex: "2 1 300px" }}>
-                  <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                    Cat Descriptions
-                  </label>
-                  <textarea
-                    value={catDescription}
-                    onChange={(e) => setCatDescription(e.target.value)}
-                    placeholder="Colors, markings, names — describe individual cats"
-                    rows={2}
-                    style={{ width: "100%", resize: "vertical" }}
-                  />
-                </div>
-              </div>
-
-              {/* Row 4: Important Notes checkboxes */}
+          {/* Site logistics — dogs, trap-savvy, previous TNR (promoted from hidden section) */}
+          <div style={{ marginTop: SPACING.md, paddingTop: SPACING.md, borderTop: "1px solid var(--border-light, #e5e7eb)" }}>
+            <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.75rem" }}>Site conditions</p>
+            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
               <div>
-                <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-                  Important Notes
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                  Dogs on site?
                 </label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                  {IMPORTANT_NOTE_OPTIONS.map((opt) => (
-                    <label
-                      key={opt.value}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        padding: "0.5rem 0.75rem",
-                        border: "1px solid var(--border)",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        background: importantNotes.includes(opt.value)
-                          ? "var(--primary)"
-                          : "transparent",
-                        color: importantNotes.includes(opt.value) ? "#fff" : "inherit",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={importantNotes.includes(opt.value)}
-                        onChange={() => toggleImportantNote(opt.value)}
-                        style={{ display: "none" }}
-                      />
-                      {opt.label}
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }].map((o) => (
+                    <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
+                      <input type="radio" name="dogsOnSite" checked={dogsOnSite === o.v} onChange={() => setDogsOnSite(o.v)} />
+                      {o.l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                  Trap-savvy?
+                </label>
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }, { v: "unknown", l: "Unknown" }].map((o) => (
+                    <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
+                      <input type="radio" name="trapSavvy" checked={trapSavvy === o.v} onChange={() => setTrapSavvy(o.v)} />
+                      {o.l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                  Previous TNR?
+                </label>
+                <div style={{ display: "flex", gap: "0.75rem" }}>
+                  {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }, { v: "partial", l: "Partial" }].map((o) => (
+                    <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
+                      <input type="radio" name="previousTnr" checked={previousTnr === o.v} onChange={() => setPreviousTnr(o.v)} />
+                      {o.l}
                     </label>
                   ))}
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* SECTION 4: About the Cats (FFS-493) */}
-        <div id="section-4">
+        {/* ─── SECTION 3: Tell me about the cats ────────────────────── */}
+        <div id="section-cats" className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+            <Icon name="cat" size={20} color="var(--primary)" />
+            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600, color: "var(--foreground)" }}>Tell me about the cats</h2>
+          </div>
+          <p style={{ color: "var(--text-tertiary)", fontSize: "0.8rem", marginBottom: "1rem", marginLeft: "30px" }}>
+            Ask: &ldquo;How many cats are you seeing? Are they friendly or feral?&rdquo;
+          </p>
+
+          {/* Cat counts + assessment (existing component) */}
           <CatDetailsSection
             value={catDetailsValue}
             onChange={handleCatDetailsChange}
+            compact
           />
-        </div>
 
-        {/* SECTION 5: Kittens (FFS-493) */}
-        <div id="section-5">
-          <KittenAssessmentSection
-            value={kittenValue}
-            onChange={handleKittenChange}
-          />
-          {hasKittens && (
-            <div style={{ background: "var(--warning-bg, #fffbeb)", border: "1px solid var(--warning-border, #ffc107)", borderRadius: "6px", padding: "0.75rem", marginTop: "-12px", marginBottom: "20px", fontSize: "0.85rem" }}>
-              <strong>Foster triage factors:</strong>
-              <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
-                <li>Age: Under 12 weeks ideal, 12+ weeks need socialization</li>
-                <li>Behavior: Friendly/handleable kittens prioritized</li>
-                <li>Mom: Spayed mom with kittens increases foster likelihood</li>
-                <li>Ease: Already contained = easier intake</li>
-              </ul>
+          {/* Handleability + Fixed Status — PROMOTED from hidden trapping logistics */}
+          <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginTop: SPACING.md, paddingTop: SPACING.md, borderTop: "1px solid var(--border-light, #e5e7eb)" }}>
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                Handleability
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {HANDLEABILITY_OPTIONS.map((opt) => (
+                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem" }}>
+                    <input type="radio" name="handleability" checked={handleability === opt.value} onChange={() => setHandleability(opt.value)} />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
             </div>
-          )}
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                Fixed status
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {FIXED_STATUS_OPTIONS.map((opt) => (
+                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem" }}>
+                    <input type="radio" name="fixedStatus" checked={fixedStatus === opt.value} onChange={() => setFixedStatus(opt.value)} />
+                    {opt.shortLabel}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Kittens */}
+          <div style={{ marginTop: SPACING.md, paddingTop: SPACING.md, borderTop: "1px solid var(--border-light, #e5e7eb)" }}>
+            <KittenAssessmentSection
+              value={kittenValue}
+              onChange={handleKittenChange}
+              compact
+            />
+            {hasKittens && (
+              <div style={{ background: "var(--warning-bg, #fffbeb)", border: "1px solid var(--warning-border, #ffc107)", borderRadius: "8px", padding: "0.75rem", marginTop: "0.75rem", fontSize: "0.8rem" }}>
+                <strong>Foster triage:</strong> Under 12 weeks ideal &bull; Friendly kittens prioritized &bull; Spayed mom = easier &bull; Already contained = faster intake
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* SECTION 6: Feeding */}
-        <div id="section-6" className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <h2 style={{ marginBottom: "1rem", fontSize: "1.25rem" }}>Feeding</h2>
+        {/* Feeding + Medical — visually grouped with cat section */}
+        <div className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl, marginTop: `-${SPACING.md}` }}>
+          <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "1rem" }}>Feeding &amp; health</p>
 
           <div style={MB_LG}>
             <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
@@ -1643,10 +1592,10 @@ function NewRequestForm() {
           </div>
         </div>
 
-        {/* SECTION 6b: Medical Concerns (FFS-461) */}
-        <div className="card" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-            <h2 style={{ fontSize: "1.25rem", margin: 0 }}>Medical Concerns</h2>
+        {/* Medical Concerns — compact inline */}
+        <div className="card card-elevated" style={{ padding: SPACING.lg, marginBottom: SPACING.xl, marginTop: `-${SPACING.md}` }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)" }}>Medical concerns</span>
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
               <input
                 type="checkbox"
@@ -1673,12 +1622,17 @@ function NewRequestForm() {
           )}
         </div>
 
-        {/* SECTION 7+8: Urgency & Additional Details (FFS-493) */}
-        <div id="section-7">
+        {/* ─── SECTION 4: How urgent is this? ──────────────────────── */}
+        <div id="section-urgency" className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "1rem" }}>
+            <Icon name="zap" size={20} color="var(--primary)" />
+            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600, color: "var(--foreground)" }}>How urgent is this?</h2>
+          </div>
           <UrgencyNotesSection
             value={urgencyNotesValue}
             onChange={handleUrgencyNotesChange}
-            showDetails={true}
+            showDetails={false}
+            compact
           />
 
           {/* FFS-932: Phone detection nudge for urgency/case notes */}
@@ -1731,6 +1685,109 @@ function NewRequestForm() {
           )}
         </div>
 
+        {/* ─── SECTION 5: Wrap up ──────────────────────────────────── */}
+        <div id="section-wrapup" className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+            <Icon name="clipboard-list" size={20} color="var(--primary)" />
+            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600, color: "var(--foreground)" }}>Wrap up</h2>
+          </div>
+          <p style={{ color: "var(--text-tertiary)", fontSize: "0.8rem", marginBottom: "1rem", marginLeft: "30px" }}>
+            Summary, notes, and trapping details
+          </p>
+
+          {/* Ownership Status */}
+          <div style={{ marginBottom: SPACING.md }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.85rem" }}>
+              Ownership status
+            </label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+              {OWNERSHIP_OPTIONS.map((opt) => (
+                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem" }}>
+                  <input type="radio" name="ownershipStatus" checked={ownershipStatus === opt.value} onChange={() => setOwnershipStatus(opt.value)} />
+                  {opt.shortLabel}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Best trapping time + cat descriptions */}
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: SPACING.md }}>
+            <div style={{ flex: "1 1 220px" }}>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                Best trapping time
+              </label>
+              <input type="text" value={bestTrappingTime} onChange={(e) => setBestTrappingTime(e.target.value)} placeholder="e.g., Weekday evenings" style={{ width: "100%" }} />
+            </div>
+            <div style={{ flex: "2 1 300px" }}>
+              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+                Cat descriptions
+              </label>
+              <textarea value={catDescription} onChange={(e) => setCatDescription(e.target.value)} placeholder="Colors, markings, names — describe individual cats" rows={2} style={{ width: "100%", resize: "vertical" }} />
+            </div>
+          </div>
+
+          {/* Important notes toggle chips */}
+          <div style={{ marginBottom: SPACING.lg }}>
+            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.85rem" }}>
+              Important notes
+            </label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+              {IMPORTANT_NOTE_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.35rem 0.6rem",
+                    border: `1px solid ${importantNotes.includes(opt.value) ? "var(--primary)" : "var(--border)"}`,
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    background: importantNotes.includes(opt.value) ? "var(--primary)" : "transparent",
+                    color: importantNotes.includes(opt.value) ? "#fff" : "inherit",
+                    fontSize: "0.8rem",
+                    transition: "all 150ms",
+                  }}
+                >
+                  <input type="checkbox" checked={importantNotes.includes(opt.value)} onChange={() => toggleImportantNote(opt.value)} style={{ display: "none" }} />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Summary + notes — always visible in wrap-up */}
+          <div style={{ marginBottom: SPACING.md }}>
+            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+              Request title
+            </label>
+            <input type="text" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="e.g., '5 cats at Oak Street colony' — auto-generated if blank" style={{ width: "100%" }} />
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+              Shows in list views. Leave blank to auto-generate from address + cat count.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: SPACING.md }}>
+            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+              Case info
+            </label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Situation description, history, special circumstances..." rows={3} style={{ width: "100%", resize: "vertical" }} />
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+              Shared with volunteers. Use internal notes for staff-only info.
+            </p>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+              Internal notes
+            </label>
+            <textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} placeholder="Staff working notes, follow-up reminders..." rows={2} style={{ width: "100%", resize: "vertical" }} />
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+              Private — not shared with clients or volunteers
+            </p>
+          </div>
+        </div>
+
         {/* SECTION: Completion Data (only shown in Quick Complete mode) */}
         {entryMode === "complete" && (
           <div style={{ marginBottom: "1.5rem" }}>
@@ -1741,28 +1798,33 @@ function NewRequestForm() {
           </div>
         )}
 
-        {error && <div style={{ color: "#dc3545", marginBottom: "1rem" }}>{error}</div>}
+        {error && (
+          <div style={{
+            padding: "0.75rem 1rem",
+            marginBottom: "1rem",
+            background: "var(--danger-bg, #fee2e2)",
+            border: "1px solid var(--danger-border, #dc2626)",
+            borderRadius: "8px",
+            color: "var(--danger-text, #721c24)",
+            fontSize: "0.9rem",
+          }}>
+            {error}
+          </div>
+        )}
 
-        <div style={{ display: "flex", gap: "1rem" }}>
-          <button type="submit" disabled={submitting}>
-            {submitting
-              ? "Creating..."
-              : entryMode === "complete"
-              ? "Complete & Close Request"
-              : "Create Request"}
-          </button>
-          <a
-            href="/requests"
-            style={{
-              padding: "0.5rem 1rem",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              textDecoration: "none",
-              color: "inherit",
-            }}
+        <div style={{ display: "flex", gap: "0.75rem", padding: "1rem 0" }}>
+          <Button
+            variant="primary"
+            size="lg"
+            type="submit"
+            loading={submitting}
+            icon={entryMode === "complete" ? "check" : "plus"}
           >
+            {entryMode === "complete" ? "Complete & Close Request" : "Create Request"}
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => router.push("/requests")}>
             Cancel
-          </a>
+          </Button>
         </div>
       </form>
     </div>
