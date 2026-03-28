@@ -176,11 +176,46 @@ function mapRecord(f: Record<string, unknown>) {
   const accessRaw = str("Has Property Access") || "";
   const hasPropertyAccess = ACCESS_MAP[accessRaw] || accessRaw?.toLowerCase() || null;
 
-  // Address: use Street Address, or fall back to Requester Address if same-as-requester
+  // Parse address from Jotform's "Street name: X House number: Y City: Z..." format
+  function parseAddressBlob(blob: string | null): { street: string | null; city: string | null; zip: string | null } {
+    if (!blob) return { street: null, city: null, zip: null };
+    const parts: Record<string, string> = {};
+    // Handle both newline-separated and space-separated key: value pairs
+    const normalized = blob.replace(/\n/g, " ");
+    const patterns = [
+      { key: "House number", regex: /House number:\s*([^\s].*?)(?=\s+(?:Street|City|State|Postal|Country):|$)/i },
+      { key: "Street name", regex: /Street name:\s*(.*?)(?=\s+(?:House|City|State|Postal|Country):|$)/i },
+      { key: "City", regex: /City:\s*(.*?)(?=\s+(?:House|Street|State|Postal|Country):|$)/i },
+      { key: "Postal code", regex: /Postal code:\s*(.*?)(?=\s+(?:House|Street|City|State|Country):|$)/i },
+    ];
+    for (const p of patterns) {
+      const match = normalized.match(p.regex);
+      if (match) parts[p.key] = match[1].trim();
+    }
+    const houseNum = parts["House number"] || "";
+    const streetName = parts["Street name"] || "";
+    const street = [houseNum, streetName].filter(Boolean).join(" ") || null;
+    return { street, city: parts["City"] || null, zip: parts["Postal code"] || null };
+  }
+
+  // Address resolution: check split fields first, then parse full address blobs
   const sameAsRequester = str("Same As Requester")?.includes("Yes") || false;
-  const catsAddress = str("Street Address") || (sameAsRequester ? str("Requester Address") : null);
-  const catsCity = str("City") || (sameAsRequester ? str("Requester City") : null);
-  const catsZip = str("ZIP") || (sameAsRequester ? str("Requester ZIP") : null);
+
+  // Requester address: split fields or parse blob
+  const reqParsed = parseAddressBlob(str("Requester Address") || str("Requester Full Address"));
+  const requesterStreet = str("Requester Address")?.includes("Street name:") ? reqParsed.street : (str("Requester Address") || reqParsed.street);
+  const requesterCity = str("Requester City") || reqParsed.city;
+  const requesterZip = str("Requester ZIP") || reqParsed.zip;
+
+  // Cat location: split fields, full address blob, or fall back to requester if same address
+  const catParsed = parseAddressBlob(str("Cat Location Full Address"));
+  const catStreetFromFields = str("Street Address");
+  const catCityFromFields = str("City");
+  const catZipFromFields = str("ZIP");
+
+  const catsAddress = catStreetFromFields || catParsed.street || (sameAsRequester ? requesterStreet : null);
+  const catsCity = catCityFromFields || catParsed.city || (sameAsRequester ? requesterCity : null);
+  const catsZip = catZipFromFields || catParsed.zip || (sameAsRequester ? requesterZip : null);
 
   return {
     source_raw_id: str("Jotform Submission ID"),
@@ -188,9 +223,9 @@ function mapRecord(f: Record<string, unknown>) {
     last_name: str("Last Name"),
     email: str("Email"),
     phone: str("Phone"),
-    requester_address: str("Requester Address"),
-    requester_city: str("Requester City"),
-    requester_zip: str("Requester ZIP"),
+    requester_address: requesterStreet,
+    requester_city: requesterCity,
+    requester_zip: requesterZip,
     cats_at_requester_address: sameAsRequester,
     is_third_party_report: bool("Is Third Party Report"),
     third_party_relationship: str("Third Party Relationship"),
