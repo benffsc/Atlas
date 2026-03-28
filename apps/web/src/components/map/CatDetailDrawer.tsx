@@ -119,13 +119,17 @@ interface CatDetails {
 interface CatDetailDrawerProps {
   catId: string | null;
   onClose: () => void;
+  /** Navigate to person detail in-map instead of opening external page */
+  onNavigatePerson?: (personId: string) => void;
+  /** Navigate to place detail in-map instead of opening external page */
+  onNavigatePlace?: (placeId: string) => void;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
+export function CatDetailDrawer({ catId, onClose, onNavigatePerson, onNavigatePlace }: CatDetailDrawerProps) {
   const [cat, setCat] = useState<CatDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -339,9 +343,10 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
                     <a
                       key={`${s.person_id}-${s.relationship_type}-${i}`}
                       href={`/people/${s.person_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target={onNavigatePerson ? undefined : "_blank"}
+                      rel={onNavigatePerson ? undefined : "noopener noreferrer"}
                       className="cat-drawer-stakeholder-row"
+                      onClick={onNavigatePerson ? (e) => { e.preventDefault(); onNavigatePerson(s.person_id); } : undefined}
                     >
                       <span className="cat-drawer-stakeholder-name">{s.person_name}</span>
                       <span className={`cat-drawer-relationship-badge cat-drawer-rel-${s.relationship_type}`}>
@@ -367,9 +372,10 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
                   {cat.primary_origin_place && (
                     <a
                       href={`/places/${cat.primary_origin_place.place_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target={onNavigatePlace ? undefined : "_blank"}
+                      rel={onNavigatePlace ? undefined : "noopener noreferrer"}
                       className="cat-drawer-place-row"
+                      onClick={onNavigatePlace ? (e) => { e.preventDefault(); onNavigatePlace(cat.primary_origin_place!.place_id); } : undefined}
                     >
                       <span className="cat-drawer-place-address">
                         {cat.primary_origin_place.display_name || cat.primary_origin_place.formatted_address}
@@ -384,9 +390,10 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
                       <a
                         key={p.place_id}
                         href={`/places/${p.place_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target={onNavigatePlace ? undefined : "_blank"}
+                        rel={onNavigatePlace ? undefined : "noopener noreferrer"}
                         className="cat-drawer-place-row"
+                        onClick={onNavigatePlace ? (e) => { e.preventDefault(); onNavigatePlace(p.place_id); } : undefined}
                       >
                         <span className="cat-drawer-place-address">
                           {p.display_name || p.formatted_address}
@@ -403,9 +410,10 @@ export function CatDetailDrawer({ catId, onClose }: CatDetailDrawerProps) {
                     <a
                       key={p.place_id}
                       href={`/places/${p.place_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target={onNavigatePlace ? undefined : "_blank"}
+                      rel={onNavigatePlace ? undefined : "noopener noreferrer"}
                       className="cat-drawer-place-row"
+                      onClick={onNavigatePlace ? (e) => { e.preventDefault(); onNavigatePlace(p.place_id); } : undefined}
                     >
                       <span className="cat-drawer-place-address">
                         {p.display_name || p.formatted_address}

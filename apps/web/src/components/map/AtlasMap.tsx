@@ -3382,7 +3382,6 @@ function AtlasMapInner() {
               placeId={selectedPlaceId}
               onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
               onWatchlistChange={refreshMapData}
-              showQuickActions={drawerFromAddPoint}
               shifted={false}
               coordinates={(() => {
                 const pin = atlasPins.find(p => p.id === selectedPlaceId) ||
@@ -3399,7 +3398,6 @@ function AtlasMapInner() {
             placeId={selectedPlaceId}
             onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
             onWatchlistChange={refreshMapData}
-            showQuickActions={drawerFromAddPoint}
             shifted={!!(selectedPersonId || selectedCatId)}
             coordinates={(() => {
               const pin = atlasPins.find(p => p.id === selectedPlaceId) ||

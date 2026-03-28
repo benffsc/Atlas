@@ -7,7 +7,7 @@
  * - Same batched state updates — no staggered pop-in
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { fetchApi } from "@/lib/api-client";
 import type {
   Place,
@@ -305,7 +305,7 @@ export function useMapSearchV2({
     setNavigatedLocation(null);
   }, []);
 
-  return {
+  return useMemo(() => ({
     query,
     localResults,
     atlasResults,
@@ -321,5 +321,10 @@ export function useMapSearchV2({
     handleAtlasSelect,
     handleGoogleSelect,
     handlePoiSelect,
-  };
+  }), [
+    query, localResults, atlasResults, googleSuggestions, poiResults,
+    loading, showResults, navigatedLocation, setQuery, setShowResults,
+    clearNavigatedLocation, handleLocalSelect, handleAtlasSelect,
+    handleGoogleSelect, handlePoiSelect,
+  ]);
 }

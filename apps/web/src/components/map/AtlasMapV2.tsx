@@ -9,6 +9,7 @@ import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { useToast } from "@/components/feedback/Toast";
 import { fetchApi } from "@/lib/api-client";
 import { MAP_COLORS } from "@/lib/map-colors";
+import { formatRelativeTime } from "@/lib/formatters";
 import { useMapLayers, ATLAS_MAP_LAYER_GROUPS_BASE } from "@/components/map/hooks/useMapLayers";
 import { useMapViews } from "@/components/map/hooks/useMapViews";
 import { useMapExport } from "@/components/map/hooks/useMapExport";
@@ -117,14 +118,16 @@ function AtlasMapV2Inner() {
   const [selectedZone, setSelectedZone] = useState("All Zones");
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("place") || null;
+  });
   const [selectedPin, setSelectedPin] = useState<AtlasPin | null>(null);
 
   // ── Drawer state (Step 2) ──
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
-  const [drawerFromAddPoint, setDrawerFromAddPoint] = useState(false);
   const [comparisonPlaceIds, setComparisonPlaceIds] = useState<string[]>([]);
 
   // ── Add Point state (Step 5/12) ──
@@ -177,6 +180,14 @@ function AtlasMapV2Inner() {
 
   const atlasPinsRef = useRef<AtlasPin[]>([]);
   useEffect(() => { atlasPinsRef.current = atlasPins; }, [atlasPins]);
+
+  // ── Sync selectedPlaceId → URL (FFS-964) ──
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedPlaceId) url.searchParams.set("place", selectedPlaceId);
+    else url.searchParams.delete("place");
+    window.history.replaceState({}, "", url.toString());
+  }, [selectedPlaceId]);
 
   // Keep refs in sync
   useEffect(() => { streetViewConeOnlyRef.current = streetViewConeOnly; }, [streetViewConeOnly]);
@@ -263,23 +274,30 @@ function AtlasMapV2Inner() {
     map.setMapTypeId(basemap === "satellite" ? "hybrid" : "roadmap");
   }, [map, basemap]);
 
-  // ── Clustering (Step 11) ──
+  // ── Clustering (Step 11) — debounced to prevent rapid re-clustering during zoom/pan ──
+  const boundsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!map) return;
     const listener = map.addListener("idle", () => {
-      const bounds = map.getBounds();
-      const zoom = map.getZoom();
-      if (bounds && zoom !== undefined) {
-        setMapBounds({
-          west: bounds.getSouthWest().lng(),
-          south: bounds.getSouthWest().lat(),
-          east: bounds.getNorthEast().lng(),
-          north: bounds.getNorthEast().lat(),
-        });
-        setMapZoomLevel(zoom);
-      }
+      if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
+      boundsTimerRef.current = setTimeout(() => {
+        const bounds = map.getBounds();
+        const zoom = map.getZoom();
+        if (bounds && zoom !== undefined) {
+          setMapBounds({
+            west: bounds.getSouthWest().lng(),
+            south: bounds.getSouthWest().lat(),
+            east: bounds.getNorthEast().lng(),
+            north: bounds.getNorthEast().lat(),
+          });
+          setMapZoomLevel(zoom);
+        }
+      }, 150);
     });
-    return () => google.maps.event.removeListener(listener);
+    return () => {
+      google.maps.event.removeListener(listener);
+      if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
+    };
   }, [map]);
 
   const { clusters, getClusterExpansionZoom } = useMapClustering({
@@ -776,7 +794,12 @@ function AtlasMapV2Inner() {
     };
   }, []);
 
-  // ── Tippy map context events (Step 14) ──
+  // ── Tippy map context events (Step 14) — use refs to avoid listener re-registration ──
+  const selectedPlaceIdRef = useRef(selectedPlaceId);
+  useEffect(() => { selectedPlaceIdRef.current = selectedPlaceId; }, [selectedPlaceId]);
+  const searchNavRef = useRef(search.navigatedLocation);
+  useEffect(() => { searchNavRef.current = search.navigatedLocation; }, [search.navigatedLocation]);
+
   useEffect(() => {
     if (!map) return;
     const emitMapContext = () => {
@@ -785,8 +808,9 @@ function AtlasMapV2Inner() {
       const zoom = map.getZoom();
       if (!center || !bounds || zoom === undefined) return;
 
-      const selectedPlace = selectedPlaceId
-        ? atlasPinsRef.current.find(p => p.id === selectedPlaceId) || null
+      const placeId = selectedPlaceIdRef.current;
+      const selectedPlace = placeId
+        ? atlasPinsRef.current.find(p => p.id === placeId) || null
         : null;
 
       window.dispatchEvent(new CustomEvent("tippy-map-context", {
@@ -800,8 +824,8 @@ function AtlasMapV2Inner() {
             west: bounds.getSouthWest().lng(),
           },
           selectedPlace: selectedPlace ? { place_id: selectedPlace.id, address: selectedPlace.address } : null,
-          navigatedLocation: search.navigatedLocation,
-          drawerOpen: !!selectedPlaceId,
+          navigatedLocation: searchNavRef.current,
+          drawerOpen: !!placeId,
         },
       }));
     };
@@ -811,9 +835,20 @@ function AtlasMapV2Inner() {
       map.addListener("zoom_changed", emitMapContext),
     ];
     return () => { listeners.forEach(l => google.maps.event.removeListener(l)); };
-  }, [map, selectedPlaceId, search.navigatedLocation]);
+  }, [map]);
 
-  // ── Keyboard shortcuts (Step 4) — full set ──
+  // ── Keyboard shortcuts (Step 4) — use refs to avoid constant re-registration ──
+  const kbStateRef = useRef({
+    addPointMode, measureActive, selectedPin, selectedPlaceId,
+    selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu,
+  });
+  useEffect(() => {
+    kbStateRef.current = {
+      addPointMode, measureActive, selectedPin, selectedPlaceId,
+      selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu,
+    };
+  });
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -824,6 +859,7 @@ function AtlasMapV2Inner() {
         return;
       }
 
+      const st = kbStateRef.current;
       switch (e.key) {
         case "/":
           e.preventDefault();
@@ -831,25 +867,26 @@ function AtlasMapV2Inner() {
           break;
         case "Escape":
           // Escape cascade — highest-priority UI closes first
-          if (contextMenu) {
+          if (st.contextMenu) {
             setContextMenu(null);
           } else if (streetViewFullscreenRef.current) {
             setStreetViewFullscreen(false);
           } else if (streetViewCoordsRef.current && !streetViewConeOnlyRef.current) {
             setStreetViewCoords(null);
             setStreetViewFullscreen(false);
-          } else if (selectedCatId) {
+          } else if (st.selectedCatId) {
             setSelectedCatId(null);
-          } else if (selectedPersonId) {
+          } else if (st.selectedPersonId) {
             setSelectedPersonId(null);
-          } else if (selectedAnnotationId) {
+          } else if (st.selectedAnnotationId) {
             setSelectedAnnotationId(null);
-          } else if (selectedPlaceId) {
+          } else if (st.selectedPin) {
+            setSelectedPin(null);
+          } else if (st.selectedPlaceId) {
             setSelectedPlaceId(null);
-            setDrawerFromAddPoint(false);
-          } else if (measureActive) {
+          } else if (st.measureActive) {
             setMeasureActive(false);
-          } else if (addPointMode) {
+          } else if (st.addPointMode) {
             setAddPointMode(null);
             setPendingClick(null);
             setShowAddPointMenu(false);
@@ -882,7 +919,7 @@ function AtlasMapV2Inner() {
           break;
         case "a":
         case "A":
-          if (!addPointMode) {
+          if (!st.addPointMode) {
             setShowAddPointMenu(prev => !prev);
           } else {
             setAddPointMode(null);
@@ -903,7 +940,8 @@ function AtlasMapV2Inner() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [map, addPointMode, measureActive, selectedPlaceId, selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu, handleFullscreenToggle, handleMeasureToggle, handleMyLocation, toggleLayer, search]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, handleFullscreenToggle, handleMeasureToggle, handleMyLocation, toggleLayer]);
 
   // ── Street View from search ──
   const handleStreetViewFromSearch = useCallback((lat: number, lng: number, address?: string) => {
@@ -946,6 +984,9 @@ function AtlasMapV2Inner() {
           // Only clear selection if not in add-point or measure mode (those handle click separately)
           if (!addPointMode && !measureActive) {
             setSelectedPin(null);
+            setSelectedPlaceId(null);
+            setSelectedPersonId(null);
+            setSelectedCatId(null);
             setContextMenu(null);
           }
         }}
@@ -1013,7 +1054,6 @@ function AtlasMapV2Inner() {
                   return;
                 }
                 setSelectedPin(pin);
-                setSelectedPlaceId(pin.id);
               }}
             >
               <AtlasPinMarker
@@ -1152,11 +1192,20 @@ function AtlasMapV2Inner() {
                     <div style={{ fontSize: 16, fontWeight: 700 }}>{selectedPin.total_altered}</div>
                     <div style={{ fontSize: 9, color: "#6b7280" }}>Altered</div>
                   </div>
-                  <div style={{ background: "#f3f4f6", padding: "6px 4px", borderRadius: 6, textAlign: "center" }}>
-                    <div style={{ fontSize: 16, fontWeight: 700 }}>{selectedPin.request_count}</div>
-                    <div style={{ fontSize: 9, color: "#6b7280" }}>Requests</div>
+                  <div style={{ background: selectedPin.active_request_count > 0 ? "#fef2f2" : "#f3f4f6", padding: "6px 4px", borderRadius: 6, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: selectedPin.active_request_count > 0 ? "#dc2626" : undefined }}>
+                      {selectedPin.active_request_count > 0 ? `${selectedPin.active_request_count}/${selectedPin.request_count}` : selectedPin.request_count}
+                    </div>
+                    <div style={{ fontSize: 9, color: "#6b7280" }}>{selectedPin.active_request_count > 0 ? "Active/Total" : "Requests"}</div>
                   </div>
                 </div>
+
+                {/* Last TNR subtitle */}
+                {selectedPin.last_alteration_at && (
+                  <div style={{ fontSize: 11, color: "#6b7280", textAlign: "center", marginBottom: 8 }}>
+                    Last TNR: {formatRelativeTime(selectedPin.last_alteration_at)}
+                  </div>
+                )}
 
                 {/* Alert banners */}
                 {selectedPin.disease_risk && selectedPin.disease_badges?.length > 0 && (
@@ -1208,7 +1257,7 @@ function AtlasMapV2Inner() {
                 {/* Action buttons */}
                 <div style={{ display: "flex", gap: 6 }}>
                   <button
-                    onClick={() => setSelectedPlaceId(selectedPin.id)}
+                    onClick={() => { setSelectedPlaceId(selectedPin.id); setSelectedPin(null); }}
                     style={{ flex: 1, padding: "7px 10px", background: "#3b82f6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
                   >
                     Details
@@ -1408,7 +1457,6 @@ function AtlasMapV2Inner() {
           coordinates={pendingClick}
           onPlaceSelected={(placeId) => {
             setSelectedPlaceId(placeId);
-            setDrawerFromAddPoint(true);
             setPendingClick(null);
             setAddPointMode(null);
             map?.panTo({ lat: pendingClick.lat, lng: pendingClick.lng });
@@ -1484,32 +1532,33 @@ function AtlasMapV2Inner() {
         isMobile ? (
           <BottomSheet
             isOpen={!!selectedPlaceId}
-            onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
-            initialHeight={45}
+            onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); }}
             maxHeight={90}
           >
             <PlaceDetailDrawer
               placeId={selectedPlaceId}
-              onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
+              onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); }}
               onWatchlistChange={refreshMapData}
-              showQuickActions={drawerFromAddPoint}
               shifted={false}
               coordinates={getPlaceCoords(selectedPlaceId)}
               onAddToComparison={handleAddToComparison}
               comparisonCount={comparisonPlaceIds.length}
+              onNavigateCat={setSelectedCatId}
+              onNavigatePerson={setSelectedPersonId}
               embedded
             />
           </BottomSheet>
         ) : (
           <PlaceDetailDrawer
             placeId={selectedPlaceId}
-            onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); setDrawerFromAddPoint(false); }}
+            onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); }}
             onWatchlistChange={refreshMapData}
-            showQuickActions={drawerFromAddPoint}
             shifted={!!(selectedPersonId || selectedCatId)}
             coordinates={getPlaceCoords(selectedPlaceId)}
             onAddToComparison={handleAddToComparison}
             comparisonCount={comparisonPlaceIds.length}
+            onNavigateCat={setSelectedCatId}
+            onNavigatePerson={setSelectedPersonId}
           />
         )
       )}
@@ -1519,6 +1568,7 @@ function AtlasMapV2Inner() {
         <PersonDetailDrawer
           personId={selectedPersonId}
           onClose={() => setSelectedPersonId(null)}
+          onNavigateCat={setSelectedCatId}
         />
       )}
 
@@ -1527,6 +1577,12 @@ function AtlasMapV2Inner() {
         <CatDetailDrawer
           catId={selectedCatId}
           onClose={() => setSelectedCatId(null)}
+          onNavigatePerson={setSelectedPersonId}
+          onNavigatePlace={(placeId) => {
+            setSelectedCatId(null);
+            setSelectedPersonId(null);
+            setSelectedPlaceId(placeId);
+          }}
         />
       )}
 

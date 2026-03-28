@@ -58,6 +58,8 @@ interface PersonDetails {
 interface PersonDetailDrawerProps {
   personId: string | null;
   onClose: () => void;
+  /** Navigate to cat detail in-map instead of opening external page */
+  onNavigateCat?: (catId: string) => void;
 }
 
 function getRoleColor(role: string) {
@@ -87,7 +89,7 @@ function formatSourceType(source: string): string {
   return labels[source] || source;
 }
 
-export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProps) {
+export function PersonDetailDrawer({ personId, onClose, onNavigateCat }: PersonDetailDrawerProps) {
   const [person, setPerson] = useState<PersonDetails | null>(null);
   const [roles, setRoles] = useState<PersonRole[]>([]);
   const [loading, setLoading] = useState(false);
@@ -311,9 +313,10 @@ export function PersonDetailDrawer({ personId, onClose }: PersonDetailDrawerProp
                     <a
                       key={cat.cat_id}
                       href={`/cats/${cat.cat_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target={onNavigateCat ? undefined : "_blank"}
+                      rel={onNavigateCat ? undefined : "noopener noreferrer"}
                       className="cat-card"
+                      onClick={onNavigateCat ? (e) => { e.preventDefault(); onNavigateCat(cat.cat_id); } : undefined}
                     >
                       <div className="cat-card-header">
                         <span className="cat-name">{cat.cat_name || "Unknown"}</span>

@@ -2,29 +2,34 @@
 
 import { ReactNode, useEffect, useRef, useCallback, useState } from "react";
 
+const DEFAULT_SNAP_POINTS = [15, 50, 85];
+
 interface BottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
-  /** Initial height as percentage of viewport (default 40) */
+  /** Initial height as percentage of viewport (default 50) */
   initialHeight?: number;
   /** Maximum height as percentage of viewport (default 90) */
   maxHeight?: number;
   /** Minimum height before auto-close in px (default 80) */
   closeThreshold?: number;
+  /** Snap points as percentage of viewport height (default [15, 50, 85]) */
+  snapPoints?: number[];
 }
 
 /**
- * Mobile bottom sheet with drag-to-resize and swipe-to-close.
+ * Mobile bottom sheet with drag-to-resize, snap points, and swipe-to-close.
  * Used for place details on mobile devices instead of side drawers.
  */
 export function BottomSheet({
   isOpen,
   onClose,
   children,
-  initialHeight = 40,
+  initialHeight = 50,
   maxHeight = 90,
   closeThreshold = 80,
+  snapPoints = DEFAULT_SNAP_POINTS,
 }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -70,9 +75,15 @@ export function BottomSheet({
     const currentPx = (height / 100) * vh;
     if (currentPx < closeThreshold) {
       onClose();
+    } else {
+      // Snap to nearest snap point
+      const nearest = snapPoints.reduce((prev, curr) =>
+        Math.abs(curr - height) < Math.abs(prev - height) ? curr : prev
+      );
+      setHeight(nearest);
     }
     dragRef.current = null;
-  }, [height, closeThreshold, onClose]);
+  }, [height, closeThreshold, onClose, snapPoints]);
 
   // Touch handlers
   const onTouchStart = useCallback((e: React.TouchEvent) => {

@@ -112,17 +112,20 @@ interface PlaceDetailDrawerProps {
   onClose: () => void;
   onWatchlistChange?: () => void;
   coordinates?: { lat: number; lng: number };
-  showQuickActions?: boolean;
   shifted?: boolean;
   onAddToComparison?: (placeId: string) => void;
   comparisonCount?: number;
   /** When true, renders content without fixed positioning (for embedding in BottomSheet) */
   embedded?: boolean;
+  /** Navigate to cat detail in-map instead of opening external page */
+  onNavigateCat?: (catId: string) => void;
+  /** Navigate to person detail in-map instead of opening external page */
+  onNavigatePerson?: (personId: string) => void;
 }
 
 type NotesTab = "original" | "ai" | "journal";
 
-export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, showQuickActions, shifted, onAddToComparison, comparisonCount, embedded }: PlaceDetailDrawerProps) {
+export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, shifted, onAddToComparison, comparisonCount, embedded, onNavigateCat, onNavigatePerson }: PlaceDetailDrawerProps) {
   const { addToast } = useToast();
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
@@ -431,88 +434,89 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
 
         {place && !loading && (
           <>
-            {/* Quick Actions Section */}
-            {showQuickActions && (
-              <div style={{
-                display: "flex",
-                gap: "8px",
-                marginBottom: "12px",
-                padding: "0"
-              }}>
-                <a
-                  href={`/intake/new?place_id=${place.place_id}&address=${encodeURIComponent(place.address)}`}
-                  style={{
-                    flex: 1,
-                    height: "32px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "4px",
-                    backgroundColor: "#eff6ff",
-                    borderRadius: "6px",
-                    border: "1px solid #bfdbfe",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#1e40af",
-                    textDecoration: "none",
-                    transition: "background-color 0.15s"
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
-                >
-                  <span>+</span>
-                  <span>Create Request</span>
-                </a>
-                <a
-                  href={`/places/${place.place_id}#people`}
-                  style={{
-                    flex: 1,
-                    height: "32px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "4px",
-                    backgroundColor: "#eff6ff",
-                    borderRadius: "6px",
-                    border: "1px solid #bfdbfe",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#1e40af",
-                    textDecoration: "none",
-                    transition: "background-color 0.15s"
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
-                >
-                  <span>👤</span>
-                  <span>Link Person</span>
-                </a>
-                <a
-                  href={`/places/${place.place_id}#notes`}
-                  style={{
-                    flex: 1,
-                    height: "32px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "4px",
-                    backgroundColor: "#eff6ff",
-                    borderRadius: "6px",
-                    border: "1px solid #bfdbfe",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#1e40af",
-                    textDecoration: "none",
-                    transition: "background-color 0.15s"
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
-                >
-                  <span>📝</span>
-                  <span>Add Note</span>
-                </a>
-              </div>
-            )}
+            {/* Quick Actions — always visible, sticky */}
+            <div style={{
+              display: "flex",
+              gap: "8px",
+              padding: "8px 0",
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+              background: "var(--background, #fff)",
+            }}>
+              <a
+                href={`/intake/new?place_id=${place.place_id}&address=${encodeURIComponent(place.address)}`}
+                style={{
+                  flex: 1,
+                  height: "32px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  backgroundColor: "#eff6ff",
+                  borderRadius: "6px",
+                  border: "1px solid #bfdbfe",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#1e40af",
+                  textDecoration: "none",
+                  transition: "background-color 0.15s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
+              >
+                <span>+</span>
+                <span>Create Request</span>
+              </a>
+              <a
+                href={`/places/${place.place_id}#people`}
+                style={{
+                  flex: 1,
+                  height: "32px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  backgroundColor: "#eff6ff",
+                  borderRadius: "6px",
+                  border: "1px solid #bfdbfe",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#1e40af",
+                  textDecoration: "none",
+                  transition: "background-color 0.15s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
+              >
+                <span>👤</span>
+                <span>Link Person</span>
+              </a>
+              <a
+                href={`/places/${place.place_id}#notes`}
+                style={{
+                  flex: 1,
+                  height: "32px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "4px",
+                  backgroundColor: "#eff6ff",
+                  borderRadius: "6px",
+                  border: "1px solid #bfdbfe",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#1e40af",
+                  textDecoration: "none",
+                  transition: "background-color 0.15s"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#dbeafe"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#eff6ff"}
+              >
+                <span>📝</span>
+                <span>Add Note</span>
+              </a>
+            </div>
 
             {/* Disease Badges Section */}
             {place.disease_badges && place.disease_badges.length > 0 && (
@@ -825,10 +829,11 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                     >
                       <a
                         href={`/people/${person.person_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target={onNavigatePerson ? undefined : "_blank"}
+                        rel={onNavigatePerson ? undefined : "noopener noreferrer"}
                         className={`person-link ${person.is_home ? "person-link-home" : ""}`}
                         style={{ flex: 1 }}
+                        onClick={onNavigatePerson ? (e) => { e.preventDefault(); onNavigatePerson(person.person_id); } : undefined}
                       >
                         {person.display_name}
                         {person.role && (
@@ -911,9 +916,10 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                     <a
                       key={cat.cat_id}
                       href={`/cats/${cat.cat_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      target={onNavigateCat ? undefined : "_blank"}
+                      rel={onNavigateCat ? undefined : "noopener noreferrer"}
                       className="cat-card"
+                      onClick={onNavigateCat ? (e) => { e.preventDefault(); onNavigateCat(cat.cat_id); } : undefined}
                     >
                       <div className="cat-card-header">
                         <span className="cat-name">{cat.display_name || "Unknown"}</span>
