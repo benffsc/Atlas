@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { compressImage } from "@/lib/image-utils";
 import { Icon } from "@/components/ui/Icon";
+import { kioskLabelStyle } from "./kiosk-styles";
 
 interface KioskPhotoCaptureProps {
   /** Existing photo URL for preview */
@@ -72,17 +73,7 @@ export function KioskPhotoCapture({
 
   return (
     <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: "0.8rem",
-          fontWeight: 600,
-          color: "var(--text-secondary)",
-          marginBottom: "0.375rem",
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
-        }}
-      >
+      <label style={kioskLabelStyle}>
         {label}
       </label>
 

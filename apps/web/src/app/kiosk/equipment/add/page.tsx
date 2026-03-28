@@ -10,6 +10,8 @@ import { Icon } from "@/components/ui/Icon";
 import { KioskPhotoCapture } from "@/components/kiosk/KioskPhotoCapture";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 import { getCategoryStyle } from "@/lib/equipment-styles";
+import { KioskCard } from "@/components/kiosk/KioskCard";
+import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "@/components/kiosk/kiosk-styles";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,32 +52,6 @@ const CATEGORIES = [
   { key: "accessory", label: "Accessory", icon: "package-plus" },
 ] as const;
 
-// ---------------------------------------------------------------------------
-// Shared styles (match CheckinForm / CheckoutForm conventions)
-// ---------------------------------------------------------------------------
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "0.8rem",
-  fontWeight: 600,
-  color: "var(--text-secondary)",
-  marginBottom: "0.375rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: "48px",
-  padding: "0.75rem 1rem",
-  fontSize: "1rem",
-  border: "1px solid var(--card-border, #e5e7eb)",
-  borderRadius: "10px",
-  background: "var(--background, #fff)",
-  color: "var(--text-primary)",
-  boxSizing: "border-box" as const,
-  outline: "none",
-};
 
 // ---------------------------------------------------------------------------
 // Selection Context — shows what the user has picked so far
@@ -1069,61 +1045,7 @@ export default function KioskEquipmentAddPage() {
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto" }}>
-      {/* Card wrapper — matches scan/checkout/checkin visual pattern */}
-      <div
-        style={{
-          background: "var(--card-bg, #fff)",
-          border: "1px solid var(--card-border, #e5e7eb)",
-          borderRadius: 16,
-          overflow: "hidden",
-          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08))",
-          marginTop: "1rem",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "1rem 1.25rem",
-            borderBottom: "1px solid var(--card-border, #e5e7eb)",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <Icon name="plus" size={20} color="var(--primary)" />
-          <h1
-            style={{
-              fontSize: "1.1rem",
-              fontWeight: 700,
-              color: "var(--text-primary)",
-              margin: 0,
-            }}
-          >
-            Add Equipment
-          </h1>
-        </div>
-
-        {/* Resumed banner */}
-        {showResumed && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-              padding: "0.5rem 1rem",
-              fontSize: "0.8rem",
-              fontWeight: 600,
-              background: "var(--info-bg)",
-              color: "var(--info-text)",
-              borderBottom: "1px solid var(--info-border)",
-            }}
-          >
-            <Icon name="rotate-ccw" size={14} color="var(--info-text)" />
-            Resumed from where you left off
-          </div>
-        )}
-
+      <KioskCard icon="plus" title="Add Equipment" showResumed={showResumed} style={{ marginTop: "1rem" }}>
         {/* Step indicator */}
         <StepIndicator current={step} total={TOTAL_STEPS} />
 
@@ -1181,7 +1103,7 @@ export default function KioskEquipmentAddPage() {
             }}
           />
         )}
-      </div>
+      </KioskCard>
     </div>
   );
 }

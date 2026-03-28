@@ -15,6 +15,8 @@ import {
 } from "@/lib/form-options";
 import type { EquipmentContextResponse } from "@/lib/types/view-contracts";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { KioskCard } from "./KioskCard";
+import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
 
 interface CheckoutFormProps {
   equipmentId: string;
@@ -321,55 +323,7 @@ export function CheckoutForm({
   }
 
   return (
-    <div
-      style={{
-        background: "var(--card-bg, #fff)",
-        border: "1px solid var(--card-border, #e5e7eb)",
-        borderRadius: "16px",
-        overflow: "hidden",
-        boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08))",
-      }}
-    >
-      {/* Resumed banner */}
-      {showResumed && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-            padding: "0.5rem 1rem",
-            fontSize: "0.8rem",
-            fontWeight: 600,
-            background: "var(--info-bg)",
-            color: "var(--info-text)",
-            borderBottom: "1px solid var(--info-border)",
-          }}
-        >
-          <Icon name="rotate-ccw" size={14} color="var(--info-text)" />
-          Resumed from where you left off
-        </div>
-      )}
-
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "1rem 1.25rem",
-          borderBottom: "1px solid var(--card-border, #e5e7eb)",
-          gap: "0.5rem",
-        }}
-      >
-        <Icon name="log-out" size={20} color="var(--primary)" />
-        <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-          Check Out
-        </span>
-        <span style={{ marginLeft: "auto", fontSize: "0.85rem", color: "var(--muted)" }}>
-          {equipmentName}
-        </span>
-      </div>
-
+    <KioskCard icon="log-out" title="Check Out" subtitle={equipmentName} showResumed={showResumed}>
       <div style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         {/* ===================== WHO ===================== */}
         <PersonReferencePicker
@@ -685,7 +639,7 @@ export function CheckoutForm({
           </Button>
         </div>
       </div>
-    </div>
+    </KioskCard>
   );
 }
 
@@ -767,24 +721,3 @@ function checkoutTypeIcon(type: string): string {
   }
 }
 
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "0.8rem",
-  fontWeight: 600,
-  color: "var(--text-secondary)",
-  marginBottom: "0.375rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: "48px",
-  padding: "0.75rem 1rem",
-  fontSize: "1rem",
-  border: "1px solid var(--card-border, #e5e7eb)",
-  borderRadius: "10px",
-  background: "var(--background, #fff)",
-  boxSizing: "border-box" as const,
-  outline: "none",
-};

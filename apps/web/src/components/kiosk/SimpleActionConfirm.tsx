@@ -4,8 +4,9 @@ import { useState } from "react";
 import { postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
-import { Icon } from "@/components/ui/Icon";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
+import { KioskCard } from "./KioskCard";
+import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
 
 interface SimpleActionConfirmProps {
   equipmentId: string;
@@ -95,41 +96,11 @@ export function SimpleActionConfirm({
   };
 
   return (
-    <div
-      style={{
-        background: "var(--card-bg, #fff)",
-        border: "1px solid var(--card-border, #e5e7eb)",
-        borderRadius: "16px",
-        overflow: "hidden",
-        boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08))",
-      }}
+    <KioskCard
+      icon={actionIcon(action)}
+      title={actionLabel}
+      iconColor={isDanger ? "var(--danger-text)" : "var(--primary)"}
     >
-      {/* Header */}
-      <div
-        style={{
-          padding: "1rem 1.25rem",
-          borderBottom: "1px solid var(--card-border, #e5e7eb)",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.625rem",
-        }}
-      >
-        <Icon
-          name={actionIcon(action)}
-          size={22}
-          color={isDanger ? "var(--danger-text)" : "var(--primary)"}
-        />
-        <span
-          style={{
-            fontSize: "1.05rem",
-            fontWeight: 700,
-            color: isDanger ? "var(--danger-text)" : "var(--text-primary)",
-          }}
-        >
-          {actionLabel}
-        </span>
-      </div>
-
       <div
         style={{
           padding: "1.25rem",
@@ -243,32 +214,7 @@ export function SimpleActionConfirm({
           </Button>
         </div>
       </div>
-    </div>
+    </KioskCard>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "0.8rem",
-  fontWeight: 600,
-  color: "var(--text-secondary)",
-  marginBottom: "0.375rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: "48px",
-  padding: "0.75rem 1rem",
-  fontSize: "1rem",
-  border: "1px solid var(--card-border, #e5e7eb)",
-  borderRadius: "10px",
-  background: "var(--background, #fff)",
-  boxSizing: "border-box" as const,
-  outline: "none",
-};
