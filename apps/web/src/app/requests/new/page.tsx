@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/common";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { extractPhones, formatPhone, isValidPhone } from "@/lib/formatters";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, TRANSITIONS } from "@/lib/design-tokens";
 import { MB_LG, MB_XL, SECTION_DIVIDER } from "../styles";
@@ -190,6 +191,15 @@ function NewRequestForm() {
     errors?: Record<string, string>;
   } | null>(null);
 
+  // FFS-931: Gentle gate — soft validation warnings before submit
+  const [gentleGateWarnings, setGentleGateWarnings] = useState<string[]>([]);
+  const [showGentleGate, setShowGentleGate] = useState(false);
+  const [gentleGateBypassed, setGentleGateBypassed] = useState(false);
+
+  // FFS-932: Phone detection nudge for free text fields
+  const [detectedPhone, setDetectedPhone] = useState<{ phone: string; field: string } | null>(null);
+  const [phoneNudgeDismissed, setPhoneNudgeDismissed] = useState(false);
+
   // Computed: should show exact ear-tip count vs estimate
   const showExactEartipCount = typeof estimatedCatCount === "number" && estimatedCatCount <= 5;
 
@@ -327,6 +337,38 @@ function NewRequestForm() {
       setSummary(requesterName);
     }
   }, [requestorFirstName, requestorLastName]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // FFS-932: Detect phone numbers in free text fields on blur
+  const handleTextFieldBlur = useCallback((value: string, fieldName: string) => {
+    if (phoneNudgeDismissed || requestorPhone) return;
+    const phones = extractPhones(value);
+    if (phones.length > 0 && isValidPhone(phones[0])) {
+      setDetectedPhone({ phone: phones[0], field: fieldName });
+    }
+  }, [phoneNudgeDismissed, requestorPhone]);
+
+  // FFS-932: Also detect phones when urgency notes or case notes change (these are in child components)
+  useEffect(() => {
+    if (phoneNudgeDismissed || requestorPhone || detectedPhone) return;
+    // Check urgency notes
+    const urgencyPhones = extractPhones(urgencyNotes);
+    if (urgencyPhones.length > 0 && isValidPhone(urgencyPhones[0])) {
+      setDetectedPhone({ phone: urgencyPhones[0], field: "Urgency Notes" });
+      return;
+    }
+    // Check case notes
+    const notePhones = extractPhones(notes);
+    if (notePhones.length > 0 && isValidPhone(notePhones[0])) {
+      setDetectedPhone({ phone: notePhones[0], field: "Case Notes" });
+    }
+  }, [urgencyNotes, notes, phoneNudgeDismissed, requestorPhone, detectedPhone]);
+
+  const acceptDetectedPhone = useCallback(() => {
+    if (detectedPhone) {
+      setRequestorPhone(detectedPhone.phone);
+      setDetectedPhone(null);
+    }
+  }, [detectedPhone]);
 
   const toggleImportantNote = (note: string) => {
     setImportantNotes((prev) =>
@@ -505,6 +547,52 @@ function NewRequestForm() {
       return;
     }
 
+    // FFS-931: Hard validation for phone entry mode — caller is on the line
+    if (entryMode === "phone") {
+      const hardErrors: string[] = [];
+      if (!requestorFirstName.trim()) {
+        hardErrors.push("Caller's first name is required for phone intake");
+      }
+      if (!requestorPhone || !isValidPhone(requestorPhone)) {
+        hardErrors.push("Caller's phone number is required for phone intake");
+      }
+      if (hardErrors.length > 0) {
+        setError(hardErrors.join(". "));
+        // Scroll to requester section
+        document.getElementById("section-2")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+
+    // FFS-931: Soft validation — gentle gate (warn but allow skip)
+    if (!gentleGateBypassed) {
+      const warnings: string[] = [];
+      if (!summary && !requestorFirstName) warnings.push("No request title — will show blank in list views");
+      if (estimatedCatCount === "") warnings.push("No cat count — helps with scheduling");
+      if (!requestorPhone && entryMode !== "phone") warnings.push("No phone number — trappers may not be able to coordinate");
+      if (warnings.length > 0) {
+        setGentleGateWarnings(warnings);
+        setShowGentleGate(true);
+        return; // Show gate, don't submit yet
+      }
+    }
+    // Reset gate state for next submission
+    setGentleGateBypassed(false);
+    setShowGentleGate(false);
+    setGentleGateWarnings([]);
+
+    // FFS-934: Auto-generate summary fallback from address + cat count
+    let effectiveSummary = summary;
+    if (!effectiveSummary) {
+      const catCount = estimatedCatCount !== "" ? estimatedCatCount : "?";
+      const address = selectedPlace?.formatted_address || selectedPlace?.display_name;
+      if (address) {
+        const shortAddr = address.split(",")[0];
+        effectiveSummary = `${catCount} cat${catCount !== 1 ? "s" : ""} at ${shortAddr}`;
+        setSummary(effectiveSummary);
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -618,7 +706,7 @@ function NewRequestForm() {
         cat_description: catDescription || null,
         important_notes: importantNotes.length > 0 ? importantNotes : null,
         // Additional
-        summary: summary || null,
+        summary: effectiveSummary || null,
         notes: notes || null,
         internal_notes: internalNotes || null,
         created_by: "app_user",
@@ -879,6 +967,78 @@ function NewRequestForm() {
         </div>
       )}
 
+      {/* FFS-931: Gentle Gate Modal — soft validation warnings */}
+      {showGentleGate && gentleGateWarnings.length > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              padding: "2rem",
+              maxWidth: "480px",
+              width: "90%",
+            }}
+          >
+            <div style={{
+              width: "48px",
+              height: "48px",
+              borderRadius: BORDERS.radius.full,
+              background: COLORS.warning,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: `0 auto ${SPACING.md}`,
+              fontSize: "1.5rem",
+            }}>!</div>
+            <h3 style={{ textAlign: "center", marginBottom: SPACING.md }}>Quick check before submitting</h3>
+            <ul style={{ margin: `0 0 ${SPACING.lg}`, paddingLeft: "1.25rem", lineHeight: 1.6 }}>
+              {gentleGateWarnings.map((w) => (
+                <li key={w} style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>{w}</li>
+              ))}
+            </ul>
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
+              <button
+                type="button"
+                onClick={() => { setShowGentleGate(false); setGentleGateWarnings([]); }}
+                style={{ fontWeight: 600 }}
+              >
+                Go back and add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGentleGateBypassed(true);
+                  setShowGentleGate(false);
+                  setGentleGateWarnings([]);
+                  // Re-trigger submit with gate bypassed
+                  setTimeout(() => {
+                    const form = document.querySelector("form");
+                    if (form) form.requestSubmit();
+                  }, 50);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border, #e5e7eb)",
+                  color: "var(--text-muted, #6b7280)",
+                  fontWeight: 400,
+                }}
+              >
+                Submit anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Step indicator */}
       <div style={{
         display: 'flex',
@@ -1005,9 +1165,59 @@ function NewRequestForm() {
               type="text"
               value={bestContactTimes}
               onChange={(e) => setBestContactTimes(e.target.value)}
+              onBlur={(e) => handleTextFieldBlur(e.target.value, "Best Times to Contact")}
               placeholder="e.g., mornings, after 5pm, weekends..."
               style={{ width: "100%" }}
             />
+
+            {/* FFS-932: Phone number detection nudge */}
+            {detectedPhone && detectedPhone.field === "Best Times to Contact" && (
+              <div style={{
+                marginTop: "8px",
+                padding: "8px 12px",
+                background: "var(--warning-bg, #FEF3C7)",
+                border: "1px solid var(--warning-border, #F59E0B)",
+                borderRadius: "8px",
+                fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}>
+                <span>Looks like a phone number ({formatPhone(detectedPhone.phone)})</span>
+                <button
+                  type="button"
+                  onClick={acceptDetectedPhone}
+                  style={{
+                    padding: "2px 10px",
+                    background: "var(--primary, #2563eb)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "0.8rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  Add to Requester Phone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDetectedPhone(null); setPhoneNudgeDismissed(true); }}
+                  style={{
+                    padding: "2px 10px",
+                    background: "transparent",
+                    color: "var(--text-muted, #6b7280)",
+                    border: "1px solid var(--border, #e5e7eb)",
+                    borderRadius: "6px",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Requester relationship to location */}
@@ -1470,6 +1680,55 @@ function NewRequestForm() {
             onChange={handleUrgencyNotesChange}
             showDetails={true}
           />
+
+          {/* FFS-932: Phone detection nudge for urgency/case notes */}
+          {detectedPhone && (detectedPhone.field === "Urgency Notes" || detectedPhone.field === "Case Notes") && (
+            <div style={{
+              margin: "-12px 0 20px",
+              padding: "8px 12px",
+              background: "var(--warning-bg, #FEF3C7)",
+              border: "1px solid var(--warning-border, #F59E0B)",
+              borderRadius: "8px",
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+            }}>
+              <span>Phone number detected in {detectedPhone.field} ({formatPhone(detectedPhone.phone)})</span>
+              <button
+                type="button"
+                onClick={acceptDetectedPhone}
+                style={{
+                  padding: "2px 10px",
+                  background: "var(--primary, #2563eb)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "0.8rem",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Add to Requester Phone
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDetectedPhone(null); setPhoneNudgeDismissed(true); }}
+                style={{
+                  padding: "2px 10px",
+                  background: "transparent",
+                  color: "var(--text-muted, #6b7280)",
+                  border: "1px solid var(--border, #e5e7eb)",
+                  borderRadius: "6px",
+                  fontSize: "0.8rem",
+                  cursor: "pointer",
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
         </div>
 
         {/* SECTION: Completion Data (only shown in Quick Complete mode) */}
