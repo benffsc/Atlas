@@ -179,18 +179,22 @@ function mapRecord(f: Record<string, unknown>) {
   // Parse address from Jotform's "Street name: X House number: Y City: Z..." format
   function parseAddressBlob(blob: string | null): { street: string | null; city: string | null; zip: string | null } {
     if (!blob) return { street: null, city: null, zip: null };
-    const parts: Record<string, string> = {};
-    // Handle both newline-separated and space-separated key: value pairs
+    // Normalize: replace newlines with a delimiter we can split on
     const normalized = blob.replace(/\n/g, " ");
-    const patterns = [
-      { key: "House number", regex: /House number:\s*([^\s].*?)(?=\s+(?:Street|City|State|Postal|Country):|$)/i },
-      { key: "Street name", regex: /Street name:\s*(.*?)(?=\s+(?:House|City|State|Postal|Country):|$)/i },
-      { key: "City", regex: /City:\s*(.*?)(?=\s+(?:House|Street|State|Postal|Country):|$)/i },
-      { key: "Postal code", regex: /Postal code:\s*(.*?)(?=\s+(?:House|Street|City|State|Country):|$)/i },
-    ];
-    for (const p of patterns) {
-      const match = normalized.match(p.regex);
-      if (match) parts[p.key] = match[1].trim();
+    // Extract each field by looking for "Key: value" pairs
+    // Order matters: match most specific keys first
+    const fieldRegex = /(?:Street name|House number|City|State|Postal code|Country):\s*/gi;
+    const keys: { key: string; start: number; end: number }[] = [];
+    let m;
+    while ((m = fieldRegex.exec(normalized)) !== null) {
+      const key = m[0].replace(/:\s*$/, "").trim();
+      keys.push({ key, start: m.index, end: m.index + m[0].length });
+    }
+    const parts: Record<string, string> = {};
+    for (let i = 0; i < keys.length; i++) {
+      const valueStart = keys[i].end;
+      const valueEnd = i + 1 < keys.length ? keys[i + 1].start : normalized.length;
+      parts[keys[i].key] = normalized.slice(valueStart, valueEnd).trim();
     }
     const houseNum = parts["House number"] || "";
     const streetName = parts["Street name"] || "";
