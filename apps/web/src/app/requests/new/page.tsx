@@ -1133,6 +1133,7 @@ function NewRequestForm() {
             allowCreate
             required
             compact
+            alwaysShowFields
           />
 
           {/* Property authority section */}

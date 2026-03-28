@@ -33,6 +33,8 @@ export interface PersonSectionProps {
   onSameAsRequestorChange?: (v: boolean) => void;
   required?: boolean;
   compact?: boolean;
+  /** Always show first/last/phone/email fields, even before search resolves */
+  alwaysShowFields?: boolean;
   onAddressSelected?: (address: {
     place_id: string;
     formatted_address: string;
@@ -105,6 +107,7 @@ export function PersonSection({
   onSameAsRequestorChange,
   required = false,
   compact = false,
+  alwaysShowFields = false,
   onAddressSelected,
 }: PersonSectionProps) {
   const sectionLabel = label || ROLE_LABELS[role];
@@ -533,8 +536,13 @@ export function PersonSection({
           )}
 
           {/* Contact fields when NOT resolved — manual entry mode */}
-          {!value.is_resolved && value.display_name && !loadingDetails && (
+          {!value.is_resolved && (alwaysShowFields || value.display_name) && !loadingDetails && (
             <div style={{ marginTop: "12px" }}>
+              {alwaysShowFields && !value.display_name && (
+                <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary, #9ca3af)", marginBottom: "8px", fontStyle: "italic" }}>
+                  Or enter contact details directly:
+                </p>
+              )}
               <div style={fieldRowStyle}>
                 <div>
                   <label style={labelStyle}>First Name</label>
@@ -563,7 +571,7 @@ export function PersonSection({
               </div>
               <div style={fieldRowStyle}>
                 <div>
-                  <label style={labelStyle}>Phone</label>
+                  <label style={labelStyle}>Phone {alwaysShowFields && <span style={{ color: "var(--danger-text, #dc2626)" }}>*</span>}</label>
                   <input
                     type="tel"
                     value={value.phone}
