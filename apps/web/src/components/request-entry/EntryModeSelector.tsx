@@ -30,62 +30,66 @@ const MODES: { value: EntryMode; label: string; description: string; icon: strin
 
 export default function EntryModeSelector({ value, onChange }: EntryModeSelectorProps) {
   return (
-    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-      <label className="block text-sm font-medium text-gray-700 mb-3">
-        Entry Mode
-      </label>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {MODES.map((mode) => (
-          <button
-            key={mode.value}
-            type="button"
-            onClick={() => onChange(mode.value)}
-            className={`
-              relative flex flex-col items-center p-4 rounded-lg border-2 transition-all
-              ${
-                value === mode.value
-                  ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                  : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
-              }
-            `}
-          >
-            <div
-              className={`
-                flex items-center justify-center w-10 h-10 rounded-full mb-2 text-xl
-                ${value === mode.value ? "bg-blue-500 text-white" : "bg-gray-100"}
-              `}
+    <div style={{
+      background: "var(--bg-secondary, #f9fafb)",
+      borderRadius: "10px",
+      padding: "1rem",
+      border: "1px solid var(--border, #e5e7eb)",
+    }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: "0.5rem",
+      }}>
+        {MODES.map((mode) => {
+          const isActive = value === mode.value;
+          return (
+            <button
+              key={mode.value}
+              type="button"
+              onClick={() => onChange(mode.value)}
+              style={{
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                padding: "0.75rem 0.5rem",
+                borderRadius: "8px",
+                border: `2px solid ${isActive ? "var(--primary, #2563eb)" : "var(--border, #e5e7eb)"}`,
+                background: isActive ? "var(--primary, #2563eb)" : "var(--background, #fff)",
+                color: isActive ? "#fff" : "var(--foreground)",
+                cursor: "pointer",
+                transition: "all 150ms",
+              }}
             >
-              {mode.icon}
-            </div>
-            <span
-              className={`text-sm font-medium ${
-                value === mode.value ? "text-blue-900" : "text-gray-900"
-              }`}
-            >
-              {mode.label}
-            </span>
-            <span
-              className={`text-xs mt-1 text-center ${
-                value === mode.value ? "text-blue-700" : "text-gray-500"
-              }`}
-            >
-              {mode.description}
-            </span>
-            {value === mode.value && (
-              <div className="absolute top-2 right-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full" />
-              </div>
-            )}
-          </button>
-        ))}
+              <span style={{ fontSize: "1.25rem", marginBottom: "0.25rem" }}>{mode.icon}</span>
+              <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>{mode.label}</span>
+              <span style={{
+                fontSize: "0.7rem",
+                marginTop: "2px",
+                opacity: 0.8,
+                textAlign: "center",
+                lineHeight: 1.3,
+              }}>
+                {mode.description}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {value === "complete" && (
-        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
-          <p className="text-sm text-green-800">
-            <strong>Quick Complete mode:</strong> This will create a request and immediately mark it as completed.
-            Use this for field work that has already been finished.
-          </p>
+        <div style={{
+          marginTop: "0.75rem",
+          padding: "0.75rem",
+          background: "var(--success-bg, #d4edda)",
+          border: "1px solid var(--success-border, #28a745)",
+          borderRadius: "6px",
+          fontSize: "0.85rem",
+          color: "var(--success-text, #155724)",
+        }}>
+          <strong>Quick Complete mode:</strong> This will create a request and immediately mark it as completed.
+          Use this for field work that has already been finished.
         </div>
       )}
     </div>
