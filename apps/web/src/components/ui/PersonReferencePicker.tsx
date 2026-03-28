@@ -6,6 +6,8 @@ import { formatPhoneAsYouType } from "@/lib/formatters";
 import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
 import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
 import { useDebounce } from "@/hooks/useDebounce";
+import { Skeleton } from "@/components/feedback/Skeleton";
+import { parseName } from "@/lib/name-utils";
 
 export interface PersonReference {
   person_id: string | null;
@@ -43,6 +45,9 @@ interface CreatePersonResponse {
   };
 }
 
+const MAX_CACHE_ENTRIES = 10;
+const MAX_MRU_ENTRIES = 5;
+
 export function PersonReferencePicker({
   value,
   onChange,
@@ -55,6 +60,7 @@ export function PersonReferencePicker({
 }: PersonReferencePickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PersonSearchResult[]>([]);
+  const [fuzzyResults, setFuzzyResults] = useState<PersonSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -73,6 +79,16 @@ export function PersonReferencePicker({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const createRef = useRef<HTMLDivElement>(null);
 
+  // AbortController for cancelling in-flight requests
+  const abortRef = useRef<AbortController>();
+  const searchIdRef = useRef(0);
+
+  // Prefix cache: stores recent search results for instant filtering
+  const cacheRef = useRef<Map<string, PersonSearchResult[]>>(new Map());
+
+  // MRU: most recently used/selected people
+  const mruRef = useRef<PersonSearchResult[]>([]);
+
   // Dedup check for inline creation
   const { suggestions: createSuggestions, loading: suggestLoading, dismissed: suggestDismissed, dismiss: suggestDismiss } =
     usePersonSuggestion({ email: createEmail, phone: createPhone, enabled: showCreateFields });
@@ -90,27 +106,77 @@ export function PersonReferencePicker({
   const searchPeople = useCallback(async (q: string) => {
     if (q.length < 2) {
       setResults([]);
+      setFuzzyResults([]);
       setHasSearched(false);
       return;
     }
+
+    // Abort previous in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const currentSearchId = ++searchIdRef.current;
+
     setLoading(true);
     try {
-      const data = await fetchApi<{ results: PersonSearchResult[] }>(
-        `/api/search?q=${encodeURIComponent(q)}&type=person&limit=8`
+      const data = await fetchApi<{
+        results: PersonSearchResult[];
+        fuzzy_results?: PersonSearchResult[];
+      }>(
+        `/api/search?q=${encodeURIComponent(q)}&type=person&limit=8&fuzzy=true`,
+        { signal: controller.signal }
       );
-      setResults(data.results || []);
+
+      // Stale response guard
+      if (searchIdRef.current !== currentSearchId) return;
+
+      const exactResults = data.results || [];
+      setResults(exactResults);
+      setFuzzyResults(data.fuzzy_results || []);
       setHasSearched(true);
       setShowDropdown(true);
+
+      // Cache results for prefix matching
+      const cache = cacheRef.current;
+      cache.set(q.toLowerCase(), exactResults);
+      // Evict oldest entries if over limit
+      if (cache.size > MAX_CACHE_ENTRIES) {
+        const firstKey = cache.keys().next().value;
+        if (firstKey !== undefined) cache.delete(firstKey);
+      }
     } catch (err) {
+      // Don't log aborted requests
+      if (controller.signal.aborted) return;
       console.error("Person search failed:", err);
+      if (searchIdRef.current !== currentSearchId) return;
       setResults([]);
+      setFuzzyResults([]);
       setHasSearched(true);
     } finally {
-      setLoading(false);
+      if (searchIdRef.current === currentSearchId) {
+        setLoading(false);
+      }
     }
   }, []);
 
   const debouncedSearch = useDebounce(searchPeople, 300);
+
+  // Check prefix cache for instant results before debounced API call
+  const checkPrefixCache = useCallback((q: string): PersonSearchResult[] | null => {
+    const qLower = q.toLowerCase();
+    const cache = cacheRef.current;
+    for (const [key, cachedResults] of cache) {
+      if (qLower.startsWith(key) && qLower !== key) {
+        // Filter cached results client-side
+        return cachedResults.filter(
+          (r) =>
+            r.display_name.toLowerCase().includes(qLower) ||
+            r.subtitle?.toLowerCase().includes(qLower)
+        );
+      }
+    }
+    return null;
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
@@ -121,11 +187,22 @@ export function PersonReferencePicker({
 
     if (newValue.length < 2) {
       setResults([]);
+      setFuzzyResults([]);
       setShowDropdown(false);
       setHasSearched(false);
       return;
     }
 
+    // Check prefix cache for instant results
+    const cached = checkPrefixCache(newValue);
+    if (cached) {
+      setResults(cached);
+      setFuzzyResults([]);
+      setShowDropdown(true);
+      setHasSearched(true);
+    }
+
+    // Always fire debounced API call for fresh results
     debouncedSearch(newValue);
   };
 
@@ -136,8 +213,15 @@ export function PersonReferencePicker({
       is_resolved: true,
     });
     onResolutionType?.("resolved");
+
+    // Add to MRU (dedupe, cap at MAX_MRU_ENTRIES)
+    const mru = mruRef.current;
+    const filtered = mru.filter((p) => p.entity_id !== person.entity_id);
+    mruRef.current = [person, ...filtered].slice(0, MAX_MRU_ENTRIES);
+
     setQuery("");
     setResults([]);
+    setFuzzyResults([]);
     setShowDropdown(false);
     setHasSearched(false);
     setShowCreateFields(false);
@@ -151,6 +235,7 @@ export function PersonReferencePicker({
     });
     onResolutionType?.("unresolved");
     setResults([]);
+    setFuzzyResults([]);
     setShowDropdown(false);
     setHasSearched(false);
     setShowCreateFields(false);
@@ -160,6 +245,7 @@ export function PersonReferencePicker({
     onChange({ person_id: null, display_name: "", is_resolved: false });
     setQuery("");
     setResults([]);
+    setFuzzyResults([]);
     setShowDropdown(false);
     setHasSearched(false);
     setShowCreateFields(false);
@@ -172,16 +258,10 @@ export function PersonReferencePicker({
   };
 
   const handleStartCreate = () => {
-    // Auto-split query into first/last name
-    const trimmed = query.trim();
-    const lastSpace = trimmed.lastIndexOf(" ");
-    if (lastSpace > 0) {
-      setCreateFirstName(trimmed.substring(0, lastSpace));
-      setCreateLastName(trimmed.substring(lastSpace + 1));
-    } else {
-      setCreateFirstName(trimmed);
-      setCreateLastName("");
-    }
+    // Auto-split query into first/last name using shared parseName
+    const parsed = parseName(query.trim());
+    setCreateFirstName(parsed.first_name);
+    setCreateLastName(parsed.last_name);
     setShowDropdown(false);
     setShowCreateFields(true);
     setCreatePhone("");
@@ -227,6 +307,7 @@ export function PersonReferencePicker({
       onResolutionType?.("created");
       setQuery("");
       setResults([]);
+      setFuzzyResults([]);
       setShowCreateFields(false);
       setCreateFirstName("");
       setCreateLastName("");
@@ -248,10 +329,10 @@ export function PersonReferencePicker({
       return;
     }
 
-    // Count total dropdown items: results + "Create" option (if allowCreate) + "Use" option
-    const hasCreateOption = allowCreate && hasSearched && results.length === 0 && query.trim().length >= 2;
+    // Count total dropdown items: results + fuzzy + "Create" option (if allowCreate) + "Use" option
+    const hasCreateOption = allowCreate && hasSearched && results.length === 0 && fuzzyResults.length === 0 && query.trim().length >= 2;
     const hasUseOption = query.trim().length >= 2;
-    let totalItems = results.length;
+    let totalItems = results.length + fuzzyResults.length;
     if (hasCreateOption) totalItems++;
     if (hasUseOption) totalItems++;
 
@@ -268,7 +349,9 @@ export function PersonReferencePicker({
         e.preventDefault();
         if (selectedIndex >= 0 && selectedIndex < results.length) {
           handleSelect(results[selectedIndex]);
-        } else if (hasCreateOption && selectedIndex === results.length) {
+        } else if (selectedIndex >= results.length && selectedIndex < results.length + fuzzyResults.length) {
+          handleSelect(fuzzyResults[selectedIndex - results.length]);
+        } else if (hasCreateOption && selectedIndex === results.length + fuzzyResults.length) {
           handleStartCreate();
         } else if (hasUseOption && selectedIndex === totalItems - 1) {
           handleUseFreeText();
@@ -279,6 +362,20 @@ export function PersonReferencePicker({
       case "Escape":
         setShowDropdown(false);
         break;
+    }
+  };
+
+  const handleFocus = () => {
+    // Show MRU when focusing with empty input
+    if (!query && mruRef.current.length > 0) {
+      setResults(mruRef.current);
+      setFuzzyResults([]);
+      setHasSearched(false); // MRU, not a search
+      setShowDropdown(true);
+      return;
+    }
+    if (results.length > 0 || (hasSearched && query.length >= 2)) {
+      setShowDropdown(true);
     }
   };
 
@@ -311,12 +408,28 @@ export function PersonReferencePicker({
         (!createRef.current || !createRef.current.contains(target))
       ) {
         setShowDropdown(false);
-        // Don't close create fields from outside click — they're below the input
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      // Abort in-flight request on unmount
+      if (abortRef.current) abortRef.current.abort();
+      cacheRef.current.clear();
+    };
   }, []);
+
+  // Show MRU header when displaying MRU (empty query, not searched)
+  const showingMru = !query && !hasSearched && results.length > 0 && showDropdown;
+
+  // Determine if dropdown should be visible (includes loading skeleton state)
+  const showDropdownContent = showDropdown && (
+    results.length > 0 ||
+    fuzzyResults.length > 0 ||
+    (hasSearched && query.trim().length >= 2) ||
+    (loading && query.length >= 2) ||
+    showingMru
+  );
 
   // Resolved state: show linked name with badge + clear button
   if (value.is_resolved && value.display_name) {
@@ -385,17 +498,13 @@ export function PersonReferencePicker({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
-          onFocus={() => {
-            if (results.length > 0 || (hasSearched && query.length >= 2)) {
-              setShowDropdown(true);
-            }
-          }}
-          placeholder={loading ? "Searching..." : placeholder}
+          onFocus={handleFocus}
+          placeholder={placeholder}
           required={required && !value.display_name}
           style={baseInputStyle}
         />
 
-        {showDropdown && (results.length > 0 || (hasSearched && query.trim().length >= 2)) && (
+        {showDropdownContent && (
           <div
             ref={dropdownRef}
             style={{
@@ -412,6 +521,36 @@ export function PersonReferencePicker({
               boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             }}
           >
+            {/* MRU header */}
+            {showingMru && (
+              <div
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  color: "var(--text-muted, #6b7280)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  borderBottom: "1px solid var(--card-border, #e5e7eb)",
+                }}
+              >
+                Recent
+              </div>
+            )}
+
+            {/* Skeleton loading rows — shown while API is in-flight and no cached results */}
+            {loading && query.length >= 2 && results.length === 0 && (
+              <>
+                {[0.85, 0.65, 0.75].map((widthFraction, i) => (
+                  <div key={i} style={{ padding: "8px 12px", borderBottom: "1px solid var(--card-border, #e5e7eb)" }}>
+                    <Skeleton height={14} width={`${widthFraction * 100}%`} style={{ marginBottom: 4 }} />
+                    <Skeleton height={10} width={`${widthFraction * 60}%`} />
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Exact match results */}
             {results.map((person, index) => (
               <div
                 key={person.entity_id}
@@ -438,16 +577,66 @@ export function PersonReferencePicker({
               </div>
             ))}
 
+            {/* Fuzzy match results — "Similar contacts" section */}
+            {fuzzyResults.length > 0 && (
+              <>
+                <div
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: "#92400e",
+                    background: "#fffbeb",
+                    borderBottom: "1px solid var(--card-border, #e5e7eb)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <span style={{ fontSize: "0.8rem" }}>&#9888;</span>
+                  Similar contacts:
+                </div>
+                {fuzzyResults.map((person, index) => {
+                  const globalIndex = results.length + index;
+                  return (
+                    <div
+                      key={`fuzzy-${person.entity_id}`}
+                      onClick={() => handleSelect(person)}
+                      onMouseEnter={() => setSelectedIndex(globalIndex)}
+                      style={{
+                        padding: "8px 12px",
+                        cursor: "pointer",
+                        borderBottom: "1px solid var(--card-border, #e5e7eb)",
+                        background:
+                          selectedIndex === globalIndex
+                            ? "rgba(13, 110, 253, 0.1)"
+                            : "#fffbeb",
+                      }}
+                    >
+                      <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>
+                        {person.display_name}
+                      </div>
+                      {person.subtitle && (
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted, #6b7280)" }}>
+                          {person.subtitle}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
             {/* "Create new person" option — shown when allowCreate, searched, no results */}
-            {allowCreate && hasSearched && results.length === 0 && query.trim().length >= 2 && (
+            {allowCreate && hasSearched && results.length === 0 && fuzzyResults.length === 0 && query.trim().length >= 2 && (
               <div
                 onClick={handleStartCreate}
-                onMouseEnter={() => setSelectedIndex(results.length)}
+                onMouseEnter={() => setSelectedIndex(results.length + fuzzyResults.length)}
                 style={{
                   padding: "8px 12px",
                   cursor: "pointer",
                   background:
-                    selectedIndex === results.length
+                    selectedIndex === results.length + fuzzyResults.length
                       ? "rgba(13, 110, 253, 0.1)"
                       : "transparent",
                   color: "#2563eb",
@@ -464,14 +653,14 @@ export function PersonReferencePicker({
               <div
                 onClick={handleUseFreeText}
                 onMouseEnter={() => {
-                  const createIdx = (allowCreate && hasSearched && results.length === 0) ? 1 : 0;
-                  setSelectedIndex(results.length + createIdx);
+                  const createIdx = (allowCreate && hasSearched && results.length === 0 && fuzzyResults.length === 0) ? 1 : 0;
+                  setSelectedIndex(results.length + fuzzyResults.length + createIdx);
                 }}
                 style={{
                   padding: "8px 12px",
                   cursor: "pointer",
                   background:
-                    selectedIndex === results.length + ((allowCreate && hasSearched && results.length === 0) ? 1 : 0)
+                    selectedIndex === results.length + fuzzyResults.length + ((allowCreate && hasSearched && results.length === 0 && fuzzyResults.length === 0) ? 1 : 0)
                       ? "rgba(13, 110, 253, 0.1)"
                       : "transparent",
                   color: "var(--text-muted, #6b7280)",
@@ -484,7 +673,7 @@ export function PersonReferencePicker({
             )}
 
             {/* No results message (only when we have searched and got nothing and no create) */}
-            {hasSearched && results.length === 0 && query.trim().length >= 2 && !allowCreate && (
+            {hasSearched && results.length === 0 && fuzzyResults.length === 0 && query.trim().length >= 2 && !allowCreate && (
               <div
                 style={{
                   padding: "8px 12px",

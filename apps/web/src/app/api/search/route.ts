@@ -144,6 +144,7 @@ export async function GET(request: NextRequest) {
   const includeIntake = searchParams.get("include_intake") !== "false";
   const suggestionsOnly = searchParams.get("suggestions") === "true";
   const includeGrouped = searchParams.get("grouped") !== "false"; // Default to true
+  const includeFuzzy = searchParams.get("fuzzy") === "true";
 
   // Normalize query: trim whitespace, collapse multiple spaces
   const q = rawQuery?.trim().replace(/\s+/g, ' ') || "";
@@ -319,6 +320,33 @@ export async function GET(request: NextRequest) {
       limit,
       offset,
     ]);
+
+    // Fuzzy person matching — when few exact results, find similar names
+    let fuzzyResults: SearchResult[] = [];
+    if (includeFuzzy && typeParam === "person" && results.length < 3) {
+      try {
+        const excludeIds = results.map((r) => r.entity_id);
+        const fuzzySql = `
+          SELECT
+            'person' AS entity_type,
+            entity_id,
+            display_name,
+            subtitle,
+            'weak' AS match_strength,
+            'fuzzy_name' AS match_reason,
+            similarity_score AS score,
+            '{}'::jsonb AS metadata
+          FROM sot.search_person_fuzzy($1, $2, $3)
+        `;
+        fuzzyResults = await queryRows<SearchResult>(fuzzySql, [
+          q,
+          5,
+          excludeIds,
+        ]);
+      } catch {
+        // search_person_fuzzy may not exist yet, ignore
+      }
+    }
 
     // Get counts for breakdown
     const countsSql = `
@@ -512,6 +540,7 @@ export async function GET(request: NextRequest) {
         mode: "canonical",
         suggestions,
         results: mainResults,
+        fuzzy_results: fuzzyResults.length > 0 ? fuzzyResults : undefined,
         grouped_results: groupedResults,
         possible_matches: possibleMatches,
         grouped_possible: groupedPossible,

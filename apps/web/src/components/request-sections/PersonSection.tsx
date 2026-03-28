@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/PersonReferencePicker";
 import { usePersonSuggestion } from "@/hooks/usePersonSuggestion";
 import { PersonSuggestionBanner } from "@/components/ui/PersonSuggestionBanner";
+import { parseName } from "@/lib/name-utils";
 
 // --- Types ---
 
@@ -83,16 +84,7 @@ interface PersonAddress {
   role: string;
 }
 
-function parseName(displayName: string): {
-  first_name: string;
-  last_name: string;
-} {
-  const parts = displayName.trim().split(/\s+/);
-  return {
-    first_name: parts[0] || "",
-    last_name: parts.slice(1).join(" ") || "",
-  };
-}
+// parseName imported from @/lib/name-utils
 
 // --- Component ---
 
@@ -536,9 +528,15 @@ export function PersonSection({
           )}
 
           {/* Contact fields when NOT resolved — manual entry mode */}
-          {!value.is_resolved && (alwaysShowFields || value.display_name) && !loadingDetails && (
+          {!value.is_resolved && (alwaysShowFields || value.display_name) && !loadingDetails && (() => {
+            const hasFirstName = value.first_name.trim().length > 0;
+            const contactMuted = alwaysShowFields && !hasFirstName;
+            const contactFieldStyle: React.CSSProperties = contactMuted
+              ? { ...inputStyle, opacity: 0.5, borderStyle: "dashed", transition: "opacity 0.2s, border-style 0.2s" }
+              : { ...inputStyle, transition: "opacity 0.2s, border-style 0.2s" };
+            return (
             <div style={{ marginTop: "12px" }}>
-              {alwaysShowFields && !value.display_name && (
+              {alwaysShowFields && !value.display_name && !hasFirstName && (
                 <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary, #9ca3af)", marginBottom: "8px", fontStyle: "italic" }}>
                   Or enter contact details directly:
                 </p>
@@ -571,7 +569,7 @@ export function PersonSection({
               </div>
               <div style={fieldRowStyle}>
                 <div>
-                  <label style={labelStyle}>Phone {alwaysShowFields && <span style={{ color: "var(--danger-text, #dc2626)" }}>*</span>}</label>
+                  <label style={{ ...labelStyle, opacity: contactMuted ? 0.5 : 1, transition: "opacity 0.2s" }}>Phone {alwaysShowFields && <span style={{ color: "var(--danger-text, #dc2626)" }}>*</span>}</label>
                   <input
                     type="tel"
                     value={value.phone}
@@ -582,11 +580,11 @@ export function PersonSection({
                       )
                     }
                     placeholder="(707) 555-1234"
-                    style={inputStyle}
+                    style={contactFieldStyle}
                   />
                 </div>
                 <div>
-                  <label style={labelStyle}>Email</label>
+                  <label style={{ ...labelStyle, opacity: contactMuted ? 0.5 : 1, transition: "opacity 0.2s" }}>Email</label>
                   <input
                     type="email"
                     value={value.email}
@@ -594,7 +592,7 @@ export function PersonSection({
                       handleFieldChange("email", e.target.value)
                     }
                     placeholder="email@example.com"
-                    style={inputStyle}
+                    style={contactFieldStyle}
                   />
                 </div>
               </div>
@@ -610,7 +608,8 @@ export function PersonSection({
                 />
               </div>
             </div>
-          )}
+            );
+          })()}
         </>
       )}
     </div>
