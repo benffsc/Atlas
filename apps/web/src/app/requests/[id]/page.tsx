@@ -6,6 +6,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments, ClinicNotesSection } from "@/components/sections";
 import type { JournalEntry } from "@/components/sections";
 import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { RequestSection, GuidedActionBar, REQUEST_SECTIONS } from "@/components/request";
 import { LegacyUpgradeWizard } from "@/components/forms";
 import { LogSiteVisitModal, CompleteRequestModal, CloseRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal, TripReportModal } from "@/components/modals";
@@ -64,6 +66,8 @@ export default function RequestDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [previousStatus, setPreviousStatus] = useState<string | null>(null);
   const preview = useEntityPreviewModal();
+  const requestTitle = request?.summary || request?.place_name || "FFR Request";
+  const { breadcrumbs } = useNavigationContext(requestTitle);
 
   // Rename state
   const [renaming, setRenaming] = useState(false);
@@ -245,7 +249,7 @@ export default function RequestDetailPage() {
   if (loading) {
     return (
       <div style={PAGE_CONTAINER}>
-        <BackButton fallbackHref="/requests" />
+        <Breadcrumbs items={breadcrumbs} />
         <div style={{ marginTop: SPACING['2xl'] }}>
           <div style={{ ...SKELETON_LINE, width: '40%', height: '1.5rem', marginBottom: SPACING.lg }} />
           <div style={{ display: 'flex', gap: SPACING.sm, marginBottom: SPACING.xl }}>
@@ -263,7 +267,7 @@ export default function RequestDetailPage() {
   if (error && !request) {
     return (
       <div>
-        <BackButton fallbackHref="/requests" />
+        <Breadcrumbs items={breadcrumbs} />
         <div className="empty" style={{ marginTop: "2rem" }}><p>{error}</p></div>
       </div>
     );
@@ -290,7 +294,7 @@ export default function RequestDetailPage() {
   // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "1rem" }}>
-      <BackButton fallbackHref="/requests" />
+      <Breadcrumbs items={breadcrumbs} />
 
       {/* ═══════════════════════════════════════════════════════════════════════
           CASE HEADER - Title, Status, Contact, Address all visible

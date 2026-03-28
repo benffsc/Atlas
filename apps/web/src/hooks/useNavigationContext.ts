@@ -14,6 +14,8 @@ const ORIGIN_MAP: Record<string, { label: string; href: string }> = {
   people: { label: "People", href: "/people" },
   requests: { label: "Requests", href: "/requests" },
   intake: { label: "Intake Queue", href: "/intake/queue" },
+  colonies: { label: "Colonies", href: "/admin/colonies" },
+  staff: { label: "Staff", href: "/admin/staff" },
 };
 
 const PATH_LABELS: Record<string, string> = {
@@ -23,6 +25,12 @@ const PATH_LABELS: Record<string, string> = {
   cats: "Cats",
   places: "Places",
   requests: "Requests",
+};
+
+// Admin sub-paths: /admin/colonies → "Colonies"
+const ADMIN_PATH_LABELS: Record<string, { label: string; href: string }> = {
+  colonies: { label: "Colonies", href: "/admin/colonies" },
+  staff: { label: "Staff", href: "/admin/staff" },
 };
 
 /**
@@ -42,11 +50,14 @@ export function useNavigationContext(entityName?: string) {
     const rootSegment = segments[0] || "";
 
     // Determine origin from ?from= param or fall back to path root
+    const adminSub = rootSegment === "admin" ? segments[1] : undefined;
     const origin = from && ORIGIN_MAP[from]
       ? ORIGIN_MAP[from]
-      : PATH_LABELS[rootSegment]
-        ? { label: PATH_LABELS[rootSegment], href: `/${rootSegment}` }
-        : null;
+      : adminSub && ADMIN_PATH_LABELS[adminSub]
+        ? ADMIN_PATH_LABELS[adminSub]
+        : PATH_LABELS[rootSegment]
+          ? { label: PATH_LABELS[rootSegment], href: `/${rootSegment}` }
+          : null;
 
     const breadcrumbs: BreadcrumbItem[] = [];
 

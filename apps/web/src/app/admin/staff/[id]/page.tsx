@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
@@ -49,6 +51,8 @@ export default function StaffProfilePage() {
   const staffId = params.id as string;
 
   const [staff, setStaff] = useState<Staff | null>(null);
+  const staffName = staff?.display_name || "Staff Member";
+  const { breadcrumbs } = useNavigationContext(staffName);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editMode, setEditMode] = useState(false);
@@ -146,16 +150,15 @@ export default function StaffProfilePage() {
   if (error || !staff) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
-        <h2 style={{ color: "var(--danger-text)" }}>{error || "Not found"}</h2>
-        <div style={{ marginTop: "1rem" }}>
-          <BackButton fallbackHref="/admin/staff" />
-        </div>
+        <Breadcrumbs items={breadcrumbs} />
+        <h2 style={{ color: "var(--danger-text)", marginTop: "1rem" }}>{error || "Not found"}</h2>
       </div>
     );
   }
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+      <Breadcrumbs items={breadcrumbs} />
       {/* Header */}
       <div
         style={{
@@ -500,10 +503,7 @@ export default function StaffProfilePage() {
         </section>
       </div>
 
-      {/* Back Link */}
-      <div style={{ marginTop: "2rem" }}>
-        <BackButton fallbackHref="/admin/staff" />
-      </div>
+      {/* Breadcrumbs at top are sufficient — no bottom back link needed */}
 
       {/* Password Reset Modal */}
       {showPasswordModal && (

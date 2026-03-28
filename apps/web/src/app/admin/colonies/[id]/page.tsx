@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
+import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
@@ -159,6 +161,8 @@ export default function ColonyDetailPage() {
   const id = params.id as string;
 
   const [colony, setColony] = useState<ColonyDetail | null>(null);
+  const colonyName = colony?.colony_name || "Colony";
+  const { breadcrumbs } = useNavigationContext(colonyName);
   const [cats, setCats] = useState<LinkedCat[]>([]);
   const [ownedCats, setOwnedCats] = useState<LinkedCat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -335,7 +339,7 @@ export default function ColonyDetailPage() {
   if (error || !colony) {
     return (
       <div>
-        <BackButton fallbackHref="/admin/colonies" />
+        <Breadcrumbs items={breadcrumbs} />
         <div className="empty" style={{ marginTop: "2rem" }}>
           <h2 style={{ color: "#dc3545" }}>{error || "Colony not found"}</h2>
         </div>
@@ -345,7 +349,7 @@ export default function ColonyDetailPage() {
 
   return (
     <div>
-      <BackButton fallbackHref="/admin/colonies" />
+      <Breadcrumbs items={breadcrumbs} />
 
       {/* Header */}
       <div
