@@ -7,6 +7,7 @@ import {
   getConditionStyle,
   getCategoryStyle,
 } from "@/lib/equipment-styles";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   getLabel,
   EQUIPMENT_CUSTODY_STATUS_OPTIONS,
@@ -78,6 +79,7 @@ function getActionButtonProps(action: string): {
  * Shows equipment info, status badges, and available action buttons.
  */
 export function KioskEquipmentCard({ equipment, onAction }: KioskEquipmentCardProps) {
+  const isMobile = useIsMobile();
   const custodyStyle = getCustodyStyle(equipment.custody_status);
   const conditionStyle = getConditionStyle(equipment.condition_status);
   const isOut = equipment.custody_status === "checked_out" || equipment.custody_status === "in_field";
@@ -215,7 +217,7 @@ export function KioskEquipmentCard({ equipment, onAction }: KioskEquipmentCardPr
         style={{
           padding: "1rem 1.25rem",
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
           gap: "0.75rem",
         }}
       >

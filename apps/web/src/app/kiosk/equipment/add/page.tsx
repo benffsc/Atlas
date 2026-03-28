@@ -7,6 +7,7 @@ import { useToast } from "@/components/feedback/Toast";
 import { useFormAutoSave } from "@/hooks/useFormAutoSave";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { KioskPhotoCapture } from "@/components/kiosk/KioskPhotoCapture";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 
 // ---------------------------------------------------------------------------
@@ -37,7 +38,7 @@ interface CreatedEquipment {
 // Constants
 // ---------------------------------------------------------------------------
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 const CATEGORIES = [
   { key: "trap", label: "Trap", icon: "wrench" },
@@ -491,19 +492,73 @@ function StepDetails({
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — Confirm
+// Step 4 — Photo (optional)
+// ---------------------------------------------------------------------------
+
+function StepPhoto({
+  photoFile,
+  photoPreviewUrl,
+  onFileChange,
+  onNext,
+  onBack,
+}: {
+  photoFile: File | null;
+  photoPreviewUrl: string | null;
+  onFileChange: (file: File | null) => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div style={{ padding: "0 20px 20px" }}>
+      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
+        Equipment Photo
+      </h2>
+      <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", margin: "0 0 20px" }}>
+        Take a photo of the equipment (optional)
+      </p>
+
+      <KioskPhotoCapture
+        value={photoPreviewUrl}
+        onChange={onFileChange}
+        label="Photo"
+        helperText="Helps identify this item later"
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
+        <Button
+          variant="primary"
+          fullWidth
+          onClick={onNext}
+          style={{ minHeight: 56 }}
+        >
+          {photoFile ? "Next" : "Skip"}
+        </Button>
+        <Button variant="secondary" fullWidth onClick={onBack} style={{ minHeight: 48 }}>
+          Back
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 5 — Confirm
 // ---------------------------------------------------------------------------
 
 function StepConfirm({
   category,
   type,
   details,
+  photoFile,
+  photoPreviewUrl,
   onBack,
   onCreated,
 }: {
   category: string;
   type: EquipmentType;
   details: DetailsData;
+  photoFile: File | null;
+  photoPreviewUrl: string | null;
   onBack: () => void;
   onCreated?: () => void;
 }) {
@@ -524,6 +579,22 @@ function StepConfirm({
         condition_status: details.condition_status,
         notes: details.notes || undefined,
       });
+
+      // Upload photo if captured
+      if (photoFile) {
+        try {
+          const formData = new FormData();
+          formData.append("file", photoFile);
+          await fetch(`/api/equipment/${result.id}/photo`, {
+            method: "POST",
+            body: formData,
+          });
+        } catch {
+          // Photo upload failure is non-blocking — equipment was already created
+          toast.warning("Equipment created but photo upload failed");
+        }
+      }
+
       setCreated(result);
       onCreated?.();
       toast.success("Equipment created successfully");
@@ -533,7 +604,7 @@ function StepConfirm({
     } finally {
       setCreating(false);
     }
-  }, [type, details, toast, onCreated]);
+  }, [type, details, photoFile, toast, onCreated]);
 
   // Success state
   if (created) {
@@ -642,8 +713,11 @@ function StepConfirm({
           label="Condition"
           value={EQUIPMENT_CONDITION_OPTIONS.find((o) => o.value === details.condition_status)?.label ?? details.condition_status}
         />
-        {details.notes && <SummaryRow label="Notes" value={details.notes} last />}
-        {!details.notes && <SummaryRow label="Notes" value="None" last />}
+        <SummaryRow
+          label="Photo"
+          value={photoFile ? "Captured" : "None"}
+        />
+        <SummaryRow label="Notes" value={details.notes || "None"} last />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
@@ -714,9 +788,22 @@ function SummaryRow({
 export default function KioskEquipmentAddPage() {
   const [showResumed, setShowResumed] = useState(false);
 
+  // Photo state (not auto-saved — File objects can't be serialized)
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+
+  const handlePhotoChange = (file: File | null) => {
+    setPhotoFile(file);
+    if (file) {
+      setPhotoPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPhotoPreviewUrl(null);
+    }
+  };
+
   // Auto-saved wizard state
   const [saved, setSaved, clearSaved, wasRestored] = useFormAutoSave(
-    "equipment_add",
+    "equipment_add_v2",
     {
       step: 1,
       selectedCategory: null as string | null,
@@ -756,6 +843,10 @@ export default function KioskEquipmentAddPage() {
 
   const handleDetailsNext = (data: DetailsData) => {
     setSaved((p) => ({ ...p, details: data, step: 4 }));
+  };
+
+  const handlePhotoNext = () => {
+    setSaved((p) => ({ ...p, step: 5 }));
   };
 
   const handleBack = (toStep: number) => {
@@ -832,12 +923,28 @@ export default function KioskEquipmentAddPage() {
       )}
 
       {step === 4 && selectedCategory && selectedType && (
+        <StepPhoto
+          photoFile={photoFile}
+          photoPreviewUrl={photoPreviewUrl}
+          onFileChange={handlePhotoChange}
+          onNext={handlePhotoNext}
+          onBack={() => handleBack(3)}
+        />
+      )}
+
+      {step === 5 && selectedCategory && selectedType && (
         <StepConfirm
           category={selectedCategory}
           type={selectedType}
           details={details}
-          onBack={() => handleBack(3)}
-          onCreated={clearSaved}
+          photoFile={photoFile}
+          photoPreviewUrl={photoPreviewUrl}
+          onBack={() => handleBack(4)}
+          onCreated={() => {
+            clearSaved();
+            setPhotoFile(null);
+            setPhotoPreviewUrl(null);
+          }}
         />
       )}
     </div>

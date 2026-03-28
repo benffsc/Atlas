@@ -6,6 +6,7 @@ import { useToast } from "@/components/feedback/Toast";
 import { useFormAutoSave } from "@/hooks/useFormAutoSave";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { KioskPhotoCapture } from "@/components/kiosk/KioskPhotoCapture";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 
 interface CheckinFormProps {
@@ -43,6 +44,19 @@ export function CheckinForm({
     },
   );
 
+  // Photo state (not auto-saved — File objects can't be serialized)
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+
+  const handlePhotoChange = (file: File | null) => {
+    setPhotoFile(file);
+    if (file) {
+      setPhotoPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPhotoPreviewUrl(null);
+    }
+  };
+
   useEffect(() => {
     if (wasRestored) {
       setShowResumed(true);
@@ -62,9 +76,29 @@ export function CheckinForm({
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      // Upload photo first if captured
+      let uploadedPhotoUrl: string | undefined;
+      if (photoFile) {
+        try {
+          const formData = new FormData();
+          formData.append("file", photoFile);
+          const res = await fetch(`/api/equipment/${equipmentId}/photo`, {
+            method: "POST",
+            body: formData,
+          });
+          if (res.ok) {
+            const data = await res.json();
+            uploadedPhotoUrl = data.data?.photo_url || data.photo_url;
+          }
+        } catch {
+          // Photo upload failure is non-blocking
+        }
+      }
+
       await postApi(`/api/equipment/${equipmentId}/events`, {
         event_type: "check_in",
         condition_after: conditionAfter,
+        photo_url: uploadedPhotoUrl,
         notes: [
           notes.trim(),
           hasDeposit
@@ -184,6 +218,19 @@ export function CheckinForm({
             ))}
           </select>
         </div>
+
+        {/* Photo capture */}
+        <KioskPhotoCapture
+          value={photoPreviewUrl}
+          onChange={handlePhotoChange}
+          label="Condition Photo"
+          autoPrompt={conditionAfter === "damaged" || conditionAfter === "poor"}
+          helperText={
+            conditionAfter === "damaged" || conditionAfter === "poor"
+              ? "Photo recommended for damaged/poor condition"
+              : "Optional — helps document equipment condition"
+          }
+        />
 
         {/* Deposit returned */}
         {hasDeposit && (

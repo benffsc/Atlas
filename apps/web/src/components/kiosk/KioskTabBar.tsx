@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 const TABS = [
   { href: "/kiosk/equipment/scan", icon: "scan-barcode", label: "Scan" },
@@ -17,6 +18,7 @@ const TABS = [
  * Active tab uses --primary color.
  */
 export function KioskTabBar() {
+  const isMobile = useIsMobile();
   const pathname = usePathname();
 
   return (
@@ -53,7 +55,7 @@ export function KioskTabBar() {
               height: "64px",
               textDecoration: "none",
               color: isActive ? "var(--primary)" : "var(--muted)",
-              fontSize: "0.7rem",
+              fontSize: isMobile ? "0.8rem" : "0.7rem",
               fontWeight: isActive ? 600 : 400,
               transition: "color 150ms ease",
               WebkitTapHighlightColor: "transparent",

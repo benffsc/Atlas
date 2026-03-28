@@ -14,6 +14,7 @@ import {
   EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS,
 } from "@/lib/form-options";
 import type { EquipmentContextResponse } from "@/lib/types/view-contracts";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface CheckoutFormProps {
   equipmentId: string;
@@ -96,6 +97,7 @@ export function CheckoutForm({
   const [context, setContext] = useState<EquipmentContextResponse | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [contextExpanded, setContextExpanded] = useState(false);
+  const isMobile = useIsMobile();
 
   // Show "Resumed" banner briefly
   useEffect(() => {
@@ -431,7 +433,7 @@ export function CheckoutForm({
         </div>
 
         {/* ===================== TYPE + DEPOSIT (side by side) ===================== */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "1rem" }}>
           {/* Checkout type */}
           <div>
             <label style={labelStyle}>Type *</label>
@@ -625,7 +627,7 @@ export function CheckoutForm({
         )}
 
         {/* ===================== DUE DATE + NOTES ===================== */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "1rem" }}>
           <div>
             <label style={labelStyle}>Due Date</label>
             <input

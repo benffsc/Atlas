@@ -32,7 +32,8 @@ export const GET = withErrorHandling(async (
        ev.checkout_type, ev.deposit_amount::numeric,
        ev.deposit_returned_at::text, ev.custodian_phone,
        ev.appointment_id,
-       ev.checkout_purpose, ev.custodian_name_raw, ev.resolution_status
+       ev.checkout_purpose, ev.custodian_name_raw, ev.resolution_status,
+       ev.photo_url
      FROM ops.equipment_events ev
      LEFT JOIN sot.people ap ON ap.person_id = ev.actor_person_id
      LEFT JOIN sot.people cp ON cp.person_id = ev.custodian_person_id
@@ -73,6 +74,8 @@ export const POST = withErrorHandling(async (
     checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id,
     // MIG_2996 fields
     checkout_purpose, custodian_name_raw, resolution_status,
+    // MIG_3005 fields
+    photo_url,
   } = body;
 
   if (!event_type) {
@@ -146,8 +149,9 @@ export const POST = withErrorHandling(async (
        condition_before, condition_after,
        due_date, notes, source_system,
        checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id,
-       checkout_purpose, custodian_name_raw, resolution_status
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14, $15, $16, $17)
+       checkout_purpose, custodian_name_raw, resolution_status,
+       photo_url
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14, $15, $16, $17, $18)
      RETURNING event_id`,
     [
       id, event_type, custodian_person_id || null,
@@ -159,6 +163,7 @@ export const POST = withErrorHandling(async (
       custodian_name || null, custodian_phone || null,
       appointment_id || null,
       checkout_purpose || null, custodian_name_raw || null, resolution_status || null,
+      photo_url || null,
     ]
   );
 

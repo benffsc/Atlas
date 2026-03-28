@@ -586,6 +586,8 @@ export interface EquipmentEventRow {
   checkout_purpose: string | null;
   custodian_name_raw: string | null;
   resolution_status: string | null;
+  // MIG_3005 fields
+  photo_url: string | null;
 }
 
 /**

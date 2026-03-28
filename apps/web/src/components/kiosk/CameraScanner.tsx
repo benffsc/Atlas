@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface CameraScannerProps {
   onScan: (barcode: string) => void;
@@ -23,6 +24,7 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
+  const isMobile = useIsMobile();
   const hasScannedRef = useRef(false);
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
     scanner
       .start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 100 }, aspectRatio: 1.777 },
+        { fps: 10, qrbox: { width: isMobile ? 220 : 250, height: isMobile ? 90 : 100 }, aspectRatio: 1.777 },
         (decodedText) => {
           // Prevent double-fire
           if (hasScannedRef.current) return;
@@ -158,7 +160,7 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
           {/* Viewfinder frame */}
           <div
             style={{
-              width: "280px",
+              width: isMobile ? "min(280px, 85vw)" : "280px",
               height: "120px",
               position: "relative",
             }}
