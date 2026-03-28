@@ -166,13 +166,13 @@ export function KioskPhotoCapture({
           onClick={() => fileInputRef.current?.click()}
           style={{
             width: "100%",
-            minHeight: "80px",
+            minHeight: "100px",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             gap: "0.5rem",
-            padding: "1rem",
+            padding: "1.25rem",
             border: autoPrompt
               ? "2px dashed var(--warning-border, #fbbf24)"
               : "2px dashed var(--card-border, #d1d5db)",
@@ -185,19 +185,36 @@ export function KioskPhotoCapture({
             WebkitTapHighlightColor: "transparent",
           }}
         >
-          <Icon
-            name="camera"
-            size={28}
-            color={autoPrompt ? "var(--warning-text, #d97706)" : "var(--muted)"}
-          />
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: autoPrompt
+                ? "var(--warning-bg, #fffbeb)"
+                : "var(--bg-secondary, #f3f4f6)",
+              border: autoPrompt
+                ? "1px solid var(--warning-border, #fbbf24)"
+                : "1px solid var(--card-border, #e5e7eb)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon
+              name="camera"
+              size={24}
+              color={autoPrompt ? "var(--warning-text, #d97706)" : "var(--muted)"}
+            />
+          </div>
           <span
             style={{
               fontSize: "0.9rem",
-              fontWeight: 500,
+              fontWeight: 600,
               color: autoPrompt ? "var(--warning-text, #d97706)" : "var(--text-secondary)",
             }}
           >
-            {autoPrompt ? "Photo recommended" : "Take Photo"}
+            {autoPrompt ? "Photo recommended" : "Tap to take photo"}
           </span>
         </button>
       )}

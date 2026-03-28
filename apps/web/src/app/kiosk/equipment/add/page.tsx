@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { KioskPhotoCapture } from "@/components/kiosk/KioskPhotoCapture";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
+import { getCategoryStyle } from "@/lib/equipment-styles";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,35 +41,192 @@ interface CreatedEquipment {
 
 const TOTAL_STEPS = 5;
 
+const STEP_LABELS = ["Category", "Type", "Details", "Photo", "Review"];
+
 const CATEGORIES = [
-  { key: "trap", label: "Trap", icon: "wrench" },
-  { key: "cage", label: "Cage", icon: "list" },
-  { key: "camera", label: "Camera", icon: "eye" },
+  { key: "trap", label: "Trap", icon: "box" },
+  { key: "cage", label: "Cage", icon: "grid-3x3" },
+  { key: "camera", label: "Camera", icon: "camera" },
   { key: "accessory", label: "Accessory", icon: "package-plus" },
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Step Indicator
+// Shared styles (match CheckinForm / CheckoutForm conventions)
+// ---------------------------------------------------------------------------
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "0.8rem",
+  fontWeight: 600,
+  color: "var(--text-secondary)",
+  marginBottom: "0.375rem",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: "48px",
+  padding: "0.75rem 1rem",
+  fontSize: "1rem",
+  border: "1px solid var(--card-border, #e5e7eb)",
+  borderRadius: "10px",
+  background: "var(--background, #fff)",
+  color: "var(--text-primary)",
+  boxSizing: "border-box" as const,
+  outline: "none",
+};
+
+// ---------------------------------------------------------------------------
+// Selection Context — shows what the user has picked so far
+// ---------------------------------------------------------------------------
+
+function SelectionContext({
+  category,
+  typeName,
+}: {
+  category: string | null;
+  typeName?: string | null;
+}) {
+  if (!category) return null;
+  const catLabel = CATEGORIES.find((c) => c.key === category)?.label ?? category;
+  const catIcon = CATEGORIES.find((c) => c.key === category)?.icon ?? "box";
+  const catStyle = getCategoryStyle(category);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.375rem",
+        padding: "0 1.25rem",
+        marginBottom: "0.75rem",
+        flexWrap: "wrap",
+      }}
+    >
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.3rem",
+          padding: "0.2rem 0.6rem",
+          borderRadius: "6px",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          background: catStyle.bg,
+          color: catStyle.text,
+          border: `1px solid ${catStyle.border}`,
+        }}
+      >
+        <Icon name={catIcon} size={12} color={catStyle.text} />
+        {catLabel}
+      </span>
+      {typeName && (
+        <>
+          <Icon name="chevron-right" size={12} color="var(--text-secondary)" />
+          <span
+            style={{
+              fontSize: "0.75rem",
+              fontWeight: 500,
+              color: "var(--text-secondary)",
+            }}
+          >
+            {typeName}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step Indicator — with step labels
 // ---------------------------------------------------------------------------
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
-  const pct = (current / total) * 100;
   return (
-    <div style={{ padding: "16px 20px 12px" }}>
+    <div style={{ padding: "1rem 1.25rem 0.75rem" }}>
+      {/* Step dots with labels */}
       <div
         style={{
-          fontSize: "0.8rem",
-          fontWeight: 600,
-          color: "var(--text-secondary)",
-          marginBottom: 8,
-          letterSpacing: "0.02em",
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: "0.5rem",
         }}
       >
-        Step {current} of {total}
+        {STEP_LABELS.map((label, i) => {
+          const stepNum = i + 1;
+          const isActive = stepNum === current;
+          const isComplete = stepNum < current;
+          return (
+            <div
+              key={label}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "0.25rem",
+                flex: 1,
+              }}
+            >
+              <div
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  background: isActive
+                    ? "var(--primary)"
+                    : isComplete
+                      ? "var(--success-bg)"
+                      : "var(--bg-secondary, #f3f4f6)",
+                  color: isActive
+                    ? "var(--primary-foreground, #fff)"
+                    : isComplete
+                      ? "var(--success-text)"
+                      : "var(--text-secondary)",
+                  border: isActive
+                    ? "2px solid var(--primary)"
+                    : isComplete
+                      ? "2px solid var(--success-border)"
+                      : "2px solid var(--card-border)",
+                  transition: "all 200ms ease",
+                }}
+              >
+                {isComplete ? (
+                  <Icon name="check" size={12} color="var(--success-text)" />
+                ) : (
+                  stepNum
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: "0.6rem",
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive
+                    ? "var(--primary)"
+                    : isComplete
+                      ? "var(--success-text)"
+                      : "var(--text-secondary)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
+                  transition: "color 200ms ease",
+                }}
+              >
+                {label}
+              </span>
+            </div>
+          );
+        })}
       </div>
+      {/* Progress bar */}
       <div
         style={{
-          height: 4,
+          height: 3,
           borderRadius: 2,
           background: "var(--card-border)",
           overflow: "hidden",
@@ -77,7 +235,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
         <div
           style={{
             height: "100%",
-            width: `${pct}%`,
+            width: `${(current / total) * 100}%`,
             background: "var(--primary)",
             borderRadius: 2,
             transition: "width 300ms ease",
@@ -98,11 +256,11 @@ function StepCategory({
   onSelect: (category: string) => void;
 }) {
   return (
-    <div style={{ padding: "0 20px 20px" }}>
-      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
+    <div style={{ padding: "0 1.25rem 1.25rem" }}>
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
         Select Category
       </h2>
-      <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", margin: "0 0 20px" }}>
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 1.25rem" }}>
         What kind of equipment are you adding?
       </p>
 
@@ -113,47 +271,67 @@ function StepCategory({
           gap: 12,
         }}
       >
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.key}
-            onClick={() => onSelect(cat.key)}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              height: 120,
-              background: "var(--card-bg)",
-              border: "2px solid var(--card-border)",
-              borderRadius: 12,
-              cursor: "pointer",
-              transition: "border-color 150ms ease, box-shadow 150ms ease",
-              minHeight: 48,
-              padding: 12,
-            }}
-            onPointerDown={(e) => {
-              const el = e.currentTarget;
-              el.style.borderColor = "var(--primary)";
-              el.style.boxShadow = "var(--shadow-sm)";
-            }}
-            onPointerUp={(e) => {
-              const el = e.currentTarget;
-              el.style.borderColor = "var(--card-border)";
-              el.style.boxShadow = "none";
-            }}
-            onPointerLeave={(e) => {
-              const el = e.currentTarget;
-              el.style.borderColor = "var(--card-border)";
-              el.style.boxShadow = "none";
-            }}
-          >
-            <Icon name={cat.icon} size={32} color="var(--primary)" />
-            <span style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
-              {cat.label}
-            </span>
-          </button>
-        ))}
+        {CATEGORIES.map((cat) => {
+          const catStyle = getCategoryStyle(cat.key);
+          return (
+            <button
+              key={cat.key}
+              onClick={() => onSelect(cat.key)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                height: 120,
+                background: "var(--background, #fff)",
+                border: `2px solid var(--card-border)`,
+                borderRadius: 12,
+                cursor: "pointer",
+                transition: "border-color 150ms ease, background 150ms ease, box-shadow 150ms ease",
+                minHeight: 48,
+                padding: 12,
+                WebkitTapHighlightColor: "transparent",
+              }}
+              onPointerDown={(e) => {
+                const el = e.currentTarget;
+                el.style.borderColor = catStyle.text;
+                el.style.background = catStyle.bg;
+                el.style.boxShadow = "var(--shadow-sm)";
+              }}
+              onPointerUp={(e) => {
+                const el = e.currentTarget;
+                el.style.borderColor = "var(--card-border)";
+                el.style.background = "var(--background, #fff)";
+                el.style.boxShadow = "none";
+              }}
+              onPointerLeave={(e) => {
+                const el = e.currentTarget;
+                el.style.borderColor = "var(--card-border)";
+                el.style.background = "var(--background, #fff)";
+                el.style.boxShadow = "none";
+              }}
+            >
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  background: catStyle.bg,
+                  border: `1px solid ${catStyle.border}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name={cat.icon} size={24} color={catStyle.text} />
+              </div>
+              <span style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                {cat.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -205,11 +383,11 @@ function StepType({
   const categoryLabel = CATEGORIES.find((c) => c.key === category)?.label ?? category;
 
   return (
-    <div style={{ padding: "0 20px 20px" }}>
-      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
+    <div style={{ padding: "0 1.25rem 1.25rem" }}>
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
         Select Type
       </h2>
-      <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", margin: "0 0 20px" }}>
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 1.25rem" }}>
         Choose a {categoryLabel.toLowerCase()} type
       </p>
 
@@ -219,7 +397,7 @@ function StepType({
             <div
               key={i}
               style={{
-                height: 60,
+                height: 56,
                 background: "var(--bg-secondary)",
                 borderRadius: 10,
                 animation: "pulse 1.5s ease-in-out infinite",
@@ -270,12 +448,13 @@ function StepType({
                 justifyContent: "space-between",
                 padding: "14px 16px",
                 minHeight: 56,
-                background: "var(--card-bg)",
+                background: "var(--background, #fff)",
                 border: "2px solid var(--card-border)",
                 borderRadius: 10,
                 cursor: "pointer",
                 transition: "border-color 150ms ease",
                 textAlign: "left",
+                WebkitTapHighlightColor: "transparent",
               }}
               onPointerDown={(e) => {
                 e.currentTarget.style.borderColor = "var(--primary)";
@@ -310,7 +489,7 @@ function StepType({
       )}
 
       <div style={{ marginTop: 20 }}>
-        <Button variant="secondary" fullWidth onClick={onBack} style={{ minHeight: 48 }}>
+        <Button variant="ghost" fullWidth onClick={onBack} style={{ minHeight: 48, borderRadius: 12 }}>
           Back
         </Button>
       </div>
@@ -368,38 +547,16 @@ function StepDetails({
     });
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "12px 14px",
-    fontSize: "1rem",
-    border: "1.5px solid var(--card-border)",
-    borderRadius: 8,
-    background: "var(--card-bg)",
-    color: "var(--text-primary)",
-    outline: "none",
-    minHeight: 48,
-    boxSizing: "border-box",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    color: "var(--text-secondary)",
-    marginBottom: 6,
-    letterSpacing: "0.02em",
-  };
-
   return (
-    <div style={{ padding: "0 20px 20px" }}>
-      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
+    <div style={{ padding: "0 1.25rem 1.25rem" }}>
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
         Equipment Details
       </h2>
-      <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", margin: "0 0 20px" }}>
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 1.25rem" }}>
         Enter details for the new item
       </p>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {/* Barcode */}
         <div>
           <label style={labelStyle}>Barcode</label>
@@ -411,19 +568,19 @@ function StepDetails({
             value={barcode}
             onChange={(e) => setBarcode(e.target.value.replace(/\D/g, "").slice(0, 4))}
             placeholder={suggestedBarcode ?? "0000"}
-            style={inputStyle}
+            style={{ ...inputStyle, fontFamily: "monospace", letterSpacing: "0.1em" }}
           />
           <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
             Enter 4-digit barcode from label.
             {suggestedBarcode && (
-              <span> Next available: <strong>{suggestedBarcode}</strong></span>
+              <span> Next available: <strong style={{ fontFamily: "monospace" }}>{suggestedBarcode}</strong></span>
             )}
           </div>
         </div>
 
         {/* Equipment Name */}
         <div>
-          <label style={labelStyle}>Equipment Name <span style={{ fontWeight: 400 }}>(optional)</span></label>
+          <label style={labelStyle}>Equipment Name <span style={{ fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
           <input
             type="text"
             value={equipmentName}
@@ -441,12 +598,8 @@ function StepDetails({
             onChange={(e) => setCondition(e.target.value)}
             style={{
               ...inputStyle,
-              appearance: "none",
-              backgroundImage:
-                "url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 12 12'%3e%3cpath d='M3 4.5L6 7.5L9 4.5' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e\")",
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "right 14px center",
-              paddingRight: 36,
+              cursor: "pointer",
+              appearance: "auto" as const,
             }}
           >
             {EQUIPMENT_CONDITION_OPTIONS.map((opt) => (
@@ -459,7 +612,7 @@ function StepDetails({
 
         {/* Notes */}
         <div>
-          <label style={labelStyle}>Notes <span style={{ fontWeight: 400 }}>(optional)</span></label>
+          <label style={labelStyle}>Notes <span style={{ fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -468,6 +621,7 @@ function StepDetails({
             style={{
               ...inputStyle,
               resize: "vertical",
+              fontFamily: "inherit",
               minHeight: 80,
             }}
           />
@@ -479,11 +633,11 @@ function StepDetails({
           variant="primary"
           fullWidth
           onClick={handleSubmit}
-          style={{ minHeight: 56 }}
+          style={{ minHeight: 56, borderRadius: 12 }}
         >
           Next
         </Button>
-        <Button variant="secondary" fullWidth onClick={onBack} style={{ minHeight: 48 }}>
+        <Button variant="ghost" fullWidth onClick={onBack} style={{ minHeight: 48, borderRadius: 12 }}>
           Back
         </Button>
       </div>
@@ -509,31 +663,32 @@ function StepPhoto({
   onBack: () => void;
 }) {
   return (
-    <div style={{ padding: "0 20px 20px" }}>
-      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
+    <div style={{ padding: "0 1.25rem 1.25rem" }}>
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
         Equipment Photo
       </h2>
-      <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", margin: "0 0 20px" }}>
-        Take a photo of the equipment (optional)
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 1.25rem" }}>
+        Take a photo to help identify this item later
       </p>
 
       <KioskPhotoCapture
         value={photoPreviewUrl}
         onChange={onFileChange}
         label="Photo"
-        helperText="Helps identify this item later"
+        helperText="Optional — helps identify this item at a glance"
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
         <Button
           variant="primary"
           fullWidth
+          icon={photoFile ? "arrow-right" : "skip-forward"}
           onClick={onNext}
-          style={{ minHeight: 56 }}
+          style={{ minHeight: 56, borderRadius: 12 }}
         >
           {photoFile ? "Next" : "Skip"}
         </Button>
-        <Button variant="secondary" fullWidth onClick={onBack} style={{ minHeight: 48 }}>
+        <Button variant="ghost" fullWidth onClick={onBack} style={{ minHeight: 48, borderRadius: 12 }}>
           Back
         </Button>
       </div>
@@ -611,68 +766,86 @@ function StepConfirm({
     return (
       <div
         style={{
-          padding: "0 20px 20px",
+          padding: "1.5rem 1.25rem",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           textAlign: "center",
           gap: 16,
-          paddingTop: 24,
         }}
       >
         <div
           style={{
-            width: 72,
-            height: 72,
+            width: 64,
+            height: 64,
             borderRadius: "50%",
             background: "var(--success-bg)",
+            border: "2px solid var(--success-border)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Icon name="check" size={36} color="var(--success-text)" />
+          <Icon name="check" size={32} color="var(--success-text)" />
         </div>
 
         <div>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
+          <h2 style={{ fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
             Equipment Created
           </h2>
-          <p style={{ fontSize: "0.95rem", color: "var(--text-secondary)", margin: 0 }}>
+          <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", margin: 0 }}>
             {created.equipment_name}
           </p>
         </div>
 
+        {/* Show photo if one was captured */}
+        {photoPreviewUrl && (
+          <div style={{ width: "100%", maxWidth: 200 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photoPreviewUrl}
+              alt={created.equipment_name}
+              style={{
+                width: "100%",
+                maxHeight: 140,
+                objectFit: "contain",
+                borderRadius: 10,
+                border: "1px solid var(--card-border)",
+              }}
+            />
+          </div>
+        )}
+
         <div
           style={{
             width: "100%",
-            padding: 16,
-            background: "var(--card-bg)",
+            padding: "0.75rem 1rem",
+            background: "var(--background, #fff)",
             border: "1px solid var(--card-border)",
             borderRadius: 10,
             textAlign: "left",
           }}
         >
-          <SummaryRow label="Barcode" value={created.barcode} />
+          <SummaryRow label="Barcode" value={created.barcode} mono />
           <SummaryRow label="Name" value={created.equipment_name} last />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", marginTop: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", marginTop: 4 }}>
           <Button
             variant="primary"
             fullWidth
             icon="scan-barcode"
             onClick={() => router.push(`/kiosk/equipment/scan?barcode=${encodeURIComponent(created.barcode)}`)}
-            style={{ minHeight: 56 }}
+            style={{ minHeight: 56, borderRadius: 12 }}
           >
             Scan This Item
           </Button>
           <Button
-            variant="secondary"
+            variant="ghost"
             fullWidth
             icon="plus"
             onClick={() => router.push("/kiosk/equipment/add")}
-            style={{ minHeight: 48 }}
+            style={{ minHeight: 48, borderRadius: 12 }}
           >
             Add Another
           </Button>
@@ -683,18 +856,43 @@ function StepConfirm({
 
   // Confirm state
   return (
-    <div style={{ padding: "0 20px 20px" }}>
-      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
-        Confirm Details
+    <div style={{ padding: "0 1.25rem 1.25rem" }}>
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>
+        Review &amp; Create
       </h2>
-      <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", margin: "0 0 20px" }}>
-        Review before creating
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 1.25rem" }}>
+        Confirm details before creating
       </p>
+
+      {/* Photo preview in confirm */}
+      {photoPreviewUrl && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            borderRadius: 10,
+            overflow: "hidden",
+            border: "1px solid var(--card-border)",
+            background: "var(--muted-bg, #f3f4f6)",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoPreviewUrl}
+            alt="Equipment preview"
+            style={{
+              width: "100%",
+              maxHeight: 160,
+              objectFit: "contain",
+              display: "block",
+            }}
+          />
+        </div>
+      )}
 
       <div
         style={{
-          padding: 16,
-          background: "var(--card-bg)",
+          padding: "0.75rem 1rem",
+          background: "var(--background, #fff)",
           border: "1px solid var(--card-border)",
           borderRadius: 10,
         }}
@@ -704,6 +902,7 @@ function StepConfirm({
         <SummaryRow
           label="Barcode"
           value={details.barcode || "(auto-assigned)"}
+          mono={!!details.barcode}
         />
         <SummaryRow
           label="Name"
@@ -713,10 +912,7 @@ function StepConfirm({
           label="Condition"
           value={EQUIPMENT_CONDITION_OPTIONS.find((o) => o.value === details.condition_status)?.label ?? details.condition_status}
         />
-        <SummaryRow
-          label="Photo"
-          value={photoFile ? "Captured" : "None"}
-        />
+        {!photoPreviewUrl && <SummaryRow label="Photo" value="None" />}
         <SummaryRow label="Notes" value={details.notes || "None"} last />
       </div>
 
@@ -727,11 +923,17 @@ function StepConfirm({
           loading={creating}
           onClick={handleCreate}
           icon="plus"
-          style={{ minHeight: 56 }}
+          style={{
+            minHeight: 56,
+            borderRadius: 12,
+            background: "var(--success-text, #16a34a)",
+            color: "#fff",
+            border: "1px solid transparent",
+          }}
         >
           Create Equipment
         </Button>
-        <Button variant="secondary" fullWidth onClick={onBack} disabled={creating} style={{ minHeight: 48 }}>
+        <Button variant="ghost" fullWidth onClick={onBack} disabled={creating} style={{ minHeight: 48, borderRadius: 12 }}>
           Back
         </Button>
       </div>
@@ -747,10 +949,12 @@ function SummaryRow({
   label,
   value,
   last = false,
+  mono = false,
 }: {
   label: string;
   value: string;
   last?: boolean;
+  mono?: boolean;
 }) {
   return (
     <div
@@ -758,12 +962,21 @@ function SummaryRow({
         display: "flex",
         justifyContent: "space-between",
         alignItems: "flex-start",
-        padding: "10px 0",
+        padding: "0.5rem 0",
         borderBottom: last ? "none" : "1px solid var(--card-border)",
         gap: 12,
       }}
     >
-      <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)", flexShrink: 0 }}>
+      <span
+        style={{
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          color: "var(--text-secondary)",
+          flexShrink: 0,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+        }}
+      >
         {label}
       </span>
       <span
@@ -773,6 +986,7 @@ function SummaryRow({
           color: "var(--text-primary)",
           textAlign: "right",
           wordBreak: "break-word",
+          ...(mono ? { fontFamily: "monospace", letterSpacing: "0.05em" } : {}),
         }}
       >
         {value}
@@ -855,98 +1069,119 @@ export default function KioskEquipmentAddPage() {
 
   return (
     <div style={{ maxWidth: 480, margin: "0 auto" }}>
-      {/* Header */}
+      {/* Card wrapper — matches scan/checkout/checkin visual pattern */}
       <div
         style={{
-          padding: "16px 20px 0",
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
+          background: "var(--card-bg, #fff)",
+          border: "1px solid var(--card-border, #e5e7eb)",
+          borderRadius: 16,
+          overflow: "hidden",
+          boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08))",
+          marginTop: "1rem",
         }}
       >
-        <Icon name="plus" size={22} color="var(--primary)" />
-        <h1
-          style={{
-            fontSize: "1.1rem",
-            fontWeight: 700,
-            color: "var(--text-primary)",
-            margin: 0,
-          }}
-        >
-          Add Equipment
-        </h1>
-      </div>
-
-      {/* Resumed banner */}
-      {showResumed && (
+        {/* Header */}
         <div
           style={{
+            padding: "1rem 1.25rem",
+            borderBottom: "1px solid var(--card-border, #e5e7eb)",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
             gap: "0.5rem",
-            padding: "0.5rem 1rem",
-            fontSize: "0.8rem",
-            fontWeight: 600,
-            background: "var(--info-bg)",
-            color: "var(--info-text)",
-            borderBottom: "1px solid var(--info-border)",
           }}
         >
-          <Icon name="rotate-ccw" size={14} color="var(--info-text)" />
-          Resumed from where you left off
+          <Icon name="plus" size={20} color="var(--primary)" />
+          <h1
+            style={{
+              fontSize: "1.1rem",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              margin: 0,
+            }}
+          >
+            Add Equipment
+          </h1>
         </div>
-      )}
 
-      {/* Step indicator */}
-      <StepIndicator current={step} total={TOTAL_STEPS} />
+        {/* Resumed banner */}
+        {showResumed && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.5rem",
+              padding: "0.5rem 1rem",
+              fontSize: "0.8rem",
+              fontWeight: 600,
+              background: "var(--info-bg)",
+              color: "var(--info-text)",
+              borderBottom: "1px solid var(--info-border)",
+            }}
+          >
+            <Icon name="rotate-ccw" size={14} color="var(--info-text)" />
+            Resumed from where you left off
+          </div>
+        )}
 
-      {/* Steps */}
-      {step === 1 && (
-        <StepCategory onSelect={handleCategorySelect} />
-      )}
+        {/* Step indicator */}
+        <StepIndicator current={step} total={TOTAL_STEPS} />
 
-      {step === 2 && selectedCategory && (
-        <StepType
-          category={selectedCategory}
-          onSelect={handleTypeSelect}
-          onBack={() => handleBack(1)}
-        />
-      )}
+        {/* Selection context breadcrumb (visible from step 2+) */}
+        {step >= 2 && (
+          <SelectionContext
+            category={selectedCategory}
+            typeName={step >= 3 ? selectedType?.display_name : null}
+          />
+        )}
 
-      {step === 3 && selectedCategory && selectedType && (
-        <StepDetails
-          initial={details}
-          onNext={handleDetailsNext}
-          onBack={() => handleBack(2)}
-        />
-      )}
+        {/* Steps */}
+        {step === 1 && (
+          <StepCategory onSelect={handleCategorySelect} />
+        )}
 
-      {step === 4 && selectedCategory && selectedType && (
-        <StepPhoto
-          photoFile={photoFile}
-          photoPreviewUrl={photoPreviewUrl}
-          onFileChange={handlePhotoChange}
-          onNext={handlePhotoNext}
-          onBack={() => handleBack(3)}
-        />
-      )}
+        {step === 2 && selectedCategory && (
+          <StepType
+            category={selectedCategory}
+            onSelect={handleTypeSelect}
+            onBack={() => handleBack(1)}
+          />
+        )}
 
-      {step === 5 && selectedCategory && selectedType && (
-        <StepConfirm
-          category={selectedCategory}
-          type={selectedType}
-          details={details}
-          photoFile={photoFile}
-          photoPreviewUrl={photoPreviewUrl}
-          onBack={() => handleBack(4)}
-          onCreated={() => {
-            clearSaved();
-            setPhotoFile(null);
-            setPhotoPreviewUrl(null);
-          }}
-        />
-      )}
+        {step === 3 && selectedCategory && selectedType && (
+          <StepDetails
+            initial={details}
+            onNext={handleDetailsNext}
+            onBack={() => handleBack(2)}
+          />
+        )}
+
+        {step === 4 && selectedCategory && selectedType && (
+          <StepPhoto
+            photoFile={photoFile}
+            photoPreviewUrl={photoPreviewUrl}
+            onFileChange={handlePhotoChange}
+            onNext={handlePhotoNext}
+            onBack={() => handleBack(3)}
+          />
+        )}
+
+        {step === 5 && selectedCategory && selectedType && (
+          <StepConfirm
+            category={selectedCategory}
+            type={selectedType}
+            details={details}
+            photoFile={photoFile}
+            photoPreviewUrl={photoPreviewUrl}
+            onBack={() => handleBack(4)}
+            onCreated={() => {
+              clearSaved();
+              setPhotoFile(null);
+              setPhotoPreviewUrl(null);
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
