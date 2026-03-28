@@ -48,49 +48,49 @@ export default function EquipmentCheckoutPrintPage() {
     <>
       <style jsx global>{`
         /* Reset for print page */
-        body { margin: 0; background: #f5f5f5; }
+        body { margin: 0; background: var(--bg-secondary, #f5f5f5); }
 
         /* Screen controls */
         .print-controls {
           max-width: 700px;
           margin: 1rem auto;
           padding: 1rem 1.25rem;
-          background: #fff;
+          background: var(--card-bg, #fff);
           border-radius: 10px;
-          border: 1px solid #e5e7eb;
+          border: 1px solid var(--border-default, #e5e7eb);
           font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
         }
         .print-controls h2 { margin: 0 0 0.25rem; font-size: 1.1rem; }
-        .print-controls p { margin: 0 0 1rem; font-size: 0.85rem; color: #6b7280; }
+        .print-controls p { margin: 0 0 1rem; font-size: 0.85rem; color: var(--text-secondary, #6b7280); }
 
         .mode-btns { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
         .mode-btns button {
-          padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #d1d5db;
-          background: #fff; cursor: pointer; font-size: 0.85rem; font-weight: 500;
+          padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-default, #d1d5db);
+          background: var(--card-bg, #fff); cursor: pointer; font-size: 0.85rem; font-weight: 500;
         }
-        .mode-btns button.active { background: #27ae60; color: #fff; border-color: #27ae60; }
+        .mode-btns button.active { background: var(--healthy-text, #16a34a); color: #fff; border-color: var(--healthy-text, #16a34a); }
 
         .scan-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
         .scan-row input {
-          flex: 1; padding: 0.5rem 0.75rem; border: 2px solid #d1d5db; border-radius: 8px;
+          flex: 1; padding: 0.5rem 0.75rem; border: 2px solid var(--border-default, #d1d5db); border-radius: 8px;
           font-family: monospace; font-size: 1rem; outline: none;
         }
-        .scan-row input:focus { border-color: #27ae60; }
+        .scan-row input:focus { border-color: var(--healthy-text, #16a34a); }
         .scan-row button {
-          padding: 0.5rem 1rem; background: #27ae60; color: #fff; border: none;
+          padding: 0.5rem 1rem; background: var(--healthy-text, #16a34a); color: #fff; border: none;
           border-radius: 8px; font-weight: 600; cursor: pointer;
         }
         .scan-row button:disabled { opacity: 0.5; }
 
-        .scan-ok { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.85rem; color: #166534; }
-        .scan-err { color: #dc2626; font-size: 0.85rem; margin-bottom: 0.75rem; }
+        .scan-ok { background: var(--healthy-bg, #f0fdf4); border: 1px solid var(--healthy-border, #86efac); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.85rem; color: #166534; }
+        .scan-err { color: var(--danger-text, #dc2626); font-size: 0.85rem; margin-bottom: 0.75rem; }
 
         .ctrl-actions { display: flex; gap: 0.75rem; align-items: center; }
         .ctrl-actions button {
-          padding: 0.5rem 1.25rem; background: #27ae60; color: #fff; border: none;
+          padding: 0.5rem 1.25rem; background: var(--healthy-text, #16a34a); color: #fff; border: none;
           border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.9rem;
         }
-        .ctrl-actions a { color: #27ae60; font-size: 0.85rem; text-decoration: none; }
+        .ctrl-actions a { color: var(--healthy-text, #16a34a); font-size: 0.85rem; text-decoration: none; }
 
         /* Print page (visible on screen as preview, sole content on print) */
         .print-sheet {
@@ -98,7 +98,7 @@ export default function EquipmentCheckoutPrintPage() {
           margin: 1rem auto;
           padding: 0.4in 0.5in;
           background: #fff;
-          border: 1px solid #e5e7eb;
+          border: 1px solid var(--border-default, #e5e7eb);
           font-family: 'Raleway', Helvetica, Arial, sans-serif;
           font-size: 9pt;
         }
@@ -107,12 +107,12 @@ export default function EquipmentCheckoutPrintPage() {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          border-bottom: 3px solid #27ae60;
+          border-bottom: 3px solid var(--healthy-text, #16a34a);
           padding-bottom: 8px;
           margin-bottom: 10px;
         }
         .sheet-header h1 { font-size: 16pt; font-weight: 700; margin: 0 0 2px; }
-        .sheet-header .date { font-size: 9pt; color: #666; }
+        .sheet-header .date { font-size: 9pt; color: var(--text-secondary, #666); }
         .sheet-header img { height: 48px; }
 
         .sheet-table {
@@ -121,38 +121,38 @@ export default function EquipmentCheckoutPrintPage() {
           margin-bottom: 8px;
         }
         .sheet-table th {
-          background: #f0fdf4;
-          border: 1px solid #bdc3c7;
+          background: var(--healthy-bg, #f0fdf4);
+          border: 1px solid var(--border-default, #bdc3c7);
           padding: 4px 5px;
           font-size: 7pt;
           font-weight: 700;
-          color: #27ae60;
+          color: var(--healthy-text, #16a34a);
           text-transform: uppercase;
           letter-spacing: 0.3px;
           white-space: nowrap;
           text-align: left;
         }
         .sheet-table td {
-          border-bottom: 1px solid #d5d8dc;
-          border-left: 1px solid #ecf0f1;
-          border-right: 1px solid #ecf0f1;
+          border-bottom: 1px solid var(--border-default, #d5d8dc);
+          border-left: 1px solid var(--card-border, #ecf0f1);
+          border-right: 1px solid var(--card-border, #ecf0f1);
           padding: 5px 4px;
           height: 28px;
           vertical-align: bottom;
         }
-        .sheet-table tr:last-child td { border-bottom: 1px solid #bdc3c7; }
-        .sheet-table td.filled { background: #f0fdf4; font-weight: 500; vertical-align: middle; }
+        .sheet-table tr:last-child td { border-bottom: 1px solid var(--border-default, #bdc3c7); }
+        .sheet-table td.filled { background: var(--healthy-bg, #f0fdf4); font-weight: 500; vertical-align: middle; }
         .sheet-table .rn {
-          color: #bdc3c7; font-size: 7pt; text-align: center; width: 18px;
-          border-right: 1px solid #ecf0f1; border-left: 1px solid #bdc3c7;
+          color: var(--border-default, #bdc3c7); font-size: 7pt; text-align: center; width: 18px;
+          border-right: 1px solid var(--card-border, #ecf0f1); border-left: 1px solid var(--border-default, #bdc3c7);
           padding: 2px; vertical-align: middle;
         }
 
-        .sheet-hint { font-size: 7pt; color: #95a5a6; margin-bottom: 6px; }
+        .sheet-hint { font-size: 7pt; color: var(--muted, #95a5a6); margin-bottom: 6px; }
         .sheet-hint b { font-weight: 600; }
         .sheet-footer {
           display: flex; justify-content: space-between;
-          font-size: 8pt; color: #666; border-top: 1px solid #ddd; padding-top: 4px;
+          font-size: 8pt; color: var(--text-secondary, #666); border-top: 1px solid var(--border-default, #ddd); padding-top: 4px;
         }
 
         @media print {
