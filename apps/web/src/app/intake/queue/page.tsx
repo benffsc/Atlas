@@ -22,6 +22,7 @@ import { TabBar } from "@/components/ui/TabBar";
 import { DataTable } from "@/components/data-table";
 import { getIntakeColumns } from "./columns";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
 const VIEW_PREF_KEY = "intake-queue-view";
@@ -99,32 +100,7 @@ function IntakeQueueContent() {
   const [showRequestWizard, setShowRequestWizard] = useState(false);
   const [wizardSubmission, setWizardSubmission] = useState<IntakeSubmission | null>(null);
 
-  // Toast notification state (supports undo + error styling)
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "success" | "error";
-    undo?: { submissionId: string; previousStatus: string };
-  } | null>(null);
-
-  const showToast = (message: string) => {
-    setToast({ message, type: "success" });
-    setTimeout(() => setToast(null), 5000);
-  };
-
-  const showErrorToast = (message: string) => {
-    setToast({ message, type: "error" });
-    setTimeout(() => setToast(null), 5000);
-  };
-
-  // Backward compat shim for IntakeDetailPanel
-  const toastMessage = toast?.message ?? null;
-  const setToastMessage = (msg: string | null) => {
-    if (msg) {
-      showToast(msg);
-    } else {
-      setToast(null);
-    }
-  };
+  const { success: showToast, error: showErrorToast, addToast } = useToast();
 
   // Appointment booking modal state
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -409,16 +385,17 @@ function IntakeQueueContent() {
           : s
       )
     );
-    setToast({
-      message: `Moved ${name} to ${label}`,
+    addToast({
       type: "success",
-      undo: { submissionId, previousStatus },
+      message: `Moved ${name} to ${label}`,
+      action: {
+        label: "Undo",
+        onClick: () => handleUndoKanbanMove(submissionId, previousStatus),
+      },
     });
-    setTimeout(() => setToast(null), 5000);
   };
 
   const handleUndoKanbanMove = async (submissionId: string, previousStatus: string) => {
-    setToast(null);
     try {
       await postApi("/api/intake/status", {
         submission_id: submissionId,
@@ -532,60 +509,6 @@ function IntakeQueueContent() {
           </a>
         </div>
       </div>
-
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "1.5rem",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: toast.type === "error" ? "#dc3545" : "#198754",
-            color: "#fff",
-            padding: "0.75rem 1.5rem",
-            borderRadius: "8px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-            zIndex: 2000,
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-          }}
-        >
-          <span>{toast.message}</span>
-          {toast.undo && (
-            <button
-              onClick={() => handleUndoKanbanMove(toast.undo!.submissionId, toast.undo!.previousStatus)}
-              style={{
-                background: "transparent",
-                border: "1px solid rgba(255,255,255,0.6)",
-                color: "#fff",
-                cursor: "pointer",
-                padding: "0.25rem 0.5rem",
-                borderRadius: "4px",
-                fontSize: "0.8rem",
-                fontWeight: 500,
-              }}
-            >
-              Undo
-            </button>
-          )}
-          <button
-            onClick={() => setToast(null)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#fff",
-              cursor: "pointer",
-              padding: "0",
-              fontSize: "1.2rem",
-              lineHeight: 1,
-            }}
-          >
-            &times;
-          </button>
-        </div>
-      )}
 
       {/* Tabs (FFS-166: using TabBar component) */}
       <TabBar
@@ -1073,8 +996,6 @@ function IntakeQueueContent() {
           onChangeAppointment={handleChangeAppointment}
           onQuickStatus={handleQuickStatus}
           onArchive={handleArchive}
-          toastMessage={toastMessage}
-          setToastMessage={setToastMessage}
           isMobile={isMobile}
         />
       )}

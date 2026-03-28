@@ -8,6 +8,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import type { IntakeSubmission, CommunicationLog, StaffMember } from "@/lib/intake-types";
 import { SkeletonList } from "@/components/feedback/Skeleton";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useToast } from "@/components/feedback/Toast";
 import {
   CONTACT_METHODS,
   CONTACT_RESULTS,
@@ -40,8 +41,6 @@ export interface IntakeDetailPanelProps {
   onChangeAppointment: (sub: IntakeSubmission) => void;
   onQuickStatus: (submissionId: string, field: string, value: string) => Promise<void>;
   onArchive: (submissionId: string) => Promise<void>;
-  toastMessage: string | null;
-  setToastMessage: (msg: string | null) => void;
   isMobile?: boolean;
 }
 
@@ -60,10 +59,9 @@ export function IntakeDetailPanel({
   onChangeAppointment,
   onQuickStatus,
   onArchive,
-  toastMessage,
-  setToastMessage,
   isMobile = false,
 }: IntakeDetailPanelProps) {
+  const { success: toastSuccess, error: toastError } = useToast();
   // Status editing state
   const [editingStatus, setEditingStatus] = useState(false);
   const [statusEdits, setStatusEdits] = useState({
@@ -222,8 +220,7 @@ export function IntakeDetailPanel({
         is_journal_only: false,
       });
       setShowInlineContactForm(null);
-      setToastMessage("Entry added successfully");
-      setTimeout(() => setToastMessage(null), 3000);
+      toastSuccess("Entry added successfully");
     } catch (err) {
       console.error("Failed to submit contact log:", err);
     } finally {
@@ -275,8 +272,7 @@ export function IntakeDetailPanel({
 
   const handleSaveAddress = async () => {
     if (!addressEdits.cats_address.trim()) {
-      setToastMessage("Street address is required");
-      setTimeout(() => setToastMessage(null), 5000);
+      toastError("Street address is required");
       return;
     }
     setSaving(true);
@@ -294,16 +290,14 @@ export function IntakeDetailPanel({
       }
       // Show success message
       if (data.address_relinked) {
-        setToastMessage("Address updated and re-linked to place");
+        toastSuccess("Address updated and re-linked to place");
       } else {
-        setToastMessage("Address updated");
+        toastSuccess("Address updated");
       }
-      setTimeout(() => setToastMessage(null), 5000);
       onRefresh();
     } catch (err) {
       console.error("Failed to save address:", err);
-      setToastMessage("Failed to save address");
-      setTimeout(() => setToastMessage(null), 5000);
+      toastError("Failed to save address");
     } finally {
       setSaving(false);
     }
@@ -1114,8 +1108,7 @@ export function IntakeDetailPanel({
                                 );
                                 onSubmissionUpdate({ ...submission, ...data.submission });
                                 setShowKittenAssessment(false);
-                                setToastMessage("Kitten assessment recorded");
-                                setTimeout(() => setToastMessage(null), 3000);
+                                toastSuccess("Kitten assessment recorded");
                                 onRefresh();
                               } catch (err) {
                                 console.error("Failed to save kitten assessment:", err);
@@ -1827,8 +1820,7 @@ export function IntakeDetailPanel({
                     setConfirmDialog(prev => ({ ...prev, open: false }));
                     await onQuickStatus(submission.submission_id, "submission_status", "complete");
                     onSubmissionUpdate({ ...submission, submission_status: "complete" });
-                    setToastMessage(`${normalizeName(submission.submitter_name)} marked as Complete`);
-                    setTimeout(() => setToastMessage(null), 5000);
+                    toastSuccess(`${normalizeName(submission.submitter_name)} marked as Complete`);
                   },
                 });
               }}
@@ -1852,8 +1844,7 @@ export function IntakeDetailPanel({
                     setConfirmDialog(prev => ({ ...prev, open: false }));
                     await onQuickStatus(submission.submission_id, "submission_status", "new");
                     onSubmissionUpdate({ ...submission, submission_status: "new" });
-                    setToastMessage(`${normalizeName(submission.submitter_name)} moved back to New`);
-                    setTimeout(() => setToastMessage(null), 5000);
+                    toastSuccess(`${normalizeName(submission.submitter_name)} moved back to New`);
                   },
                 });
               }}
