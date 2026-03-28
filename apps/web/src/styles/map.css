@@ -204,6 +204,17 @@
   }
 }
 
+/* ── V2 Pin Hover (CSS-only — zero React cost) ── */
+.atlas-pin-active:hover {
+  transform: scale(1.08) !important;
+  filter: brightness(1.1) drop-shadow(0 2px 1.5px rgba(0,0,0,0.35)) !important;
+}
+
+.atlas-pin-ref:hover {
+  transform: scale(1.15) !important;
+  filter: brightness(1.15);
+}
+
 /* Historical dot markers */
 .map-marker-historical-dot {
   opacity: 0.8;

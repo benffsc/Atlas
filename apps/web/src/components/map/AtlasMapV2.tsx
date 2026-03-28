@@ -90,6 +90,14 @@ const CLUSTER_SIZE_CONFIG = {
   large: { size: 50, fontSize: 16 },
 };
 
+/** Quantize zoom to bands: 8, 11, 14, 16. Prevents re-renders on every fractional zoom change. */
+function quantizeZoom(zoom: number): number {
+  if (zoom >= 16) return 16;
+  if (zoom >= 14) return 14;
+  if (zoom >= 11) return 11;
+  return 8;
+}
+
 // ---------------------------------------------------------------------------
 // Inner map component (inside APIProvider)
 // ---------------------------------------------------------------------------
@@ -280,6 +288,9 @@ function AtlasMapV2Inner() {
     zoom: mapZoomLevel,
     enabled: atlasLayerEnabled,
   });
+
+  // Quantized zoom for pin rendering — prevents re-renders on fractional changes
+  const quantizedZoomLevel = useMemo(() => quantizeZoom(mapZoomLevel), [mapZoomLevel]);
 
   // ── Comparison handlers (Step 2) ──
   const handleAddToComparison = useCallback((placeId: string) => {
@@ -976,6 +987,10 @@ function AtlasMapV2Inner() {
           const pin = feature.properties.pin;
           if (!pin) return null;
 
+          // Gate: hide reference pins at zoom < 11
+          const pinTier = pin.pin_tier || (pin.pin_style === 'has_history' || pin.pin_style === 'minimal' ? 'reference' : 'active');
+          if (pinTier === 'reference' && quantizedZoomLevel < 11) return null;
+
           const isSelected = bulkSelectedPlaceIds.has(pin.id);
           const hasVol = Array.isArray(pin.people) && pin.people.some(
             (p: { roles: string[]; is_staff: boolean }) => p.is_staff || p.roles?.some((r: string) => r === 'trapper' || r === 'foster' || r === 'staff' || r === 'caretaker')
@@ -1003,13 +1018,17 @@ function AtlasMapV2Inner() {
             >
               <AtlasPinMarker
                 color={getPinColor(pin.pin_style)}
-                pinStyle={pin.pin_style as any}
+                pinStyle={pin.pin_style}
+                pinTier={pinTier}
                 catCount={pin.cat_count}
+                activeRequestCount={pin.active_request_count}
+                diseaseCount={pin.disease_count}
                 hasVolunteer={hasVol}
                 needsTrapper={pin.needs_trapper_count > 0}
                 diseaseBadges={pin.disease_badges}
                 isSelected={isSelected}
-                isReference={pin.pin_style === 'has_history' || pin.pin_style === 'minimal'}
+                zoomLevel={quantizedZoomLevel}
+                title={pin.address}
               />
             </AdvancedMarker>
           );
@@ -1078,43 +1097,141 @@ function AtlasMapV2Inner() {
             position={{ lat: selectedPin.lat, lng: selectedPin.lng }}
             onCloseClick={() => setSelectedPin(null)}
           >
-            <div style={{ minWidth: 240, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{selectedPin.address}</div>
-              {selectedPin.disease_risk && (
-                <div style={{ background: "#fef2f2", border: "1px solid #fecaca", padding: 8, marginBottom: 8, borderRadius: 6, color: "#dc2626", fontWeight: 600, fontSize: 13 }}>
-                  Disease Risk
+            {(selectedPin.pin_tier === "reference" || selectedPin.pin_style === "has_history" || selectedPin.pin_style === "minimal") ? (
+              /* ── Reference pin popup (compact) ── */
+              <div style={{ minWidth: 200, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                  {selectedPin.display_name || selectedPin.address}
                 </div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-                <div style={{ background: "#f3f4f6", padding: 8, borderRadius: 6, textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPin.cat_count}</div>
-                  <div style={{ fontSize: 10, color: "#6b7280" }}>Cats</div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
+                  {selectedPin.pin_style === "has_history" ? "Historical data" : "Minimal data"}
+                  {selectedPin.service_zone ? ` · ${selectedPin.service_zone}` : ""}
                 </div>
-                <div style={{ background: "#f3f4f6", padding: 8, borderRadius: 6, textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPin.person_count}</div>
-                  <div style={{ fontSize: 10, color: "#6b7280" }}>People</div>
-                </div>
-                <div style={{ background: "#f3f4f6", padding: 8, borderRadius: 6, textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPin.request_count}</div>
-                  <div style={{ fontSize: 10, color: "#6b7280" }}>Requests</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => setSelectedPlaceId(selectedPin.id)}
-                  style={{ flex: 1, padding: "8px 12px", background: "var(--primary, #3b82f6)", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-                >
-                  Details
-                </button>
+                {selectedPin.google_summaries?.length > 0 && (
+                  <div style={{ fontSize: 12, color: "#374151", marginBottom: 8, fontStyle: "italic", maxHeight: 40, overflow: "hidden", textOverflow: "ellipsis" }}>
+                    &ldquo;{selectedPin.google_summaries[0].summary.slice(0, 120)}{selectedPin.google_summaries[0].summary.length > 120 ? "..." : ""}&rdquo;
+                  </div>
+                )}
                 <a
                   href={`/places/${selectedPin.id}`}
                   target="_blank"
-                  style={{ flex: 1, padding: "8px 12px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, textAlign: "center", textDecoration: "none" }}
+                  style={{ display: "inline-block", padding: "6px 12px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, textDecoration: "none" }}
                 >
-                  Open Page
+                  View Place
                 </a>
               </div>
-            </div>
+            ) : (
+              /* ── Active pin popup (rich) ── */
+              <div style={{ minWidth: 280, maxWidth: 340, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                {/* Header */}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedPin.address}</div>
+                  {selectedPin.disease_risk && (
+                    <span style={{ background: "#fef2f2", border: "1px solid #fecaca", padding: "2px 8px", borderRadius: 10, color: "#dc2626", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap", flexShrink: 0 }}>
+                      Disease Risk
+                    </span>
+                  )}
+                  {selectedPin.watch_list && !selectedPin.disease_risk && (
+                    <span style={{ background: "#f5f3ff", border: "1px solid #c4b5fd", padding: "2px 8px", borderRadius: 10, color: "#7c3aed", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap", flexShrink: 0 }}>
+                      Watch List
+                    </span>
+                  )}
+                </div>
+                {/* Subtitle */}
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 10 }}>
+                  {[selectedPin.service_zone, selectedPin.place_kind?.replace(/_/g, " ")].filter(Boolean).join(" · ") || "Unknown zone"}
+                </div>
+
+                {/* Stats grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 }}>
+                  <div style={{ background: "#f3f4f6", padding: "6px 4px", borderRadius: 6, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700 }}>{selectedPin.cat_count}</div>
+                    <div style={{ fontSize: 9, color: "#6b7280" }}>Cats</div>
+                  </div>
+                  <div style={{ background: "#f3f4f6", padding: "6px 4px", borderRadius: 6, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700 }}>{selectedPin.total_altered}</div>
+                    <div style={{ fontSize: 9, color: "#6b7280" }}>Altered</div>
+                  </div>
+                  <div style={{ background: "#f3f4f6", padding: "6px 4px", borderRadius: 6, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700 }}>{selectedPin.request_count}</div>
+                    <div style={{ fontSize: 9, color: "#6b7280" }}>Requests</div>
+                  </div>
+                </div>
+
+                {/* Alert banners */}
+                {selectedPin.disease_risk && selectedPin.disease_badges?.length > 0 && (
+                  <div style={{ background: "#fef2f2", border: "1px solid #fecaca", padding: "6px 8px", marginBottom: 6, borderRadius: 6, fontSize: 11, color: "#991b1b" }}>
+                    <strong>Disease Alert:</strong>{" "}
+                    {selectedPin.disease_badges.map(b =>
+                      `${b.short_code}${b.positive_cats ? ` (${b.positive_cats} cat${b.positive_cats > 1 ? "s" : ""})` : ""}`
+                    ).join(", ")}
+                  </div>
+                )}
+                {selectedPin.watch_list && selectedPin.disease_risk_notes && (
+                  <div style={{ background: "#f5f3ff", border: "1px solid #c4b5fd", padding: "6px 8px", marginBottom: 6, borderRadius: 6, fontSize: 11, color: "#5b21b6" }}>
+                    <strong>Watch List:</strong> {selectedPin.disease_risk_notes}
+                  </div>
+                )}
+                {selectedPin.needs_trapper_count > 0 && (
+                  <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", padding: "6px 8px", marginBottom: 6, borderRadius: 6, fontSize: 11, color: "#c2410c" }}>
+                    {selectedPin.needs_trapper_count} request{selectedPin.needs_trapper_count > 1 ? "s" : ""} need{selectedPin.needs_trapper_count === 1 ? "s" : ""} trapper
+                  </div>
+                )}
+
+                {/* People (compact, with role badges) */}
+                {selectedPin.people?.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>People</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {selectedPin.people.slice(0, 4).map((p: { name: string; roles: string[]; is_staff: boolean }, i: number) => (
+                        <span key={i} style={{
+                          display: "inline-flex", alignItems: "center", gap: 3,
+                          background: p.is_staff ? "#eef2ff" : "#f3f4f6",
+                          padding: "2px 8px", borderRadius: 10, fontSize: 11,
+                          color: p.is_staff ? "#4338ca" : "#374151",
+                        }}>
+                          {p.name}
+                          {p.roles?.[0] && (
+                            <span style={{ fontSize: 9, color: "#6b7280" }}>[{p.roles[0]}]</span>
+                          )}
+                        </span>
+                      ))}
+                      {selectedPin.people.length > 4 && (
+                        <span style={{ fontSize: 11, color: "#6b7280", padding: "2px 4px" }}>
+                          +{selectedPin.people.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => setSelectedPlaceId(selectedPin.id)}
+                    style={{ flex: 1, padding: "7px 10px", background: "#3b82f6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+                  >
+                    Details
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStreetViewCoords({ lat: selectedPin.lat, lng: selectedPin.lng, address: selectedPin.address });
+                      setSelectedPin(null);
+                    }}
+                    style={{ padding: "7px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+                  >
+                    Street View
+                  </button>
+                  <a
+                    href={`/places/${selectedPin.id}`}
+                    target="_blank"
+                    style={{ padding: "7px 10px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, textAlign: "center", textDecoration: "none" }}
+                  >
+                    Open Page
+                  </a>
+                </div>
+              </div>
+            )}
           </InfoWindow>
         )}
       </Map>
