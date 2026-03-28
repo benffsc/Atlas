@@ -3,6 +3,7 @@
 import { EntityPreviewPanel } from "./EntityPreviewPanel";
 import { CatHealthBadges, buildHealthFlags } from "@/components/badges";
 import { formatRelativeTime, getActivityColor } from "@/lib/formatters";
+import { NOTABLE_PLACEMENT_TYPES, formatPlacementType } from "@/lib/display-labels";
 import type { CatDetail } from "@/hooks/useEntityDetail";
 
 interface CatPreviewContentProps {
@@ -98,6 +99,25 @@ export function CatPreviewContent({ cat, onClose }: CatPreviewContentProps) {
               {p.display_name}
             </div>
           ))}
+        </div>
+      ),
+    }] : []),
+    ...(cat.adoption_context ? [{
+      id: "outcome",
+      title: "Outcome",
+      content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
+          <DetailRow label="Status" value="Adopted" valueColor="#16a34a" />
+          <DetailRow label="Date" value={formatRelativeTime(cat.adoption_context.adoption_date) || "Unknown"} />
+          {cat.adoption_context.adopter_name && (
+            <DetailRow label="Adopter" value={cat.adoption_context.adopter_name} />
+          )}
+          {NOTABLE_PLACEMENT_TYPES.has(cat.adoption_context.placement_type) && (
+            <DetailRow label="Placement" value={formatPlacementType(cat.adoption_context.placement_type)} />
+          )}
+          {cat.adoption_context.fee_group && (
+            <DetailRow label="Fee Group" value={cat.adoption_context.fee_group} />
+          )}
         </div>
       ),
     }] : []),

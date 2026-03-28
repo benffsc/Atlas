@@ -25,6 +25,14 @@ export interface CatDetail {
   weight_lbs?: number | null;
   vitals?: Array<{ weight_lbs?: number | null; is_pregnant?: boolean | null; is_lactating?: boolean | null }>;
   conditions?: Array<{ condition_type: string; severity?: string | null; resolved_at?: string | null }>;
+  current_status?: string | null;
+  adoption_context?: {
+    placement_type: string;
+    adoption_date: string;
+    adopter_name: string | null;
+    is_barn_cat: boolean;
+    fee_group: string | null;
+  } | null;
 }
 
 export interface PersonDetail {

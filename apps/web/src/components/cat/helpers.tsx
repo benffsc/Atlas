@@ -365,6 +365,7 @@ interface LifecycleEvent {
   event_type: string;
   event_subtype: string | null;
   event_at: string;
+  metadata: Record<string, unknown> | null;
   person_name: string | null;
   place_name: string | null;
   source_system: string;
@@ -577,6 +578,20 @@ export function LifecycleTimeline({
                     <span className="text-muted text-sm">
                       {event.place_name}
                     </span>
+                  )}
+                  {event.event_type === "adoption" && event.metadata && (
+                    <>
+                      {event.metadata.fee_group && (
+                        <span className="text-muted text-sm">Fee: {String(event.metadata.fee_group)}</span>
+                      )}
+                      {event.metadata.is_barn_cat && (
+                        <span className="badge" style={{
+                          fontSize: "0.6rem", padding: "0.1rem 0.4rem",
+                          background: "var(--section-bg)", color: "var(--foreground)",
+                          border: "1px solid var(--border)",
+                        }}>Barn Cat</span>
+                      )}
+                    </>
                   )}
                   <span
                     className="badge"

@@ -57,6 +57,8 @@ export interface VCatListRow {
   }>;
   // Lifecycle status (FFS-364)
   current_status: string | null;
+  // Adoption context (MIG_3005)
+  placement_type: string | null;
 }
 
 // =============================================================================

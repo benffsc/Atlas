@@ -601,7 +601,24 @@ export const GET = withErrorHandling(async (
     const siblingRows: Array<Record<string, unknown>> = [];
     const movements: Array<Record<string, unknown>> = [];
 
-    const [clinicHistory, vitals, conditions, tests, procedures, appointments, stakeholders, originPlaceRows, enhancedClinicHistory, fieldSourcesRows] = await Promise.all([
+    interface AdoptionContext {
+      placement_type: string | null;
+      sl_subtype: string | null;
+      fee_group: string | null;
+      is_barn_cat: boolean;
+      adoption_date: string | null;
+      adopter_person_id: string | null;
+      adopter_name: string | null;
+    }
+
+    const adoptionContextSql = `
+      SELECT placement_type, sl_subtype, fee_group, is_barn_cat,
+             adoption_date::TEXT, adopter_person_id, adopter_name
+      FROM sot.v_adoption_context WHERE cat_id = $1
+      ORDER BY adoption_date DESC LIMIT 1
+    `;
+
+    const [clinicHistory, vitals, conditions, tests, procedures, appointments, stakeholders, originPlaceRows, enhancedClinicHistory, fieldSourcesRows, adoptionRows] = await Promise.all([
       safeQueryRows<ClinicAppointment>(clinicHistorySql, [id]),
       safeQueryRows<CatVital>(vitalsSql, [id]),
       safeQueryRows<CatCondition>(conditionsSql, [id]),
@@ -624,6 +641,7 @@ export const GET = withErrorHandling(async (
       safeQueryRows<OriginPlace>(originPlaceSql, [id]),
       safeQueryRows<EnhancedClinicAppointment>(enhancedClinicHistorySql, [id]),
       safeQueryRows<CatFieldSources>(fieldSourcesSql, [id]),
+      safeQueryRows<AdoptionContext>(adoptionContextSql, [id]),
     ]);
 
     // Extract field sources from result
@@ -652,6 +670,8 @@ export const GET = withErrorHandling(async (
       field_sources: fieldSourcesData?.field_sources || null,
       has_field_conflicts: fieldSourcesData?.has_conflicts || false,
       field_source_count: fieldSourcesData?.source_count || 0,
+      // Adoption context (MIG_3005)
+      adoption_context: adoptionRows[0] || null,
     });
 });
 

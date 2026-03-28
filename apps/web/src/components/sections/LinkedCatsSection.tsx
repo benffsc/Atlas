@@ -1,7 +1,7 @@
 "use client";
 
 import { CSSProperties, useState } from "react";
-import { formatRole } from "@/lib/display-labels";
+import { formatRole, NOTABLE_PLACEMENT_TYPES, formatPlacementType } from "@/lib/display-labels";
 import { CatHealthBadges } from "@/components/badges";
 import type { HealthFlag } from "@/components/badges/CatHealthBadges";
 import EntityPreview from "@/components/search/EntityPreview";
@@ -24,6 +24,8 @@ interface LinkedCat {
   // Health data (FFS-428)
   is_deceased?: boolean;
   health_flags?: HealthFlag[];
+  // Adoption context (MIG_3005)
+  placement_type?: string | null;
 }
 
 interface LinkedCatsSectionProps {
@@ -87,6 +89,7 @@ function getBadgeColor(type: string | null | undefined, context: string): string
     // Person relationships
     owner: "#0d6efd",
     caretaker: "#198754",
+    adopter: "#16a34a",
     brought_by: "#6c757d",
     contact: "#6c757d",
   };
@@ -238,6 +241,21 @@ export function LinkedCatsSection({
                     }}
                   >
                     {cat.altered_status}
+                  </span>
+                )}
+
+                {/* Placement type pill for adopted cats */}
+                {cat.placement_type && NOTABLE_PLACEMENT_TYPES.has(cat.placement_type) && (
+                  <span
+                    className="badge"
+                    style={{
+                      background: "var(--section-bg)",
+                      color: "var(--muted)",
+                      fontSize: "0.65rem",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    {formatPlacementType(cat.placement_type)}
                   </span>
                 )}
 

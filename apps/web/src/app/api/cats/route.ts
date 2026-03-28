@@ -38,6 +38,8 @@ interface CatListRow {
   health_flags: HealthFlag[];
   // Lifecycle status
   current_status: string | null;
+  // Adoption context
+  placement_type: string | null;
 }
 
 // Valid sort options
@@ -262,7 +264,10 @@ export async function GET(request: NextRequest) {
               AND cc.resolved_at IS NULL
           ) flags
         ), '[]'::jsonb) AS health_flags,
-        (SELECT vcs.current_status FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = v_cat_list.cat_id) AS current_status
+        (SELECT vcs.current_status FROM sot.v_cat_current_status vcs WHERE vcs.cat_id = v_cat_list.cat_id) AS current_status,
+        (SELECT vac.placement_type FROM sot.v_adoption_context vac
+         WHERE vac.cat_id = v_cat_list.cat_id
+         ORDER BY vac.adoption_date DESC LIMIT 1) AS placement_type
       FROM sot.v_cat_list
       ${whereClause}
       ORDER BY ${orderBy}

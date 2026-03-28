@@ -93,6 +93,25 @@ export function formatRole(role: string | null | undefined): string {
   return ROLE_LABELS[role] || RELATIONSHIP_LABELS[role] || titleCase(role);
 }
 
+// ── Placement types (adoption context, MIG_3005) ─────────────────────
+
+export const PLACEMENT_TYPE_LABELS: Record<string, string> = {
+  relocation: "Relocation",
+  colony_return: "Colony Return",
+  permanent_foster: "Permanent Foster",
+  transfer: "Transfer",
+  residential: "Residential",
+};
+
+export const NOTABLE_PLACEMENT_TYPES = new Set([
+  "relocation", "colony_return", "permanent_foster", "transfer",
+]);
+
+export function formatPlacementType(type: string | null | undefined): string {
+  if (!type) return "";
+  return PLACEMENT_TYPE_LABELS[type] || titleCase(type);
+}
+
 // ── Match reasons (search) ──────────────────────────────────────────
 
 /** Full-text labels for search/page.tsx detail view */

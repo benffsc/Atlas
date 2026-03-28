@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { formatDateLocal } from "@/lib/formatters";
 import { AtlasCatIdBadge, NoAtlasCatId } from "@/components/badges";
 import { useToast } from "@/components/feedback/Toast";
+import { NOTABLE_PLACEMENT_TYPES, formatPlacementType } from "@/lib/display-labels";
 
 export interface CatDisease {
   disease_key: string;
@@ -45,6 +46,7 @@ export interface CatCardData {
   weight_lbs?: number | null;
   ownership_type?: string | null;
   current_status?: string | null;
+  placement_type?: string | null;
   // Atlas Cat ID System (MIG_976)
   atlas_cat_id?: string | null;
   atlas_cat_id_type?: "microchip" | "hash" | null;
@@ -555,6 +557,16 @@ export function CatCard({ cat, onClick, compact = false, showAddress = true, sho
               </span>
             );
           })()}
+          {cat.current_status === "adopted" && cat.placement_type &&
+           NOTABLE_PLACEMENT_TYPES.has(cat.placement_type) && (
+            <span style={{
+              padding: "3px 8px", fontSize: "0.7rem", fontWeight: 600,
+              background: "var(--section-bg)", color: "var(--muted)",
+              borderRadius: "4px", border: "1px solid var(--card-border, var(--border))",
+            }}>
+              {formatPlacementType(cat.placement_type)}
+            </span>
+          )}
         </div>
       )}
 

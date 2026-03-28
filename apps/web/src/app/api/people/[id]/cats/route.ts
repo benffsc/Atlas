@@ -13,6 +13,9 @@ interface PersonCatRelationship {
   data_source: string | null;
   created_at: string;
   latest_appointment_date: string | null;
+  placement_type: string | null;
+  is_barn_cat: boolean | null;
+  adoption_date: string | null;
 }
 
 /**
@@ -48,7 +51,10 @@ export async function GET(
         pc.source_system,
         c.data_source,
         pc.created_at::TEXT,
-        la.appointment_date::TEXT AS latest_appointment_date
+        la.appointment_date::TEXT AS latest_appointment_date,
+        vac.placement_type,
+        vac.is_barn_cat,
+        vac.adoption_date::TEXT AS adoption_date
       FROM sot.person_cat pc
       JOIN sot.cats c ON c.cat_id = pc.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
@@ -60,6 +66,7 @@ export async function GET(
         ORDER BY a.appointment_date DESC
         LIMIT 1
       ) la ON TRUE
+      LEFT JOIN sot.v_adoption_context vac ON vac.cat_id = pc.cat_id
       WHERE pc.person_id = $1
         ${relationshipClause}
       ORDER BY
@@ -83,6 +90,9 @@ export async function GET(
       cat_name: string;
       microchip: string | null;
       data_source: string | null;
+      placement_type: string | null;
+      is_barn_cat: boolean | null;
+      adoption_date: string | null;
       relationships: {
         type: string;
         confidence: string;
@@ -98,6 +108,9 @@ export async function GET(
           cat_name: row.cat_name,
           microchip: row.microchip,
           data_source: row.data_source,
+          placement_type: row.placement_type,
+          is_barn_cat: row.is_barn_cat,
+          adoption_date: row.adoption_date,
           relationships: [],
         });
       }
