@@ -34,6 +34,16 @@ interface EntityLinkingJsonResult {
   step2_cats_linked?: number;
   step2_cats_skipped?: number;
   step3_cats_linked?: number;
+  // Step 3c: Adopter person_places from ShelterLuv (FFS-978/MIG_3008)
+  step3c_adopters_checked?: number;
+  step3c_person_places_created?: number;
+  step3c_adopters_skipped?: number;
+  step3c_cats_linked_from_new_places?: number;
+  // Step 3d: ShelterLuv person_places (MIG_3013)
+  step3d_people_checked?: number;
+  step3d_person_places_created?: number;
+  step3d_people_skipped?: number;
+  step3d_cats_linked_from_new_places?: number;
   // Step 4: Cat-Request Attribution (MIG_2825)
   step4_cats_linked_to_requests?: number;
   step4_stale_links_removed?: number;
@@ -251,6 +261,51 @@ async function runPhase1(startTime: number) {
     warnings.push("step3 failed");
   }
 
+  // Step 3b: Ensure adopter person_places from ShelterLuv (FFS-978/MIG_3008)
+  try {
+    const step3b = await queryOne<{
+      adopters_checked: number;
+      person_places_created: number;
+      adopters_skipped: number;
+    }>("SELECT * FROM sot.ensure_adopter_person_places()");
+    phaseResult.step3b_person_places_created = step3b?.person_places_created || 0;
+    phaseResult.step3b_adopters_skipped = step3b?.adopters_skipped || 0;
+
+    // Re-run Step 3 if new person_places were created
+    if ((step3b?.person_places_created || 0) > 0) {
+      const rerun = await queryOne<{ total_edges: number }>(
+        "SELECT * FROM sot.link_cats_to_places()"
+      );
+      phaseResult.step3b_cats_linked_from_new_places = rerun?.total_edges || 0;
+    }
+  } catch (e) {
+    phaseResult.step3b_error = e instanceof Error ? e.message : "Unknown";
+    warnings.push("step3b failed");
+  }
+
+  // Step 3c: Ensure ShelterLuv person_places (MIG_3013)
+  try {
+    const step3c = await queryOne<{
+      people_checked: number;
+      person_places_created: number;
+      people_skipped: number;
+    }>("SELECT * FROM sot.ensure_shelterluv_person_places()");
+    phaseResult.step3c_people_checked = step3c?.people_checked || 0;
+    phaseResult.step3c_person_places_created = step3c?.person_places_created || 0;
+    phaseResult.step3c_people_skipped = step3c?.people_skipped || 0;
+
+    // Re-run Step 3 if new person_places were created
+    if ((step3c?.person_places_created || 0) > 0) {
+      const rerun = await queryOne<{ total_edges: number }>(
+        "SELECT * FROM sot.link_cats_to_places()"
+      );
+      phaseResult.step3c_cats_linked_from_new_places = rerun?.total_edges || 0;
+    }
+  } catch (e) {
+    phaseResult.step3c_error = e instanceof Error ? e.message : "Unknown";
+    warnings.push("step3c_shelterluv_places failed");
+  }
+
   if (warnings.length > 0) phaseResult.warnings = warnings;
   phaseResult.status = warnings.some((w) => w.startsWith("CRITICAL"))
     ? "failed"
@@ -260,7 +315,9 @@ async function runPhase1(startTime: number) {
 
   const totalLinked =
     ((phaseResult.step2_cats_linked as number) || 0) +
-    ((phaseResult.step3_cats_linked as number) || 0);
+    ((phaseResult.step3_cats_linked as number) || 0) +
+    ((phaseResult.step3b_cats_linked_from_new_places as number) || 0) +
+    ((phaseResult.step3c_cats_linked_from_new_places as number) || 0);
 
   return {
     phaseResult,
@@ -486,6 +543,8 @@ async function runLegacyMode(request: NextRequest, startTime: number) {
     summary.step2_cats_via_appointments = r.step2_cats_linked;
     summary.step2_cats_skipped = r.step2_cats_skipped;
     summary.step3_cats_via_person_chain = r.step3_cats_linked;
+    summary.step3b_adopter_places_created = r.step3c_person_places_created;
+    summary.step3c_shelterluv_places_created = r.step3d_person_places_created;
     summary.step4_cats_linked_to_requests = r.step4_cats_linked_to_requests;
     summary.step4_stale_links_removed = r.step4_stale_links_removed;
     summary.cat_coverage_pct = r.cat_coverage_pct;

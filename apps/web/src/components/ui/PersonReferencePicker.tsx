@@ -29,6 +29,8 @@ interface PersonReferencePickerProps {
   required?: boolean;
   inputStyle?: React.CSSProperties;
   allowCreate?: boolean;
+  /** When true, only allows resolved (picked) or created people — no freeform text */
+  requireResolved?: boolean;
   /** Called when resolution type changes: resolved (picked from search), unresolved (freeform), created (new person) */
   onResolutionType?: (type: "resolved" | "unresolved" | "created") => void;
 }
@@ -56,6 +58,7 @@ export function PersonReferencePicker({
   required,
   inputStyle: customInputStyle,
   allowCreate = false,
+  requireResolved = false,
   onResolutionType,
 }: PersonReferencePickerProps) {
   const [query, setQuery] = useState("");
@@ -323,7 +326,7 @@ export function PersonReferencePicker({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!showDropdown) {
-      if (e.key === "Enter" && query.trim().length > 0) {
+      if (e.key === "Enter" && query.trim().length > 0 && !requireResolved) {
         e.preventDefault();
         handleUseFreeText();
       }
@@ -332,7 +335,7 @@ export function PersonReferencePicker({
 
     // Count total dropdown items: results + fuzzy + "Create" option (if allowCreate) + "Use" option
     const hasCreateOption = allowCreate && hasSearched && results.length === 0 && fuzzyResults.length === 0 && query.trim().length >= 2;
-    const hasUseOption = query.trim().length >= 2;
+    const hasUseOption = !requireResolved && query.trim().length >= 2;
     let totalItems = results.length + fuzzyResults.length;
     if (hasCreateOption) totalItems++;
     if (hasUseOption) totalItems++;
@@ -356,7 +359,7 @@ export function PersonReferencePicker({
           handleStartCreate();
         } else if (hasUseOption && selectedIndex === totalItems - 1) {
           handleUseFreeText();
-        } else if (query.trim().length > 0) {
+        } else if (!requireResolved && query.trim().length > 0) {
           handleUseFreeText();
         }
         break;
@@ -649,8 +652,8 @@ export function PersonReferencePicker({
               </div>
             )}
 
-            {/* "Use as free text" option */}
-            {query.trim().length >= 2 && (
+            {/* "Use as free text" option — hidden when requireResolved */}
+            {!requireResolved && query.trim().length >= 2 && (
               <div
                 onClick={handleUseFreeText}
                 onMouseEnter={() => {
@@ -786,22 +789,24 @@ export function PersonReferencePicker({
             >
               {creating ? "Creating..." : "Create"}
             </button>
-            <button
-              type="button"
-              onClick={handleUseFreeText}
-              style={{
-                padding: "4px 12px",
-                background: "transparent",
-                color: "#2563eb",
-                border: "1px solid #93c5fd",
-                borderRadius: "6px",
-                fontSize: "0.8rem",
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-            >
-              Skip — just use name
-            </button>
+            {!requireResolved && (
+              <button
+                type="button"
+                onClick={handleUseFreeText}
+                style={{
+                  padding: "4px 12px",
+                  background: "transparent",
+                  color: "#2563eb",
+                  border: "1px solid #93c5fd",
+                  borderRadius: "6px",
+                  fontSize: "0.8rem",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Skip — just use name
+              </button>
+            )}
             <button
               type="button"
               onClick={handleCancelCreate}

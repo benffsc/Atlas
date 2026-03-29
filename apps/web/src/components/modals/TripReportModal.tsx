@@ -346,6 +346,8 @@ export function TripReportModal({
                 label="Reported by"
                 placeholder="Search for a person or type a name..."
                 required={!hasTrapper}
+                requireResolved={true}
+                allowCreate={true}
                 inputStyle={inputStyle}
               />
             </div>

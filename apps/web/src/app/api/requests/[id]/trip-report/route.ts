@@ -175,6 +175,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       more_sessions_needed,
     } = body;
 
+    // Auto-resolve trapper from request assignment if not provided (MIG_3013)
+    let resolvedTrapperPersonId = trapper_person_id || null;
+    if (!resolvedTrapperPersonId) {
+      const assignment = await queryOne<{ trapper_person_id: string }>(
+        `SELECT trapper_person_id FROM ops.request_trapper_assignments
+         WHERE request_id = $1 AND assignment_type = 'primary'
+           AND status IN ('active', 'accepted') LIMIT 1`,
+        [requestId]
+      );
+      if (assignment) resolvedTrapperPersonId = assignment.trapper_person_id;
+    }
+
     // Resolve display name: trapper name > reported_by_name > staff name
     const effectiveReporterName = trapper_name || reported_by_name || "Unknown reporter";
 
@@ -226,7 +238,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       `,
       [
         requestId,
-        trapper_person_id || null,
+        resolvedTrapperPersonId,
         reported_by_name || effectiveReporterName,
         effectiveVisitDate,
         arrival_time || null,
