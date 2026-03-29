@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { APIProvider, Map, AdvancedMarker, InfoWindow, useMap } from "@vis.gl/react-google-maps";
-import { AtlasPinMarker } from "@/components/map/components/AtlasPinMarker";
+import { APIProvider, Map, AdvancedMarker, InfoWindow, useMap, CollisionBehavior } from "@vis.gl/react-google-maps";
 import { useMapData } from "@/hooks/useMapData";
 import { useMapColors } from "@/hooks/useMapColors";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
@@ -14,7 +13,8 @@ import { useMapLayers, ATLAS_MAP_LAYER_GROUPS_BASE } from "@/components/map/hook
 import { useMapViews } from "@/components/map/hooks/useMapViews";
 import { useMapExport } from "@/components/map/hooks/useMapExport";
 import { useMapSearchV2 } from "@/components/map/hooks/useMapSearchV2";
-import { useMapClustering, isCluster, getClusterColor, getClusterSizeClass } from "@/components/map/hooks/useMapClustering";
+import { useMapClustering } from "@/components/map/hooks/useMapClustering";
+import { useImperativeMarkers } from "@/components/map/hooks/useImperativeMarkers";
 import { MapControls } from "@/components/map/components/MapControls";
 import { MeasurementPanel } from "@/components/map/components/MeasurementPanel";
 import { SavedViewsPanel } from "@/components/map/components/SavedViewsPanel";
@@ -63,17 +63,6 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-function getPinColor(style: string): string {
-  switch (style) {
-    case "disease": return MAP_COLORS.pinStyle.disease;
-    case "watch_list": return MAP_COLORS.pinStyle.watch_list;
-    case "active": return MAP_COLORS.pinStyle.active;
-    case "active_requests": return MAP_COLORS.pinStyle.active_requests;
-    case "has_history": return MAP_COLORS.pinStyle.has_history;
-    default: return MAP_COLORS.pinStyle.default;
-  }
-}
-
 /** Haversine distance in meters */
 function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371000;
@@ -84,12 +73,6 @@ function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: numbe
   const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
-
-const CLUSTER_SIZE_CONFIG = {
-  small: { size: 30, fontSize: 12 },
-  medium: { size: 40, fontSize: 14 },
-  large: { size: 50, fontSize: 16 },
-};
 
 /** Quantize zoom to bands: 8, 11, 14, 16. Prevents re-renders on every fractional zoom change. */
 function quantizeZoom(zoom: number): number {
@@ -323,6 +306,30 @@ function AtlasMapV2Inner() {
 
   // Quantized zoom for pin rendering — prevents re-renders on fractional changes
   const quantizedZoomLevel = useMemo(() => quantizeZoom(mapZoomLevel), [mapZoomLevel]);
+
+  // ── Imperative marker management — eliminates React reconciliation for main marker loop ──
+  useImperativeMarkers({
+    map,
+    clusters,
+    quantizedZoomLevel,
+    bulkSelectedPlaceIds,
+    onPinClick: useCallback((pin: AtlasPin, domEvent: MouseEvent) => {
+      setBulkSelectedPlaceIds(prev => {
+        const next = new Set(prev);
+        if (next.has(pin.id)) next.delete(pin.id);
+        else next.add(pin.id);
+        return next;
+      });
+    }, []),
+    onClusterClick: useCallback((clusterId: number, lat: number, lng: number) => {
+      const zoom = getClusterExpansionZoom(clusterId);
+      map?.panTo({ lat, lng });
+      map?.setZoom(zoom);
+    }, [map, getClusterExpansionZoom]),
+    onPinSelect: useCallback((pin: AtlasPin) => {
+      setSelectedPin(pin);
+    }, []),
+  });
 
   // ── Comparison handlers (Step 2) ──
   const handleAddToComparison = useCallback((placeId: string) => {
@@ -1016,94 +1023,16 @@ function AtlasMapV2Inner() {
           }
         }}
       >
-        {/* ── Clustered markers (Step 11) — capped at 500 to prevent DOM/overlay leak ── */}
-        {clusters.slice(0, 500).map((feature, idx) => {
-          const [lng, lat] = feature.geometry.coordinates;
-
-          if (isCluster(feature)) {
-            const pointCount = feature.properties.point_count || 0;
-            const color = getClusterColor(feature);
-            const sizeClass = getClusterSizeClass(pointCount);
-            const { size, fontSize } = CLUSTER_SIZE_CONFIG[sizeClass];
-
-            return (
-              <AdvancedMarker
-                key={`cluster-${feature.properties.cluster_id}`}
-                position={{ lat, lng }}
-                onClick={() => {
-                  const zoom = getClusterExpansionZoom(feature.properties.cluster_id);
-                  map?.panTo({ lat, lng });
-                  map?.setZoom(zoom);
-                }}
-              >
-                <div style={{
-                  width: size, height: size,
-                  background: color, border: "3px solid white", borderRadius: "50%",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "white", fontWeight: 700, fontSize,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)", cursor: "pointer",
-                }}>
-                  {pointCount}
-                </div>
-              </AdvancedMarker>
-            );
-          }
-
-          // Individual pin
-          const pin = feature.properties.pin;
-          if (!pin) return null;
-
-          // Gate: hide reference pins at zoom < 11
-          const pinTier = pin.pin_tier || (pin.pin_style === 'has_history' || pin.pin_style === 'minimal' ? 'reference' : 'active');
-          if (pinTier === 'reference' && quantizedZoomLevel < 11) return null;
-
-          const isSelected = bulkSelectedPlaceIds.has(pin.id);
-          const hasVol = Array.isArray(pin.people) && pin.people.some(
-            (p: { roles: string[]; is_staff: boolean }) => p.is_staff || p.roles?.some((r: string) => r === 'trapper' || r === 'foster' || r === 'staff' || r === 'caretaker')
-          );
-
-          return (
-            <AdvancedMarker
-              key={pin.id}
-              position={{ lat, lng }}
-              onClick={(e) => {
-                // Ctrl/Cmd+click for bulk select (Step 10)
-                const domEvent = (e as any)?.domEvent as MouseEvent | undefined;
-                if (domEvent && (domEvent.ctrlKey || domEvent.metaKey)) {
-                  setBulkSelectedPlaceIds(prev => {
-                    const next = new Set(prev);
-                    if (next.has(pin.id)) next.delete(pin.id);
-                    else next.add(pin.id);
-                    return next;
-                  });
-                  return;
-                }
-                setSelectedPin(pin);
-              }}
-            >
-              <AtlasPinMarker
-                color={getPinColor(pin.pin_style)}
-                pinStyle={pin.pin_style}
-                pinTier={pinTier}
-                catCount={pin.cat_count}
-                activeRequestCount={pin.active_request_count}
-                diseaseCount={pin.disease_count}
-                hasVolunteer={hasVol}
-                needsTrapper={pin.needs_trapper_count > 0}
-                diseaseBadges={pin.disease_badges}
-                isSelected={isSelected}
-                zoomLevel={quantizedZoomLevel}
-                title={pin.address}
-              />
-            </AdvancedMarker>
-          );
-        })}
+        {/* ── Clustered + individual pin markers managed imperatively via useImperativeMarkers ── */}
+        {/* (no React <AdvancedMarker> components — eliminates reconciliation overhead) */}
 
         {/* ── Annotation markers (Step 13) ── */}
         {enabledLayers.atlas_all && annotations.map(ann => (
           <AdvancedMarker
             key={ann.annotation_id}
             position={{ lat: ann.lat, lng: ann.lng }}
+            collisionBehavior={CollisionBehavior.OPTIONAL_AND_HIDES_LOWER_PRIORITY}
+            zIndex={1}
             onClick={() => setSelectedAnnotationId(ann.annotation_id)}
           >
             <div style={{
@@ -1121,7 +1050,7 @@ function AtlasMapV2Inner() {
 
         {/* ── Navigated location marker (Step 13) ── */}
         {search.navigatedLocation && (
-          <AdvancedMarker position={{ lat: search.navigatedLocation.lat, lng: search.navigatedLocation.lng }}>
+          <AdvancedMarker position={{ lat: search.navigatedLocation.lat, lng: search.navigatedLocation.lng }} collisionBehavior={CollisionBehavior.REQUIRED} zIndex={20}>
             <div style={{
               width: 20, height: 20, borderRadius: "50%",
               background: "#3b82f6", border: "3px solid white",
@@ -1134,7 +1063,7 @@ function AtlasMapV2Inner() {
 
         {/* ── Street View cone marker (Step 7) ── */}
         {streetViewCoords && (
-          <AdvancedMarker position={{ lat: streetViewCoords.lat, lng: streetViewCoords.lng }}>
+          <AdvancedMarker position={{ lat: streetViewCoords.lat, lng: streetViewCoords.lng }} collisionBehavior={CollisionBehavior.REQUIRED} zIndex={20}>
             <div style={{ transform: `rotate(${streetViewHeading}deg)`, transition: "transform 0.3s ease" }}>
               <svg width="36" height="36" viewBox="0 0 36 36">
                 <path d="M18 2 L30 32 L18 26 L6 32 Z" fill="rgba(59,130,246,0.6)" stroke="#3b82f6" strokeWidth="2" />
@@ -1145,7 +1074,7 @@ function AtlasMapV2Inner() {
 
         {/* ── Measurement segment distance labels (declarative AdvancedMarkers) ── */}
         {measureActive && measureSegments.map((seg, i) => (
-          <AdvancedMarker key={`measure-seg-${i}`} position={{ lat: seg.lat, lng: seg.lng }}>
+          <AdvancedMarker key={`measure-seg-${i}`} position={{ lat: seg.lat, lng: seg.lng }} collisionBehavior={CollisionBehavior.REQUIRED} zIndex={20}>
             <div style={{
               background: "white", borderRadius: 4, padding: "2px 6px",
               fontSize: 12, fontWeight: 600, boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
@@ -1727,7 +1656,7 @@ export default function AtlasMapV2() {
   }
 
   return (
-    <APIProvider apiKey={apiKey} libraries={["visualization", "marker"]}>
+    <APIProvider apiKey={apiKey} libraries={["visualization", "marker"]} version="quarterly">
       <AtlasMapV2Inner />
     </APIProvider>
   );

@@ -17,7 +17,7 @@ import useSupercluster from "use-supercluster";
 import type { AtlasPin } from "../types";
 
 // GeoJSON Feature type for SuperCluster
-interface ClusterFeature {
+export interface ClusterFeature {
   type: "Feature";
   properties: {
     cluster: boolean;
