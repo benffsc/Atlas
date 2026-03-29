@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { BackButton } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { SkeletonCard } from "@/components/feedback/Skeleton";

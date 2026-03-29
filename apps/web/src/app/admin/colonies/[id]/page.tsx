@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { BackButton } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { SkeletonStats, SkeletonTable } from "@/components/feedback/Skeleton";

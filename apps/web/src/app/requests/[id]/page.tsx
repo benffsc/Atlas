@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments, ClinicNotesSection } from "@/components/sections";
 import type { JournalEntry } from "@/components/sections";
-import { BackButton, EditHistory, ContactCard, NearbyEntities } from "@/components/common";
+import { EditHistory, ContactCard, NearbyEntities } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { ErrorState } from "@/components/feedback/EmptyState";
