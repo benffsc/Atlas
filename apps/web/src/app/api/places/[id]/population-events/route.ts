@@ -1,10 +1,15 @@
 import { NextRequest } from "next/server";
-import { queryRows } from "@/lib/db";
+import { queryRows, queryOne } from "@/lib/db";
 import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
+type LifecycleEventType =
+  | "birth" | "death"
+  | "tnr_procedure" | "adoption" | "return_to_field"
+  | "transfer" | "foster_start" | "foster_end" | "intake";
+
 interface PopulationEvent {
-  event_type: "birth" | "death";
+  event_type: LifecycleEventType;
   event_id: string;
   event_date: string | null;
   cat_id: string;
@@ -12,6 +17,17 @@ interface PopulationEvent {
   details: string | null;
   source_system: string;
   created_at: string;
+}
+
+interface OutcomeSummary {
+  tnr_count: number;
+  adoption_count: number;
+  mortality_count: number;
+  rtf_count: number;
+  transfer_count: number;
+  foster_count: number;
+  intake_count: number;
+  total_events: number;
 }
 
 export async function GET(
@@ -68,13 +84,64 @@ export async function GET(
       LIMIT 50
     `;
 
-    const [births, deaths] = await Promise.all([
+    // MIG_3009: Lifecycle events query (tnr_procedure, adoption, transfer, etc.)
+    const lifecycleSql = `
+      SELECT
+        le.event_type,
+        le.event_id,
+        le.event_at::TEXT AS event_date,
+        le.cat_id,
+        c.display_name AS cat_name,
+        COALESCE(le.event_subtype, le.event_type)::TEXT AS details,
+        le.source_system,
+        le.created_at::TEXT
+      FROM sot.cat_lifecycle_events le
+      JOIN sot.cats c ON c.cat_id = le.cat_id
+      WHERE le.place_id = $1
+        AND le.event_type NOT IN ('mortality')
+      UNION ALL
+      SELECT
+        le.event_type,
+        le.event_id,
+        le.event_at::TEXT AS event_date,
+        le.cat_id,
+        c.display_name AS cat_name,
+        COALESCE(le.event_subtype, le.event_type)::TEXT AS details,
+        le.source_system,
+        le.created_at::TEXT
+      FROM sot.cat_lifecycle_events le
+      JOIN sot.cats c ON c.cat_id = le.cat_id
+      JOIN sot.cat_place cp ON cp.cat_id = le.cat_id AND cp.place_id = $1
+      WHERE le.place_id IS NULL
+        AND le.event_type NOT IN ('mortality')
+      ORDER BY event_date DESC NULLS LAST
+      LIMIT 100
+    `;
+
+    // MIG_3009: Outcome summary from view
+    const outcomeSql = `
+      SELECT
+        COALESCE(tnr_count, 0) AS tnr_count,
+        COALESCE(adoption_count, 0) AS adoption_count,
+        COALESCE(mortality_count, 0) AS mortality_count,
+        COALESCE(rtf_count, 0) AS rtf_count,
+        COALESCE(transfer_count, 0) AS transfer_count,
+        COALESCE(foster_count, 0) AS foster_count,
+        COALESCE(intake_count, 0) AS intake_count,
+        COALESCE(total_events, 0) AS total_events
+      FROM ops.v_place_lifecycle_summary
+      WHERE place_id = $1
+    `;
+
+    const [births, deaths, lifecycleEvents, outcomeSummary] = await Promise.all([
       queryRows<PopulationEvent>(birthsSql, [id]),
       queryRows<PopulationEvent>(deathsSql, [id]),
+      queryRows<PopulationEvent>(lifecycleSql, [id]).catch(() => [] as PopulationEvent[]),
+      queryOne<OutcomeSummary>(outcomeSql, [id]).catch(() => null),
     ]);
 
     // Combine and sort by date
-    const events = [...births, ...deaths].sort((a, b) => {
+    const events = [...births, ...deaths, ...lifecycleEvents].sort((a, b) => {
       const dateA = new Date(a.event_date || a.created_at);
       const dateB = new Date(b.event_date || b.created_at);
       return dateB.getTime() - dateA.getTime();
@@ -94,7 +161,15 @@ export async function GET(
       }).length,
     };
 
-    return apiSuccess({ events, summary });
+    return apiSuccess({
+      events,
+      summary,
+      outcome_summary: outcomeSummary || {
+        tnr_count: 0, adoption_count: 0, mortality_count: 0,
+        rtf_count: 0, transfer_count: 0, foster_count: 0,
+        intake_count: 0, total_events: 0,
+      },
+    });
   } catch (error) {
     console.error("Error fetching population events:", error);
     return apiServerError("Failed to fetch population events");

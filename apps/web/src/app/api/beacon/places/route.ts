@@ -36,6 +36,12 @@ interface BeaconPlace {
   request_count: number;
   appointment_count: number;
   calculation_audit: Record<string, unknown>;
+  // MIG_3009: TNR data surfacing
+  has_recent_breeding: boolean;
+  last_breeding_detected: string | null;
+  colony_trend: string;
+  new_intact_arrivals: number;
+  immigration_pressure: string;
 }
 
 export async function GET(request: NextRequest) {
@@ -68,6 +74,12 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status"); // managed, in_progress, needs_work, needs_attention
     const limit = Math.min(parseInt(searchParams.get("limit") || "1000", 10), 5000);
 
+    // MIG_3009: New filter params
+    const breeding = searchParams.get("breeding"); // true = only places with recent breeding
+    const trend = searchParams.get("trend"); // growing, shrinking, stable
+    const immigration = searchParams.get("immigration"); // high, moderate
+    const readiness = searchParams.get("readiness"); // complete, nearly_complete, in_progress, needs_work
+
     // Build query - V2 uses total_cats instead of verified_cat_count
     let whereClause = "WHERE total_cats >= $1";
     const params: unknown[] = [minCats];
@@ -98,6 +110,29 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // MIG_3009: New filters
+    if (breeding === "true") {
+      whereClause += ` AND has_recent_breeding = TRUE`;
+    }
+    if (trend && ["growing", "shrinking", "stable", "insufficient_data"].includes(trend)) {
+      whereClause += ` AND colony_trend = '${trend}'`;
+    }
+    if (immigration && ["high", "moderate"].includes(immigration)) {
+      whereClause += ` AND immigration_pressure = '${immigration}'`;
+    }
+    // Readiness filter: approximate from matview columns (avoids per-row function call)
+    // needs_work = low alteration + breeding + unstable
+    // complete = high alteration + no breeding + stable
+    if (readiness === "needs_work") {
+      whereClause += ` AND (alteration_rate_pct IS NULL OR alteration_rate_pct < 50)`;
+    } else if (readiness === "in_progress") {
+      whereClause += ` AND alteration_rate_pct >= 25 AND alteration_rate_pct < 75`;
+    } else if (readiness === "nearly_complete") {
+      whereClause += ` AND alteration_rate_pct >= 50 AND (has_recent_breeding = FALSE OR has_recent_breeding IS NULL) AND colony_trend != 'growing'`;
+    } else if (readiness === "complete") {
+      whereClause += ` AND alteration_rate_pct >= 75 AND (has_recent_breeding = FALSE OR has_recent_breeding IS NULL) AND colony_trend IN ('stable', 'insufficient_data')`;
+    }
+
     // Query places - V2 column mapping
     const places = await queryRows<BeaconPlace>(
       `
@@ -126,7 +161,13 @@ export async function GET(request: NextRequest) {
         last_activity_at,
         total_requests as request_count,
         total_appointments as appointment_count,
-        '{}'::JSONB as calculation_audit
+        '{}'::JSONB as calculation_audit,
+        -- MIG_3009: TNR data surfacing columns
+        COALESCE(has_recent_breeding, FALSE) as has_recent_breeding,
+        last_breeding_detected,
+        COALESCE(colony_trend, 'insufficient_data') as colony_trend,
+        COALESCE(new_intact_arrivals, 0) as new_intact_arrivals,
+        COALESCE(immigration_pressure, 'none') as immigration_pressure
       FROM ops.v_beacon_place_metrics
       ${whereClause}
       ORDER BY total_cats DESC

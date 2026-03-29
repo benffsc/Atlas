@@ -7,6 +7,7 @@ import { QuickNotes, BackButton, EditHistory, QuickActions, usePlaceQuickActionS
 import { AddressAutocomplete, PlaceContextEditor } from "@/components/forms";
 import { PlaceAlterationHistory, CatPresenceReconciliation } from "@/components/admin";
 import { ColonyEstimates, PopulationTrendChart, PopulationTimeline, TemporalTrendChart, PopulationEstimateCard } from "@/components/charts";
+import { PlaceReadinessCard } from "@/components/place/PlaceReadinessCard";
 import { HistoricalContextCard, SiteStatsCard } from "@/components/cards";
 import { VerificationBadge, LastVerified, StatusBadge, PriorityBadge } from "@/components/badges";
 import { CreateColonyModal } from "@/components/modals";
@@ -467,7 +468,8 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
         <TabPanel tabId="ecology" activeTab={activeTab}>
           <Section title="Monthly TNR Trends"><TemporalTrendChart placeId={id} months={24} /></Section>
           <Section title="Population Estimate"><PopulationEstimateCard placeId={id} /></Section>
-          <Section title="Population Events"><PopulationTimeline placeId={id} /></Section>
+          <Section title="TNR Readiness"><PlaceReadinessCard placeId={id} /></Section>
+          <Section title="Lifecycle Events"><PopulationTimeline placeId={id} /></Section>
           <Section title="Site Observations"><ObservationsSection placeId={id} placeName={place.display_name || place.formatted_address || "This location"} /></Section>
           <HistoricalContextCard placeId={id} className="mt-4" />
           <Section title="FFR Activity" collapsible defaultCollapsed><PlaceAlterationHistory placeId={id} /></Section>

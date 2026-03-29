@@ -19,6 +19,9 @@ interface TrapperRow {
   felv_positive_rate_pct: number | null;
   first_activity_date: string | null;
   last_activity_date: string | null;
+  // MIG_3009: Trap-night efficiency
+  catch_per_trap: number | null;
+  total_sessions: number;
   email: string | null;
   phone: string | null;
   tier: string | null;
@@ -91,6 +94,8 @@ export async function GET(request: NextRequest) {
       "total_cats_caught",
       "last_activity_date",
       "tier_sort",
+      "catch_per_trap",
+      "total_sessions",
     ];
     const orderColumn = validSortColumns.includes(sortBy)
       ? sortBy
@@ -113,7 +118,7 @@ export async function GET(request: NextRequest) {
              ELSE 3
            END ASC, s.total_cats_caught DESC NULLS LAST`
         : `CASE WHEN s.role_status = 'active' THEN 0 ELSE 1 END,
-           s.${orderColumn} DESC NULLS LAST`;
+           ${["catch_per_trap", "total_sessions"].includes(orderColumn) ? `te.${orderColumn}` : `s.${orderColumn}`} DESC NULLS LAST`;
 
       trappers = await queryRows<TrapperRow>(
         `SELECT
@@ -138,10 +143,13 @@ export async function GET(request: NextRequest) {
           COALESCE(s.availability_status, 'available') AS availability_status,
           tp.contract_signed_date::text AS contract_signed_date,
           s.profile_created_at::text AS profile_created_at,
-          s.assigned_request_summaries
+          s.assigned_request_summaries,
+          te.catch_per_trap,
+          COALESCE(te.total_sessions, 0)::INT AS total_sessions
         FROM ops.v_trapper_full_stats s
         LEFT JOIN sot.v_trapper_tiers vt ON vt.person_id = s.person_id
         LEFT JOIN sot.trapper_profiles tp ON tp.person_id = s.person_id
+        LEFT JOIN ops.v_trapper_efficiency te ON te.trapper_person_id = s.person_id
         ${whereClause}
         ORDER BY ${orderByClause}
         LIMIT $1 OFFSET $2`,
@@ -186,7 +194,9 @@ export async function GET(request: NextRequest) {
           'available' AS availability_status,
           NULL::TEXT AS contract_signed_date,
           NULL::TEXT AS profile_created_at,
-          NULL::JSONB AS assigned_request_summaries
+          NULL::JSONB AS assigned_request_summaries,
+          NULL::NUMERIC AS catch_per_trap,
+          0 AS total_sessions
         FROM sot.people p
         JOIN sot.person_roles pr ON pr.person_id = p.person_id
         ${basicWhere}

@@ -705,6 +705,89 @@ export interface EquipmentReconcileSummary {
 }
 
 // =============================================================================
+// TNR DATA SURFACING VIEWS (MIG_3009)
+// =============================================================================
+
+/**
+ * Contract for ops.v_place_breeding_activity
+ * @see sql/schema/v2/MIG_3009__tnr_data_surfacing.sql
+ * @route /api/beacon/places (via matview)
+ */
+export interface VPlaceBreedingActivityRow {
+  place_id: string;
+  pregnant_recent: number;
+  lactating_recent: number;
+  has_recent_breeding: boolean;
+  last_breeding_detected: string | null;
+}
+
+/**
+ * Contract for ops.v_trapper_efficiency
+ * @see sql/schema/v2/MIG_3009__tnr_data_surfacing.sql
+ * @route /api/trappers
+ */
+export interface VTrapperEfficiencyRow {
+  trapper_person_id: string;
+  total_sessions: number;
+  total_trapped: number;
+  total_traps_set: number;
+  total_cats_seen: number;
+  total_eartipped_seen: number;
+  catch_per_trap: number | null;
+}
+
+/**
+ * Contract for ops.v_place_lifecycle_summary
+ * @see sql/schema/v2/MIG_3009__tnr_data_surfacing.sql
+ * @route /api/places/[id]/population-events
+ */
+export interface VPlaceLifecycleSummaryRow {
+  place_id: string;
+  tnr_count: number;
+  adoption_count: number;
+  mortality_count: number;
+  rtf_count: number;
+  transfer_count: number;
+  foster_count: number;
+  intake_count: number;
+  total_events: number;
+}
+
+/**
+ * Extended beacon place metrics with MIG_3009 columns
+ * @see sql/schema/v2/MIG_3009__tnr_data_surfacing.sql
+ * @route /api/beacon/places
+ */
+export interface VBeaconPlaceMetricsRow {
+  place_id: string;
+  display_name: string | null;
+  formatted_address: string | null;
+  place_kind: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  total_cats: number;
+  altered_cats: number;
+  known_status_cats: number;
+  unknown_status_cats: number;
+  alteration_rate_pct: number | null;
+  total_people: number;
+  total_requests: number;
+  active_requests: number;
+  total_appointments: number;
+  last_appointment_date: string | null;
+  colony_estimate: number | null;
+  estimate_method: string | null;
+  last_activity_at: string | null;
+  zone_code: string | null;
+  // MIG_3009 columns
+  has_recent_breeding: boolean;
+  last_breeding_detected: string | null;
+  colony_trend: string;
+  new_intact_arrivals: number;
+  immigration_pressure: string;
+}
+
+// =============================================================================
 // HELPER TYPES
 // =============================================================================
 
