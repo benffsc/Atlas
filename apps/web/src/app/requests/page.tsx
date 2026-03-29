@@ -1067,6 +1067,7 @@ function RequestsPageContent() {
     <RequestPreviewContent
       request={selectedDetail as RequestDetail}
       onClose={() => setFilter("selected", "")}
+      onRequestUpdated={() => setRefreshTrigger((n) => n + 1)}
     />
   ) : filters.selected && !isKanban && detailLoading ? (
     <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
