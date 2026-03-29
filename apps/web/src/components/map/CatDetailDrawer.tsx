@@ -147,7 +147,7 @@ export function CatDetailDrawer({ catId, onClose, onNavigatePerson, onNavigatePl
     setError(null);
     setShowAllAppts(false);
 
-    fetch(`/api/cats/${catId}`)
+    fetch(`/api/cats/${catId}/map-details`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load cat details");
         return res.json();
