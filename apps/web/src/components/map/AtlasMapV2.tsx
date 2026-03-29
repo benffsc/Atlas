@@ -274,8 +274,9 @@ function AtlasMapV2Inner() {
     map.setMapTypeId(basemap === "satellite" ? "hybrid" : "roadmap");
   }, [map, basemap]);
 
-  // ── Clustering (Step 11) — debounced to prevent rapid re-clustering during zoom/pan ──
+  // ── Clustering (Step 11) — debounced + deduped to prevent rapid re-clustering ──
   const boundsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevBoundsRef = useRef<{ west: number; south: number; east: number; north: number; zoom: number } | null>(null);
   useEffect(() => {
     if (!map) return;
     const listener = map.addListener("idle", () => {
@@ -284,12 +285,25 @@ function AtlasMapV2Inner() {
         const bounds = map.getBounds();
         const zoom = map.getZoom();
         if (bounds && zoom !== undefined) {
-          setMapBounds({
+          const next = {
             west: bounds.getSouthWest().lng(),
             south: bounds.getSouthWest().lat(),
             east: bounds.getNorthEast().lng(),
             north: bounds.getNorthEast().lat(),
-          });
+            zoom,
+          };
+          const prev = prevBoundsRef.current;
+          // Skip update if bounds/zoom haven't changed meaningfully (0.0001° ≈ 11m)
+          if (prev &&
+              Math.abs(prev.west - next.west) < 0.0001 &&
+              Math.abs(prev.south - next.south) < 0.0001 &&
+              Math.abs(prev.east - next.east) < 0.0001 &&
+              Math.abs(prev.north - next.north) < 0.0001 &&
+              prev.zoom === next.zoom) {
+            return;
+          }
+          prevBoundsRef.current = next;
+          setMapBounds({ west: next.west, south: next.south, east: next.east, north: next.north });
           setMapZoomLevel(zoom);
         }
       }, 150);
@@ -664,8 +678,13 @@ function AtlasMapV2Inner() {
     });
     panoramaRef.current = panorama;
 
+    let svRaf: number | null = null;
     panorama.addListener("pov_changed", () => {
-      setStreetViewHeading(panorama.getPov().heading);
+      if (svRaf) return; // throttle to animation frames
+      svRaf = requestAnimationFrame(() => {
+        svRaf = null;
+        setStreetViewHeading(panorama.getPov().heading);
+      });
     });
 
     panorama.addListener("position_changed", () => {
@@ -991,8 +1010,8 @@ function AtlasMapV2Inner() {
           }
         }}
       >
-        {/* ── Clustered markers (Step 11) ── */}
-        {clusters.map((feature, idx) => {
+        {/* ── Clustered markers (Step 11) — capped at 500 to prevent DOM/overlay leak ── */}
+        {clusters.slice(0, 500).map((feature, idx) => {
           const [lng, lat] = feature.geometry.coordinates;
 
           if (isCluster(feature)) {

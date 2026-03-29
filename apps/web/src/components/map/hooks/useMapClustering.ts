@@ -12,7 +12,7 @@
  *   });
  */
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import useSupercluster from "use-supercluster";
 import type { AtlasPin } from "../types";
 
@@ -117,27 +117,29 @@ export function useMapClustering({
     ];
   }, [bounds]);
 
+  // Stable options ref — prevents use-supercluster from rebuilding the index on every render
+  const optionsRef = useRef({
+    radius,
+    maxZoom,
+    minPoints,
+    map: (props: any) => ({
+      disease_count: props.disease_count || 0,
+      watch_list_count: props.watch_list_count || 0,
+      needs_trapper_count: props.needs_trapper_count || 0,
+    }),
+    reduce: (accumulated: any, props: any) => {
+      accumulated.disease_count += props.disease_count;
+      accumulated.watch_list_count += props.watch_list_count;
+      accumulated.needs_trapper_count += props.needs_trapper_count;
+    },
+  });
+
   // Use supercluster hook
   const { clusters, supercluster } = useSupercluster({
     points,
     bounds: boundsArray,
     zoom,
-    options: {
-      radius,
-      maxZoom,
-      minPoints,
-      // Aggregate properties for clusters
-      map: (props: any) => ({
-        disease_count: props.disease_count || 0,
-        watch_list_count: props.watch_list_count || 0,
-        needs_trapper_count: props.needs_trapper_count || 0,
-      }),
-      reduce: (accumulated: any, props: any) => {
-        accumulated.disease_count += props.disease_count;
-        accumulated.watch_list_count += props.watch_list_count;
-        accumulated.needs_trapper_count += props.needs_trapper_count;
-      },
-    },
+    options: optionsRef.current,
   });
 
   // Get expansion zoom for a cluster
