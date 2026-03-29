@@ -38,7 +38,7 @@ interface UseMapSearchOptions {
   /** Atlas pins ref for coordinate lookup */
   atlasPinsRef: React.MutableRefObject<AtlasPin[]>;
   /** Map ref for panning/zooming */
-  mapRef: React.MutableRefObject<L.Map | null>;
+  mapRef: React.MutableRefObject<google.maps.Map | null>;
   /** Callback when place is selected */
   onPlaceSelect?: (placeId: string) => void;
   /** Callback when person is selected */
@@ -224,10 +224,8 @@ export function useMapSearch({
     (result: LocalSearchResult) => {
       const item = result.item as Place | GooglePin | Volunteer;
       if (mapRef.current && item.lat && item.lng) {
-        mapRef.current.setView([item.lat, item.lng], 16, {
-          animate: true,
-          duration: 0.5,
-        });
+        mapRef.current.setCenter({ lat: item.lat, lng: item.lng });
+        mapRef.current.setZoom(16);
         setNavigatedLocation(null);
       }
       setQuery("");
@@ -299,7 +297,7 @@ export function useMapSearch({
 
       if (mapRef.current && lat && lng) {
         setNavigatedLocation({ lat, lng, address: result.display_name });
-        mapRef.current.setView([lat, lng], 16, { animate: true, duration: 0.5 });
+        mapRef.current.setCenter({ lat, lng }); mapRef.current.setZoom(16);
       }
 
       // Open drawers
@@ -331,10 +329,8 @@ export function useMapSearch({
             address: place.formatted_address || prediction.description,
           });
           if (mapRef.current) {
-            mapRef.current.setView([lat, lng], 16, {
-              animate: true,
-              duration: 0.5,
-            });
+            mapRef.current.setCenter({ lat, lng });
+            mapRef.current.setZoom(16);
           }
         }
       } catch (err) {
@@ -355,10 +351,8 @@ export function useMapSearch({
         address: result.formatted_address,
       });
       if (mapRef.current) {
-        mapRef.current.setView([lat, lng], 16, {
-          animate: true,
-          duration: 0.5,
-        });
+        mapRef.current.setCenter({ lat, lng });
+        mapRef.current.setZoom(16);
       }
       setQuery("");
       setShowResults(false);

@@ -23,7 +23,6 @@ export {
 export { MapControls } from "./components/MapControls";
 export { MapLegend } from "./components/MapLegend";
 export { DateRangeFilter } from "./components/DateRangeFilter";
-export { useClusterMarker, renderClusterMarkers } from "./components/MapClusterMarker";
 export { LocationComparisonPanel } from "./components/LocationComparisonPanel";
 
 // Types
@@ -58,9 +57,6 @@ export {
   LAYER_CONFIGS,
   SERVICE_ZONES,
 } from "./types";
-
-// Main map components
-export { default as BeaconMap } from "./BeaconMap";
 
 // Re-export existing map components (already in this directory)
 export { PlaceDetailDrawer } from "./PlaceDetailDrawer";

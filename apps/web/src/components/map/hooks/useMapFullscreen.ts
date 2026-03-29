@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
-import type * as L from "leaflet";
 
 interface UseMapFullscreenOptions {
-  mapRef: React.MutableRefObject<L.Map | null>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mapRef: React.MutableRefObject<any>;
 }
 
 export function useMapFullscreen({ mapRef }: UseMapFullscreenOptions) {

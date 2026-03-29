@@ -1276,37 +1276,7 @@ button:disabled {
   border: 1px solid var(--border);
 }
 
-/* Map popup styling */
-.dashboard-map-popup .leaflet-popup-content-wrapper {
-  background: var(--card-bg, #fff) !important;
-  color: var(--text-primary, #1e293b) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-  border: 1px solid var(--border, #e2e8f0) !important;
-}
-
-.dashboard-map-popup .leaflet-popup-content {
-  margin: 10px 12px !important;
-  font-size: 12px !important;
-  line-height: 1.4 !important;
-}
-
-.dashboard-map-popup .leaflet-popup-tip {
-  background: var(--card-bg, #fff) !important;
-  border: 1px solid var(--border, #e2e8f0) !important;
-}
-
-.dashboard-map-popup .leaflet-popup-close-button {
-  color: var(--text-muted, #64748b) !important;
-  font-size: 18px !important;
-  top: 4px !important;
-  right: 6px !important;
-}
-
-.dashboard-map-popup .leaflet-popup-close-button:hover {
-  color: var(--text-primary, #1e293b) !important;
-}
-
+/* Google Maps InfoWindow overrides for dashboard */
 .dashboard-map-tooltip {
   font-size: 0.8rem !important;
   padding: 4px 8px !important;

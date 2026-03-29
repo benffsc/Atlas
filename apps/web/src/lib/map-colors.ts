@@ -5,8 +5,7 @@
  * Rules:
  * - React component inline styles: use `var(--xxx)` CSS variables where a
  *   design token exists, or import from MAP_COLORS / the named exports here.
- * - Leaflet HTML popup strings: must be raw hex (Leaflet renders raw HTML,
- *   not React, so CSS variables don't resolve inside innerHTML).
+ * - Google Maps InfoWindow content: use raw hex (innerHTML context).
  * - Canvas drawing ops (ctx.fillStyle etc.): must be raw hex.
  * - Use `var(--primary)` etc. for generic UI chrome that has a design token.
  */
@@ -139,7 +138,7 @@ export const MAP_COLORS = {
     unknown:   { bg: 'rgba(107, 114, 128, 0.15)', text: '#6b7280' },
   },
 
-  // Popup HTML palette — Leaflet popups render raw HTML so CSS vars don't work.
+  // Popup HTML palette — InfoWindow/popup content renders raw HTML so CSS vars don't work.
   // Reference these constants instead of raw hex inside template strings.
   popup: {
     textPrimary: '#374151',   // Gray-700

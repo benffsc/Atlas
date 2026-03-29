@@ -13,6 +13,8 @@ import { unwrapApiResponse } from './helpers/api-response';
  * - Initial load: < 3 seconds
  * - Cached load: < 1 second
  * - Viewport pan: no lag, smooth loading
+ *
+ * Updated for V2 (Google Maps) — Leaflet selectors removed.
  */
 
 test.describe('Map Performance @smoke @workflow', () => {
@@ -22,11 +24,11 @@ test.describe('Map Performance @smoke @workflow', () => {
 
     await page.goto('/map');
 
-    // Wait for the map container to be present
-    await page.waitForSelector('.leaflet-container', { timeout: 10000 });
+    // Wait for the V2 map container to be present
+    await page.waitForSelector('.map-container-v2', { timeout: 10000 });
 
-    // Wait for initial tile layer to load
-    await page.waitForSelector('.leaflet-tile-loaded', { timeout: 10000 });
+    // Wait for Google Maps to initialize (gm-style appears after init)
+    await page.waitForSelector('.gm-style', { timeout: 10000 });
 
     const duration = Date.now() - start;
 
@@ -37,29 +39,31 @@ test.describe('Map Performance @smoke @workflow', () => {
   test('map markers appear after data loads', async ({ page }) => {
     await page.goto('/map');
 
-    // Wait for map to initialize
-    await page.waitForSelector('.leaflet-container', { timeout: 10000 });
+    // Wait for V2 map container
+    await page.waitForSelector('.map-container-v2', { timeout: 10000 });
 
-    // Wait for markers or cluster groups to appear (may take a moment for data fetch)
-    // The markercluster creates divs with class 'marker-cluster' or individual markers
+    // V2 markers are imperative (not in DOM as distinct elements).
+    // Wait for the stats bar to show a non-zero "Total Places" count.
     await page.waitForFunction(() => {
-      const clusters = document.querySelectorAll('.marker-cluster');
-      const markers = document.querySelectorAll('.leaflet-marker-icon');
-      return clusters.length > 0 || markers.length > 0;
+      const statsBar = document.querySelector('.map-container-v2');
+      if (!statsBar) return false;
+      const text = statsBar.textContent || '';
+      const match = text.match(/(\d+)\s*Total Places/);
+      return match && parseInt(match[1], 10) > 0;
     }, { timeout: 15000 });
 
-    // Verify we have some map content
-    const clusterCount = await page.locator('.marker-cluster').count();
-    const markerCount = await page.locator('.leaflet-marker-icon').count();
-
-    expect(clusterCount + markerCount).toBeGreaterThan(0);
+    // Verify the stat number is positive
+    const statsText = await page.locator('.map-container-v2').textContent();
+    const match = statsText?.match(/(\d+)\s*Total Places/);
+    expect(match).toBeTruthy();
+    expect(parseInt(match![1], 10)).toBeGreaterThan(0);
   });
 
   test('second page load is faster (cache test)', async ({ page }) => {
     // First load to warm the cache
     await page.goto('/map');
-    await page.waitForSelector('.leaflet-container', { timeout: 10000 });
-    await page.waitForSelector('.leaflet-tile-loaded', { timeout: 10000 });
+    await page.waitForSelector('.map-container-v2', { timeout: 10000 });
+    await page.waitForSelector('.gm-style', { timeout: 10000 });
 
     // Small delay to ensure response caching
     await page.waitForTimeout(500);
@@ -67,8 +71,8 @@ test.describe('Map Performance @smoke @workflow', () => {
     // Second load should benefit from browser cache and s-maxage headers
     const start = Date.now();
     await page.reload();
-    await page.waitForSelector('.leaflet-container', { timeout: 10000 });
-    await page.waitForSelector('.leaflet-tile-loaded', { timeout: 10000 });
+    await page.waitForSelector('.map-container-v2', { timeout: 10000 });
+    await page.waitForSelector('.gm-style', { timeout: 10000 });
     const duration = Date.now() - start;
 
     // Cached reload should be noticeably faster (< 3 seconds)
@@ -79,20 +83,14 @@ test.describe('Map Performance @smoke @workflow', () => {
     await page.goto('/map');
 
     // Wait for initial load
-    await page.waitForSelector('.leaflet-container', { timeout: 10000 });
-    await page.waitForFunction(() => {
-      const clusters = document.querySelectorAll('.marker-cluster');
-      const markers = document.querySelectorAll('.leaflet-marker-icon');
-      return clusters.length > 0 || markers.length > 0;
-    }, { timeout: 15000 });
+    await page.waitForSelector('.map-container-v2', { timeout: 10000 });
+    await page.waitForSelector('.gm-style', { timeout: 10000 });
 
-    // Get initial marker count
-    const initialClusters = await page.locator('.marker-cluster').count();
-    const initialMarkers = await page.locator('.leaflet-marker-icon').count();
-    const initialTotal = initialClusters + initialMarkers;
+    // Wait for data to populate
+    await page.waitForTimeout(2000);
 
-    // Pan the map by simulating a drag
-    const mapContainer = page.locator('.leaflet-container');
+    // Pan the map by simulating a drag on the V2 container
+    const mapContainer = page.locator('.map-container-v2');
     const box = await mapContainer.boundingBox();
     if (box) {
       const centerX = box.x + box.width / 2;
@@ -109,7 +107,7 @@ test.describe('Map Performance @smoke @workflow', () => {
     await page.waitForTimeout(1000);
 
     // Map should still be functional after pan
-    await expect(page.locator('.leaflet-container')).toBeVisible();
+    await expect(page.locator('.map-container-v2')).toBeVisible();
 
     // Check for console errors
     const consoleErrors: string[] = [];
@@ -166,15 +164,14 @@ test.describe('Map Performance @smoke @workflow', () => {
     await page.goto('/map');
 
     // Wait for initial load
-    await page.waitForSelector('.leaflet-container', { timeout: 10000 });
-    await page.waitForFunction(() => {
-      const clusters = document.querySelectorAll('.marker-cluster');
-      const markers = document.querySelectorAll('.leaflet-marker-icon');
-      return clusters.length > 0 || markers.length > 0;
-    }, { timeout: 15000 });
+    await page.waitForSelector('.map-container-v2', { timeout: 10000 });
+    await page.waitForSelector('.gm-style', { timeout: 10000 });
 
-    // Zoom in using the zoom control
-    const zoomIn = page.locator('.leaflet-control-zoom-in');
+    // Wait for data to populate
+    await page.waitForTimeout(2000);
+
+    // Zoom in using the Google Maps zoom control
+    const zoomIn = page.locator('[aria-label="Zoom in"]');
     if (await zoomIn.isVisible()) {
       await zoomIn.click();
       await page.waitForTimeout(500);
@@ -186,19 +183,14 @@ test.describe('Map Performance @smoke @workflow', () => {
     await page.waitForTimeout(1000);
 
     // Map should still function after zoom
-    await expect(page.locator('.leaflet-container')).toBeVisible();
-
-    // Should still have markers visible
-    const clusterCount = await page.locator('.marker-cluster').count();
-    const markerCount = await page.locator('.leaflet-marker-icon').count();
-    expect(clusterCount + markerCount).toBeGreaterThanOrEqual(0);
+    await expect(page.locator('.map-container-v2')).toBeVisible();
   });
 
   test('map filter changes do not cause excessive reloads', async ({ page }) => {
     await page.goto('/map');
 
     // Wait for initial load
-    await page.waitForSelector('.leaflet-container', { timeout: 10000 });
+    await page.waitForSelector('.map-container-v2', { timeout: 10000 });
 
     // Track network requests
     const requests: string[] = [];

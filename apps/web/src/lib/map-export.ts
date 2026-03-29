@@ -8,6 +8,18 @@
 import { generateCsv, downloadCsv } from "./csv-export";
 import type { AtlasPin } from "@/components/map/types";
 
+/** GeoJSON types (previously from @types/geojson via @types/leaflet) */
+interface GeoJsonFeature {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: Record<string, unknown>;
+}
+
+interface GeoJsonFeatureCollection {
+  type: "FeatureCollection";
+  features: GeoJsonFeature[];
+}
+
 /** Columns exported in CSV format */
 const CSV_HEADERS = [
   "Address",
@@ -58,7 +70,7 @@ function pinToCsvRow(pin: AtlasPin): (string | number | boolean | null)[] {
   ];
 }
 
-function pinToGeoJsonFeature(pin: AtlasPin): GeoJSON.Feature {
+function pinToGeoJsonFeature(pin: AtlasPin): GeoJsonFeature {
   return {
     type: "Feature",
     geometry: {
@@ -95,7 +107,7 @@ export function exportPinsToCsv(pins: AtlasPin[], filterName?: string): void {
 }
 
 export function exportPinsToGeoJson(pins: AtlasPin[], filterName?: string): void {
-  const collection: GeoJSON.FeatureCollection = {
+  const collection: GeoJsonFeatureCollection = {
     type: "FeatureCollection",
     features: pins.map(pinToGeoJsonFeature),
   };

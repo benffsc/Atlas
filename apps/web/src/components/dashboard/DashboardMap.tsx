@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
-import "leaflet/dist/leaflet.css";
-import "leaflet.markercluster/dist/MarkerCluster.css";
-import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { APIProvider, Map, AdvancedMarker, InfoWindow, useMap } from "@vis.gl/react-google-maps";
+import Supercluster from "supercluster";
 import {
   GroupedLayerControl,
   type LayerGroup,
@@ -73,6 +72,12 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: "Low",
 };
 
+// Cluster colors per layer (matches old Leaflet createClusterGroup colors)
+const LAYER_CLUSTER_COLORS: Record<string, string> = {
+  requests: "#3b82f6",
+  intake: "#f97316",
+  atlas: "#22c55e",
+};
 
 /** Dashboard layer group definitions */
 export const DASHBOARD_LAYER_GROUPS: LayerGroup[] = [
@@ -144,113 +149,157 @@ function timeAgo(dateStr: string): string {
   return `${months}mo ago`;
 }
 
-function buildRequestPopupHtml(pin: DashboardMapPin, viewDetailsFn: string): string {
-  const name = pin.place_name || pin.place_address || "Unknown location";
-  const address = pin.place_address && pin.place_name ? pin.place_address.split(",")[0] : "";
-  const statusColor = getPinColor(pin);
-  const priorityLabel = PRIORITY_LABELS[pin.priority] || pin.priority;
-  const catInfo = pin.estimated_cat_count
-    ? `${pin.estimated_cat_count} cat${pin.estimated_cat_count > 1 ? "s" : ""}${pin.has_kittens ? " (kittens)" : ""}`
-    : pin.has_kittens
-      ? "Has kittens"
-      : "";
+// ---------------------------------------------------------------------------
+// Clustering helpers (mirrors old Leaflet markercluster behavior)
+// ---------------------------------------------------------------------------
 
-  return `
-    <div style="min-width:200px;max-width:280px;font-family:system-ui,-apple-system,sans-serif;">
-      <div style="font-weight:600;font-size:13px;margin-bottom:4px;line-height:1.3;">${name}</div>
-      ${address ? `<div style="font-size:11px;opacity:0.6;margin-bottom:6px;">${address}</div>` : ""}
-      ${pin.summary ? `<div style="font-size:12px;opacity:0.7;margin-bottom:6px;line-height:1.3;">${pin.summary}</div>` : ""}
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
-        <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:${statusColor};color:#fff;">${formatStatus(pin.status)}</span>
-        <span style="font-size:10px;opacity:0.6;">${priorityLabel}</span>
-        <span style="font-size:10px;opacity:0.5;">${timeAgo(pin.created_at)}</span>
-      </div>
-      ${catInfo ? `<div style="font-size:11px;color:#7c3aed;">${catInfo}</div>` : ""}
-      <div style="margin-top:8px;border-top:1px solid rgba(128,128,128,0.25);padding-top:6px;">
-        <a href="/requests/${pin.request_id}"
-           onclick="event.preventDefault();event.stopPropagation();${viewDetailsFn}('request','${pin.request_id}')"
-           style="font-size:11px;color:#3b82f6;text-decoration:none;cursor:pointer;">
-          View Details
-        </a>
-      </div>
-    </div>
-  `;
+interface ClusterPoint {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: {
+    layer: "requests" | "intake" | "atlas";
+    requestPin?: DashboardMapPin;
+    atlasPin?: AtlasPin;
+  };
 }
 
-function buildAtlasPinPopupHtml(pin: AtlasPin, viewDetailsFn: string): string {
-  const name = pin.display_name || pin.address || "Unknown location";
-  const address = pin.display_name ? pin.address.split(",")[0] : "";
-  const pinColor = ATLAS_PIN_COLORS[pin.pin_style] || ATLAS_PIN_COLORS.minimal;
-
-  const stats: string[] = [];
-  if (pin.cat_count > 0) stats.push(`${pin.cat_count} cat${pin.cat_count !== 1 ? "s" : ""}`);
-  if (pin.person_count > 0) stats.push(`${pin.person_count} ${pin.person_count !== 1 ? "people" : "person"}`);
-  if (pin.active_request_count > 0) stats.push(`${pin.active_request_count} active req${pin.active_request_count !== 1 ? "s" : ""}`);
-
-  const diseaseBadgesHtml = pin.disease_badges.length > 0
-    ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">
-        ${pin.disease_badges.slice(0, 3).map((b) =>
-          `<span style="font-size:9px;font-weight:600;padding:1px 4px;border-radius:3px;background:${b.color};color:#fff;">${b.short_code}</span>`
-        ).join("")}
-       </div>`
-    : "";
-
-  return `
-    <div style="min-width:200px;max-width:280px;font-family:system-ui,-apple-system,sans-serif;">
-      <div style="font-weight:600;font-size:13px;margin-bottom:4px;line-height:1.3;">${name}</div>
-      ${address ? `<div style="font-size:11px;opacity:0.6;margin-bottom:6px;">${address}</div>` : ""}
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
-        <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:${pinColor};color:#fff;">${formatStatus(pin.pin_style)}</span>
-        ${pin.service_zone ? `<span style="font-size:10px;opacity:0.5;">${pin.service_zone}</span>` : ""}
-      </div>
-      ${stats.length > 0 ? `<div style="font-size:11px;color:var(--text-muted,#64748b);margin-bottom:4px;">${stats.join(" \u00B7 ")}</div>` : ""}
-      ${diseaseBadgesHtml}
-      <div style="margin-top:8px;border-top:1px solid rgba(128,128,128,0.25);padding-top:6px;">
-        <a href="/places/${pin.id}"
-           onclick="event.preventDefault();event.stopPropagation();${viewDetailsFn}('place','${pin.id}')"
-           style="font-size:11px;color:#3b82f6;text-decoration:none;cursor:pointer;">
-          Preview
-        </a>
-        <a href="/places/${pin.id}"
-           style="font-size:11px;color:#3b82f6;text-decoration:none;cursor:pointer;margin-left:12px;">
-          Full Page &rarr;
-        </a>
-      </div>
-    </div>
-  `;
+interface ClusterResult {
+  type: "Feature";
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: {
+    cluster?: boolean;
+    cluster_id?: number;
+    point_count?: number;
+    // For individual pins
+    layer?: "requests" | "intake" | "atlas";
+    requestPin?: DashboardMapPin;
+    atlasPin?: AtlasPin;
+  };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createClusterGroup(L: any, color: string) {
-  return L.markerClusterGroup({
-    maxClusterRadius: 45,
-    spiderfyOnMaxZoom: true,
-    showCoverageOnHover: false,
-    zoomToBoundsOnClick: true,
-    disableClusteringAtZoom: 15,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    iconCreateFunction(clusterObj: any) {
-      const count = clusterObj.getChildCount();
-      const size = count < 10 ? 32 : count < 50 ? 38 : 44;
-      const bg = `rgba(${hexToRgb(color)},${count < 10 ? 0.7 : count < 50 ? 0.75 : 0.8})`;
-      return L.divIcon({
-        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:${size < 38 ? 12 : 13}px;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,0.6);">${count}</div>`,
-        className: "",
-        iconSize: L.point(size, size),
-        iconAnchor: [size / 2, size / 2],
-      });
-    },
-  });
+function useDashboardClusters(
+  requestPins: DashboardMapPin[],
+  intakePins: DashboardMapPin[],
+  atlasPins: AtlasPin[],
+  enabledLayers: Record<string, boolean>,
+  bounds: { west: number; south: number; east: number; north: number } | null,
+  zoom: number,
+) {
+  // Build SuperCluster instances per layer (matches old Leaflet createClusterGroup per-layer pattern)
+  const requestIndex = useMemo(() => {
+    const sc = new Supercluster({ radius: 45, maxZoom: 14, minPoints: 2 });
+    const show = enabledLayers.requests_active || enabledLayers.requests_all || enabledLayers.requests_completed;
+    if (!show) { sc.load([]); return sc; }
+    const features: ClusterPoint[] = requestPins
+      .filter(p => p.lat && p.lng)
+      .map(pin => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [pin.lng, pin.lat] as [number, number] },
+        properties: { layer: "requests" as const, requestPin: pin },
+      }));
+    sc.load(features);
+    return sc;
+  }, [requestPins, enabledLayers]);
+
+  const intakeIndex = useMemo(() => {
+    const sc = new Supercluster({ radius: 45, maxZoom: 14, minPoints: 2 });
+    if (!enabledLayers.intake_pending) { sc.load([]); return sc; }
+    const features: ClusterPoint[] = intakePins
+      .filter(p => p.lat && p.lng)
+      .map(pin => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [pin.lng, pin.lat] as [number, number] },
+        properties: { layer: "intake" as const, requestPin: pin },
+      }));
+    sc.load(features);
+    return sc;
+  }, [intakePins, enabledLayers]);
+
+  const atlasIndex = useMemo(() => {
+    const sc = new Supercluster({ radius: 45, maxZoom: 14, minPoints: 2 });
+    const showAtlas = enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch;
+    if (!showAtlas) { sc.load([]); return sc; }
+    const filtered = atlasPins.filter(pin => {
+      if (!pin.lat || !pin.lng) return false;
+      if (enabledLayers.atlas_all) return true;
+      if (enabledLayers.atlas_disease && pin.pin_style === "disease") return true;
+      if (enabledLayers.atlas_watch && pin.pin_style === "watch_list") return true;
+      return false;
+    });
+    const features: ClusterPoint[] = filtered.map(pin => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [pin.lng, pin.lat] as [number, number] },
+      properties: { layer: "atlas" as const, atlasPin: pin },
+    }));
+    sc.load(features);
+    return sc;
+  }, [atlasPins, enabledLayers]);
+
+  // Get clusters for current viewport
+  const clusters = useMemo(() => {
+    if (!bounds) return { requests: [] as ClusterResult[], intake: [] as ClusterResult[], atlas: [] as ClusterResult[] };
+    const bbox: [number, number, number, number] = [bounds.west, bounds.south, bounds.east, bounds.north];
+    return {
+      requests: requestIndex.getClusters(bbox, zoom) as ClusterResult[],
+      intake: intakeIndex.getClusters(bbox, zoom) as ClusterResult[],
+      atlas: atlasIndex.getClusters(bbox, zoom) as ClusterResult[],
+    };
+  }, [requestIndex, intakeIndex, atlasIndex, bounds, zoom]);
+
+  const getExpansionZoom = useCallback((layer: "requests" | "intake" | "atlas", clusterId: number) => {
+    try {
+      const idx = layer === "requests" ? requestIndex : layer === "intake" ? intakeIndex : atlasIndex;
+      return idx.getClusterExpansionZoom(clusterId);
+    } catch { return zoom + 2; }
+  }, [requestIndex, intakeIndex, atlasIndex, zoom]);
+
+  return { clusters, getExpansionZoom };
+}
+
+// ---------------------------------------------------------------------------
+// Cluster bubble component
+// ---------------------------------------------------------------------------
+
+function ClusterBubble({ count, color }: { count: number; color: string }) {
+  const size = count < 10 ? 32 : count < 50 ? 38 : 44;
+  const fontSize = count < 10 ? 12 : count < 50 ? 13 : 14;
+  // Semi-transparent background matching old Leaflet markercluster style
+  const alpha = count < 10 ? 0.7 : count < 50 ? 0.75 : 0.8;
+
+  return (
+    <div style={{
+      width: size,
+      height: size,
+      borderRadius: "50%",
+      background: `rgba(${hexToRgb(color)}, ${alpha})`,
+      border: "2px solid rgba(255,255,255,0.6)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#fff",
+      fontWeight: 700,
+      fontSize,
+      boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+      cursor: "pointer",
+      transition: "transform 0.2s ease",
+    }}>
+      {count}
+    </div>
+  );
 }
 
 function hexToRgb(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  return `${r},${g},${b}`;
+  return `${r}, ${g}, ${b}`;
 }
 
-export function DashboardMap({
+// ---------------------------------------------------------------------------
+// Inner map component (inside APIProvider)
+// ---------------------------------------------------------------------------
+
+function DashboardMapInner({
   requestPins,
   intakePins,
   atlasPins,
@@ -262,231 +311,98 @@ export function DashboardMap({
   layerCounts,
 }: DashboardMapProps) {
   const { mapCenter, mapZoom } = useGeoConfig();
-  const containerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mapRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const clusterGroupsRef = useRef<Record<string, any>>({});
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leafletRef = useRef<any>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const map = useMap();
   const [searchValue, setSearchValue] = useState("");
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [infoPin, setInfoPin] = useState<{ type: "request" | "atlas"; pin: DashboardMapPin | AtlasPin } | null>(null);
 
-  // Stable callback ref
-  const onPinClickRef = useRef(onPinClick);
-  onPinClickRef.current = onPinClick;
+  // Track map bounds + zoom for SuperCluster
+  const [mapBounds, setMapBounds] = useState<{ west: number; south: number; east: number; north: number } | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(mapZoom);
 
-  // Register global handler for popup links
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__dashMapPreview = (entityType: "request" | "place", entityId: string) => {
-      onPinClickRef.current(entityType, entityId);
-    };
-    return () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).__dashMapPreview;
-    };
-  }, []);
-
-  // Initialize map
-  useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-
-    let cancelled = false;
-
-    (async () => {
-      const L = await import("leaflet");
-      const LCjs = require("leaflet");
-      require("leaflet.markercluster");
-
-      if (cancelled || !containerRef.current) return;
-
-      leafletRef.current = LCjs;
-
-      const map = L.map(containerRef.current, {
-        center: mapCenter,
-        zoom: mapZoom,
-        scrollWheelZoom: false,
-        zoomControl: false,
-      });
-
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        maxZoom: 19,
-      }).addTo(map);
-
-      L.control.zoom({ position: "bottomright" }).addTo(map);
-
-      map.getContainer().addEventListener("click", () => {
-        map.scrollWheelZoom.enable();
-      });
-      map.on("mouseout", () => {
-        map.scrollWheelZoom.disable();
-      });
-
-      mapRef.current = map;
-      setMapReady(true);
-    })();
-
-    return () => {
-      cancelled = true;
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
+    if (!map) return;
+    const update = () => {
+      const b = map.getBounds();
+      const z = map.getZoom();
+      if (b) {
+        setMapBounds({
+          west: b.getSouthWest().lng(),
+          south: b.getSouthWest().lat(),
+          east: b.getNorthEast().lng(),
+          north: b.getNorthEast().lat(),
+        });
       }
+      if (z != null) setCurrentZoom(z);
     };
-  }, []);
+    // Initial update after idle
+    const idleListener = map.addListener("idle", update);
+    // Also update on bounds_changed (throttled by idle)
+    update();
+    return () => { google.maps.event.removeListener(idleListener); };
+  }, [map]);
 
-  // Update markers when data or layers change
-  const updateMarkers = useCallback(() => {
-    const map = mapRef.current;
-    const L = leafletRef.current;
-    if (!map || !L) return;
+  // Clustering
+  const { clusters, getExpansionZoom } = useDashboardClusters(
+    requestPins, intakePins, atlasPins, enabledLayers, mapBounds, currentZoom,
+  );
 
-    // Remove all existing cluster groups
-    Object.values(clusterGroupsRef.current).forEach((group) => {
-      if (map.hasLayer(group)) map.removeLayer(group);
-    });
-    clusterGroupsRef.current = {};
-
-    // Import marker creators dynamically (they depend on leaflet globals)
-    const { createAtlasPinMarker, createReferencePinMarker } = require("@/lib/map-markers");
-
-    const bounds = L.latLngBounds([]);
-    let hasAnyPins = false;
-
-    // --- Request pins ---
-    const showRequests = enabledLayers.requests_active || enabledLayers.requests_all || enabledLayers.requests_completed;
-    if (showRequests && requestPins.length > 0) {
-      const requestCluster = createClusterGroup(L, "#3b82f6");
-
-      requestPins.forEach((pin) => {
-        const color = getPinColor(pin);
-        const isActive = ["new", "triaged", "working", "scheduled", "in_progress"].includes(pin.status);
-        const isUrgent = pin.priority === "urgent";
-        const size = isActive ? 18 : 12;
-        const cssClass = isActive
-          ? `dashboard-pin-active${isUrgent ? " dashboard-pin-urgent" : ""}`
-          : "dashboard-pin-completed";
-        const icon = L.divIcon({
-          className: "",
-          html: `<div class="${cssClass}" style="width:${size}px;height:${size}px;background:${color};"></div>`,
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
-          popupAnchor: [0, -(size / 2 + 2)],
-        });
-
-        const marker = L.marker([pin.lat, pin.lng], { icon });
-        marker.bindPopup(buildRequestPopupHtml(pin, "window.__dashMapPreview"), {
-          className: "dashboard-map-popup",
-          closeButton: true,
-          maxWidth: 300,
-        });
-        requestCluster.addLayer(marker);
-        bounds.extend([pin.lat, pin.lng]);
-        hasAnyPins = true;
-      });
-
-      map.addLayer(requestCluster);
-      clusterGroupsRef.current.requests = requestCluster;
-    }
-
-    // --- Intake pins ---
-    if (enabledLayers.intake_pending && intakePins.length > 0) {
-      const intakeCluster = createClusterGroup(L, "#f97316");
-
-      intakePins.forEach((pin) => {
-        const icon = L.divIcon({
-          className: "",
-          html: `<div style="width:14px;height:14px;border-radius:50%;background:#f97316;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);"></div>`,
-          iconSize: [14, 14],
-          iconAnchor: [7, 7],
-          popupAnchor: [0, -8],
-        });
-
-        const marker = L.marker([pin.lat, pin.lng], { icon });
-        marker.bindPopup(buildRequestPopupHtml({ ...pin, layer: "intake" }, "window.__dashMapPreview"), {
-          className: "dashboard-map-popup",
-          closeButton: true,
-          maxWidth: 300,
-        });
-        intakeCluster.addLayer(marker);
-        bounds.extend([pin.lat, pin.lng]);
-        hasAnyPins = true;
-      });
-
-      map.addLayer(intakeCluster);
-      clusterGroupsRef.current.intake = intakeCluster;
-    }
-
-    // --- Atlas pins ---
-    const showAtlas = enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch;
-    if (showAtlas && atlasPins.length > 0) {
-      const atlasCluster = createClusterGroup(L, "#22c55e");
-
-      // Filter atlas pins based on which sub-layers are enabled
-      const filteredAtlas = atlasPins.filter((pin) => {
-        if (enabledLayers.atlas_all) return true;
-        if (enabledLayers.atlas_disease && pin.pin_style === "disease") return true;
-        if (enabledLayers.atlas_watch && pin.pin_style === "watch_list") return true;
-        return false;
-      });
-
-      filteredAtlas.forEach((pin) => {
-        const color = ATLAS_PIN_COLORS[pin.pin_style] || ATLAS_PIN_COLORS.minimal;
-        // Dashboard uses smaller pin sizes: 24px active, 14px reference
-        const isActive = pin.pin_tier === "active";
-        const icon = isActive
-          ? createAtlasPinMarker(color, {
-              size: 24,
-              pinStyle: pin.pin_style,
-              catCount: pin.cat_count,
-              diseaseBadges: pin.disease_badges?.slice(0, 2) || [],
-            })
-          : createReferencePinMarker(color, {
-              size: 14,
-              pinStyle: pin.pin_style,
-            });
-
-        const marker = L.marker([pin.lat, pin.lng], { icon });
-        marker.bindPopup(buildAtlasPinPopupHtml(pin, "window.__dashMapPreview"), {
-          className: "dashboard-map-popup",
-          closeButton: true,
-          maxWidth: 300,
-        });
-        atlasCluster.addLayer(marker);
-        bounds.extend([pin.lat, pin.lng]);
-        hasAnyPins = true;
-      });
-
-      map.addLayer(atlasCluster);
-      clusterGroupsRef.current.atlas = atlasCluster;
-    }
-
-    // Fit bounds if we have pins
-    if (hasAnyPins) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
-    }
-  }, [requestPins, intakePins, atlasPins, enabledLayers]);
-
+  // Fit bounds when data loads (only once)
+  const hasFittedRef = useRef(false);
   useEffect(() => {
-    if (mapReady) updateMarkers();
-  }, [mapReady, updateMarkers]);
+    if (!map || hasFittedRef.current) return;
+
+    const allCoords: Array<{ lat: number; lng: number }> = [];
+    const showRequests = enabledLayers.requests_active || enabledLayers.requests_all || enabledLayers.requests_completed;
+    if (showRequests) requestPins.forEach(p => { if (p.lat && p.lng) allCoords.push({ lat: p.lat, lng: p.lng }); });
+    if (enabledLayers.intake_pending) intakePins.forEach(p => { if (p.lat && p.lng) allCoords.push({ lat: p.lat, lng: p.lng }); });
+    const showAtlas = enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch;
+    if (showAtlas) atlasPins.forEach(p => { if (p.lat && p.lng) allCoords.push({ lat: p.lat, lng: p.lng }); });
+
+    if (allCoords.length > 0) {
+      hasFittedRef.current = true;
+      const bounds = new google.maps.LatLngBounds();
+      allCoords.forEach(c => bounds.extend(c));
+      map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+      const listener = map.addListener("idle", () => {
+        const z = map.getZoom();
+        if (z && z > 13) map.setZoom(13);
+        google.maps.event.removeListener(listener);
+      });
+    }
+  }, [map, requestPins, intakePins, atlasPins, enabledLayers]);
+
+  // Total visible pin count (individual + clustered)
+  const totalPins = useMemo(() => {
+    const showReq = enabledLayers.requests_active || enabledLayers.requests_all || enabledLayers.requests_completed;
+    const showAtlas = enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch;
+    return (showReq ? requestPins.filter(p => p.lat && p.lng).length : 0)
+      + (enabledLayers.intake_pending ? intakePins.filter(p => p.lat && p.lng).length : 0)
+      + (showAtlas ? atlasPins.filter(p => p.lat && p.lng).length : 0);
+  }, [requestPins, intakePins, atlasPins, enabledLayers]);
 
   const handleSearchInput = (value: string) => {
     setSearchValue(value);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    searchTimeoutRef.current = setTimeout(() => {
-      onSearch(value);
-    }, 400);
+    searchTimeoutRef.current = setTimeout(() => { onSearch(value); }, 400);
   };
 
-  // Total visible pin count
-  const totalPins =
-    (enabledLayers.requests_active || enabledLayers.requests_all || enabledLayers.requests_completed ? requestPins.length : 0) +
-    (enabledLayers.intake_pending ? intakePins.length : 0) +
-    (enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch ? atlasPins.length : 0);
+  const handleClusterClick = (layer: "requests" | "intake" | "atlas", clusterId: number, lat: number, lng: number) => {
+    if (!map) return;
+    const expansionZoom = getExpansionZoom(layer, clusterId);
+    map.setCenter({ lat, lng });
+    map.setZoom(Math.min(expansionZoom, 16));
+  };
+
+  // Enable scroll-wheel zoom after first click on map
+  useEffect(() => {
+    if (!map) return;
+    const listener = map.addListener("click", () => {
+      map.setOptions({ gestureHandling: "greedy" });
+      google.maps.event.removeListener(listener);
+    });
+    return () => { google.maps.event.removeListener(listener); };
+  }, [map]);
 
   return (
     <div className="dashboard-map-container">
@@ -521,13 +437,218 @@ export function DashboardMap({
           <span>Loading map...</span>
         </div>
       )}
-      <div
-        ref={containerRef}
+
+      <Map
+        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "atlas-map-v2"}
+        defaultCenter={{ lat: mapCenter[0], lng: mapCenter[1] }}
+        defaultZoom={mapZoom}
+        gestureHandling="cooperative"
+        disableDefaultUI
         style={{ width: "100%", height: "100%", minHeight: "500px" }}
-      />
+      >
+        {/* ── Request layer (clusters + individual) ── */}
+        {clusters.requests.map((feature) => {
+          const [lng, lat] = feature.geometry.coordinates;
+          if (feature.properties.cluster) {
+            return (
+              <AdvancedMarker
+                key={`req-c-${feature.properties.cluster_id}`}
+                position={{ lat, lng }}
+                zIndex={5}
+                onClick={() => handleClusterClick("requests", feature.properties.cluster_id!, lat, lng)}
+              >
+                <ClusterBubble count={feature.properties.point_count!} color={LAYER_CLUSTER_COLORS.requests} />
+              </AdvancedMarker>
+            );
+          }
+          const pin = feature.properties.requestPin!;
+          const color = getPinColor(pin);
+          const isActive = ["new", "triaged", "working", "scheduled", "in_progress"].includes(pin.status);
+          const isUrgent = pin.priority === "urgent";
+          const size = isActive ? 18 : 12;
+          return (
+            <AdvancedMarker
+              key={`req-${pin.request_id}`}
+              position={{ lat, lng }}
+              zIndex={isActive ? 3 : 1}
+              onClick={() => { setInfoPin({ type: "request", pin }); onPinClick("request", pin.request_id); }}
+            >
+              <div
+                className={isActive ? `dashboard-pin-active${isUrgent ? " dashboard-pin-urgent" : ""}` : "dashboard-pin-completed"}
+                style={{
+                  width: size, height: size, background: color,
+                  borderRadius: "50%", border: "2px solid #fff",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.3)", cursor: "pointer",
+                }}
+              />
+            </AdvancedMarker>
+          );
+        })}
+
+        {/* ── Intake layer (clusters + individual) ── */}
+        {clusters.intake.map((feature) => {
+          const [lng, lat] = feature.geometry.coordinates;
+          if (feature.properties.cluster) {
+            return (
+              <AdvancedMarker
+                key={`int-c-${feature.properties.cluster_id}`}
+                position={{ lat, lng }}
+                zIndex={5}
+                onClick={() => handleClusterClick("intake", feature.properties.cluster_id!, lat, lng)}
+              >
+                <ClusterBubble count={feature.properties.point_count!} color={LAYER_CLUSTER_COLORS.intake} />
+              </AdvancedMarker>
+            );
+          }
+          const pin = feature.properties.requestPin!;
+          return (
+            <AdvancedMarker
+              key={`intake-${pin.request_id}`}
+              position={{ lat, lng }}
+              zIndex={2}
+              onClick={() => { setInfoPin({ type: "request", pin: { ...pin, layer: "intake" } }); onPinClick("request", pin.request_id); }}
+            >
+              <div style={{
+                width: 14, height: 14, borderRadius: "50%",
+                background: "#f97316", border: "2px solid #fff",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.3)", cursor: "pointer",
+              }} />
+            </AdvancedMarker>
+          );
+        })}
+
+        {/* ── Atlas layer (clusters + individual) ── */}
+        {clusters.atlas.map((feature) => {
+          const [lng, lat] = feature.geometry.coordinates;
+          if (feature.properties.cluster) {
+            return (
+              <AdvancedMarker
+                key={`atl-c-${feature.properties.cluster_id}`}
+                position={{ lat, lng }}
+                zIndex={5}
+                onClick={() => handleClusterClick("atlas", feature.properties.cluster_id!, lat, lng)}
+              >
+                <ClusterBubble count={feature.properties.point_count!} color={LAYER_CLUSTER_COLORS.atlas} />
+              </AdvancedMarker>
+            );
+          }
+          const pin = feature.properties.atlasPin!;
+          const color = ATLAS_PIN_COLORS[pin.pin_style] || ATLAS_PIN_COLORS.minimal;
+          const isActive = pin.pin_tier === "active";
+          const size = isActive ? 24 : 14;
+          return (
+            <AdvancedMarker
+              key={`atlas-${pin.id}`}
+              position={{ lat, lng }}
+              zIndex={isActive ? 2 : 0}
+              onClick={() => { setInfoPin({ type: "atlas", pin }); onPinClick("place", pin.id); }}
+            >
+              <div style={{
+                width: size, height: size, borderRadius: "50%",
+                background: color, border: `2px solid ${isActive ? "#fff" : "rgba(255,255,255,0.6)"}`,
+                boxShadow: "0 1px 4px rgba(0,0,0,0.3)", opacity: isActive ? 1 : 0.65,
+                cursor: "pointer", transition: "transform 0.15s",
+              }} />
+            </AdvancedMarker>
+          );
+        })}
+
+        {/* ── InfoWindow ── */}
+        {infoPin && (() => {
+          const pos = infoPin.type === "request"
+            ? { lat: (infoPin.pin as DashboardMapPin).lat, lng: (infoPin.pin as DashboardMapPin).lng }
+            : { lat: (infoPin.pin as AtlasPin).lat, lng: (infoPin.pin as AtlasPin).lng };
+
+          if (infoPin.type === "request") {
+            const pin = infoPin.pin as DashboardMapPin;
+            const name = pin.place_name || pin.place_address || "Unknown location";
+            const color = getPinColor(pin);
+            const priorityLabel = PRIORITY_LABELS[pin.priority] || pin.priority;
+            const catInfo = pin.estimated_cat_count
+              ? `${pin.estimated_cat_count} cat${pin.estimated_cat_count > 1 ? "s" : ""}${pin.has_kittens ? " (kittens)" : ""}`
+              : pin.has_kittens ? "Has kittens" : "";
+
+            return (
+              <InfoWindow position={pos} onCloseClick={() => setInfoPin(null)}>
+                <div style={{ minWidth: 200, maxWidth: 280, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{name}</div>
+                  {pin.summary && <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>{pin.summary}</div>}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: color, color: "#fff" }}>{formatStatus(pin.status)}</span>
+                    <span style={{ fontSize: 10, opacity: 0.6 }}>{priorityLabel}</span>
+                    <span style={{ fontSize: 10, opacity: 0.5 }}>{timeAgo(pin.created_at)}</span>
+                  </div>
+                  {catInfo && <div style={{ fontSize: 11, color: "#7c3aed" }}>{catInfo}</div>}
+                  <div style={{ marginTop: 8, borderTop: "1px solid rgba(128,128,128,0.25)", paddingTop: 6 }}>
+                    <a href={`/requests/${pin.request_id}`} style={{ fontSize: 11, color: "#3b82f6", textDecoration: "none" }}>View Details</a>
+                  </div>
+                </div>
+              </InfoWindow>
+            );
+          } else {
+            const pin = infoPin.pin as AtlasPin;
+            const name = pin.display_name || pin.address || "Unknown location";
+            const pinColor = ATLAS_PIN_COLORS[pin.pin_style] || ATLAS_PIN_COLORS.minimal;
+            const stats: string[] = [];
+            if (pin.cat_count > 0) stats.push(`${pin.cat_count} cat${pin.cat_count !== 1 ? "s" : ""}`);
+            if (pin.person_count > 0) stats.push(`${pin.person_count} ${pin.person_count !== 1 ? "people" : "person"}`);
+            if (pin.active_request_count > 0) stats.push(`${pin.active_request_count} active req${pin.active_request_count !== 1 ? "s" : ""}`);
+
+            return (
+              <InfoWindow position={pos} onCloseClick={() => setInfoPin(null)}>
+                <div style={{ minWidth: 200, maxWidth: 280, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{name}</div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: pinColor, color: "#fff" }}>{formatStatus(pin.pin_style)}</span>
+                    {pin.service_zone && <span style={{ fontSize: 10, opacity: 0.5 }}>{pin.service_zone}</span>}
+                  </div>
+                  {stats.length > 0 && <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{stats.join(" \u00B7 ")}</div>}
+                  {pin.disease_badges.length > 0 && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                      {pin.disease_badges.slice(0, 3).map((b, i) => (
+                        <span key={i} style={{ fontSize: 9, fontWeight: 600, padding: "1px 4px", borderRadius: 3, background: b.color, color: "#fff" }}>{b.short_code}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 8, borderTop: "1px solid rgba(128,128,128,0.25)", paddingTop: 6, display: "flex", gap: 12 }}>
+                    <a href={`/places/${pin.id}`} onClick={(e) => { e.preventDefault(); onPinClick("place", pin.id); }} style={{ fontSize: 11, color: "#3b82f6", textDecoration: "none", cursor: "pointer" }}>Preview</a>
+                    <a href={`/places/${pin.id}`} style={{ fontSize: 11, color: "#3b82f6", textDecoration: "none" }}>Full Page &rarr;</a>
+                  </div>
+                </div>
+              </InfoWindow>
+            );
+          }
+        })()}
+      </Map>
+
       <a href="/map" className="dashboard-map-fullscreen-link">
         Open Full Map
       </a>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Root component with APIProvider
+// ---------------------------------------------------------------------------
+
+export function DashboardMap(props: DashboardMapProps) {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+  if (!apiKey) {
+    return (
+      <div className="dashboard-map-container" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 500 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>Google Maps API key not configured</div>
+          <div style={{ fontSize: 13, color: "#6b7280" }}>Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in .env.local</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <APIProvider apiKey={apiKey} libraries={["marker"]} version="quarterly">
+      <DashboardMapInner {...props} />
+    </APIProvider>
   );
 }

@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
-import type * as L from "leaflet";
 import { useToast } from "@/components/feedback/Toast";
 
 interface ContextMenuState { x: number; y: number; lat: number; lng: number; }
 
 interface UseMapContextMenuOptions {
-  mapRef: React.MutableRefObject<L.Map | null>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mapRef: React.MutableRefObject<any>;
   measurement: { addPoint: (latlng: { lat: number; lng: number }) => void };
   setMeasureActive: React.Dispatch<React.SetStateAction<boolean>>;
   setAddPointMode: React.Dispatch<React.SetStateAction<"place" | "annotation" | null>>;
@@ -23,7 +23,8 @@ export function useMapContextMenu({ mapRef, measurement, setMeasureActive, setAd
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
-    const handleCtxMenu = (e: L.LeafletMouseEvent) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleCtxMenu = (e: any) => {
       e.originalEvent.preventDefault();
       const cp = map.latLngToContainerPoint(e.latlng);
       setContextMenu({ x: cp.x, y: cp.y, lat: e.latlng.lat, lng: e.latlng.lng });

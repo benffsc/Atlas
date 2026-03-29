@@ -107,47 +107,6 @@
 }
 
 /* ============================================================
-   Leaflet Marker Overrides
-   ============================================================ */
-
-/* Reset default leaflet-div-icon styling */
-.leaflet-div-icon {
-  background: transparent !important;
-  border: none !important;
-}
-
-/* Don't transform the marker container itself - Leaflet uses inline transforms for positioning */
-.leaflet-marker-icon {
-  /* No transform on the container */
-}
-
-/* Apply hover effects to the inner content, not the positioned container */
-.leaflet-marker-icon > div,
-.leaflet-marker-icon > svg {
-  transition: transform var(--map-transition-fast),
-              filter var(--map-transition-fast);
-}
-
-.leaflet-marker-icon:hover > div,
-.leaflet-marker-icon:hover > svg {
-  transform: scale(1.15);
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
-}
-
-/* Ensure the marker stays on top when hovered */
-.leaflet-marker-icon:hover {
-  z-index: 10000 !important;
-}
-
-.leaflet-marker-icon.marker-entering {
-  animation: map-marker-drop 0.4s var(--map-transition-bounce) forwards;
-}
-
-.leaflet-marker-icon.marker-alert {
-  animation: map-pulse 2s ease-in-out infinite;
-}
-
-/* ============================================================
    Atlas Pin Markers (Google Maps-style teardrop pins)
    ============================================================ */
 
@@ -160,16 +119,6 @@
 
 .pin-wrapper svg {
   overflow: visible;
-}
-
-/* Prevent Leaflet's default marker clipping from cutting off badges */
-.map-marker-pin-main {
-  overflow: visible !important;
-}
-
-.leaflet-marker-icon:hover .pin-wrapper {
-  transform: scale(1.15) translateY(-3px);
-  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.35));
 }
 
 /* Different pin styles */
@@ -228,45 +177,6 @@
 /* ============================================================
    Popup Styling
    ============================================================ */
-
-.leaflet-popup-content-wrapper {
-  background: var(--map-popup-bg);
-  color: var(--map-popup-text);
-  border-radius: 12px;
-  box-shadow: var(--map-shadow-lg);
-  padding: 0;
-  overflow: hidden;
-}
-
-.leaflet-popup-content {
-  margin: 0;
-  min-width: 260px;
-  max-width: 340px;
-}
-
-.leaflet-popup-tip-container {
-  margin-top: -1px;
-}
-
-.leaflet-popup-tip {
-  background: var(--map-popup-bg);
-  box-shadow: none;
-}
-
-.leaflet-popup-close-button {
-  width: 28px;
-  height: 28px;
-  font-size: 20px;
-  line-height: 28px;
-  color: var(--map-popup-secondary);
-  top: 8px;
-  right: 8px;
-  transition: color var(--map-transition-fast);
-}
-
-.leaflet-popup-close-button:hover {
-  color: var(--map-popup-text);
-}
 
 /* Popup Content Classes */
 .map-popup {
@@ -574,26 +484,6 @@
 .map-popup__notes::-webkit-scrollbar-thumb {
   background: var(--map-popup-border);
   border-radius: 2px;
-}
-
-/* ============================================================
-   Tooltip Styling
-   ============================================================ */
-
-.leaflet-tooltip.map-tooltip {
-  background: rgba(0, 0, 0, 0.85);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 10px;
-  white-space: nowrap;
-  box-shadow: var(--map-shadow-sm);
-}
-
-.leaflet-tooltip.map-tooltip::before {
-  border-top-color: rgba(0, 0, 0, 0.85) !important;
 }
 
 /* ============================================================
@@ -1284,24 +1174,6 @@
   font-size: 16px;
 }
 
-/* Override default markercluster chrome to use Atlas design */
-.marker-cluster-small,
-.marker-cluster-medium,
-.marker-cluster-large {
-  background: transparent !important;
-}
-.marker-cluster-small div,
-.marker-cluster-medium div,
-.marker-cluster-large div {
-  background: transparent !important;
-}
-
-/* Smooth cluster transitions */
-.marker-cluster-animated .leaflet-marker-icon,
-.marker-cluster-animated .leaflet-marker-shadow {
-  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
-}
-
 /* ============================================================
    User Location Marker
    ============================================================ */
@@ -1350,11 +1222,6 @@
 
   .map-popup {
     padding: 12px;
-  }
-
-  .leaflet-popup-content {
-    min-width: 240px;
-    max-width: 280px;
   }
 
   /* WCAG touch target minimum: 44x44px */
@@ -3504,10 +3371,6 @@
   background: var(--map-popup-bg, #ffffff);
 }
 
-.map-container:fullscreen .leaflet-container {
-  height: 100% !important;
-}
-
 /* Webkit prefix for Safari */
 .map-container:-webkit-full-screen {
   width: 100vw !important;
@@ -3515,8 +3378,4 @@
   max-width: none;
   max-height: none;
   background: var(--map-popup-bg, #ffffff);
-}
-
-.map-container:-webkit-full-screen .leaflet-container {
-  height: 100% !important;
 }

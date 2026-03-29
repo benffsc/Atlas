@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import type * as L from "leaflet";
 import { useToast } from "@/components/feedback/Toast";
 import { SYSTEM_VIEWS, loadCustomViews, addCustomView, deleteCustomView, viewToEnabledLayers, enabledLayersToList, type MapView } from "@/lib/map-views";
 import { LEGACY_LAYER_CONFIGS } from "@/components/map/types";
@@ -8,7 +7,7 @@ export { SYSTEM_VIEWS };
 export type { MapView };
 
 interface UseMapViewsOptions {
-  mapRef: React.MutableRefObject<L.Map | null>;
+  mapRef: React.MutableRefObject<google.maps.Map | null>;
   enabledLayers: Record<string, boolean>;
   setEnabledLayers: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   setSelectedZone: React.Dispatch<React.SetStateAction<string>>;
@@ -38,13 +37,14 @@ export function useMapViews({ mapRef, enabledLayers, setEnabledLayers, setSelect
     if (view.zone) setSelectedZone(view.zone);
     if (view.dateFrom !== undefined) setDateFrom(view.dateFrom);
     if (view.dateTo !== undefined) setDateTo(view.dateTo);
-    if (view.zoom && view.center && mapRef.current) mapRef.current.setView(view.center, view.zoom);
+    if (view.zoom && view.center && mapRef.current) { mapRef.current.setCenter({ lat: view.center[0], lng: view.center[1] }); mapRef.current.setZoom(view.zoom); }
     addToast({ type: "success", message: `View: ${view.name}` });
   }, [allLayerIds, addToast, mapRef, setEnabledLayers, setSelectedZone, setDateFrom, setDateTo]);
 
   const handleSaveView = useCallback((name: string) => {
     const map = mapRef.current;
-    const newView = addCustomView({ name, layers: enabledLayersToList(enabledLayers), zoom: map?.getZoom(), center: map ? [map.getCenter().lat, map.getCenter().lng] : undefined, dateFrom, dateTo, zone: selectedZone !== "All Zones" ? selectedZone : undefined });
+    const center = map?.getCenter();
+    const newView = addCustomView({ name, layers: enabledLayersToList(enabledLayers), zoom: map?.getZoom() ?? undefined, center: center ? [center.lat(), center.lng()] : undefined, dateFrom, dateTo, zone: selectedZone !== "All Zones" ? selectedZone : undefined });
     setCustomViews(loadCustomViews()); setActiveViewId(newView.id);
     addToast({ type: "success", message: `Saved view: ${name}` });
   }, [enabledLayers, dateFrom, dateTo, selectedZone, addToast, mapRef]);
