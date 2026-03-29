@@ -431,19 +431,25 @@ function AtlasMapV2Inner() {
   // Rubber band line (no cursor-following label — live distance shows in MeasurementPanel)
   const [measureCursorDistance, setMeasureCursorDistance] = useState(0);
   const rafRef = useRef<number | null>(null);
+  // Use refs so the mousemove listener reads current values without re-registering
+  const measurePointsRef = useRef(measurePoints);
+  useEffect(() => { measurePointsRef.current = measurePoints; }, [measurePoints]);
+  const measureTotalDistRef = useRef(measureTotalDistance);
+  useEffect(() => { measureTotalDistRef.current = measureTotalDistance; }, [measureTotalDistance]);
 
   useEffect(() => {
-    if (!map || !measureActive || measurePoints.length === 0) {
+    if (!map || !measureActive) {
       rubberBandRef.current?.setMap(null);
       rubberBandRef.current = null;
       setMeasureCursorDistance(0);
       return;
     }
 
-    const lastPt = measurePoints[measurePoints.length - 1];
-
     const listener = map.addListener("mousemove", (e: google.maps.MapMouseEvent) => {
       if (!e.latLng) return;
+      const pts = measurePointsRef.current;
+      if (pts.length === 0) return;
+      const lastPt = pts[pts.length - 1];
       const to = { lat: e.latLng.lat(), lng: e.latLng.lng() };
 
       // Update rubber band polyline (lightweight — no DOM creation)
@@ -463,7 +469,7 @@ function AtlasMapV2Inner() {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         const segDist = haversine(lastPt, to);
-        setMeasureCursorDistance(measureTotalDistance + segDist);
+        setMeasureCursorDistance(measureTotalDistRef.current + segDist);
       });
     });
 
@@ -473,7 +479,7 @@ function AtlasMapV2Inner() {
       rubberBandRef.current = null;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [map, measureActive, measurePoints, measureTotalDistance]);
+  }, [map, measureActive]); // stable deps — listener registered once, reads refs for current data
 
   // Clean up measurement when deactivated
   useEffect(() => {
