@@ -35,11 +35,15 @@ import {
   SERVICE_ZONES,
 } from "@/components/map";
 import { formatDistance } from "@/components/map/hooks/useMeasurement";
+import { GooglePinMarkers, PlaceMarkers, VolunteerMarkers, ClinicClientMarkers, TrapperTerritoryMarkers } from "@/components/map/components/LayerMarkers";
+import { ZoneBoundaries } from "@/components/map/components/ZoneBoundaries";
+import { useMapUrlState } from "@/components/map/hooks/useMapUrlState";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type {
   AtlasPin,
   Place,
   GooglePin,
+  Zone,
   Volunteer,
   TrapperTerritory,
   ClinicClient,
@@ -101,16 +105,14 @@ function AtlasMapV2Inner() {
   const [selectedZone, setSelectedZone] = useState("All Zones");
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return new URLSearchParams(window.location.search).get("place") || null;
-  });
+  // ── URL-synced drawer state (Phase 3) ──
+  const {
+    selectedPlaceId, setSelectedPlaceId,
+    selectedPersonId, setSelectedPersonId,
+    selectedCatId, setSelectedCatId,
+    selectedAnnotationId, setSelectedAnnotationId,
+  } = useMapUrlState();
   const [selectedPin, setSelectedPin] = useState<AtlasPin | null>(null);
-
-  // ── Drawer state (Step 2) ──
-  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
-  const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [comparisonPlaceIds, setComparisonPlaceIds] = useState<string[]>([]);
 
   // ── Add Point state (Step 5/12) ──
@@ -159,18 +161,11 @@ function AtlasMapV2Inner() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [clinicClients, setClinicClients] = useState<ClinicClient[]>([]);
   const [trapperTerritories, setTrapperTerritories] = useState<TrapperTerritory[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [summary, setSummary] = useState<MapSummary | null>(null);
 
   const atlasPinsRef = useRef<AtlasPin[]>([]);
   useEffect(() => { atlasPinsRef.current = atlasPins; }, [atlasPins]);
-
-  // ── Sync selectedPlaceId → URL (FFS-964) ──
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (selectedPlaceId) url.searchParams.set("place", selectedPlaceId);
-    else url.searchParams.delete("place");
-    window.history.replaceState({}, "", url.toString());
-  }, [selectedPlaceId]);
 
   // Keep refs in sync
   useEffect(() => { streetViewConeOnlyRef.current = streetViewConeOnly; }, [streetViewConeOnly]);
@@ -213,6 +208,7 @@ function AtlasMapV2Inner() {
       setVolunteers((mapData.volunteers || []) as unknown as Volunteer[]);
       setClinicClients((mapData.clinic_clients || []) as unknown as ClinicClient[]);
       setTrapperTerritories((mapData.trapper_territories || []) as unknown as TrapperTerritory[]);
+      setZones((mapData.zones || []) as unknown as Zone[]);
       setSummary(mapData.summary || null);
     }
     setLoading(mapIsLoading);
@@ -1072,6 +1068,28 @@ function AtlasMapV2Inner() {
           </AdvancedMarker>
         )}
 
+        {/* ── Layer markers (Phase 1) ── */}
+        {enabledLayers.google_pins && googlePins.length > 0 && (
+          <GooglePinMarkers pins={googlePins} onInfoWindowOpen={() => setSelectedPin(null)} />
+        )}
+        {enabledLayers.places && places.length > 0 && (
+          <PlaceMarkers places={places} onPlaceSelect={setSelectedPlaceId} onInfoWindowOpen={() => setSelectedPin(null)} />
+        )}
+        {enabledLayers.volunteers && volunteers.length > 0 && (
+          <VolunteerMarkers volunteers={volunteers} onPersonSelect={setSelectedPersonId} onInfoWindowOpen={() => setSelectedPin(null)} />
+        )}
+        {enabledLayers.clinic_clients && clinicClients.length > 0 && (
+          <ClinicClientMarkers clients={clinicClients} onInfoWindowOpen={() => setSelectedPin(null)} />
+        )}
+        {enabledLayers.trapper_territories && trapperTerritories.length > 0 && (
+          <TrapperTerritoryMarkers territories={trapperTerritories} onPersonSelect={setSelectedPersonId} onInfoWindowOpen={() => setSelectedPin(null)} />
+        )}
+
+        {/* ── Zone boundaries (Phase 2) ── */}
+        {enabledLayers.zones && zones.length > 0 && (
+          <ZoneBoundaries zones={zones} />
+        )}
+
         {/* ── Measurement segment distance labels — anchored at center like Google My Maps ── */}
         {measureActive && measureSegments.map((seg, i) => (
           <AdvancedMarker
@@ -1619,14 +1637,6 @@ function AtlasMapV2Inner() {
         </div>
       )}
 
-      {/* ── V2 badge ── */}
-      <div style={{
-        position: "absolute", bottom: isMobile ? 8 : 56, right: isMobile ? 8 : 160, zIndex: 10,
-        background: "rgba(59,130,246,0.9)", color: "white", padding: "4px 10px",
-        borderRadius: 6, fontSize: 11, fontWeight: 600,
-      }}>
-        Google Maps V2
-      </div>
     </div>
   );
 }

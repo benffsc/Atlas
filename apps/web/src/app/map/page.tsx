@@ -34,13 +34,13 @@ const MapSpinner = () => (
   </div>
 );
 
-// Leaflet map (current, stable)
+// Leaflet map (legacy)
 const AtlasMap = dynamic(() => import("@/components/map/AtlasMap"), {
   ssr: false,
   loading: MapSpinner,
 });
 
-// Google Maps V2 (preview)
+// Google Maps (default)
 const AtlasMapV2 = dynamic(() => import("@/components/map/AtlasMapV2"), {
   ssr: false,
   loading: MapSpinner,
@@ -48,7 +48,7 @@ const AtlasMapV2 = dynamic(() => import("@/components/map/AtlasMapV2"), {
 
 function MapPageInner() {
   const searchParams = useSearchParams();
-  const [useV2, setUseV2] = useState(searchParams.get("v2") === "1");
+  const [useV2, setUseV2] = useState(searchParams.get("v1") !== "1");
 
   return (
     <ToastProvider>
@@ -60,16 +60,6 @@ function MapPageInner() {
         display: "flex", gap: 2, fontSize: 12, fontWeight: 500,
       }}>
         <button
-          onClick={() => setUseV2(false)}
-          style={{
-            padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer",
-            background: !useV2 ? "var(--primary, #3b82f6)" : "transparent",
-            color: !useV2 ? "white" : "var(--text-secondary, #6b7280)",
-          }}
-        >
-          Leaflet
-        </button>
-        <button
           onClick={() => setUseV2(true)}
           style={{
             padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer",
@@ -78,6 +68,16 @@ function MapPageInner() {
           }}
         >
           Google Maps
+        </button>
+        <button
+          onClick={() => setUseV2(false)}
+          style={{
+            padding: "5px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            background: !useV2 ? "var(--primary, #3b82f6)" : "transparent",
+            color: !useV2 ? "white" : "var(--text-secondary, #6b7280)",
+          }}
+        >
+          Leaflet (legacy)
         </button>
       </div>
 
