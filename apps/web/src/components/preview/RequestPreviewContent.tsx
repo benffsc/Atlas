@@ -30,15 +30,15 @@ function TnrProgressBar({ fixed, estimated }: { fixed: number; estimated: number
   const bgColor = pct >= 70 ? "#dcfce7" : pct >= 30 ? "#fef3c7" : "#fef2f2";
 
   return (
-    <div style={{ marginBottom: "1rem" }}>
+    <div style={{ marginBottom: "1rem" }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${fixed} of ${estimated} cats fixed, ${pct}% complete`}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
         <span style={{ fontSize: "0.75rem", fontWeight: 600, color }}>
           {fixed} / {estimated} cats fixed
         </span>
         <span style={{ fontSize: "0.75rem", fontWeight: 700, color }}>{pct}%</span>
       </div>
-      <div style={{ height: "6px", borderRadius: "3px", background: bgColor, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: "3px", transition: "width 0.3s ease" }} />
+      <div style={{ height: "8px", borderRadius: "4px", background: bgColor, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: "4px", transition: "width 0.3s ease" }} />
       </div>
     </div>
   );
@@ -46,24 +46,35 @@ function TnrProgressBar({ fixed, estimated }: { fixed: number; estimated: number
 
 // --- Collapsible Section ---
 
-function CollapsibleSection({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
+function CollapsibleSection({ title, defaultOpen = true, open: controlledOpen, onToggle, children }: {
+  title: string;
+  defaultOpen?: boolean;
+  open?: boolean;
+  onToggle?: () => void;
+  children: React.ReactNode;
+}) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const handleToggle = onToggle || (() => setInternalOpen(!internalOpen));
+
   return (
     <div style={{ marginBottom: "1rem" }}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={handleToggle}
         style={{
           display: "flex", alignItems: "center", gap: "0.35rem", width: "100%",
-          background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: open ? "0.5rem" : 0,
+          background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: isOpen ? "0.5rem" : 0,
           fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted, #9ca3af)",
           textTransform: "uppercase", letterSpacing: "0.05em",
         }}
       >
-        <span style={{ fontSize: "0.6rem", transition: "transform 0.15s", transform: open ? "rotate(90deg)" : "rotate(0deg)" }}>&#9654;</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" style={{ transition: "transform 0.15s", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", flexShrink: 0 }}>
+          <path d="M3 1.5L7 5L3 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
         {title}
       </button>
-      {open && children}
+      {isOpen && children}
     </div>
   );
 }
@@ -82,34 +93,37 @@ function QuickActions({ request, onStatusChange, onOpenComplete, onOpenHold }: {
   if (isTerminal) return null;
 
   const btnBase: React.CSSProperties = {
-    padding: "4px 10px", border: "none", borderRadius: "6px",
+    padding: "4px 10px", borderRadius: "6px",
     fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
   };
+  // Primary action = filled, strongest visual weight
+  const btnPrimary: React.CSSProperties = { ...btnBase, background: "#2563eb", color: "#fff", border: "none" };
+  // Secondary = outline
+  const btnSecondary: React.CSSProperties = { ...btnBase, background: "transparent", color: "#92400e", border: "1px solid #fbbf24" };
+  // Tertiary/complete = ghost outline (opens modal anyway)
+  const btnTertiary: React.CSSProperties = { ...btnBase, background: "transparent", color: "#166534", border: "1px solid #86efac" };
 
   return (
     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-      {/* Move to Working */}
+      {/* Primary action: Start Working or Resume */}
       {primary === "new" && (
-        <button type="button" onClick={() => onStatusChange("working")}
-          style={{ ...btnBase, background: "#dbeafe", color: "#1d4ed8" }}>
+        <button type="button" onClick={() => onStatusChange("working")} style={btnPrimary}>
           Start Working
         </button>
       )}
-      {/* Hold / Resume */}
-      {primary !== "paused" ? (
-        <button type="button" onClick={onOpenHold}
-          style={{ ...btnBase, background: "#fef3c7", color: "#92400e" }}>
-          Pause
-        </button>
-      ) : (
-        <button type="button" onClick={() => onStatusChange("working")}
-          style={{ ...btnBase, background: "#dbeafe", color: "#1d4ed8" }}>
+      {primary === "paused" && (
+        <button type="button" onClick={() => onStatusChange("working")} style={btnPrimary}>
           Resume
         </button>
       )}
-      {/* Complete */}
-      <button type="button" onClick={onOpenComplete}
-        style={{ ...btnBase, background: "#dcfce7", color: "#166534" }}>
+      {/* Secondary: Pause (only when not already paused) */}
+      {primary !== "paused" && (
+        <button type="button" onClick={onOpenHold} style={btnSecondary}>
+          Pause
+        </button>
+      )}
+      {/* Tertiary: Complete (opens confirmation modal) */}
+      <button type="button" onClick={onOpenComplete} style={btnTertiary}>
         Complete
       </button>
     </div>
@@ -127,6 +141,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
   const { success: toastSuccess, error: toastError } = useToast();
   const [showComplete, setShowComplete] = useState(false);
   const [showHold, setShowHold] = useState(false);
+  const [allExpanded, setAllExpanded] = useState<boolean | null>(null); // null = use defaults
 
   const createdDate = new Date(r.created_at);
   const endDate = r.resolved_at ? new Date(r.resolved_at) : new Date();
@@ -188,14 +203,31 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
 
   // --- Build sections with collapsibility ---
 
+  // Section open state: null = use defaults, true/false = override all
+  const sectionOpen = (defaultOpen: boolean) => allExpanded !== null ? allExpanded : defaultOpen;
+
   const sectionElements = (
     <>
       {/* TNR Progress Bar — the most important visual */}
       <TnrProgressBar fixed={r.linked_cat_count ?? 0} estimated={r.estimated_cat_count} />
 
+      {/* Expand/Collapse All toggle */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.5rem" }}>
+        <button
+          type="button"
+          onClick={() => setAllExpanded(allExpanded === true ? false : true)}
+          style={{
+            background: "none", border: "none", cursor: "pointer", padding: 0,
+            fontSize: "0.7rem", color: "var(--primary, #3b82f6)", fontWeight: 500,
+          }}
+        >
+          {allExpanded === true ? "Collapse all" : "Expand all"}
+        </button>
+      </div>
+
       {/* Notes */}
       {r.notes && (
-        <CollapsibleSection title="Notes">
+        <CollapsibleSection title="Notes" key={`notes-${allExpanded}`} defaultOpen={sectionOpen(true)}>
           <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: 1.5, whiteSpace: "pre-wrap", color: "var(--foreground)" }}>
             {r.notes.length > 300 ? r.notes.slice(0, 300) + "\u2026" : r.notes}
           </p>
@@ -203,7 +235,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
       )}
 
       {/* Contact */}
-      <CollapsibleSection title="Contact">
+      <CollapsibleSection title="Contact" key={`contact-${allExpanded}`} defaultOpen={sectionOpen(true)}>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.85rem" }}>
           {r.requester_name && (
             <div>
@@ -237,7 +269,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
       </CollapsibleSection>
 
       {/* Location */}
-      <CollapsibleSection title="Location">
+      <CollapsibleSection title="Location" key={`location-${allExpanded}`} defaultOpen={sectionOpen(true)}>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
           {r.place_name && <div style={{ fontWeight: 600 }}>{r.place_name}</div>}
           {r.place_address && <div style={{ color: "var(--text-secondary)" }}>{r.place_address}</div>}
@@ -257,7 +289,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
 
       {/* Colony Assessment */}
       {(r.colony_size_estimate != null || r.colony_duration || r.handleability || r.count_confidence) && (
-        <CollapsibleSection title="Colony Assessment">
+        <CollapsibleSection title="Colony Assessment" key={`colony-${allExpanded}`} defaultOpen={sectionOpen(true)}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.85rem" }}>
             {r.colony_size_estimate != null && <FieldCell label="Colony Size" value={String(r.colony_size_estimate)} />}
             {r.colony_verified_altered != null && <FieldCell label="Altered" value={String(r.colony_verified_altered)} />}
@@ -272,7 +304,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
 
       {/* Trapping Logistics */}
       {(r.dogs_on_site || r.trap_savvy || r.previous_tnr || r.traps_overnight_safe != null || r.permission_status || r.best_times_seen) && (
-        <CollapsibleSection title="Trapping Logistics">
+        <CollapsibleSection title="Trapping Logistics" key={`trapping-${allExpanded}`} defaultOpen={sectionOpen(true)}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.85rem" }}>
             {r.dogs_on_site && <FieldCell label="Dogs on Site" value={r.dogs_on_site} highlight={r.dogs_on_site.toLowerCase() === "yes"} />}
             {r.trap_savvy && <FieldCell label="Trap-Savvy" value={r.trap_savvy} highlight={r.trap_savvy.toLowerCase() === "yes"} />}
@@ -288,7 +320,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
 
       {/* Urgency — always expanded if present */}
       {(r.is_emergency || (r.urgency_reasons && r.urgency_reasons.length > 0) || r.urgency_notes || r.medical_description) && (
-        <CollapsibleSection title="Urgency & Medical">
+        <CollapsibleSection title="Urgency & Medical" key={`urgency-${allExpanded}`} defaultOpen={sectionOpen(true)}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
             {r.urgency_reasons && r.urgency_reasons.length > 0 && (
               <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
@@ -305,7 +337,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
 
       {/* Assigned Trappers */}
       {(r.current_trappers && r.current_trappers.length > 0) ? (
-        <CollapsibleSection title="Assigned Trappers">
+        <CollapsibleSection title="Assigned Trappers" key={`trappers-${allExpanded}`} defaultOpen={sectionOpen(true)}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
             {r.current_trappers.map((t) => (
               <div key={t.trapper_person_id} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -317,14 +349,14 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
           </div>
         </CollapsibleSection>
       ) : r.primary_trapper_name ? (
-        <CollapsibleSection title="Trapper">
+        <CollapsibleSection title="Trapper" key={`trapper-single-${allExpanded}`} defaultOpen={sectionOpen(true)}>
           <div style={{ fontSize: "0.85rem", fontWeight: 500 }}>{r.primary_trapper_name}</div>
         </CollapsibleSection>
       ) : null}
 
       {/* Linked Cats — collapsed by default to save space */}
       {r.cats && r.cats.length > 0 && (
-        <CollapsibleSection title={`Linked Cats (${r.cats.length})`} defaultOpen={false}>
+        <CollapsibleSection title={`Linked Cats (${r.cats.length})`} key={`cats-${allExpanded}`} defaultOpen={sectionOpen(false)}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.85rem" }}>
             {r.cats.slice(0, 6).map((cat) => (
               <div key={cat.cat_id} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -344,7 +376,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
 
       {/* Feeding — collapsed by default */}
       {(r.is_being_fed != null || r.feeder_name) && (
-        <CollapsibleSection title="Feeding" defaultOpen={false}>
+        <CollapsibleSection title="Feeding" key={`feeding-${allExpanded}`} defaultOpen={sectionOpen(false)}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.85rem" }}>
             <FieldCell label="Being Fed" value={r.is_being_fed ? "Yes" : r.is_being_fed === false ? "No" : "\u2014"} good={r.is_being_fed ?? undefined} />
             {r.feeder_name && <FieldCell label="Feeder" value={r.feeder_name} />}
@@ -355,7 +387,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
       )}
 
       {/* Record — collapsed by default */}
-      <CollapsibleSection title="Record" defaultOpen={false}>
+      <CollapsibleSection title="Record" key={`record-${allExpanded}`} defaultOpen={sectionOpen(false)}>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
           <div>Created: {formatDateLocal(r.created_at)}</div>
           {r.resolved_at && <div>Resolved: {formatDateLocal(r.resolved_at)}</div>}
@@ -408,7 +440,7 @@ function FieldCell({ label, value, highlight, good }: { label: string; value: st
   const valueColor = good === true ? "#16a34a" : good === false ? "#dc2626" : highlight ? "#d97706" : undefined;
   return (
     <div>
-      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>{label}</div>
+      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>{label}</div>
       <div style={{ fontWeight: 500, color: valueColor }}>{value}</div>
     </div>
   );

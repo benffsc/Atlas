@@ -146,7 +146,7 @@ export function EntityPreviewPanel({
                 >
                   {stat.value}
                 </div>
-                <div style={{ fontSize: "0.7rem", color: "var(--text-muted, #9ca3af)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>
                   {stat.label}
                 </div>
               </div>
