@@ -2,8 +2,8 @@
 
 import dynamic from "next/dynamic";
 
-// Dynamically import the AtlasMap component to avoid SSR issues with Leaflet
-const AtlasMap = dynamic(() => import("@/components/map/AtlasMap"), {
+// Dynamically import the map component to avoid SSR issues
+const AtlasMap = dynamic(() => import("@/components/map/AtlasMapV2"), {
   ssr: false,
   loading: () => (
     <div

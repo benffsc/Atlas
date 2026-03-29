@@ -11,9 +11,7 @@
 
 // Hooks
 export { useMapSearch } from "./hooks/useMapSearch";
-export { useStreetView } from "./hooks/useStreetView";
-export { useMeasurement, formatDistance } from "./hooks/useMeasurement";
-export { useHeatmapLayer } from "./hooks/useHeatmapLayer";
+export { formatDistance } from "./hooks/useMeasurement";
 export {
   useMapClustering,
   isCluster,
@@ -62,7 +60,6 @@ export {
 } from "./types";
 
 // Main map components
-export { default as AtlasMap } from "./AtlasMap";
 export { default as BeaconMap } from "./BeaconMap";
 
 // Re-export existing map components (already in this directory)
@@ -71,12 +68,3 @@ export { PersonDetailDrawer } from "./PersonDetailDrawer";
 export { CatDetailDrawer } from "./CatDetailDrawer";
 export { AnnotationDetailDrawer } from "./AnnotationDetailDrawer";
 export { PlacementPanel } from "./PlacementPanel";
-export {
-  buildPlacePopup,
-  buildGooglePinPopup,
-  buildTNRPriorityPopup,
-  buildVolunteerPopup,
-  buildClinicClientPopup,
-  buildZonePopup,
-  escapeHtml,
-} from "./MapPopup";
