@@ -118,6 +118,7 @@ export function PersonReferencePicker({
     const currentSearchId = ++searchIdRef.current;
 
     setLoading(true);
+    setShowDropdown(true);
     try {
       const data = await fetchApi<{
         results: PersonSearchResult[];
