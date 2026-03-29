@@ -1157,27 +1157,69 @@ function AtlasMapV2Inner() {
             onCloseClick={() => setSelectedPin(null)}
           >
             {(selectedPin.pin_tier === "reference" || selectedPin.pin_style === "has_history" || selectedPin.pin_style === "minimal") ? (
-              /* ── Reference pin popup (compact) ── */
-              <div style={{ minWidth: 200, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+              /* ── Reference pin popup (compact but useful) ── */
+              <div style={{ minWidth: 220, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
                   {selectedPin.display_name || selectedPin.address}
                 </div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>
-                  {selectedPin.pin_style === "has_history" ? "Historical data" : "Minimal data"}
-                  {selectedPin.service_zone ? ` · ${selectedPin.service_zone}` : ""}
+                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>
+                  {selectedPin.service_zone || "Unknown zone"}
+                  {selectedPin.place_kind ? ` · ${selectedPin.place_kind.replace(/_/g, " ")}` : ""}
                 </div>
+
+                {/* Stats row — show whatever data exists */}
+                {(selectedPin.cat_count > 0 || selectedPin.request_count > 0 || selectedPin.person_count > 0 || selectedPin.total_altered > 0) && (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    {selectedPin.cat_count > 0 && (
+                      <span style={{ background: "#f3f4f6", padding: "2px 8px", borderRadius: 10, fontSize: 11 }}>
+                        {selectedPin.cat_count} cat{selectedPin.cat_count !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                    {selectedPin.total_altered > 0 && (
+                      <span style={{ background: "#dcfce7", padding: "2px 8px", borderRadius: 10, fontSize: 11, color: "#16a34a" }}>
+                        {selectedPin.total_altered} altered
+                      </span>
+                    )}
+                    {selectedPin.request_count > 0 && (
+                      <span style={{ background: selectedPin.active_request_count > 0 ? "#fef2f2" : "#f3f4f6", padding: "2px 8px", borderRadius: 10, fontSize: 11, color: selectedPin.active_request_count > 0 ? "#dc2626" : undefined }}>
+                        {selectedPin.request_count} request{selectedPin.request_count !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                    {selectedPin.person_count > 0 && (
+                      <span style={{ background: "#f3f4f6", padding: "2px 8px", borderRadius: 10, fontSize: 11 }}>
+                        {selectedPin.person_count} people
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {selectedPin.last_alteration_at && (
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>
+                    Last TNR: {formatRelativeTime(selectedPin.last_alteration_at)}
+                  </div>
+                )}
+
                 {selectedPin.google_summaries?.length > 0 && (
                   <div style={{ fontSize: 12, color: "#374151", marginBottom: 8, fontStyle: "italic", maxHeight: 40, overflow: "hidden", textOverflow: "ellipsis" }}>
                     &ldquo;{selectedPin.google_summaries[0].summary.slice(0, 120)}{selectedPin.google_summaries[0].summary.length > 120 ? "..." : ""}&rdquo;
                   </div>
                 )}
-                <a
-                  href={`/places/${selectedPin.id}`}
-                  target="_blank"
-                  style={{ display: "inline-block", padding: "6px 12px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, textDecoration: "none" }}
-                >
-                  View Place
-                </a>
+
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => { setSelectedPlaceId(selectedPin.id); setSelectedPin(null); }}
+                    style={{ flex: 1, padding: "6px 12px", background: "#3b82f6", color: "white", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+                  >
+                    Details
+                  </button>
+                  <a
+                    href={`/places/${selectedPin.id}`}
+                    target="_blank"
+                    style={{ padding: "6px 12px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 500, textDecoration: "none" }}
+                  >
+                    Open Page
+                  </a>
+                </div>
               </div>
             ) : (
               /* ── Active pin popup (rich) ── */
@@ -1582,21 +1624,21 @@ function AtlasMapV2Inner() {
         )
       )}
 
-      {/* ── Person Detail Drawer (Step 2) ── */}
-      {selectedPersonId && (
+      {/* ── Person Detail Drawer (Step 2) — exclusive with CatDetailDrawer ── */}
+      {selectedPersonId && !selectedCatId && (
         <PersonDetailDrawer
           personId={selectedPersonId}
           onClose={() => setSelectedPersonId(null)}
-          onNavigateCat={setSelectedCatId}
+          onNavigateCat={(catId) => { setSelectedPersonId(null); setSelectedCatId(catId); }}
         />
       )}
 
-      {/* ── Cat Detail Drawer (Step 2) ── */}
-      {selectedCatId && (
+      {/* ── Cat Detail Drawer (Step 2) — exclusive with PersonDetailDrawer ── */}
+      {selectedCatId && !selectedPersonId && (
         <CatDetailDrawer
           catId={selectedCatId}
           onClose={() => setSelectedCatId(null)}
-          onNavigatePerson={setSelectedPersonId}
+          onNavigatePerson={(personId) => { setSelectedCatId(null); setSelectedPersonId(personId); }}
           onNavigatePlace={(placeId) => {
             setSelectedCatId(null);
             setSelectedPersonId(null);
