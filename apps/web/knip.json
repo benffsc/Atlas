@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "src/app/**/page.tsx",
+    "src/app/**/layout.tsx",
+    "src/app/api/**/route.ts",
+    "src/middleware.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "src/**/*.spec.ts",
+    "src/**/*.test.tsx",
+    "e2e/**"
+  ],
+  "ignoreDependencies": [
+    "@types/*",
+    "encoding"
+  ]
+}

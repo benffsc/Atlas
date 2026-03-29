@@ -11,6 +11,7 @@
     "test:unit:coverage": "vitest run --coverage",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
+    "lint:dead-code": "knip",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
@@ -75,6 +76,7 @@
     "eslint": "^9.39.3",
     "eslint-config-next": "^16.1.6",
     "happy-dom": "^20.8.4",
+    "knip": "^6.1.0",
     "typescript": "^5",
     "vitest": "^4.1.0"
   }
