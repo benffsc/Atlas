@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { APIProvider, Map, AdvancedMarker, InfoWindow, useMap, CollisionBehavior } from "@vis.gl/react-google-maps";
+import { APIProvider, Map, AdvancedMarker, AdvancedMarkerAnchorPoint, InfoWindow, useMap, CollisionBehavior } from "@vis.gl/react-google-maps";
 import { useMapData } from "@/hooks/useMapData";
 import { useMapColors } from "@/hooks/useMapColors";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
@@ -1072,13 +1072,22 @@ function AtlasMapV2Inner() {
           </AdvancedMarker>
         )}
 
-        {/* ── Measurement segment distance labels (declarative AdvancedMarkers) ── */}
+        {/* ── Measurement segment distance labels — anchored at center like Google My Maps ── */}
         {measureActive && measureSegments.map((seg, i) => (
-          <AdvancedMarker key={`measure-seg-${i}`} position={{ lat: seg.lat, lng: seg.lng }} collisionBehavior={CollisionBehavior.REQUIRED} zIndex={20}>
+          <AdvancedMarker
+            key={`measure-seg-${i}`}
+            position={{ lat: seg.lat, lng: seg.lng }}
+            collisionBehavior={CollisionBehavior.REQUIRED}
+            zIndex={20}
+            anchorPoint={AdvancedMarkerAnchorPoint.CENTER}
+          >
             <div style={{
-              background: "white", borderRadius: 4, padding: "2px 6px",
-              fontSize: 12, fontWeight: 600, boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              background: "rgba(255,255,255,0.92)", borderRadius: 10, padding: "1px 6px",
+              fontSize: 11, fontWeight: 600, color: "#1a73e8",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
               whiteSpace: "nowrap", pointerEvents: "none",
+              lineHeight: "16px", letterSpacing: "-0.01em",
+              border: "1px solid rgba(26,115,232,0.2)",
             }}>
               {formatDistance(seg.distance)}
             </div>
