@@ -29,9 +29,6 @@ export * from './charts';
 // Common utility components (back button, edit history, entity link, etc.)
 export * from './common';
 
-// Data quality components
-export * from './data-quality';
-
 // Feedback components
 export * from './feedback';
 
@@ -69,15 +66,10 @@ export * from './search';
 // Section components (journal, linked entities, clinic history)
 export * from './sections';
 
-// Timeline components
-export * from './timeline';
-
 // Verification components
 export * from './verification';
 
 // App-level components (kept at root)
 export { AppShell } from './AppShell';
-export { default as PasswordGate } from './PasswordGate';
-export { ProfileLayout } from './ProfileLayout';
 export { SidebarLayout, mainSidebarSections, AdminSidebar, MainSidebar, RequestsSidebar, CatsSidebar, PeopleSidebar, PlacesSidebar, IntakeSidebar, TrappersSidebar, type NavSection } from './SidebarLayout';
 export { TippyChat } from './TippyChat';
