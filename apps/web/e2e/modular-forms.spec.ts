@@ -178,7 +178,7 @@ test.describe('Form Templates API', () => {
 
     if (templates.length > 0) {
       const template = templates[0];
-      expect(template).toHaveProperty('key');
+      expect(template).toHaveProperty('template_key');
     }
   });
 

@@ -111,7 +111,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     const testChip = page.locator('button').filter({ hasText: /Test/i }).first();
 
     if (!(await legacyChip.isVisible({ timeout: 5000 }).catch(() => false))) {
-      test.skip();
+      test.skip(true, 'Legacy filter chip not visible in current UI');
       return;
     }
 
@@ -154,7 +154,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
       const fallback = page.locator('input[type="text"]').first();
       const fallbackVisible = await fallback.isVisible({ timeout: 3000 }).catch(() => false);
       if (!fallbackVisible) {
-        test.skip();
+        test.skip(true, 'Search input not found in current UI');
         return;
       }
       await fallback.fill('test');
@@ -178,7 +178,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     const selectCount = await selects.count();
 
     if (selectCount === 0) {
-      test.skip();
+      test.skip(true, 'No select dropdowns found for category filter');
       return;
     }
 
@@ -222,7 +222,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     const selectCount = await selects.count();
 
     if (selectCount === 0) {
-      test.skip();
+      test.skip(true, 'No select dropdowns found for sort control');
       return;
     }
 
@@ -237,7 +237,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     }
 
     if (!sortSelect) {
-      test.skip();
+      test.skip(true, 'Sort-by dropdown not found among select elements');
       return;
     }
 
@@ -271,7 +271,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     const sortButton = page.locator('button[title*="first"]').first();
 
     if (!(await sortButton.isVisible({ timeout: 5000 }).catch(() => false))) {
-      test.skip();
+      test.skip(true, 'Sort order toggle button not visible');
       return;
     }
 
@@ -308,7 +308,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
         expect(hasEmptyMessage).toBeGreaterThan(0);
         return;
       }
-      test.skip();
+      test.skip(true, 'No submission rows found in queue table');
       return;
     }
 
@@ -325,7 +325,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
 
     const firstRow = page.locator('table tbody tr').first();
     if (!(await firstRow.isVisible({ timeout: 3000 }).catch(() => false))) {
-      test.skip();
+      test.skip(true, 'No queue table rows found to check action buttons');
       return;
     }
 
@@ -369,7 +369,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     }
 
     if (!clicked) {
-      test.skip();
+      test.skip(true, 'No clickable submission row found to open detail panel');
       return;
     }
 
@@ -403,7 +403,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     } else if (await tableRow.isVisible({ timeout: 3000 }).catch(() => false)) {
       await tableRow.click();
     } else {
-      test.skip();
+      test.skip(true, 'No clickable submission row found to show detail info');
       return;
     }
 
@@ -446,7 +446,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     } else if (await tableRow.isVisible({ timeout: 3000 }).catch(() => false)) {
       await tableRow.click();
     } else {
-      test.skip();
+      test.skip(true, 'No clickable submission row found to check status actions');
       return;
     }
 
@@ -493,7 +493,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     } else if (await tableRow.isVisible({ timeout: 3000 }).catch(() => false)) {
       await tableRow.click();
     } else {
-      test.skip();
+      test.skip(true, 'No clickable submission row found to test back-to-list');
       return;
     }
 
@@ -529,7 +529,7 @@ test.describe('UI: Intake Queue Interactions @workflow', () => {
     const headerCount = await headers.count();
 
     if (headerCount === 0) {
-      test.skip();
+      test.skip(true, 'No table column headers found');
       return;
     }
 

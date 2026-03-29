@@ -127,7 +127,9 @@ test.describe("UI: Navigation", () => {
     page,
   }) => {
     await navigateTo(page, "/");
-    const requestsLink = page.locator('a[href*="/requests"]').first();
+    await waitForLoaded(page);
+    // Use exact href to avoid matching sub-routes like /requests/new
+    const requestsLink = page.locator('a[href="/requests"], a[href*="/requests"]:not([href*="/requests/"])').first();
     if (await requestsLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await requestsLink.click();
       await expect(page).toHaveURL(/\/requests/, { timeout: 10000 });
@@ -136,7 +138,9 @@ test.describe("UI: Navigation", () => {
 
   test("Clicking cats nav goes to cats page @smoke", async ({ page }) => {
     await navigateTo(page, "/");
-    const catsLink = page.locator('a[href*="/cats"]').first();
+    await waitForLoaded(page);
+    // Use exact href to avoid matching sub-routes
+    const catsLink = page.locator('a[href="/cats"], a[href*="/cats"]:not([href*="/cats/"])').first();
     if (await catsLink.isVisible({ timeout: 5000 }).catch(() => false)) {
       await catsLink.click();
       await expect(page).toHaveURL(/\/cats/, { timeout: 10000 });

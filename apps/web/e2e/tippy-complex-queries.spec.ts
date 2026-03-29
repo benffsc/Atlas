@@ -14,36 +14,12 @@
  */
 
 import { test, expect } from "@playwright/test";
-
-const TIPPY_API = "/api/tippy/chat";
-
-interface TippyResponse {
-  message: string;
-  response?: string;
-  content?: string;
-  toolCalls?: any[];
-}
-
-async function askTippy(
-  request: any,
-  question: string
-): Promise<TippyResponse> {
-  const response = await request.post(TIPPY_API, {
-    data: { message: question },
-    headers: { "Content-Type": "application/json" },
-  });
-
-  if (!response.ok()) {
-    return { message: `API Error: ${response.status()}` };
-  }
-
-  return await response.json();
-}
+import { askTippy } from "./helpers/auth-api";
 
 test.describe("Tippy Complex Queries - Program Statistics @real-api", () => {
-  test("can compare foster Q1 vs Q3 2025", async ({ request }) => {
+  test("can compare foster Q1 vs Q3 2025", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Compare the foster program stats for Q1 2025 vs Q3 2025. How many cats were fixed in each quarter?"
     );
 
@@ -67,9 +43,9 @@ test.describe("Tippy Complex Queries - Program Statistics @real-api", () => {
     expect(hasQuarterMention).toBeTruthy();
   });
 
-  test("can report foster program year-to-date", async ({ request }) => {
+  test("can report foster program year-to-date", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many foster cats have we fixed in 2025 so far?"
     );
 
@@ -81,9 +57,9 @@ test.describe("Tippy Complex Queries - Program Statistics @real-api", () => {
     expect(text.includes("2025") || text.includes("this year")).toBeTruthy();
   });
 
-  test("can compare county cats vs foster cats", async ({ request }) => {
+  test("can compare county cats vs foster cats", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "In 2025, how many county cats have we done compared to foster cats?"
     );
 
@@ -98,9 +74,9 @@ test.describe("Tippy Complex Queries - Program Statistics @real-api", () => {
     expect(hasComparison).toBeTruthy();
   });
 
-  test("can explain LMFM program stats", async ({ request }) => {
+  test("can explain LMFM program stats", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many Love Me Fix Me waiver appointments have we had this year?"
     );
 
@@ -115,9 +91,9 @@ test.describe("Tippy Complex Queries - Program Statistics @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("can provide program breakdown percentages", async ({ request }) => {
+  test("can provide program breakdown percentages", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What percentage of our alterations this year are from the foster program vs regular appointments?"
     );
 
@@ -129,9 +105,9 @@ test.describe("Tippy Complex Queries - Program Statistics @real-api", () => {
 });
 
 test.describe("Tippy Complex Queries - Year-over-Year @real-api", () => {
-  test("can compare 2024 vs 2025 foster program", async ({ request }) => {
+  test("can compare 2024 vs 2025 foster program", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How does our 2025 foster program volume compare to 2024?"
     );
 
@@ -143,9 +119,9 @@ test.describe("Tippy Complex Queries - Year-over-Year @real-api", () => {
     expect(text.includes("2025") || text.includes("this year")).toBeTruthy();
   });
 
-  test("can identify monthly trends", async ({ request }) => {
+  test("can identify monthly trends", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What was our busiest month for the foster program in 2025?"
     );
 
@@ -174,10 +150,10 @@ test.describe("Tippy Complex Queries - Year-over-Year @real-api", () => {
 });
 
 test.describe("Tippy Complex Queries - Multi-Source @real-api", () => {
-  test("can query person with foster + clinic history", async ({ request }) => {
+  test("can query person with foster + clinic history", async ({ page }) => {
     // This requires joining VolunteerHub (foster role) + ClinicHQ (appointments)
     const response = await askTippy(
-      request,
+      page,
       "How many cats have our approved foster parents brought to clinic in 2025?"
     );
 
@@ -186,9 +162,9 @@ test.describe("Tippy Complex Queries - Multi-Source @real-api", () => {
     expect(response.message).toMatch(/\d+/);
   });
 
-  test("can bridge SCAS cats to ShelterLuv", async ({ request }) => {
+  test("can bridge SCAS cats to ShelterLuv", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many of our county SCAS cats have ShelterLuv records?"
     );
 
@@ -204,9 +180,9 @@ test.describe("Tippy Complex Queries - Multi-Source @real-api", () => {
 });
 
 test.describe("Tippy Complex Queries - Data Quality @real-api", () => {
-  test("can identify appointments missing cat links", async ({ request }) => {
+  test("can identify appointments missing cat links", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many appointments don't have cat records linked?"
     );
 
@@ -216,9 +192,9 @@ test.describe("Tippy Complex Queries - Data Quality @real-api", () => {
     expect(response.message).toMatch(/\d+/);
   });
 
-  test("can report on unlinked foster appointments", async ({ request }) => {
+  test("can report on unlinked foster appointments", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many foster program appointments are missing person links?"
     );
 
@@ -235,9 +211,9 @@ test.describe("Tippy Complex Queries - Data Quality @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("can identify categorization issues", async ({ request }) => {
+  test("can identify categorization issues", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Are there any appointments that might be miscategorized? Like SCAS cats marked as regular?"
     );
 
@@ -256,9 +232,9 @@ test.describe("Tippy Complex Queries - Data Quality @real-api", () => {
 });
 
 test.describe("Tippy Complex Queries - Staff Workflow @real-api", () => {
-  test("can answer 'who is our top foster parent'", async ({ request }) => {
+  test("can answer 'who is our top foster parent'", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Who are our most active foster parents this year? Top 3 by cats fostered."
     );
 
@@ -274,9 +250,9 @@ test.describe("Tippy Complex Queries - Staff Workflow @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("can explain program trends", async ({ request }) => {
+  test("can explain program trends", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Is our foster program growing or shrinking compared to last year?"
     );
 
@@ -296,9 +272,9 @@ test.describe("Tippy Complex Queries - Staff Workflow @real-api", () => {
     expect(hasTrend).toBeTruthy();
   });
 
-  test("can handle edge case: future date query", async ({ request }) => {
+  test("can handle edge case: future date query", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many fosters will we have in Q4 2026?"
     );
 
@@ -316,9 +292,9 @@ test.describe("Tippy Complex Queries - Staff Workflow @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("can handle ambiguous program reference", async ({ request }) => {
+  test("can handle ambiguous program reference", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many did we do for that special program this year?"
     );
 
@@ -338,10 +314,10 @@ test.describe("Tippy Complex Queries - Staff Workflow @real-api", () => {
 });
 
 test.describe("Tippy Response Accuracy - Cross-Validation @real-api", () => {
-  test("foster count matches view data", async ({ request }) => {
+  test("foster count matches view data", async ({ page }) => {
     // Get Tippy's answer
     const tippyResponse = await askTippy(
-      request,
+      page,
       "Exactly how many foster program alterations in 2025?"
     );
 
@@ -349,7 +325,7 @@ test.describe("Tippy Response Accuracy - Cross-Validation @real-api", () => {
     const tippyNumber = tippyResponse.message.match(/\d+/)?.[0];
 
     // Get direct view data (if available)
-    const viewResponse = await request.get(
+    const viewResponse = await page.request.get(
       "/api/admin/query?view=v_foster_program_ytd&year=2025"
     );
 

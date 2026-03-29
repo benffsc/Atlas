@@ -1837,61 +1837,131 @@ async function queryFfrImpact(
   area?: string,
   timePeriod?: string
 ): Promise<ToolResult> {
-  let dateFilter = "";
-  if (timePeriod === "this_year") {
-    dateFilter = "AND a.appointment_date >= DATE_TRUNC('year', CURRENT_DATE)";
-  } else if (timePeriod === "this_month") {
-    dateFilter = "AND a.appointment_date >= DATE_TRUNC('month', CURRENT_DATE)";
-  } else if (timePeriod === "this_week") {
-    dateFilter = "AND a.appointment_date >= DATE_TRUNC('week', CURRENT_DATE)";
-  } else if (timePeriod === "last_30_days") {
-    dateFilter = "AND a.appointment_date > NOW() - INTERVAL '30 days'";
-  } else if (timePeriod === "last_7_days") {
-    dateFilter = "AND a.appointment_date > NOW() - INTERVAL '7 days'";
-  } else if (timePeriod === "today") {
-    dateFilter = "AND a.appointment_date >= CURRENT_DATE";
+  // MIG_3006: Use pre-computed matview — returns in milliseconds
+  // For sub-monthly periods (today, this_week, last_7_days), fall back to raw query
+  // since the matview is aggregated at month granularity
+  const needsRawQuery = timePeriod === "today" || timePeriod === "this_week" || timePeriod === "last_7_days";
+
+  if (needsRawQuery) {
+    // Sub-monthly periods need raw query for accuracy
+    let dateFilter = "";
+    if (timePeriod === "this_week") {
+      dateFilter = "AND a.appointment_date >= DATE_TRUNC('week', CURRENT_DATE)";
+    } else if (timePeriod === "last_7_days") {
+      dateFilter = "AND a.appointment_date > NOW() - INTERVAL '7 days'";
+    } else if (timePeriod === "today") {
+      dateFilter = "AND a.appointment_date >= CURRENT_DATE";
+    }
+
+    const areaFilter = area ? "AND p.formatted_address ILIKE $1" : "";
+    const params = area ? [`%${area}%`] : [];
+
+    const result = await queryOne(
+      `
+      WITH impact AS (
+        SELECT
+          COUNT(DISTINCT c.cat_id) as total_cats_helped,
+          COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'Yes')) as cats_altered,
+          COUNT(DISTINCT r.request_id) as total_requests,
+          COUNT(DISTINCT r.request_id) FILTER (WHERE r.status = 'completed') as completed_requests,
+          COUNT(DISTINCT p.place_id) as places_served
+        FROM ops.appointments a
+        LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+        LEFT JOIN sot.places p ON p.place_id = a.place_id
+        LEFT JOIN ops.requests r ON r.place_id = p.place_id AND r.merged_into_request_id IS NULL
+        WHERE 1=1 ${dateFilter} ${areaFilter}
+      )
+      SELECT
+        total_cats_helped,
+        cats_altered,
+        total_requests,
+        completed_requests,
+        places_served,
+        CASE WHEN total_cats_helped > 0
+          THEN ROUND((cats_altered::numeric / total_cats_helped) * 100, 1)
+          ELSE 0
+        END as overall_alteration_rate
+      FROM impact
+      `,
+      params
+    );
+
+    return {
+      success: true,
+      data: {
+        area: area || "All areas",
+        period: timePeriod || "all_time",
+        impact: result,
+        summary: `${result?.cats_altered || 0} cats fixed through our FFR program${area ? ` in ${area}` : ""}`,
+      },
+    };
   }
 
-  const areaFilter = area ? "AND p.formatted_address ILIKE $1" : "";
-  const params = area ? [`%${area}%`] : [];
+  // Use matview for month-level and above periods
+  let dateFilter = "";
+  if (timePeriod === "this_year") {
+    dateFilter = `AND year = EXTRACT(YEAR FROM CURRENT_DATE)::INT`;
+  } else if (timePeriod === "this_month") {
+    dateFilter = `AND year = EXTRACT(YEAR FROM CURRENT_DATE)::INT AND month = EXTRACT(MONTH FROM CURRENT_DATE)::INT`;
+  } else if (timePeriod === "last_30_days") {
+    // Approximate: current month + previous month
+    dateFilter = `AND (year * 100 + month) >= (EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '30 days')::INT * 100 + EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '30 days')::INT)`;
+  }
+
+  // Area filter: expand regional names, match by city
+  const areaPatterns = area ? getAreaSearchPatterns(area) : [];
+  const areaFilter = area
+    ? `AND city = ANY(ARRAY[${areaPatterns.map((_, i) => `$${i + 1}`).join(", ")}])`
+    : "";
+  const params = area ? areaPatterns : [];
 
   const result = await queryOne(
     `
-    WITH impact AS (
-      SELECT
-        COUNT(DISTINCT c.cat_id) as total_cats_helped,
-        COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'Yes')) as cats_altered,
-        COUNT(DISTINCT r.request_id) as total_requests,
-        COUNT(DISTINCT r.request_id) FILTER (WHERE r.status = 'completed') as completed_requests,
-        COUNT(DISTINCT p.place_id) as places_served
-      FROM ops.appointments a
-      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
-      LEFT JOIN sot.places p ON p.place_id = a.place_id
-      LEFT JOIN ops.requests r ON r.place_id = p.place_id AND r.merged_into_request_id IS NULL
-      WHERE 1=1 ${dateFilter} ${areaFilter}
-    )
     SELECT
-      total_cats_helped,
-      cats_altered,
-      total_requests,
-      completed_requests,
-      places_served,
-      CASE WHEN total_cats_helped > 0
-        THEN ROUND((cats_altered::numeric / total_cats_helped) * 100, 1)
-        ELSE 0
-      END as overall_alteration_rate
-    FROM impact
+      COALESCE(SUM(unique_cats_seen), 0)::INT as total_cats_helped,
+      COALESCE(SUM(cats_altered), 0)::INT as cats_altered,
+      COALESCE(SUM(places_served), 0)::INT as places_served,
+      COALESCE(SUM(total_appointments), 0)::INT as total_appointments
+    FROM ops.mv_ffr_impact_summary
+    WHERE 1=1 ${dateFilter} ${areaFilter}
     `,
     params
   );
+
+  // Get request counts from mv_city_stats
+  const requestResult = area
+    ? await queryOne(
+        `SELECT COALESCE(SUM(total_requests), 0)::INT as total_requests,
+                COALESCE(SUM(completed_requests), 0)::INT as completed_requests
+         FROM ops.mv_city_stats WHERE city = ANY(ARRAY[${areaPatterns.map((_, i) => `$${i + 1}`).join(", ")}])`,
+        areaPatterns
+      )
+    : await queryOne(
+        `SELECT COALESCE(SUM(total_requests), 0)::INT as total_requests,
+                COALESCE(SUM(completed_requests), 0)::INT as completed_requests
+         FROM ops.mv_city_stats`
+      );
+
+  const catsAltered = result?.cats_altered || 0;
+  const totalCatsHelped = result?.total_cats_helped || 0;
+  const overallRate = totalCatsHelped > 0
+    ? Math.round((catsAltered / totalCatsHelped) * 1000) / 10
+    : 0;
 
   return {
     success: true,
     data: {
       area: area || "All areas",
       period: timePeriod || "all_time",
-      impact: result,
-      summary: `${result?.cats_altered || 0} cats fixed through our FFR program${area ? ` in ${area}` : ""}`,
+      impact: {
+        total_cats_helped: totalCatsHelped,
+        cats_altered: catsAltered,
+        total_requests: requestResult?.total_requests || 0,
+        completed_requests: requestResult?.completed_requests || 0,
+        places_served: result?.places_served || 0,
+        overall_alteration_rate: overallRate,
+      },
+      summary: `${catsAltered} cats fixed through our FFR program${area ? ` in ${area}` : ""}`,
     },
   };
 }
@@ -2086,59 +2156,33 @@ async function queryCatsAlteredInArea(area: string): Promise<ToolResult> {
   const searchPatterns = getAreaSearchPatterns(area);
   const isRegionalSearch = searchPatterns.length > 1;
 
-  // Build the WHERE clause for multiple patterns
-  const patternPlaceholders = searchPatterns.map((_, i) => `p.formatted_address ILIKE $${i + 1}`).join(" OR ");
-  const params = searchPatterns.map(p => `%${p}%`);
+  // MIG_3006: Use pre-computed matview for yearly breakdown — returns in milliseconds
+  const cityPlaceholders = searchPatterns.map((_, i) => `$${i + 1}`).join(", ");
+  const params = searchPatterns;
 
-  // Query cats altered linked to places in this area
   const result = await queryOne<{
     total_cats_altered: number;
-    via_cat_records: number;
-    via_appointments: number;
     by_year: Array<{ year: number; count: number }>;
   }>(
     `
-    WITH cat_place_altered AS (
-      -- Cats marked as altered linked to places in the area
-      -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
-      SELECT DISTINCT c.cat_id
-      FROM sot.cats c
-      JOIN sot.cat_place cpr ON c.cat_id = cpr.cat_id
-      JOIN sot.places p ON cpr.place_id = p.place_id
-      WHERE (${patternPlaceholders})
-        AND c.altered_status IN ('spayed', 'neutered', 'Yes')
-    ),
-    appointment_altered AS (
-      -- Cats altered via appointments linked to places in the area
-      SELECT DISTINCT a.cat_id
-      FROM ops.appointments a
-      JOIN sot.places p ON a.place_id = p.place_id
-      WHERE (${patternPlaceholders})
-        AND (a.is_spay = true OR a.is_neuter = true OR a.service_is_spay = true OR a.service_is_neuter = true)
-        AND a.cat_id IS NOT NULL
-    ),
-    combined AS (
-      SELECT cat_id FROM cat_place_altered
-      UNION
-      SELECT cat_id FROM appointment_altered
-    ),
-    yearly AS (
+    WITH yearly AS (
       SELECT
-        EXTRACT(YEAR FROM a.appointment_date)::int as year,
-        COUNT(DISTINCT a.cat_id) as count
-      FROM ops.appointments a
-      JOIN sot.places p ON a.place_id = p.place_id
-      WHERE (${patternPlaceholders})
-        AND (a.is_spay = true OR a.is_neuter = true OR a.service_is_spay = true OR a.service_is_neuter = true)
-        AND a.cat_id IS NOT NULL
-      GROUP BY EXTRACT(YEAR FROM a.appointment_date)
+        year,
+        SUM(cats_altered)::INT as count
+      FROM ops.mv_ffr_impact_summary
+      WHERE city = ANY(ARRAY[${cityPlaceholders}])
+      GROUP BY year
       ORDER BY year
+    ),
+    city_totals AS (
+      SELECT COALESCE(SUM(altered_cats), 0)::INT as total
+      FROM ops.mv_city_stats
+      WHERE city = ANY(ARRAY[${cityPlaceholders}])
     )
     SELECT
-      (SELECT COUNT(*) FROM combined) as total_cats_altered,
-      (SELECT COUNT(*) FROM cat_place_altered) as via_cat_records,
-      (SELECT COUNT(*) FROM appointment_altered) as via_appointments,
+      ct.total as total_cats_altered,
       (SELECT json_agg(json_build_object('year', year, 'count', count)) FROM yearly) as by_year
+    FROM city_totals ct
     `,
     params
   );
@@ -2182,11 +2226,10 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
   const searchPatterns = getAreaSearchPatterns(region);
   const isRegionalSearch = searchPatterns.length > 1;
 
-  // Build the WHERE clause for multiple patterns
-  const patternPlaceholders = searchPatterns.map((_, i) => `p.formatted_address ILIKE $${i + 1}`).join(" OR ");
-  const params = searchPatterns.map(p => `%${p}%`);
+  // MIG_3006: Use pre-computed matview — returns in milliseconds
+  const cityPlaceholders = searchPatterns.map((_, i) => `$${i + 1}`).join(", ");
+  const params = searchPatterns;
 
-  // Get comprehensive stats for the region
   const result = await queryOne<{
     total_places: number;
     total_cats: number;
@@ -2201,30 +2244,9 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
     cities_with_activity: string[];
   }>(
     `
-    WITH regional_places AS (
-      SELECT DISTINCT p.place_id, p.formatted_address
-      FROM sot.places p
-      WHERE (${patternPlaceholders})
-        AND p.merged_into_place_id IS NULL
-    ),
-    cat_stats AS (
-      SELECT
-        COUNT(DISTINCT c.cat_id) as total_cats,
-        COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'Yes')) as cats_altered,
-        COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('intact', 'No') OR c.altered_status IS NULL) as cats_unaltered
-      FROM regional_places rp
-      -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
-      JOIN sot.cat_place cpr ON cpr.place_id = rp.place_id
-      JOIN sot.cats c ON c.cat_id = cpr.cat_id
-    ),
-    request_stats AS (
-      SELECT
-        COUNT(*) as total_requests,
-        COUNT(*) FILTER (WHERE r.status = 'completed') as completed_requests,
-        COUNT(*) FILTER (WHERE r.status NOT IN ${TERMINAL_PAIR_SQL}) as active_requests
-      FROM ops.requests r
-      JOIN regional_places rp ON r.place_id = rp.place_id
-      WHERE r.merged_into_request_id IS NULL
+    WITH matched AS (
+      SELECT * FROM ops.mv_city_stats
+      WHERE city = ANY(ARRAY[${cityPlaceholders}])
     ),
     colony_stats AS (
       SELECT
@@ -2232,29 +2254,24 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
         COALESCE(AVG(pce.total_cats), 0) as avg_colony_size,
         COALESCE(MAX(pce.total_cats), 0) as largest_colony
       FROM sot.place_colony_estimates pce
-      JOIN regional_places rp ON pce.place_id = rp.place_id
-    ),
-    city_activity AS (
-      SELECT DISTINCT
-        CASE
-          ${searchPatterns.map(city => `WHEN rp.formatted_address ILIKE '%${city.replace(/'/g, "''")}%' THEN '${city.replace(/'/g, "''")}'`).join("\n          ")}
-          ELSE 'Other'
-        END as city
-      FROM regional_places rp
+      JOIN sot.places p ON pce.place_id = p.place_id
+      JOIN sot.addresses a ON a.address_id = p.sot_address_id
+      WHERE a.city = ANY(ARRAY[${cityPlaceholders}])
     )
     SELECT
-      (SELECT COUNT(*) FROM regional_places) as total_places,
-      cs.total_cats,
-      cs.cats_altered,
-      cs.cats_unaltered,
-      rs.total_requests,
-      rs.completed_requests,
-      rs.active_requests,
-      cos.total_estimates as total_colony_estimates,
-      ROUND(cos.avg_colony_size::numeric, 1) as avg_colony_size,
-      cos.largest_colony,
-      ARRAY(SELECT city FROM city_activity WHERE city != 'Other' LIMIT 10) as cities_with_activity
-    FROM cat_stats cs, request_stats rs, colony_stats cos
+      COALESCE(SUM(m.total_places), 0)::INT as total_places,
+      COALESCE(SUM(m.total_cats), 0)::INT as total_cats,
+      COALESCE(SUM(m.altered_cats), 0)::INT as cats_altered,
+      COALESCE(SUM(m.intact_cats + m.unknown_status_cats), 0)::INT as cats_unaltered,
+      COALESCE(SUM(m.total_requests), 0)::INT as total_requests,
+      COALESCE(SUM(m.completed_requests), 0)::INT as completed_requests,
+      COALESCE(SUM(m.active_requests), 0)::INT as active_requests,
+      cs.total_estimates::INT as total_colony_estimates,
+      ROUND(cs.avg_colony_size::numeric, 1) as avg_colony_size,
+      cs.largest_colony::INT as largest_colony,
+      ARRAY(SELECT m2.city FROM matched m2 WHERE m2.total_cats > 0 ORDER BY m2.total_cats DESC LIMIT 10) as cities_with_activity
+    FROM matched m, colony_stats cs
+    GROUP BY cs.total_estimates, cs.avg_colony_size, cs.largest_colony
     `,
     params
   );
@@ -3735,6 +3752,22 @@ async function queryCatJourney(
     [catResult.cat_id]
   );
 
+  // Get adoption context from v_adoption_context (MIG_3005)
+  interface AdoptionContext {
+    adopter_name: string | null;
+    adoption_date: string | null;
+    sl_subtype: string | null;
+    placement_type: string | null;
+    is_barn_cat: boolean | null;
+    fee_group: string | null;
+  }
+
+  const adoptionContext = await queryOne<AdoptionContext>(
+    `SELECT adopter_name, adoption_date::text, sl_subtype, placement_type, is_barn_cat, fee_group
+     FROM sot.v_adoption_context WHERE cat_id = $1 LIMIT 1`,
+    [catResult.cat_id]
+  );
+
   // Build journey summary
   const journeySteps: string[] = [];
 
@@ -3760,7 +3793,10 @@ async function queryCatJourney(
     journeySteps.push(`🏡 **Foster**: ${fosters.map(f => f.person_name).join(", ")}`);
   }
   if (adopters.length > 0) {
-    journeySteps.push(`❤️ **Adopted by**: ${adopters.map(a => a.person_name).join(", ")}`);
+    const adoptionDetail = adoptionContext
+      ? ` (${adoptionContext.placement_type || "unknown type"}${adoptionContext.is_barn_cat ? ", barn cat" : ""}${adoptionContext.sl_subtype ? ` — SL: ${adoptionContext.sl_subtype}` : ""}${adoptionContext.adoption_date ? `, ${adoptionContext.adoption_date}` : ""})`
+      : "";
+    journeySteps.push(`❤️ **Adopted by**: ${adopters.map(a => a.person_name).join(", ")}${adoptionDetail}`);
   }
   if (owners.length > 0 && adopters.length === 0) {
     journeySteps.push(`👤 **Owner**: ${owners.map(o => o.person_name).join(", ")}`);
@@ -3789,6 +3825,13 @@ ${journeySteps.length > 0 ? journeySteps.join("\n") : "Limited journey data avai
         people_linked: personRels.length,
         fosters: fosters.map(f => f.person_name),
         adopters: adopters.map(a => a.person_name),
+        adoption_context: adoptionContext ? {
+          placement_type: adoptionContext.placement_type,
+          sl_subtype: adoptionContext.sl_subtype,
+          is_barn_cat: adoptionContext.is_barn_cat,
+          fee_group: adoptionContext.fee_group,
+          adoption_date: adoptionContext.adoption_date,
+        } : null,
         owners: owners.map(o => o.person_name),
         clinic_history: appointments.slice(0, 5).map(a => ({
           date: a.appointment_date,

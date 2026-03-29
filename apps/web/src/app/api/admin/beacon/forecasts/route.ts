@@ -56,28 +56,35 @@ export async function GET(request: NextRequest) {
   try {
     if (view === "parameters") {
       // Return Vortex model parameters
-      const sql = `
-        SELECT
-          config_key,
-          config_value,
-          unit,
-          description,
-          config_category,
-          scientific_reference
-        FROM ops.ecology_config
-        ORDER BY config_category, config_key
-      `;
-      const rows = await queryRows<EcologyConfig>(sql, []);
+      try {
+        const sql = `
+          SELECT
+            config_key,
+            config_value,
+            unit,
+            description,
+            config_category,
+            scientific_reference
+          FROM ops.ecology_config
+          ORDER BY config_category, config_key
+        `;
+        const rows = await queryRows<EcologyConfig>(sql, []);
 
-      // Group by category
-      const grouped: Record<string, EcologyConfig[]> = {};
-      for (const row of rows) {
-        const cat = row.config_category || "general";
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(row);
+        // Group by category
+        const grouped: Record<string, EcologyConfig[]> = {};
+        for (const row of rows) {
+          const cat = row.config_category || "general";
+          if (!grouped[cat]) grouped[cat] = [];
+          grouped[cat].push(row);
+        }
+
+        return apiSuccess({ parameters: grouped });
+      } catch (err: any) {
+        if (err?.code === '42P01') {
+          return apiSuccess({ parameters: {}, message: "ecology_config table not yet deployed" });
+        }
+        throw err;
       }
-
-      return apiSuccess({ parameters: grouped });
     }
 
     if (view === "forecasts") {
@@ -112,16 +119,26 @@ export async function GET(request: NextRequest) {
       }
 
       // Get Vortex parameters for calculations
-      const params = await queryOne<{
+      let params: {
         tnr_time_step_months: number;
         tnr_high_intensity_rate: number;
         tnr_low_intensity_rate: number;
-      }>(`
-        SELECT
-          (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_time_step_months') AS tnr_time_step_months,
-          (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_high_intensity_rate') AS tnr_high_intensity_rate,
-          (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_low_intensity_rate') AS tnr_low_intensity_rate
-      `, []);
+      } | null = null;
+      try {
+        params = await queryOne<{
+          tnr_time_step_months: number;
+          tnr_high_intensity_rate: number;
+          tnr_low_intensity_rate: number;
+        }>(`
+          SELECT
+            (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_time_step_months') AS tnr_time_step_months,
+            (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_high_intensity_rate') AS tnr_high_intensity_rate,
+            (SELECT config_value FROM ops.ecology_config WHERE config_key = 'tnr_low_intensity_rate') AS tnr_low_intensity_rate
+        `, []);
+      } catch (err: any) {
+        if (err?.code !== '42P01') throw err;
+        // ecology_config table doesn't exist yet — use fallbacks below
+      }
 
       // Fallbacks from app_config when ecology_config is missing (FFS-640)
       const [managedPct, inProgressPct] = await Promise.all([

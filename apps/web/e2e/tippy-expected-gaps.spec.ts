@@ -15,30 +15,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-
-// ============================================================================
-// HELPER: Send message to Tippy
-// ============================================================================
-
-interface TippyResponse {
-  message: string;
-  conversationId?: string;
-}
-
-async function askTippy(
-  request: { post: (url: string, options: { data: unknown }) => Promise<{ ok: () => boolean; json: () => Promise<TippyResponse> }> },
-  question: string
-): Promise<TippyResponse> {
-  const response = await request.post("/api/tippy/chat", {
-    data: { message: question },
-  });
-
-  if (!response.ok()) {
-    return { message: "ERROR: Request failed" };
-  }
-
-  return response.json();
-}
+import { askTippy } from "./helpers/auth-api";
 
 // ============================================================================
 // GAP CATEGORY 1: TEMPORAL QUERIES
@@ -52,9 +29,9 @@ test.describe("Gap: Temporal Queries - Trapper Stats by Date Range @real-api", (
    * MIGRATION: Add v_trapper_stats_by_month view with monthly aggregation
    */
 
-  test.skip("How many cats did Sarah trap last month?", async ({ request }) => {
+  test.skip("How many cats did Sarah trap last month?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many cats did Sarah trap last month?"
     );
 
@@ -63,9 +40,9 @@ test.describe("Gap: Temporal Queries - Trapper Stats by Date Range @real-api", (
     expect(response.message.toLowerCase()).toMatch(/last\s*month|january|december/i);
   });
 
-  test.skip("How many cats did David trap this quarter?", async ({ request }) => {
+  test.skip("How many cats did David trap this quarter?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many cats did David trap this quarter vs last quarter?"
     );
 
@@ -74,9 +51,9 @@ test.describe("Gap: Temporal Queries - Trapper Stats by Date Range @real-api", (
     expect(response.message.toLowerCase()).toMatch(/quarter|comparison|vs|compared/i);
   });
 
-  test.skip("Did Sarah's performance improve this month vs last?", async ({ request }) => {
+  test.skip("Did Sarah's performance improve this month vs last?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Did Sarah's performance improve this month compared to last month?"
     );
 
@@ -84,9 +61,9 @@ test.describe("Gap: Temporal Queries - Trapper Stats by Date Range @real-api", (
     expect(response.message.toLowerCase()).toMatch(/improve|better|worse|same|change/i);
   });
 
-  test.skip("Who was our top trapper in Q4 2024?", async ({ request }) => {
+  test.skip("Who was our top trapper in Q4 2024?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Who was our top trapper in Q4 2024?"
     );
 
@@ -96,16 +73,15 @@ test.describe("Gap: Temporal Queries - Trapper Stats by Date Range @real-api", (
   });
 });
 
-test.describe("Gap: Temporal Queries - Monthly Trends @real-api", () => {
+test.describe("Temporal Queries - Monthly Trends @real-api", () => {
   /**
-   * GAP: query_ffr_impact only returns yearly buckets
-   * FIX NEEDED: Add monthly aggregation option to query_ffr_impact
-   * MIGRATION: Add v_monthly_organization_stats view
+   * FIXED: ops.mv_ffr_impact_summary (MIG_3006) provides monthly aggregation.
+   * These tests were previously skipped — now answerable via matviews.
    */
 
-  test.skip("What's our monthly trend in alterations?", async ({ request }) => {
+  test("What's our monthly trend in alterations?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What's our monthly trend in alterations over the past 6 months?"
     );
 
@@ -113,9 +89,9 @@ test.describe("Gap: Temporal Queries - Monthly Trends @real-api", () => {
     expect(response.message.toLowerCase()).toMatch(/january|february|march|april|may|june|july|august|september|october|november|december/i);
   });
 
-  test.skip("Show me monthly intake trends", async ({ request }) => {
+  test("Show me monthly intake trends", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Show me how many intake submissions we got each month this year"
     );
 
@@ -123,9 +99,9 @@ test.describe("Gap: Temporal Queries - Monthly Trends @real-api", () => {
     expect(response.message).toMatch(/\d+/);
   });
 
-  test.skip("Compare this month's numbers to last month", async ({ request }) => {
+  test("Compare this month's numbers to last month", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How does this month compare to last month for requests completed?"
     );
 
@@ -146,9 +122,9 @@ test.describe("Gap: Efficiency Metrics @real-api", () => {
    * MIGRATION: Add v_trapper_efficiency view
    */
 
-  test.skip("Who's our most efficient trapper per hour volunteered?", async ({ request }) => {
+  test.skip("Who's our most efficient trapper per hour volunteered?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Who traps the most cats per volunteer hour?"
     );
 
@@ -156,9 +132,9 @@ test.describe("Gap: Efficiency Metrics @real-api", () => {
     expect(response.message).toMatch(/\d+(\.\d+)?\s*(cats?\s*per|\/)\s*hour/i);
   });
 
-  test.skip("What's our cost per cat by region?", async ({ request }) => {
+  test.skip("What's our cost per cat by region?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What's our average cost per cat altered, by region?"
     );
 
@@ -166,9 +142,9 @@ test.describe("Gap: Efficiency Metrics @real-api", () => {
     expect(response.message).toMatch(/\$\d+/);
   });
 
-  test.skip("How long does it take on average to complete a request?", async ({ request }) => {
+  test.skip("How long does it take on average to complete a request?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What's the average time from request creation to completion?"
     );
 
@@ -176,9 +152,9 @@ test.describe("Gap: Efficiency Metrics @real-api", () => {
     expect(response.message).toMatch(/\d+\s*(day|week|hour)/i);
   });
 
-  test.skip("Which trapper has the fastest completion time?", async ({ request }) => {
+  test.skip("Which trapper has the fastest completion time?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Which trapper completes requests the fastest on average?"
     );
 
@@ -199,9 +175,9 @@ test.describe("Gap: Goal Tracking @real-api", () => {
    * MIGRATION: MIG_492__organization_goals.sql
    */
 
-  test.skip("Are we on track for our yearly goal?", async ({ request }) => {
+  test.skip("Are we on track for our yearly goal?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Are we on track to meet our goal of altering 5000 cats this year?"
     );
 
@@ -209,9 +185,9 @@ test.describe("Gap: Goal Tracking @real-api", () => {
     expect(response.message.toLowerCase()).toMatch(/on track|ahead|behind|goal|target/i);
   });
 
-  test.skip("How far behind are we on our quarterly goal?", async ({ request }) => {
+  test.skip("How far behind are we on our quarterly goal?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How many cats behind our quarterly goal are we?"
     );
 
@@ -219,9 +195,9 @@ test.describe("Gap: Goal Tracking @real-api", () => {
     expect(response.message).toMatch(/\d+/);
   });
 
-  test.skip("What's our goal completion percentage?", async ({ request }) => {
+  test.skip("What's our goal completion percentage?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What percentage of our yearly goal have we achieved?"
     );
 
@@ -242,9 +218,9 @@ test.describe("Gap: Forecasting @real-api", () => {
    * This would use current monthly rate to project when thresholds are met
    */
 
-  test.skip("When will colony X reach 75% alteration?", async ({ request }) => {
+  test.skip("When will colony X reach 75% alteration?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "At current rates, when will our largest unmanaged colony reach the 75% threshold?"
     );
 
@@ -252,9 +228,9 @@ test.describe("Gap: Forecasting @real-api", () => {
     expect(response.message).toMatch(/\d+\s*(month|week|year)|(january|february|march|april|may|june|july|august|september|october|november|december)\s*\d{4}/i);
   });
 
-  test.skip("Predict kitten surge timing", async ({ request }) => {
+  test.skip("Predict kitten surge timing", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Based on pregnant/lactating counts, when should we expect the next kitten surge?"
     );
 
@@ -262,9 +238,9 @@ test.describe("Gap: Forecasting @real-api", () => {
     expect(response.message.toLowerCase()).toMatch(/expect|predict|likely|surge|spring|summer/i);
   });
 
-  test.skip("Project colony growth", async ({ request }) => {
+  test.skip("Project colony growth", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "If we don't intervene at Oak St, how big will the colony be in 6 months?"
     );
 
@@ -285,9 +261,9 @@ test.describe("Gap: Workload Balancing @real-api", () => {
    * Should show: assigned requests, pending cats, estimated hours
    */
 
-  test.skip("Who has capacity for new assignments?", async ({ request }) => {
+  test.skip("Who has capacity for new assignments?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Which trappers have capacity to take on new requests?"
     );
 
@@ -295,9 +271,9 @@ test.describe("Gap: Workload Balancing @real-api", () => {
     expect(response.message.toLowerCase()).toMatch(/available|capacity|assign/i);
   });
 
-  test.skip("Is Sarah overloaded?", async ({ request }) => {
+  test.skip("Is Sarah overloaded?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Does Sarah have too many requests assigned right now?"
     );
 
@@ -306,9 +282,9 @@ test.describe("Gap: Workload Balancing @real-api", () => {
     expect(response.message.toLowerCase()).toMatch(/request|assign|work/i);
   });
 
-  test.skip("Balance workload across trappers", async ({ request }) => {
+  test.skip("Balance workload across trappers", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How should we redistribute requests to balance workload?"
     );
 
@@ -328,9 +304,9 @@ test.describe("Gap: Geographic Analysis @real-api", () => {
    * FIX NEEDED: Tools for efficient visit planning
    */
 
-  test.skip("Plan efficient route for today's visits", async ({ request }) => {
+  test.skip("Plan efficient route for today's visits", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "I need to visit 5 colonies today. What's the most efficient route?"
     );
 
@@ -338,9 +314,9 @@ test.describe("Gap: Geographic Analysis @real-api", () => {
     expect(response.message).toMatch(/1\.|first|start/i);
   });
 
-  test.skip("Which pending requests are near each other?", async ({ request }) => {
+  test.skip("Which pending requests are near each other?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Which pending requests are close together and could be handled in one trip?"
     );
 
@@ -360,9 +336,9 @@ test.describe("Gap: Proactive Alerts @real-api", () => {
    * FIX NEEDED: Alert conditions table + proactive check tool
    */
 
-  test.skip("What should I be worried about today?", async ({ request }) => {
+  test.skip("What should I be worried about today?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What issues need my attention today?"
     );
 
@@ -370,9 +346,9 @@ test.describe("Gap: Proactive Alerts @real-api", () => {
     expect(response.message.toLowerCase()).toMatch(/urgent|overdue|attention|priority/i);
   });
 
-  test.skip("Any requests about to miss SLA?", async ({ request }) => {
+  test.skip("Any requests about to miss SLA?", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Are any requests at risk of missing our response time target?"
     );
 
@@ -392,9 +368,9 @@ test.describe("Gap: Comparative Analysis @real-api", () => {
    * FIX NEEDED: compare_entities tool
    */
 
-  test.skip("Compare two trappers' performance", async ({ request }) => {
+  test.skip("Compare two trappers' performance", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Compare Sarah and David's trapping performance side by side"
     );
 
@@ -403,9 +379,9 @@ test.describe("Gap: Comparative Analysis @real-api", () => {
     expect(response.message.toLowerCase()).toMatch(/more|less|higher|lower|better/i);
   });
 
-  test.skip("Compare two colonies' progress", async ({ request }) => {
+  test.skip("Compare two colonies' progress", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Compare the TNR progress between Oak St and Main St colonies"
     );
 

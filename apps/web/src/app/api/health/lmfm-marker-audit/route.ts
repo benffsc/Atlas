@@ -50,7 +50,17 @@ export async function GET() {
       marker_without_category: 0,
       potential_misses: 0,
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Gracefully handle missing columns/tables — return degraded status instead of 500
+    if (error?.code === '42703' || error?.code === '42P01') {
+      return apiSuccess({
+        status: "unavailable",
+        lmfm_count: 0,
+        marker_without_category: 0,
+        potential_misses: 0,
+        message: "Required columns or tables not yet deployed",
+      });
+    }
     console.error("LMFM marker audit error:", error);
     return apiServerError("Failed to audit LMFM markers");
   }

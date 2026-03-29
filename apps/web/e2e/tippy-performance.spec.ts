@@ -9,6 +9,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+import { timedTippyRequest } from "./helpers/auth-api";
 
 // ============================================================================
 // PERFORMANCE BENCHMARKS (in milliseconds)
@@ -24,48 +25,6 @@ const BENCHMARKS = {
 };
 
 // ============================================================================
-// HELPER
-// ============================================================================
-
-interface TippyResponse {
-  message?: string;
-  response?: string;
-  content?: string;
-  error?: string;
-}
-
-async function timedTippyRequest(
-  request: {
-    post: (
-      url: string,
-      options: { data: unknown }
-    ) => Promise<{ ok: () => boolean; json: () => Promise<TippyResponse> }>;
-  },
-  question: string
-): Promise<{ ok: boolean; responseText: string; durationMs: number }> {
-  const startTime = Date.now();
-
-  const response = await request.post("/api/tippy/chat", {
-    data: {
-      message: question,
-    },
-  });
-
-  const endTime = Date.now();
-  const durationMs = endTime - startTime;
-
-  const ok = response.ok();
-  const data = await response.json();
-
-  const responseText =
-    typeof data === "string"
-      ? data
-      : data.message || data.response || data.content || JSON.stringify(data);
-
-  return { ok, responseText, durationMs };
-}
-
-// ============================================================================
 // SIMPLE LOOKUP PERFORMANCE TESTS
 // Single-table queries that should be fast
 // ============================================================================
@@ -74,9 +33,9 @@ test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
   test.setTimeout(60000);
 
   // FFS-91: Questions changed to avoid duplicating accuracy/capabilities tests
-  test("Count query completes within benchmark", async ({ request }) => {
+  test("Count query completes within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "How many cat appointments were recorded last month?"
     );
 
@@ -91,7 +50,7 @@ test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
     request,
   }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "How many places have active colony tags?"
     );
 
@@ -102,9 +61,9 @@ test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
     expect(durationMs).toBeLessThan(BENCHMARKS.SIMPLE_LOOKUP);
   });
 
-  test("Status query completes within benchmark", async ({ request }) => {
+  test("Status query completes within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "How many appointments happened this year?"
     );
 
@@ -114,9 +73,9 @@ test.describe("Tippy Performance: Simple Lookups @smoke @real-api", () => {
     expect(durationMs).toBeLessThan(BENCHMARKS.SIMPLE_LOOKUP);
   });
 
-  test("Simple filter query completes within benchmark", async ({ request }) => {
+  test("Simple filter query completes within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "How many people have phone numbers on file?"
     );
 
@@ -136,9 +95,9 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
   test.setTimeout(60000);
 
   // FFS-91: Questions changed to avoid duplicating capabilities tests
-  test("comprehensive_person_lookup within benchmark", async ({ request }) => {
+  test("comprehensive_person_lookup within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "Give me a detailed overview of any person who is both a volunteer and trapper"
     );
 
@@ -149,9 +108,9 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
     expect(durationMs).toBeLessThan(BENCHMARKS.COMPREHENSIVE_LOOKUP);
   });
 
-  test("comprehensive_place_lookup within benchmark", async ({ request }) => {
+  test("comprehensive_place_lookup within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "What is the full activity history for any place with more than 5 cats?"
     );
 
@@ -162,9 +121,9 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
     expect(durationMs).toBeLessThan(BENCHMARKS.COMPREHENSIVE_LOOKUP);
   });
 
-  test("comprehensive_cat_lookup within benchmark", async ({ request }) => {
+  test("comprehensive_cat_lookup within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "Show me the complete timeline for any cat with clinic visits and a foster record"
     );
 
@@ -175,9 +134,9 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
     expect(durationMs).toBeLessThan(BENCHMARKS.COMPREHENSIVE_LOOKUP);
   });
 
-  test("trapper stats lookup within benchmark", async ({ request }) => {
+  test("trapper stats lookup within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "What is the detailed service history for any trapper who has worked in multiple areas?"
     );
 
@@ -196,9 +155,9 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
 test.describe("Tippy Performance: Cross-Source Deductions @stress @slow @real-api", () => {
   test.setTimeout(90000);
 
-  test("Person role evolution query within benchmark", async ({ request }) => {
+  test("Person role evolution query within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "Find someone who started as a requester and became a trapper"
     );
 
@@ -208,9 +167,9 @@ test.describe("Tippy Performance: Cross-Source Deductions @stress @slow @real-ap
     expect(durationMs).toBeLessThan(BENCHMARKS.CROSS_SOURCE_DEDUCTION);
   });
 
-  test("Cat lifecycle query within benchmark", async ({ request }) => {
+  test("Cat lifecycle query within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "Find a cat that went from trapping request to clinic to foster"
     );
 
@@ -220,9 +179,9 @@ test.describe("Tippy Performance: Cross-Source Deductions @stress @slow @real-ap
     expect(durationMs).toBeLessThan(BENCHMARKS.CROSS_SOURCE_DEDUCTION);
   });
 
-  test("Data discrepancy detection within benchmark", async ({ request }) => {
+  test("Data discrepancy detection within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "Find people with different phone numbers across systems"
     );
 
@@ -232,9 +191,9 @@ test.describe("Tippy Performance: Cross-Source Deductions @stress @slow @real-ap
     expect(durationMs).toBeLessThan(BENCHMARKS.CROSS_SOURCE_DEDUCTION);
   });
 
-  test("Multi-source aggregation within benchmark", async ({ request }) => {
+  test("Multi-source aggregation within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "Which colony has data from the most different sources?"
     );
 
@@ -253,9 +212,9 @@ test.describe("Tippy Performance: Cross-Source Deductions @stress @slow @real-ap
 test.describe("Tippy Performance: Schema Navigation @smoke @real-api", () => {
   test.setTimeout(60000);
 
-  test("discover_views within benchmark", async ({ request }) => {
+  test("discover_views within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "What views are available to query?"
     );
 
@@ -265,9 +224,9 @@ test.describe("Tippy Performance: Schema Navigation @smoke @real-api", () => {
     expect(durationMs).toBeLessThan(BENCHMARKS.SCHEMA_NAVIGATION);
   });
 
-  test("view category search within benchmark", async ({ request }) => {
+  test("view category search within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "Show me all stats category views"
     );
 
@@ -277,9 +236,9 @@ test.describe("Tippy Performance: Schema Navigation @smoke @real-api", () => {
     expect(durationMs).toBeLessThan(BENCHMARKS.SCHEMA_NAVIGATION);
   });
 
-  test("view keyword search within benchmark", async ({ request }) => {
+  test("view keyword search within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
-      request,
+      page,
       "Search for views related to beacon or colony"
     );
 
@@ -291,6 +250,28 @@ test.describe("Tippy Performance: Schema Navigation @smoke @real-api", () => {
 });
 
 // ============================================================================
+// MATVIEW-BACKED QUERIES (MIG_3006)
+// These queries previously timed out; now use pre-computed matviews
+// ============================================================================
+
+test.describe("Tippy Performance: Matview Queries @smoke @real-api", () => {
+  test.setTimeout(60000);
+
+  test("City comparison completes within benchmark (matview)", async ({ page }) => {
+    const { ok, responseText, durationMs } = await timedTippyRequest(
+      page,
+      "How does Santa Rosa compare to Petaluma?"
+    );
+
+    console.log(`City comparison (matview): ${durationMs}ms`);
+
+    expect(ok).toBeTruthy();
+    expect(responseText.length).toBeGreaterThan(50);
+    expect(durationMs).toBeLessThan(BENCHMARKS.SIMPLE_LOOKUP);
+  });
+});
+
+// ============================================================================
 // SUSTAINED LOAD TESTS
 // Multiple queries in sequence
 // ============================================================================
@@ -298,7 +279,7 @@ test.describe("Tippy Performance: Schema Navigation @smoke @real-api", () => {
 test.describe("Tippy Performance: Sustained Load @stress @slow @real-api", () => {
   test.setTimeout(120000);
 
-  test("5 sequential queries maintain performance", async ({ request }) => {
+  test("5 sequential queries maintain performance", async ({ page }) => {
     // FFS-91: Unique questions to avoid duplicating other test files
     const questions = [
       "How many cat appointments this year?",
@@ -311,7 +292,7 @@ test.describe("Tippy Performance: Sustained Load @stress @slow @real-api", () =>
     const durations: number[] = [];
 
     for (const question of questions) {
-      const { ok, durationMs } = await timedTippyRequest(request, question);
+      const { ok, durationMs } = await timedTippyRequest(page, question);
       expect(ok).toBeTruthy();
       durations.push(durationMs);
     }
@@ -330,12 +311,12 @@ test.describe("Tippy Performance: Sustained Load @stress @slow @real-api", () =>
     expect(lastDuration).toBeLessThan(firstDuration * 3);
   });
 
-  test("Repeated same query is consistent", async ({ request }) => {
+  test("Repeated same query is consistent", async ({ page }) => {
     const question = "How many unresolved requests are there?";
     const durations: number[] = [];
 
     for (let i = 0; i < 3; i++) {
-      const { ok, durationMs } = await timedTippyRequest(request, question);
+      const { ok, durationMs } = await timedTippyRequest(page, question);
       expect(ok).toBeTruthy();
       durations.push(durationMs);
     }
@@ -357,7 +338,7 @@ test.describe("Tippy Performance: Sustained Load @stress @slow @real-api", () =>
 test.describe("Tippy Performance: Summary @real-api", () => {
   test.setTimeout(120000);
 
-  test("Log benchmark summary", async ({ request }) => {
+  test("Log benchmark summary", async ({ page }) => {
     // FFS-91: Unique questions to avoid duplicating other test files
     const testCases = [
       { name: "Simple count", question: "How many appointments total?" },

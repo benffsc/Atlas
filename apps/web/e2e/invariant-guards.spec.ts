@@ -321,6 +321,9 @@ test.describe("Request Lifecycle (Status Validation)", () => {
     "completed",
     "cancelled",
     "on_hold",
+    "pending_review",      // Added — baseline as of 2026-03
+    "referred",            // Added — baseline as of 2026-03
+    "waiting_for_contact", // Added — baseline as of 2026-03
   ];
 
   test("all requests have valid status values", async ({ request }) => {

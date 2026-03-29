@@ -6,44 +6,20 @@
  * Uses the staff-program-questions fixture for comprehensive coverage.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import {
   EASY_QUESTIONS,
   MEDIUM_QUESTIONS,
   HARD_QUESTIONS,
   StaffQuestion,
 } from "./fixtures/staff-program-questions";
-
-const TIPPY_API = "/api/tippy/chat";
-
-interface TippyResponse {
-  message: string;
-  response?: string;
-  content?: string;
-  toolCalls?: any[];
-}
-
-async function askTippy(
-  request: any,
-  question: string
-): Promise<TippyResponse> {
-  const response = await request.post(TIPPY_API, {
-    data: { message: question },
-    headers: { "Content-Type": "application/json" },
-  });
-
-  if (!response.ok()) {
-    return { message: `API Error: ${response.status()}` };
-  }
-
-  return await response.json();
-}
+import { askTippy } from "./helpers/auth-api";
 
 async function testQuestion(
-  request: any,
+  page: Page,
   question: StaffQuestion
 ): Promise<{ passed: boolean; response: string; reason?: string }> {
-  const result = await askTippy(request, question.question);
+  const result = await askTippy(page, question.question);
 
   if (!result.message) {
     return { passed: false, response: "", reason: "No response from Tippy" };
@@ -60,8 +36,8 @@ async function testQuestion(
 
 test.describe("Tippy Staff Workflows - Easy Questions @real-api", () => {
   for (const question of EASY_QUESTIONS) {
-    test(`[${question.id}] ${question.description}`, async ({ request }) => {
-      const result = await testQuestion(request, question);
+    test(`[${question.id}] ${question.description}`, async ({ page }) => {
+      const result = await testQuestion(page, question);
 
       console.log(`Question: ${question.question}`);
       console.log(`Response: ${result.response.substring(0, 200)}...`);
@@ -73,8 +49,8 @@ test.describe("Tippy Staff Workflows - Easy Questions @real-api", () => {
 
 test.describe("Tippy Staff Workflows - Medium Questions @real-api", () => {
   for (const question of MEDIUM_QUESTIONS) {
-    test(`[${question.id}] ${question.description}`, async ({ request }) => {
-      const result = await testQuestion(request, question);
+    test(`[${question.id}] ${question.description}`, async ({ page }) => {
+      const result = await testQuestion(page, question);
 
       console.log(`Question: ${question.question}`);
       console.log(`Response: ${result.response.substring(0, 200)}...`);
@@ -86,8 +62,8 @@ test.describe("Tippy Staff Workflows - Medium Questions @real-api", () => {
 
 test.describe("Tippy Staff Workflows - Hard Questions @real-api", () => {
   for (const question of HARD_QUESTIONS) {
-    test(`[${question.id}] ${question.description}`, async ({ request }) => {
-      const result = await testQuestion(request, question);
+    test(`[${question.id}] ${question.description}`, async ({ page }) => {
+      const result = await testQuestion(page, question);
 
       console.log(`Question: ${question.question}`);
       console.log(`Response: ${result.response.substring(0, 200)}...`);
@@ -111,7 +87,7 @@ test.describe("Tippy Response Quality @real-api", () => {
     ];
 
     for (const q of questions) {
-      const result = await askTippy(request, q);
+      const result = await askTippy(page, q);
 
       // Should contain at least one specific number
       const hasNumber = /\d+/.test(result.message);
@@ -137,7 +113,7 @@ test.describe("Tippy Response Quality @real-api", () => {
     }
   });
 
-  test("responses cite source views when appropriate", async ({ request }) => {
+  test("responses cite source views when appropriate", async ({ page }) => {
     const result = await askTippy(
       request,
       "What are the detailed foster program stats for 2025?"
@@ -155,9 +131,9 @@ test.describe("Tippy Response Quality @real-api", () => {
     console.log(`Response cites source: ${citesSource}`);
   });
 
-  test("handles follow-up questions correctly", async ({ request }) => {
+  test("handles follow-up questions correctly", async ({ page }) => {
     // FFS-91: Changed first question to unique variant (was dup of complex-queries)
-    const q1 = await askTippy(request, "How many clinic days have we scheduled this year?");
+    const q1 = await askTippy(page, "How many clinic days have we scheduled this year?");
     expect(q1.message).toBeDefined();
 
     // Follow-up that references previous context
@@ -181,7 +157,7 @@ test.describe("Tippy Response Quality @real-api", () => {
 test.describe("Tippy Edge Cases @real-api", () => {
   // Test suite audit: Removed "future date" and "ambiguous program" — duplicated in complex-queries.spec.ts
 
-  test("handles malformed queries", async ({ request }) => {
+  test("handles malformed queries", async ({ page }) => {
     const result = await askTippy(
       request,
       "fosters 2025 q1 q3 compare how many?"
@@ -194,8 +170,8 @@ test.describe("Tippy Edge Cases @real-api", () => {
     expect(result.message).not.toMatch(/error|exception|failed/i);
   });
 
-  test("handles empty or very short queries", async ({ request }) => {
-    const result = await askTippy(request, "fosters?");
+  test("handles empty or very short queries", async ({ page }) => {
+    const result = await askTippy(page, "fosters?");
 
     // Should provide helpful response, not an error
     expect(result.message.length).toBeGreaterThan(20);
@@ -203,7 +179,7 @@ test.describe("Tippy Edge Cases @real-api", () => {
 });
 
 test.describe("Tippy Tool Usage @real-api", () => {
-  test("uses discover_views for unknown queries", async ({ request }) => {
+  test("uses discover_views for unknown queries", async ({ page }) => {
     // This is a meta-test to verify Tippy's tool selection
     // Note: This requires access to tool call logs
 
@@ -216,7 +192,7 @@ test.describe("Tippy Tool Usage @real-api", () => {
     expect(result.message.length).toBeGreaterThan(50);
   });
 
-  test("uses query_view for known statistics", async ({ request }) => {
+  test("uses query_view for known statistics", async ({ page }) => {
     const result = await askTippy(
       request,
       "Query the foster program YTD view for 2025"

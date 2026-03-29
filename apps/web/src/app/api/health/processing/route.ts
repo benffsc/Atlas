@@ -82,20 +82,26 @@ export async function GET(request: NextRequest) {
     // Get recent failures
     // ops.processing_jobs has job_type (not source_system/source_table)
     // and error_message (not last_error), and no attempt_count column
-    const recentFailures = await queryRows<RecentFailure>(`
-      SELECT
-        job_id::text,
-        COALESCE(input_data->>'source_system', job_type) AS source_system,
-        COALESCE(input_data->>'source_table', '') AS source_table,
-        error_message AS last_error,
-        completed_at::text,
-        1 AS attempt_count
-      FROM ops.processing_jobs
-      WHERE status = 'failed'
-        AND completed_at > NOW() - INTERVAL '24 hours'
-      ORDER BY completed_at DESC
-      LIMIT 10
-    `);
+    let recentFailures: RecentFailure[] = [];
+    try {
+      recentFailures = await queryRows<RecentFailure>(`
+        SELECT
+          job_id::text,
+          COALESCE(input_data->>'source_system', job_type) AS source_system,
+          COALESCE(input_data->>'source_table', '') AS source_table,
+          error_message AS last_error,
+          completed_at::text,
+          1 AS attempt_count
+        FROM ops.processing_jobs
+        WHERE status = 'failed'
+          AND completed_at > NOW() - INTERVAL '24 hours'
+        ORDER BY completed_at DESC
+        LIMIT 10
+      `);
+    } catch (err: any) {
+      if (err?.code !== '42P01' && err?.code !== '42703') throw err;
+      // Table or column doesn't exist yet
+    }
 
     // Calculate totals
     const totals = dashboard.reduce(
@@ -118,25 +124,36 @@ export async function GET(request: NextRequest) {
     );
 
     // Data integrity checks
-    const integrityChecks = await queryOne<{
+    let integrityChecks: {
       appointments_missing_owner_email: number;
       appointments_missing_person_id: number;
       cats_with_procedures_no_place: number;
       unprocessed_staged_records: number;
-    }>(`
-      SELECT
-        (SELECT COUNT(*) FROM ops.appointments WHERE owner_email IS NULL) as appointments_missing_owner_email,
-        (SELECT COUNT(*) FROM ops.appointments WHERE person_id IS NULL AND owner_email IS NOT NULL) as appointments_missing_person_id,
-        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
-        (SELECT COUNT(DISTINCT cp.cat_id)
-         FROM ops.cat_procedures cp
-         WHERE (cp.is_spay OR cp.is_neuter)
-           AND NOT EXISTS (
-             SELECT 1 FROM sot.cat_place cpr WHERE cpr.cat_id = cp.cat_id
-           )
-        ) as cats_with_procedures_no_place,
-        (SELECT COUNT(*) FROM ops.staged_records WHERE processed_at IS NULL) as unprocessed_staged_records
-    `);
+    } | null = null;
+    try {
+      integrityChecks = await queryOne<{
+        appointments_missing_owner_email: number;
+        appointments_missing_person_id: number;
+        cats_with_procedures_no_place: number;
+        unprocessed_staged_records: number;
+      }>(`
+        SELECT
+          (SELECT COUNT(*) FROM ops.appointments WHERE owner_email IS NULL) as appointments_missing_owner_email,
+          (SELECT COUNT(*) FROM ops.appointments WHERE person_id IS NULL AND owner_email IS NOT NULL) as appointments_missing_person_id,
+          -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
+          (SELECT COUNT(DISTINCT cp.cat_id)
+           FROM ops.cat_procedures cp
+           WHERE (cp.is_spay OR cp.is_neuter)
+             AND NOT EXISTS (
+               SELECT 1 FROM sot.cat_place cpr WHERE cpr.cat_id = cp.cat_id
+             )
+          ) as cats_with_procedures_no_place,
+          (SELECT COUNT(*) FROM ops.staged_records WHERE processed_at IS NULL) as unprocessed_staged_records
+      `);
+    } catch (err: any) {
+      if (err?.code !== '42P01' && err?.code !== '42703') throw err;
+      // Table or column doesn't exist yet
+    }
 
     // Build integrity metrics with thresholds
     const integrityMetrics: DataIntegrityMetric[] = [];

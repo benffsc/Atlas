@@ -32,12 +32,15 @@ test.describe('Request Write Workflows @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    // Look for an Edit button
-    const editBtn = page.locator('button:has-text("Edit"), button[aria-label="Edit"]').first();
-    const hasEdit = await editBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    test.skip(!hasEdit, 'No edit button found on request detail page');
+    // Request detail uses inline SmartField editing via RequestSection components,
+    // not a global Edit button. Find an inline editable field and click its edit icon.
+    const smartFieldEdit = page.locator(
+      '[data-testid="smart-field-edit"], button[aria-label="Edit field"], .smart-field button'
+    ).first();
+    const hasSmartField = await smartFieldEdit.isVisible({ timeout: 5000 }).catch(() => false);
+    test.fixme(!hasSmartField, 'Feature not implemented: Request detail uses SmartField inline editing, no global Edit button');
 
-    await editBtn.click();
+    await smartFieldEdit.click();
     await page.waitForTimeout(500);
 
     // Try to change a select field (status or priority)
@@ -78,11 +81,14 @@ test.describe('Request Write Workflows @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    const editBtn = page.locator('button:has-text("Edit"), button[aria-label="Edit"]').first();
-    const hasEdit = await editBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    test.skip(!hasEdit, 'No edit button found');
+    // Request detail uses inline SmartField editing, not a global Edit/Cancel flow
+    const smartFieldEdit = page.locator(
+      '[data-testid="smart-field-edit"], button[aria-label="Edit field"], .smart-field button'
+    ).first();
+    const hasEdit = await smartFieldEdit.isVisible({ timeout: 5000 }).catch(() => false);
+    test.fixme(!hasEdit, 'Feature not implemented: Request detail uses SmartField inline editing, no global Edit/Cancel flow');
 
-    await editBtn.click();
+    await smartFieldEdit.click();
     await page.waitForTimeout(500);
 
     // Cancel without saving
@@ -109,12 +115,12 @@ test.describe('Request Write Workflows @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    // Look for quick status buttons (e.g., "Start Working", "Pause", "Complete")
+    // GuidedActionBar renders status-aware buttons: "Start Working", "Pause", "Resume", "Close Case", "Reopen"
     const statusButtons = page.locator(
-      'button:has-text("Start Working"), button:has-text("Pause"), button:has-text("Resume")'
+      'button:has-text("Start Working"), button:has-text("Pause"), button:has-text("Resume"), button:has-text("Reopen")'
     );
     const count = await statusButtons.count();
-    test.skip(count === 0, 'No quick status buttons found');
+    test.skip(count === 0, 'No quick status buttons found in GuidedActionBar');
 
     await statusButtons.first().click();
     await page.waitForTimeout(1000);
@@ -139,26 +145,26 @@ test.describe('Request Write Workflows @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    // Switch to Activity tab
-    const activityTab = page.locator('[role="tab"]:has-text("Activity")').first();
+    // Switch to Activity tab (TabBar component with id="activity")
+    const activityTab = page.locator('[role="tab"]:has-text("Activity"), button:has-text("Activity")').first();
     const hasActivity = await activityTab.isVisible({ timeout: 5000 }).catch(() => false);
     test.skip(!hasActivity, 'No Activity tab found');
 
     await activityTab.click();
     await page.waitForTimeout(1000);
 
-    // Look for note input
+    // JournalSection renders textarea with placeholder "Add a note..."
     const noteInput = page.locator(
-      'textarea[placeholder*="note"], textarea[placeholder*="Note"], input[placeholder*="note"]'
+      'textarea[placeholder*="note"], textarea[placeholder*="Note"], textarea'
     ).first();
     const hasInput = await noteInput.isVisible({ timeout: 5000 }).catch(() => false);
     test.skip(!hasInput, 'No note input found in Activity tab');
 
     await noteInput.fill('E2E test note — should be mocked');
 
-    // Submit note
+    // JournalSection submit button says "Add Note"
     const submitBtn = page.locator(
-      'button:has-text("Add Note"), button:has-text("Save Note"), button[type="submit"]'
+      'button:has-text("Add Note"), button:has-text("Save Note"), button:has-text("Save Communication"), button[type="submit"]'
     ).first();
     const hasSubmit = await submitBtn.isVisible({ timeout: 3000 }).catch(() => false);
     test.skip(!hasSubmit, 'No submit button found for journal note');
@@ -185,12 +191,12 @@ test.describe('Request Write Workflows @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    // Look for Hold/Pause button
+    // GuidedActionBar uses "Pause" button label (opens HoldRequestModal)
     const holdBtn = page.locator(
-      'button:has-text("Hold"), button:has-text("Pause"), button:has-text("Put on Hold")'
+      'button:has-text("Pause")'
     ).first();
     const hasHold = await holdBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    test.skip(!hasHold, 'No Hold/Pause button found');
+    test.skip(!hasHold, 'No Pause button found in GuidedActionBar (only visible for new/working statuses)');
 
     await holdBtn.click();
     await page.waitForTimeout(500);
@@ -243,12 +249,12 @@ test.describe('Request Write Workflows @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    // Look for Complete button
+    // GuidedActionBar uses "Close Case" button label (opens CloseRequestModal)
     const completeBtn = page.locator(
-      'button:has-text("Complete"), button:has-text("Mark Complete"), button:has-text("Resolve")'
+      'button:has-text("Close Case")'
     ).first();
     const hasComplete = await completeBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    test.skip(!hasComplete, 'No Complete button found');
+    test.skip(!hasComplete, 'No Close Case button found in GuidedActionBar');
 
     await completeBtn.click();
     await page.waitForTimeout(500);
@@ -294,12 +300,13 @@ test.describe('Request Write Workflows @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    // Look for notes section with edit capability
+    // Request detail uses SmartField inline editing within RequestSection components.
+    // There is no dedicated "Edit Notes" button — notes are edited via SmartField click.
     const notesEdit = page.locator(
-      'button[aria-label="Edit notes"], button:has-text("Edit Notes"), [data-testid="notes-edit"]'
+      'button[aria-label="Edit notes"], button:has-text("Edit Notes"), [data-testid="notes-edit"], .smart-field button'
     ).first();
     const hasNotesEdit = await notesEdit.isVisible({ timeout: 5000 }).catch(() => false);
-    test.skip(!hasNotesEdit, 'No inline notes edit button found');
+    test.fixme(!hasNotesEdit, 'Feature not implemented: Notes are edited inline via SmartField, no dedicated Edit Notes button');
 
     await notesEdit.click();
     await page.waitForTimeout(500);
@@ -334,11 +341,15 @@ test.describe('Request Write Workflows @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    const editBtn = page.locator('button:has-text("Edit"), button[aria-label="Edit"]').first();
-    const hasEdit = await editBtn.isVisible({ timeout: 5000 }).catch(() => false);
-    test.skip(!hasEdit, 'No edit button found');
+    // Request detail uses SmartField inline editing — no global Edit button.
+    // Priority is edited via SmartField click in RequestSection.
+    const smartFieldEdit = page.locator(
+      '[data-testid="smart-field-edit"], button[aria-label="Edit field"], .smart-field button'
+    ).first();
+    const hasEdit = await smartFieldEdit.isVisible({ timeout: 5000 }).catch(() => false);
+    test.fixme(!hasEdit, 'Feature not implemented: Request detail uses SmartField inline editing, no global Edit button');
 
-    await editBtn.click();
+    await smartFieldEdit.click();
     await page.waitForTimeout(500);
 
     // Find priority select and change it

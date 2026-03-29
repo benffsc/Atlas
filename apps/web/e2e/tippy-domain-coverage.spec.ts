@@ -38,7 +38,7 @@ import {
   validateDomainResponse,
   type DomainQuestion,
 } from "./fixtures/tippy-domain-coverage";
-import { mockTippyWithToolResult } from "./helpers/auth-api";
+import { mockTippyWithToolResult, tippyFetch } from "./helpers/auth-api";
 import { createVCR } from "./helpers/tippy-vcr";
 
 const vcr = createVCR("tippy-domain-coverage");
@@ -68,26 +68,6 @@ async function runDomainTest(
   expect(result.responseText.length).toBeGreaterThan(20);
   expect(result.responseText.toLowerCase()).not.toMatch(
     /error|exception|crash|500/i
-  );
-}
-
-// Helper: browser-side fetch for mocked routes
-async function tippyFetch(
-  page: import("@playwright/test").Page,
-  baseURL: string,
-  data: Record<string, unknown>
-): Promise<{ status: number; body: Record<string, unknown> }> {
-  return page.evaluate(
-    async ([url, payload]: [string, Record<string, unknown>]) => {
-      const res = await fetch(`${url}/api/tippy/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body = await res.json().catch(() => ({}));
-      return { status: res.status, body };
-    },
-    [baseURL, data] as [string, Record<string, unknown>]
   );
 }
 

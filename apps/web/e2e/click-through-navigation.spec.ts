@@ -27,7 +27,7 @@ test.describe('Click-Through Navigation @smoke', () => {
     await waitForLoaded(page);
 
     // Wait for table rows or cards to load
-    const row = page.locator('tr a, tr[data-href], [data-testid="request-row"], table tbody tr').first();
+    const row = page.locator('table tbody tr, [data-testid="request-row"], tr[data-href]').first();
     const hasRow = await row.isVisible({ timeout: 10000 }).catch(() => false);
     test.skip(!hasRow, 'No request rows visible');
 
@@ -54,7 +54,7 @@ test.describe('Click-Through Navigation @smoke', () => {
     await navigateTo(page, '/people');
     await waitForLoaded(page);
 
-    const row = page.locator('tr a, [data-testid="person-row"], table tbody tr').first();
+    const row = page.locator('table tbody tr, [data-testid="person-row"], tr[data-href]').first();
     const hasRow = await row.isVisible({ timeout: 10000 }).catch(() => false);
     test.skip(!hasRow, 'No person rows visible');
 
@@ -79,7 +79,7 @@ test.describe('Click-Through Navigation @smoke', () => {
     await navigateTo(page, '/cats');
     await waitForLoaded(page);
 
-    const row = page.locator('tr a, [data-testid="cat-row"], table tbody tr').first();
+    const row = page.locator('table tbody tr, [data-testid="cat-row"], tr[data-href]').first();
     const hasRow = await row.isVisible({ timeout: 10000 }).catch(() => false);
     test.skip(!hasRow, 'No cat rows visible');
 
@@ -104,7 +104,7 @@ test.describe('Click-Through Navigation @smoke', () => {
     await navigateTo(page, '/places');
     await waitForLoaded(page);
 
-    const row = page.locator('tr a, [data-testid="place-row"], table tbody tr').first();
+    const row = page.locator('table tbody tr, [data-testid="place-row"], tr[data-href]').first();
     const hasRow = await row.isVisible({ timeout: 10000 }).catch(() => false);
     test.skip(!hasRow, 'No place rows visible');
 
@@ -203,7 +203,7 @@ test.describe('Click-Through Navigation @smoke', () => {
     await waitForLoaded(page);
 
     // Click into a detail page
-    const row = page.locator('tr a, table tbody tr').first();
+    const row = page.locator('table tbody tr, tr[data-href]').first();
     const hasRow = await row.isVisible({ timeout: 10000 }).catch(() => false);
     test.skip(!hasRow, 'No request rows visible');
 

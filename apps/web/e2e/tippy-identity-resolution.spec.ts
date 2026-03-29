@@ -11,7 +11,7 @@
  * Phase 4 verification: Ensures Tippy can guide staff through the new system.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import {
   ALL_IDENTITY_QUESTIONS,
   FS_SCORING_QUESTIONS,
@@ -22,35 +22,7 @@ import {
   getBasicIdentityQuestions,
   type IdentityResolutionQuestion,
 } from "./fixtures/identity-resolution-questions";
-
-// ============================================================================
-// HELPER: Send message to Tippy
-// ============================================================================
-
-interface TippyResponse {
-  message: string;
-  conversationId?: string;
-}
-
-async function askTippy(
-  request: {
-    post: (
-      url: string,
-      options: { data: unknown }
-    ) => Promise<{ ok: () => boolean; json: () => Promise<TippyResponse> }>;
-  },
-  question: string
-): Promise<TippyResponse> {
-  const response = await request.post("/api/tippy/chat", {
-    data: { message: question },
-  });
-
-  if (!response.ok()) {
-    return { message: "ERROR: Request failed" };
-  }
-
-  return response.json();
-}
+import { askTippy } from "./helpers/auth-api";
 
 // ============================================================================
 // HELPER: Run test for an identity resolution question
@@ -61,8 +33,8 @@ function runIdentityQuestionTest(question: IdentityResolutionQuestion) {
 
   testFn(
     `[${question.category}] ${question.question.substring(0, 60)}...`,
-    async ({ request }) => {
-      const response = await askTippy(request, question.question);
+    async ({ page }) => {
+      const response = await askTippy(page, question.question);
 
       // Basic response validation
       expect(response.message).toBeTruthy();
@@ -134,7 +106,7 @@ test.describe("Tippy: Identity Resolution Conversations @real-api", () => {
   test.setTimeout(45000);
 
   test("Can explain F-S then answer follow-up about thresholds", async ({
-    request,
+    page,
   }) => {
     // FFS-91: Step 1 mocked (saves 1 API call). History array provides context for step 2.
     const step1 = {
@@ -146,7 +118,7 @@ test.describe("Tippy: Identity Resolution Conversations @real-api", () => {
     };
 
     // Step 2: Follow-up about thresholds (real API call)
-    const step2 = await request.post("/api/tippy/chat", {
+    const step2 = await page.request.post("/api/tippy/chat", {
       data: {
         message: "What score means automatic match vs manual review?",
         conversationId: step1.conversationId,
@@ -166,7 +138,7 @@ test.describe("Tippy: Identity Resolution Conversations @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("Can explain merge then answer about undo", async ({ request }) => {
+  test("Can explain merge then answer about undo", async ({ page }) => {
     // FFS-91: Step 1 mocked (saves 1 API call). History array provides context for step 2.
     const step1 = {
       message:
@@ -177,7 +149,7 @@ test.describe("Tippy: Identity Resolution Conversations @real-api", () => {
     };
 
     // Step 2: Follow-up about undo
-    const step2 = await request.post("/api/tippy/chat", {
+    const step2 = await page.request.post("/api/tippy/chat", {
       data: {
         message: "Can I undo that if I made a mistake?",
         conversationId: step1.conversationId,
@@ -193,11 +165,11 @@ test.describe("Tippy: Identity Resolution Conversations @real-api", () => {
   });
 
   test("Can explain low score match scenario with context", async ({
-    request,
+    page,
   }) => {
     // Step 1: Ask about a specific scenario
     const step1 = await askTippy(
-      request,
+      page,
       "I have two records with the same name but 45% match score. Should I merge them?"
     );
     expect(step1.message).toBeTruthy();
@@ -221,7 +193,7 @@ test.describe("Tippy: Staff Identity Review Workflow @real-api", () => {
   test.setTimeout(60000);
 
   test("Morning review workflow: Check queue and prioritize", async ({
-    request,
+    page,
   }) => {
     // FFS-91: Step 1 mocked (saves 1 API call). History array provides context for step 2.
     const step1 = {
@@ -232,7 +204,7 @@ test.describe("Tippy: Staff Identity Review Workflow @real-api", () => {
     };
 
     // Step 2: Ask about priority
-    const step2 = await request.post("/api/tippy/chat", {
+    const step2 = await page.request.post("/api/tippy/chat", {
       data: {
         message: "Which should I review first?",
         conversationId: step1.conversationId,
@@ -254,9 +226,9 @@ test.describe("Tippy: Staff Identity Review Workflow @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("Decision help: Uncertain match", async ({ request }) => {
+  test("Decision help: Uncertain match", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "I'm looking at a 75% match. Same phone but different email. What should I do?"
     );
     expect(response.message).toBeTruthy();
@@ -270,9 +242,9 @@ test.describe("Tippy: Staff Identity Review Workflow @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("Batch processing guidance", async ({ request }) => {
+  test("Batch processing guidance", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "I have 20 high-confidence matches. Can I process them all at once?"
     );
     expect(response.message).toBeTruthy();
@@ -290,7 +262,7 @@ test.describe("Tippy: Staff Identity Review Workflow @real-api", () => {
 // ============================================================================
 
 test.describe("Identity Resolution Capability Coverage @real-api", () => {
-  test("Basic questions working count", async ({ request }) => {
+  test("Basic questions working count", async ({ page }) => {
     const basicQuestions = getBasicIdentityQuestions();
     const workingBasic = basicQuestions.filter(
       (q) => q.expectedCapability === "works"
@@ -305,7 +277,7 @@ test.describe("Identity Resolution Capability Coverage @real-api", () => {
     );
   });
 
-  test("Total working questions count", async ({ request }) => {
+  test("Total working questions count", async ({ page }) => {
     const workingQuestions = getWorkingIdentityQuestions();
     const total = ALL_IDENTITY_QUESTIONS.length;
 
@@ -326,9 +298,9 @@ test.describe("Identity Resolution Capability Coverage @real-api", () => {
 test.describe("Phase 3-4 Verification: Tippy Knowledge @real-api", () => {
   test.setTimeout(30000);
 
-  test("Tippy knows about Fellegi-Sunter scoring", async ({ request }) => {
+  test("Tippy knows about Fellegi-Sunter scoring", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What scoring system does Atlas use for identity matching?"
     );
     expect(response.message).toBeTruthy();
@@ -342,9 +314,9 @@ test.describe("Phase 3-4 Verification: Tippy Knowledge @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("Tippy knows about identity graph", async ({ request }) => {
+  test("Tippy knows about identity graph", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "How does Atlas track merged people?"
     );
     expect(response.message).toBeTruthy();
@@ -357,9 +329,9 @@ test.describe("Phase 3-4 Verification: Tippy Knowledge @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("Tippy knows about review workflow", async ({ request }) => {
+  test("Tippy knows about review workflow", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "Where do I go to review potential duplicate people?"
     );
     expect(response.message).toBeTruthy();
@@ -372,9 +344,9 @@ test.describe("Phase 3-4 Verification: Tippy Knowledge @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("Tippy can explain probability colors", async ({ request }) => {
+  test("Tippy can explain probability colors", async ({ page }) => {
     const response = await askTippy(
-      request,
+      page,
       "What do the green, orange, and red colors mean in identity review?"
     );
     expect(response.message).toBeTruthy();

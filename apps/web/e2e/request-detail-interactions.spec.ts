@@ -140,12 +140,12 @@ test.describe('UI: Request Detail Interactions @workflow', () => {
     await navigateTo(page, `/requests/${requestId}`);
     await waitForLoaded(page);
 
-    // Look for the "Actions:" label in the actions section
-    const actionsLabel = page.locator('text=Actions:');
+    // Look for the "Quick:" label in the QuickActions section (or legacy "Actions:" label)
+    const actionsLabel = page.locator('text=Quick:, text=Actions:').first();
     await expect(actionsLabel).toBeVisible({ timeout: 10000 });
 
-    // Should have status action buttons (Start Working, Pause, Complete)
-    const actionButtons = page.locator('button:has-text("Start Working"), button:has-text("Pause"), button:has-text("Complete")');
+    // Should have quick action buttons (Start Working, Resume, Complete, Log Visit)
+    const actionButtons = page.locator('button:has-text("Start Working"), button:has-text("Resume"), button:has-text("Complete"), button:has-text("Log Visit")');
     const buttonCount = await actionButtons.count();
     expect(buttonCount).toBeGreaterThanOrEqual(1);
   });

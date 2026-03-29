@@ -57,8 +57,10 @@ test.describe("Staff Workflow: Request Management", () => {
     const hasStatus = statusKeywords.some((s) => pageText?.includes(s));
     expect(hasStatus).toBeTruthy();
 
-    const priorityKeywords = ["Urgent", "High", "Normal", "Low"];
-    const hasPriority = priorityKeywords.some((p) => pageText?.includes(p));
+    // PriorityBadge renders raw values with CSS textTransform: capitalize,
+    // but textContent() returns raw values (e.g., "normal" not "Normal")
+    const priorityKeywords = ["urgent", "high", "normal", "low"];
+    const hasPriority = priorityKeywords.some((p) => pageText?.toLowerCase().includes(p));
     expect(hasPriority).toBeTruthy();
   });
 

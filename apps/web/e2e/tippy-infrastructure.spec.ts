@@ -18,30 +18,8 @@ import {
   mockTippyAPI,
   mockTippyError,
   mockTippyWithToolResult,
+  tippyFetch,
 } from "./helpers/auth-api";
-
-/**
- * Helper: Send a message to Tippy via browser fetch (intercepted by page.route mocks).
- * page.request.post() is NOT intercepted by page.route(), so we use page.evaluate(fetch).
- */
-async function tippyFetch(
-  page: import("@playwright/test").Page,
-  baseURL: string,
-  data: Record<string, unknown>
-): Promise<{ status: number; body: Record<string, unknown> }> {
-  return page.evaluate(
-    async ([url, payload]: [string, Record<string, unknown>]) => {
-      const res = await fetch(`${url}/api/tippy/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body = await res.json().catch(() => ({}));
-      return { status: res.status, body };
-    },
-    [baseURL, data] as [string, Record<string, unknown>]
-  );
-}
 
 // ============================================================================
 // TIER 1: MOCKED INFRASTRUCTURE TESTS (Always run, no API credits)

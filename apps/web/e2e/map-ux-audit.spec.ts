@@ -131,7 +131,9 @@ test.describe('MAP_012: API Data Audit @smoke @workflow', () => {
   test('journal API supports annotation_id filter', async ({ request }) => {
     const res = await request.get('/api/journal?annotation_id=00000000-0000-0000-0000-000000000000&limit=1');
     expect(res.ok()).toBeTruthy();
-    const data = await res.json();
+    const json = await res.json();
+    // Unwrap apiSuccess wrapper: { success: true, data: { entries: [...] } }
+    const data = json.data || json;
     expect(data).toHaveProperty('entries');
     expect(data.entries).toHaveLength(0);
   });

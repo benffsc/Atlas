@@ -13,43 +13,12 @@
  * but create minimal records that are safe (just feedback/improvement rows).
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
+import { askTippy } from "./helpers/auth-api";
 
 // ============================================================================
 // HELPERS
 // ============================================================================
-
-interface TippyResponse {
-  message: string;
-  conversationId?: string;
-}
-
-async function askTippy(
-  request: {
-    post: (
-      url: string,
-      options: { data: unknown }
-    ) => Promise<{ ok: () => boolean; json: () => Promise<TippyResponse> }>;
-  },
-  question: string,
-  conversationId?: string
-): Promise<TippyResponse & { ok: boolean }> {
-  const response = await request.post("/api/tippy/chat", {
-    data: {
-      message: question,
-      ...(conversationId ? { conversationId } : {}),
-    },
-  });
-
-  const ok = response.ok();
-  const data = await response.json();
-
-  return {
-    ok,
-    message: data.message || "",
-    conversationId: data.conversationId,
-  };
-}
 
 /** Verify a response contains real data, not a fallback */
 function expectRealResponse(message: string) {
@@ -75,41 +44,30 @@ interface PersonEntity {
 }
 
 /** Fetch a real place from the API */
-async function getRealPlace(request: {
-  get: (
-    url: string,
-    options?: { timeout?: number }
-  ) => Promise<{ ok: () => boolean; json: () => Promise<{ places?: PlaceEntity[] }> }>;
-}): Promise<PlaceEntity | null> {
+async function getRealPlace(page: Page): Promise<PlaceEntity | null> {
   try {
-    const res = await request.get("/api/places?limit=5", { timeout: 15000 });
+    const res = await page.request.get("/api/places?limit=5", { timeout: 15000 });
     if (!res.ok()) return null;
     const data = await res.json();
-    // Prefer a place with a formatted address
-    const withAddress = data.places?.find(
+    const withAddress = (data.places || data.data?.places)?.find(
       (p: PlaceEntity) => p.formatted_address && p.formatted_address.length > 5
     );
-    return withAddress || data.places?.[0] || null;
+    return withAddress || (data.places || data.data?.places)?.[0] || null;
   } catch {
     return null;
   }
 }
 
 /** Fetch a real person from the API */
-async function getRealPerson(request: {
-  get: (
-    url: string,
-    options?: { timeout?: number }
-  ) => Promise<{ ok: () => boolean; json: () => Promise<{ people?: PersonEntity[] }> }>;
-}): Promise<PersonEntity | null> {
+async function getRealPerson(page: Page): Promise<PersonEntity | null> {
   try {
-    const res = await request.get("/api/people?limit=5", { timeout: 15000 });
+    const res = await page.request.get("/api/people?limit=5", { timeout: 15000 });
     if (!res.ok()) return null;
     const data = await res.json();
-    const withName = data.people?.find(
+    const withName = (data.people || data.data?.people)?.find(
       (p: PersonEntity) => p.display_name && p.display_name.length > 2
     );
-    return withName || data.people?.[0] || null;
+    return withName || (data.people || data.data?.people)?.[0] || null;
   } catch {
     return null;
   }
@@ -129,13 +87,13 @@ test.describe("Tippy: Human-Style Address Questions @real-api", () => {
   // All 6 tested the same address with different phrasings — tool routing works.
   // Keep "what do we know about" (vaguest phrasing) and "colony status" (different tool).
 
-  test("What do we know about [address]?", async ({ request }) => {
-    place = await getRealPlace(request);
+  test("What do we know about [address]?", async ({ page }) => {
+    place = await getRealPlace(page);
     test.skip(!place?.formatted_address, "No places with addresses in database");
 
     const address = place!.formatted_address!;
     const { ok, message } = await askTippy(
-      request,
+      page,
       `what do we know about ${address}?`
     );
 
@@ -143,13 +101,13 @@ test.describe("Tippy: Human-Style Address Questions @real-api", () => {
     expectRealResponse(message);
   });
 
-  test("Colony status at [address]", async ({ request }) => {
-    if (!place) place = await getRealPlace(request);
+  test("Colony status at [address]", async ({ page }) => {
+    if (!place) place = await getRealPlace(page);
     test.skip(!place?.formatted_address, "No places with addresses in database");
 
     const address = place!.formatted_address!;
     const { ok, message } = await askTippy(
-      request,
+      page,
       `colony status at ${address}`
     );
 
@@ -168,13 +126,13 @@ test.describe("Tippy: Human-Style Person Questions @real-api", () => {
   let person: PersonEntity | null = null;
 
   // Test suite audit: Reduced from 2 person variants to 1 (same entity, different phrasing)
-  test("Tell me about [person name]", async ({ request }) => {
-    person = await getRealPerson(request);
+  test("Tell me about [person name]", async ({ page }) => {
+    person = await getRealPerson(page);
     test.skip(!person?.display_name, "No people with names in database");
 
     const name = person!.display_name!;
     const { ok, message } = await askTippy(
-      request,
+      page,
       `tell me about ${name}`
     );
 
@@ -190,9 +148,9 @@ test.describe("Tippy: Human-Style Person Questions @real-api", () => {
 test.describe("Tippy: Human-Style Stats Questions @real-api", () => {
   test.setTimeout(120000);
 
-  test("How are we doing overall?", async ({ request }) => {
+  test("How are we doing overall?", async ({ page }) => {
     const { ok, message } = await askTippy(
-      request,
+      page,
       "how are we doing overall?"
     );
 
@@ -204,9 +162,9 @@ test.describe("Tippy: Human-Style Stats Questions @real-api", () => {
 
   // FFS-91: Removed "How many active trappers" — dup of accuracy-verification
 
-  test("How many staff members do we have?", async ({ request }) => {
+  test("How many staff members do we have?", async ({ page }) => {
     const { ok, message } = await askTippy(
-      request,
+      page,
       "how many staff members do we have?"
     );
 
@@ -215,9 +173,9 @@ test.describe("Tippy: Human-Style Stats Questions @real-api", () => {
     expect(message).toMatch(/\d/);
   });
 
-  test("How many cats in Santa Rosa?", async ({ request }) => {
+  test("How many cats in Santa Rosa?", async ({ page }) => {
     const { ok, message } = await askTippy(
-      request,
+      page,
       "how many cats in Santa Rosa?"
     );
 
@@ -225,9 +183,9 @@ test.describe("Tippy: Human-Style Stats Questions @real-api", () => {
     expectRealResponse(message);
   });
 
-  test("Any urgent requests right now?", async ({ request }) => {
+  test("Any urgent requests right now?", async ({ page }) => {
     const { ok, message } = await askTippy(
-      request,
+      page,
       "any urgent requests right now?"
     );
 
@@ -243,9 +201,9 @@ test.describe("Tippy: Human-Style Stats Questions @real-api", () => {
 test.describe("Tippy: Graceful Handling @real-api", () => {
   test.setTimeout(120000);
 
-  test("Handles non-existent address gracefully", async ({ request }) => {
+  test("Handles non-existent address gracefully", async ({ page }) => {
     const { ok, message } = await askTippy(
-      request,
+      page,
       "what about 99999 Fake Boulevard, Atlantis, CA 00000?"
     );
 
@@ -255,9 +213,9 @@ test.describe("Tippy: Graceful Handling @real-api", () => {
     expect(message.toLowerCase()).not.toMatch(/error|exception|crash/i);
   });
 
-  test("Navigation question returns helpful text", async ({ request }) => {
+  test("Navigation question returns helpful text", async ({ page }) => {
     const { ok, message } = await askTippy(
-      request,
+      page,
       "how do I create a new request?"
     );
 
@@ -270,7 +228,7 @@ test.describe("Tippy: Graceful Handling @real-api", () => {
     ).toBeTruthy();
   });
 
-  test("Multi-turn conversation maintains context", async ({ request }) => {
+  test("Multi-turn conversation maintains context", async ({ page }) => {
     // FFS-91: First question mocked (saves 1 API call)
     const first = {
       ok: true,
@@ -283,7 +241,7 @@ test.describe("Tippy: Graceful Handling @real-api", () => {
 
     // Follow-up using conversationId — real API call
     const followUp = await askTippy(
-      request,
+      page,
       "and how about Petaluma?",
       first.conversationId
     );
@@ -299,8 +257,8 @@ test.describe("Tippy: Graceful Handling @real-api", () => {
 test.describe("Tippy: Feedback Submission @real-api", () => {
   test.setTimeout(30000);
 
-  test("Valid feedback submission succeeds", async ({ request }) => {
-    const response = await request.post("/api/tippy/feedback", {
+  test("Valid feedback submission succeeds", async ({ page }) => {
+    const response = await page.request.post("/api/tippy/feedback", {
       data: {
         tippy_message: "Test response from Tippy",
         user_correction: "This is a test feedback submission from e2e tests",
@@ -314,8 +272,8 @@ test.describe("Tippy: Feedback Submission @real-api", () => {
     expect(data.feedback_id).toBeTruthy();
   });
 
-  test("Missing required fields returns 400", async ({ request }) => {
-    const response = await request.post("/api/tippy/feedback", {
+  test("Missing required fields returns 400", async ({ page }) => {
+    const response = await page.request.post("/api/tippy/feedback", {
       data: {
         tippy_message: "Some message",
         // Missing user_correction and feedback_type
@@ -327,8 +285,8 @@ test.describe("Tippy: Feedback Submission @real-api", () => {
     expect(data.error).toContain("Missing required fields");
   });
 
-  test("Feedback with non-UUID entity_id succeeds gracefully", async ({ request }) => {
-    const response = await request.post("/api/tippy/feedback", {
+  test("Feedback with non-UUID entity_id succeeds gracefully", async ({ page }) => {
+    const response = await page.request.post("/api/tippy/feedback", {
       data: {
         tippy_message: "Test response",
         user_correction: "Address correction needed",
@@ -346,8 +304,8 @@ test.describe("Tippy: Feedback Submission @real-api", () => {
     }
   });
 
-  test("missing_data feedback type works", async ({ request }) => {
-    const response = await request.post("/api/tippy/feedback", {
+  test("missing_data feedback type works", async ({ page }) => {
+    const response = await page.request.post("/api/tippy/feedback", {
       data: {
         tippy_message: "I couldn't find that data",
         user_correction: "The data exists in the system",
@@ -363,8 +321,8 @@ test.describe("Tippy: Feedback Submission @real-api", () => {
     }
   });
 
-  test("missing_capability feedback type works", async ({ request }) => {
-    const response = await request.post("/api/tippy/feedback", {
+  test("missing_capability feedback type works", async ({ page }) => {
+    const response = await page.request.post("/api/tippy/feedback", {
       data: {
         tippy_message: "I can't do that",
         user_correction: "Tippy should be able to do this",

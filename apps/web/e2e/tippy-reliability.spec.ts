@@ -15,7 +15,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { Page } from "@playwright/test";
+import { askTippyStreaming } from "./helpers/auth-api";
 
 // Hard budget: Vercel maxDuration=120s, internal budget=110s, our test=90s
 const RELIABILITY_TIMEOUT_MS = 90_000;
@@ -31,79 +31,9 @@ const CURATED_QUESTIONS = [
   "Tell me about TNR activity in West County",
   "What's happening in the Russian River area?",
   "Which areas might have cats but little data?",
+  // MIG_3005: Adoption/lifecycle data via sot.v_adoption_context
+  "How many barn cat placements has FFSC done through the relocation program?",
 ];
-
-/**
- * Send a streaming request to Tippy and collect the full SSE response.
- * This mirrors exactly what TippyChat.tsx does in production.
- */
-async function askTippyStreaming(
-  page: Page,
-  question: string
-): Promise<{ content: string; durationMs: number; toolsUsed: string[]; error: string | null }> {
-  const startTime = Date.now();
-
-  const response = await page.request.post("/api/tippy/chat", {
-    data: {
-      message: question,
-      stream: true,
-    },
-  });
-
-  const body = await response.text();
-  const durationMs = Date.now() - startTime;
-
-  // Parse SSE events (same as TippyChat.tsx parseSSE)
-  let content = "";
-  const toolsUsed: string[] = [];
-  let error: string | null = null;
-
-  // Handle non-streaming JSON fallback (when API returns JSON instead of SSE)
-  if (body.startsWith("{")) {
-    try {
-      const json = JSON.parse(body);
-      const payload = json?.success === true && "data" in json ? json.data : json;
-      content = payload?.message || payload?.response || "";
-      if (content.includes("doesn't have access")) {
-        error = content;
-        content = "";
-      }
-    } catch {
-      // Not JSON either
-    }
-    return { content, durationMs, toolsUsed, error };
-  }
-
-  const parts = body.split("\n\n");
-  for (const part of parts) {
-    if (!part.trim()) continue;
-    let eventType = "message";
-    let dataStr = "";
-    for (const line of part.split("\n")) {
-      if (line.startsWith("event: ")) {
-        eventType = line.slice(7);
-      } else if (line.startsWith("data: ")) {
-        dataStr = line.slice(6);
-      }
-    }
-    if (!dataStr) continue;
-
-    try {
-      const data = JSON.parse(dataStr);
-      if (eventType === "delta" && data.text) {
-        content += data.text;
-      } else if (eventType === "status" && data.phase === "tool_call" && data.tool) {
-        toolsUsed.push(data.tool);
-      } else if (eventType === "error") {
-        error = data.message || "Unknown error";
-      }
-    } catch {
-      // Skip malformed events
-    }
-  }
-
-  return { content, durationMs, toolsUsed, error };
-}
 
 // ============================================================================
 // RELIABILITY TESTS — Curated Questions (Streaming Path)

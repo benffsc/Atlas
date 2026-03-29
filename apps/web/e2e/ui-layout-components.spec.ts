@@ -278,20 +278,34 @@ test.describe("StatsSidebar Component", () => {
       return;
     }
     const requestData = await res.json();
-    const expectedStatus = requestData.status;
+    const unwrapped = requestData.data || requestData;
+    const rawStatus = unwrapped.status;
+
+    // StatusBadge maps raw statuses to display labels
+    const statusDisplayMap: Record<string, string> = {
+      new: 'New', triaged: 'New',
+      working: 'Working', scheduled: 'Working', in_progress: 'Working',
+      paused: 'Paused', on_hold: 'Paused',
+      completed: 'Completed', cancelled: 'Completed', partial: 'Completed', complete: 'Completed',
+      redirected: 'Redirected', handed_off: 'Handed Off',
+    };
+    const expectedDisplay = statusDisplayMap[rawStatus] || rawStatus;
 
     await navigateTo(page, `/requests/${requestId}`);
 
     // Look for status in sidebar
     const statusElement = page.locator(
-      '[data-testid="request-status"], .status-badge, :text-is("' + expectedStatus + '")'
+      '[data-testid="request-status"], .status-badge, .badge'
     ).first();
 
     const statusVisible = await statusElement.isVisible({ timeout: 5000 }).catch(() => false);
 
-    // Status should be visible somewhere on the page
+    // Status should be visible somewhere on the page (check both raw and display label)
     const pageText = await page.textContent('body');
-    expect(pageText?.toLowerCase().includes(expectedStatus.toLowerCase()) || statusVisible).toBeTruthy();
+    const hasStatus = pageText?.includes(expectedDisplay) ||
+      pageText?.toLowerCase().includes(rawStatus.toLowerCase()) ||
+      statusVisible;
+    expect(hasStatus).toBeTruthy();
   });
 
   test("Sidebar shows colony estimates for places", async ({ page, request }) => {

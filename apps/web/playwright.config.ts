@@ -38,8 +38,8 @@ dotenv.config({ path: '.env.local' });
  *   - tippy-capabilities.spec.ts
  *   - tippy-accuracy-verification.spec.ts
  *   - tippy-complex-queries.spec.ts
- *   - tippy-cross-source-stress.spec.ts
  *   - tippy-cross-source.spec.ts
+ *   - tippy-domain-coverage.spec.ts
  *   - tippy-edge-cases.spec.ts
  *   - tippy-expected-gaps.spec.ts
  *   - tippy-human-questions.spec.ts
@@ -47,7 +47,8 @@ dotenv.config({ path: '.env.local' });
  *   - tippy-infrastructure.spec.ts
  *   - tippy-performance.spec.ts
  *   - tippy-staff-workflows.spec.ts
- *   - data-quality-tippy.spec.ts
+ *   - tippy-v2-ambient.spec.ts
+ *   - tippy-data-gap-hunt.spec.ts
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * VISION API TESTS - SKIPPED BY DEFAULT DUE TO API COSTS

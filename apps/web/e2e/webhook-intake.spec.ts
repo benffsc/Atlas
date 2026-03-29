@@ -141,8 +141,8 @@ test.describe('Intake Convert API (FFS-107)', () => {
       data: { submission_id: '00000000-0000-0000-0000-000000000000' },
     });
 
-    // Should return 404 (not found) or 500 (DB error) — not a generic 400
-    expect([404, 500].includes(response.status())).toBe(true);
+    // Should return 404 for nonexistent submission
+    expect(response.status()).toBe(404);
   });
 
   test('convert endpoint classifies errors properly', async ({ request }) => {

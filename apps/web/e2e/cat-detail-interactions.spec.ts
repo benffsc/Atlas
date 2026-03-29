@@ -81,7 +81,7 @@ test.describe('UI: Cat Detail Interactions @workflow', () => {
     for (const label of tabLabels) {
       await clickTab(page, label);
 
-      const activeTab = page.locator('.profile-tab.active', { hasText: label });
+      const activeTab = page.locator('[role="tab"][aria-selected="true"]', { hasText: label });
       await expect(activeTab).toBeVisible();
     }
   });

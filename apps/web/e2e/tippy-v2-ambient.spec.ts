@@ -17,30 +17,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { mockTippyAPI } from "./helpers/auth-api";
-
-// ============================================================================
-// Helper: browser-side fetch for mocked routes
-// ============================================================================
-
-async function tippyFetch(
-  page: import("@playwright/test").Page,
-  baseURL: string,
-  data: Record<string, unknown>
-): Promise<{ status: number; body: Record<string, unknown> }> {
-  return page.evaluate(
-    async ([url, payload]: [string, Record<string, unknown>]) => {
-      const res = await fetch(`${url}/api/tippy/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body = await res.json().catch(() => ({}));
-      return { status: res.status, body };
-    },
-    [baseURL, data] as [string, Record<string, unknown>]
-  );
-}
+import { mockTippyAPI, tippyFetch } from "./helpers/auth-api";
 
 async function apiFetch(
   page: import("@playwright/test").Page,

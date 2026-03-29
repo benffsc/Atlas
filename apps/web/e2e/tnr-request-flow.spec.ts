@@ -330,13 +330,13 @@ test.describe('UI: Request Creation Form (Mocked)', () => {
     await navigateTo(page, '/requests/new');
     await waitForLoaded(page);
 
-    // Check for major form sections
+    // Check for major form sections (FFS-930 UX Overhaul uses conversational headings)
     const sections = [
+      'calling',
+      'cats',
+      'urgent',
       'Location',
       'Contact',
-      'Cat',
-      'Permission',
-      'Access',
     ];
 
     let foundSections = 0;

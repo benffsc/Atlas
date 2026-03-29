@@ -13,6 +13,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   requireValidUUID(submission_id, "submission");
 
+  // Verify the submission exists before attempting conversion
+  const submission = await queryOne<{ submission_id: string }>(
+    `SELECT submission_id FROM ops.intake_submissions WHERE submission_id = $1`,
+    [submission_id]
+  );
+  if (!submission) {
+    throw new ApiError("intake submission not found", 404);
+  }
+
   // Call the SQL function to convert to request (MIG_2531: using ops schema)
   let result: { request_id: string } | null;
   try {

@@ -220,7 +220,7 @@ test.describe('Trapper Detail Page', () => {
     // Should always have base tabs: Overview, Details, History, Admin
     for (const tabId of ['main', 'details', 'history', 'admin']) {
       const tab = page.locator(`[data-testid="tab-${tabId}"]`);
-      await expect(tab).toBeVisible();
+      await expect(tab).toBeVisible({ timeout: 5000 });
     }
 
     // "Trapper" tab appears when trapper data loads (detectRoles finds trapper info).

@@ -156,7 +156,7 @@ export function YoYComparisonChart() {
             <span style={{ fontSize: "1.25rem", color: trendStyle.text }}>{trendStyle.icon}</span>
           </div>
           <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-            {summary.ytd_alterations_current.toLocaleString()} vs {summary.ytd_alterations_previous.toLocaleString()} last year
+            {(summary.ytd_alterations_current ?? 0).toLocaleString()} vs {(summary.ytd_alterations_previous ?? 0).toLocaleString()} last year
           </div>
         </div>
 
@@ -172,10 +172,10 @@ export function YoYComparisonChart() {
             {summary.current_year} Alterations (YTD)
           </div>
           <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--primary)" }}>
-            {summary.ytd_alterations_current.toLocaleString()}
+            {(summary.ytd_alterations_current ?? 0).toLocaleString()}
           </div>
           <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-            {summary.ytd_appointments_current.toLocaleString()} total appointments
+            {(summary.ytd_appointments_current ?? 0).toLocaleString()} total appointments
           </div>
         </div>
 
@@ -191,10 +191,10 @@ export function YoYComparisonChart() {
             {summary.previous_year} Alterations (YTD)
           </div>
           <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-secondary)" }}>
-            {summary.ytd_alterations_previous.toLocaleString()}
+            {(summary.ytd_alterations_previous ?? 0).toLocaleString()}
           </div>
           <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-            {summary.ytd_appointments_previous.toLocaleString()} total appointments
+            {(summary.ytd_appointments_previous ?? 0).toLocaleString()} total appointments
           </div>
         </div>
       </div>
