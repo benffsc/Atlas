@@ -181,14 +181,14 @@ BEGIN
   SELECT
     CASE
       WHEN COUNT(*) < 2 THEN 'insufficient_data'
-      WHEN (ARRAY_AGG(total_cats ORDER BY observation_date DESC))[1] >
-           (ARRAY_AGG(total_cats ORDER BY observation_date DESC))[2] * 1.2 THEN 'growing'
-      WHEN (ARRAY_AGG(total_cats ORDER BY observation_date DESC))[1] <
-           (ARRAY_AGG(total_cats ORDER BY observation_date DESC))[2] * 0.8 THEN 'shrinking'
+      WHEN (ARRAY_AGG(total_count_observed ORDER BY observed_date DESC))[1] >
+           (ARRAY_AGG(total_count_observed ORDER BY observed_date DESC))[2] * 1.2 THEN 'growing'
+      WHEN (ARRAY_AGG(total_count_observed ORDER BY observed_date DESC))[1] <
+           (ARRAY_AGG(total_count_observed ORDER BY observed_date DESC))[2] * 0.8 THEN 'shrinking'
       ELSE 'stable'
     END INTO v_colony_trend
-    FROM sot.colony_estimates
-    WHERE place_id = p_place_id AND total_cats IS NOT NULL;
+    FROM sot.place_colony_estimates
+    WHERE place_id = p_place_id AND total_count_observed IS NOT NULL;
   IF v_colony_trend IS NULL THEN v_colony_trend := 'insufficient_data'; END IF;
 
   -- Dimension 1: Alteration (0-25)
@@ -319,10 +319,10 @@ place_appointments AS (
 latest_colony_estimates AS (
     SELECT DISTINCT ON (place_id)
         place_id,
-        total_cats AS colony_estimate,
-        source_type AS estimate_method
-    FROM sot.colony_estimates
-    ORDER BY place_id, observation_date DESC NULLS LAST, created_at DESC
+        total_count_observed AS colony_estimate,
+        estimate_method
+    FROM sot.place_colony_estimates
+    ORDER BY place_id, observed_date DESC NULLS LAST, created_at DESC
 ),
 -- MIG_3009: New CTEs for data surfacing
 place_breeding AS (
@@ -347,10 +347,10 @@ colony_trends AS (
     FROM (
         SELECT place_id,
             COUNT(*) AS est_count,
-            (ARRAY_AGG(total_cats ORDER BY observation_date DESC))[1] AS latest_total,
-            (ARRAY_AGG(total_cats ORDER BY observation_date DESC))[2] AS prev_total
-        FROM sot.colony_estimates
-        WHERE total_cats IS NOT NULL
+            (ARRAY_AGG(total_count_observed ORDER BY observed_date DESC))[1] AS latest_total,
+            (ARRAY_AGG(total_count_observed ORDER BY observed_date DESC))[2] AS prev_total
+        FROM sot.place_colony_estimates
+        WHERE total_count_observed IS NOT NULL
         GROUP BY place_id
     ) sub
 ),

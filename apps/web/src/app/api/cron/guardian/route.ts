@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const results = {
     materialized_view_refreshed: false,
+    tippy_matviews_refreshed: false,
     places_with_context: 0,
     places_needing_attention: 0,
     zone_coverage_refreshed: false,
@@ -72,6 +73,44 @@ export async function GET(request: NextRequest) {
         const errorMsg2 = error2 instanceof Error ? error2.message : String(error2);
         results.errors.push(`MV refresh (non-concurrent) failed: ${errorMsg2}`);
       }
+    }
+
+    // ============================================================
+    // 1b. Refresh Tippy Pre-Computed Materialized Views
+    // ============================================================
+    // MIG_3006: City stats, zip coverage, FFR impact — used by Tippy tools
+
+    try {
+      const matviews = [
+        "ops.mv_beacon_place_metrics",
+        "ops.mv_city_stats",
+        "ops.mv_zip_coverage",
+        "ops.mv_ffr_impact_summary",
+      ];
+      for (const mv of matviews) {
+        try {
+          await query(`REFRESH MATERIALIZED VIEW CONCURRENTLY ${mv}`);
+        } catch {
+          await query(`REFRESH MATERIALIZED VIEW ${mv}`);
+        }
+      }
+      results.tippy_matviews_refreshed = true;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      results.errors.push(`Tippy matview refresh failed: ${errorMsg}`);
+    }
+
+    // ============================================================
+    // 1c. Fix Stale Breeding Flags & Altered Status (MIG_3012)
+    // ============================================================
+    // Catches breeding flags missed by ON CONFLICT during re-uploads
+    // and altered_status gaps for cats with spay/neuter appointments
+
+    try {
+      await query(`SELECT * FROM ops.fix_stale_breeding_flags()`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      results.errors.push(`Breeding flags fix failed: ${errorMsg}`);
     }
 
     // ============================================================
