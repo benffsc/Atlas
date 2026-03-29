@@ -217,8 +217,10 @@ function triageSubmission(data: PublicIntakeSubmission): {
     flags.push("large_colony");
   }
 
-  // Out of primary service area
-  if (data.county && !["Sonoma", "sonoma"].includes(data.county)) {
+  // Out of service area — FFSC serves Sonoma + neighboring counties
+  const serviceCounties = ["sonoma", "marin", "napa", "mendocino", "lake"];
+  const countyLower = (data.county || "").toLowerCase();
+  if (countyLower && countyLower === "other" || (countyLower && !serviceCounties.includes(countyLower))) {
     flags.push("out_of_area");
   }
 

@@ -473,7 +473,7 @@ function getTriageMessage(category: string): string {
     case "owned_cat_low":
       return "Thank you for reaching out. For owned cats, we recommend contacting your local veterinarian or a low-cost spay/neuter clinic. If you have questions, we'll follow up.";
     case "out_of_county":
-      return "Thank you for your request. Unfortunately, our services are limited to Sonoma County. We'll send you resources for your area.";
+      return "Thank you for your request. Our primary service area is Sonoma County and surrounding counties. We'll review your request and follow up with resources for your area.";
     case "needs_review":
     default:
       return "Thank you! Your request has been received and will be reviewed by our team.";
