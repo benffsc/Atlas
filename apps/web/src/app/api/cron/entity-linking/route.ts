@@ -44,6 +44,8 @@ interface EntityLinkingJsonResult {
   step3d_person_places_created?: number;
   step3d_people_skipped?: number;
   step3d_cats_linked_from_new_places?: number;
+  // Step 3e: Foster roles from person_cat evidence (MIG_3014/FFS-324)
+  step3e_foster_roles_created?: number;
   // Step 4: Cat-Request Attribution (MIG_2825)
   step4_cats_linked_to_requests?: number;
   step4_stale_links_removed?: number;
@@ -306,6 +308,17 @@ async function runPhase1(startTime: number) {
     warnings.push("step3c_shelterluv_places failed");
   }
 
+  // Step 3d: Ensure foster roles from person_cat evidence (MIG_3014/FFS-324)
+  try {
+    const step3d = await queryOne<{ roles_created: number }>(
+      "SELECT * FROM sot.ensure_foster_roles_from_person_cat()"
+    );
+    phaseResult.step3d_foster_roles_created = step3d?.roles_created || 0;
+  } catch (e) {
+    phaseResult.step3d_error = e instanceof Error ? e.message : "Unknown";
+    warnings.push("step3d_foster_roles failed");
+  }
+
   if (warnings.length > 0) phaseResult.warnings = warnings;
   phaseResult.status = warnings.some((w) => w.startsWith("CRITICAL"))
     ? "failed"
@@ -545,6 +558,7 @@ async function runLegacyMode(request: NextRequest, startTime: number) {
     summary.step3_cats_via_person_chain = r.step3_cats_linked;
     summary.step3b_adopter_places_created = r.step3c_person_places_created;
     summary.step3c_shelterluv_places_created = r.step3d_person_places_created;
+    summary.step3d_foster_roles_created = r.step3e_foster_roles_created;
     summary.step4_cats_linked_to_requests = r.step4_cats_linked_to_requests;
     summary.step4_stale_links_removed = r.step4_stale_links_removed;
     summary.cat_coverage_pct = r.cat_coverage_pct;
