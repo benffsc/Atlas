@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
 
 const mp = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -11,9 +12,30 @@ const CopyIcon = () => <svg {...mp}><rect x="9" y="9" width="13" height="13" rx=
 interface Props { contextMenu: { x: number; y: number; lat: number; lng: number }; onMeasure: () => void; onDirections: () => void; onStreetView: () => void; onAddPlace: () => void; onAddNote: () => void; onCopyCoords: () => void; }
 
 export function MapContextMenu({ contextMenu, onMeasure, onDirections, onStreetView, onAddPlace, onAddNote, onCopyCoords }: Props) {
+  const [address, setAddress] = useState<string | null>(null);
+
+  // Reverse geocode to show address
+  useEffect(() => {
+    setAddress(null);
+    if (typeof google === "undefined") return;
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ location: { lat: contextMenu.lat, lng: contextMenu.lng } }, (results, status) => {
+      if (status === "OK" && results?.[0]) {
+        setAddress(results[0].formatted_address);
+      }
+    });
+  }, [contextMenu.lat, contextMenu.lng]);
+
   return (
     <div className="map-context-menu" style={{ position: "absolute", left: contextMenu.x, top: contextMenu.y, zIndex: MAP_Z_INDEX.controls + 10 }}>
-      <div className="map-context-menu__coords">{contextMenu.lat.toFixed(5)}, {contextMenu.lng.toFixed(5)}</div>
+      <div className="map-context-menu__coords">
+        {address || `${contextMenu.lat.toFixed(5)}, ${contextMenu.lng.toFixed(5)}`}
+      </div>
+      {address && (
+        <div style={{ padding: "0 12px 4px", fontSize: 10, color: "var(--text-tertiary, #9ca3af)" }}>
+          {contextMenu.lat.toFixed(5)}, {contextMenu.lng.toFixed(5)}
+        </div>
+      )}
       <button className="map-context-menu__item" onClick={onMeasure}><RulerIcon /> Measure from here</button>
       <button className="map-context-menu__item" onClick={onDirections}><DirIcon /> Directions to here</button>
       <button className="map-context-menu__item" onClick={onStreetView}><SvIcon /> Street View</button>

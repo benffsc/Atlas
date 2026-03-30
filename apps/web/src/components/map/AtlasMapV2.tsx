@@ -378,6 +378,7 @@ function AtlasMapV2Inner() {
   const measurePolylineRef = useRef<google.maps.Polyline | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const measureMarkersRef = useRef<any[]>([]);
+  const measureLabelsRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const rubberBandRef = useRef<google.maps.Polyline | null>(null);
 
   const measureTotalDistance = measurePoints.reduce((sum, pt, i) => {
@@ -410,7 +411,7 @@ function AtlasMapV2Inner() {
     });
   }, [measurePoints]);
 
-  // Draw/redraw measurement polylines & point markers on Google Maps
+  // Draw/redraw measurement polylines, point markers, and inline distance labels
   useEffect(() => {
     if (!map || !measureActive) {
       // Clean up
@@ -418,6 +419,8 @@ function AtlasMapV2Inner() {
       measurePolylineRef.current = null;
       measureMarkersRef.current.forEach(m => m.setMap(null));
       measureMarkersRef.current = [];
+      measureLabelsRef.current.forEach(m => (m.map = null));
+      measureLabelsRef.current = [];
       return;
     }
 
@@ -425,6 +428,8 @@ function AtlasMapV2Inner() {
     measurePolylineRef.current?.setMap(null);
     measureMarkersRef.current.forEach(m => m.setMap(null));
     measureMarkersRef.current = [];
+    measureLabelsRef.current.forEach(m => (m.map = null));
+    measureLabelsRef.current = [];
 
     if (measurePoints.length === 0) return;
 
@@ -454,6 +459,32 @@ function AtlasMapV2Inner() {
         },
       });
       measureMarkersRef.current.push(marker);
+    }
+
+    // Inline distance labels at segment midpoints (like Google MyMaps)
+    let cumulative = 0;
+    for (let i = 1; i < measurePoints.length; i++) {
+      const a = measurePoints[i - 1];
+      const b = measurePoints[i];
+      const segDist = haversine(a, b);
+      cumulative += segDist;
+      const midLat = (a.lat + b.lat) / 2;
+      const midLng = (a.lng + b.lng) / 2;
+
+      const el = document.createElement("div");
+      el.style.cssText =
+        "background:#3b82f6;color:#fff;font-size:11px;font-weight:600;" +
+        "padding:2px 6px;border-radius:4px;white-space:nowrap;" +
+        "box-shadow:0 1px 3px rgba(0,0,0,0.3);pointer-events:none;";
+      el.textContent = formatDistance(cumulative);
+
+      const adv = new google.maps.marker.AdvancedMarkerElement({
+        position: { lat: midLat, lng: midLng },
+        map,
+        content: el,
+        zIndex: 15,
+      });
+      measureLabelsRef.current.push(adv);
     }
 
     return () => {
