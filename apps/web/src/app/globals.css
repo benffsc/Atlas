@@ -1239,7 +1239,7 @@ button:disabled {
 
 .dashboard-map-search {
   flex: 1;
-  max-width: 280px;
+  max-width: 340px;
   position: relative;
   z-index: 1001;
 }
@@ -1304,7 +1304,7 @@ button:disabled {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  min-width: 300px;
+  min-width: 320px;
   max-height: 360px;
   overflow-y: auto;
   background: var(--card-bg, #fff);

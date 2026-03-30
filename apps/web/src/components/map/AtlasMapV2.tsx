@@ -247,6 +247,36 @@ function AtlasMapV2Inner() {
     try { localStorage.removeItem(SEARCH_HISTORY_KEY); } catch {}
   }, []);
 
+  // ── Search keyboard navigation ──
+  const [searchHighlight, setSearchHighlight] = useState(-1);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Reset highlight when results change
+  useEffect(() => {
+    setSearchHighlight(-1);
+  }, [search.query, search.atlasResults, search.localResults]);
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!search.showResults) return;
+    const items = searchContainerRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
+    const total = items?.length ?? 0;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSearchHighlight((prev) => (prev + 1) % Math.max(total, 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSearchHighlight((prev) => (prev <= 0 ? total - 1 : prev - 1));
+    } else if (e.key === "Enter" && searchHighlight >= 0 && items?.[searchHighlight]) {
+      e.preventDefault();
+      items[searchHighlight].click();
+      setSearchHighlight(-1);
+    } else if (e.key === "Escape") {
+      search.setQuery("");
+      search.setShowResults(false);
+      setSearchHighlight(-1);
+    }
+  }, [search, searchHighlight]);
+
   // ── Basemap switching ──
   useEffect(() => {
     if (!map) return;
@@ -1309,7 +1339,7 @@ function AtlasMapV2Inner() {
       </Map>
 
       {/* ── Search bar ── */}
-      <div style={{
+      <div ref={searchContainerRef} style={{
         position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)",
         zIndex: MAP_Z_INDEX.searchBox, width: "100%", maxWidth: 600, padding: "0 16px",
       }}>
@@ -1327,12 +1357,16 @@ function AtlasMapV2Inner() {
           <input
             ref={searchInputRef}
             type="text"
+            role="combobox"
             aria-expanded={search.showResults}
             aria-autocomplete="list"
+            aria-controls="map-search-listbox"
+            aria-activedescendant={searchHighlight >= 0 ? `srp-item-${searchHighlight}` : undefined}
             placeholder={isMobile ? "Search..." : "Search people, places, or cats... (press /)"}
             value={search.query}
             onChange={(e) => { search.setQuery(e.target.value); search.setShowResults(true); }}
             onFocus={() => search.setShowResults(true)}
+            onKeyDown={handleSearchKeyDown}
             style={{ flex: 1, border: "none", outline: "none", fontSize: 15 }}
           />
           {search.query && (
@@ -1367,10 +1401,12 @@ function AtlasMapV2Inner() {
             poiResults={search.poiResults}
             searchLoading={search.loading}
             searchQuery={search.query}
-            onSearchSelect={(r) => { search.handleLocalSelect(r); if (search.query.length >= 3) addToSearchHistory(search.query); }}
-            onAtlasSearchSelect={(r) => { search.handleAtlasSelect(r); if (search.query.length >= 3) addToSearchHistory(search.query); }}
-            onGooglePlaceSelect={(p) => { search.handleGoogleSelect(p); }}
-            onPoiSelect={(r) => { search.handlePoiSelect(r); }}
+            selectedIndex={searchHighlight}
+            onSelectedIndexChange={setSearchHighlight}
+            onSearchSelect={(r) => { search.handleLocalSelect(r); if (search.query.length >= 3) addToSearchHistory(search.query); setSearchHighlight(-1); }}
+            onAtlasSearchSelect={(r) => { search.handleAtlasSelect(r); if (search.query.length >= 3) addToSearchHistory(search.query); setSearchHighlight(-1); }}
+            onGooglePlaceSelect={(p) => { search.handleGoogleSelect(p); setSearchHighlight(-1); }}
+            onPoiSelect={(r) => { search.handlePoiSelect(r); setSearchHighlight(-1); }}
             onStreetView={handleStreetViewFromSearch}
             onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
           />
