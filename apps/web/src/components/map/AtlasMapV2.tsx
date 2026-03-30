@@ -1637,6 +1637,7 @@ function AtlasMapV2Inner() {
             maxHeight={90}
           >
             <PlaceDetailDrawer
+              key={selectedPlaceId}
               placeId={selectedPlaceId}
               onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); }}
               onWatchlistChange={refreshMapData}
@@ -1651,6 +1652,7 @@ function AtlasMapV2Inner() {
           </BottomSheet>
         ) : (
           <PlaceDetailDrawer
+            key={selectedPlaceId}
             placeId={selectedPlaceId}
             onClose={() => { setSelectedPlaceId(null); setSelectedPersonId(null); setSelectedCatId(null); }}
             onWatchlistChange={refreshMapData}
@@ -1667,6 +1669,7 @@ function AtlasMapV2Inner() {
       {/* ── Person Detail Drawer (Step 2) — exclusive with CatDetailDrawer ── */}
       {selectedPersonId && !selectedCatId && (
         <PersonDetailDrawer
+          key={selectedPersonId}
           personId={selectedPersonId}
           onClose={() => setSelectedPersonId(null)}
           onNavigateCat={(catId) => { setSelectedPersonId(null); setSelectedCatId(catId); }}
@@ -1676,6 +1679,7 @@ function AtlasMapV2Inner() {
       {/* ── Cat Detail Drawer (Step 2) — exclusive with PersonDetailDrawer ── */}
       {selectedCatId && !selectedPersonId && (
         <CatDetailDrawer
+          key={selectedCatId}
           catId={selectedCatId}
           onClose={() => setSelectedCatId(null)}
           onNavigatePerson={(personId) => { setSelectedCatId(null); setSelectedPersonId(personId); }}

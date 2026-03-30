@@ -13,6 +13,7 @@ interface Props { contextMenu: { x: number; y: number; lat: number; lng: number 
 
 export function MapContextMenu({ contextMenu, onMeasure, onDirections, onStreetView, onAddPlace, onAddNote, onCopyCoords }: Props) {
   const [address, setAddress] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   // Reverse geocode to show address
   useEffect(() => {
@@ -26,14 +27,24 @@ export function MapContextMenu({ contextMenu, onMeasure, onDirections, onStreetV
     });
   }, [contextMenu.lat, contextMenu.lng]);
 
+  const coords = `${contextMenu.lat.toFixed(5)}, ${contextMenu.lng.toFixed(5)}`;
+
+  const handleCopy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(label);
+      setTimeout(() => setCopied(null), 1500);
+    });
+    onCopyCoords();
+  };
+
   return (
     <div className="map-context-menu" style={{ position: "absolute", left: contextMenu.x, top: contextMenu.y, zIndex: MAP_Z_INDEX.controls + 10 }}>
       <div className="map-context-menu__coords">
-        {address || `${contextMenu.lat.toFixed(5)}, ${contextMenu.lng.toFixed(5)}`}
+        {address || coords}
       </div>
       {address && (
         <div style={{ padding: "0 12px 4px", fontSize: 10, color: "var(--text-tertiary, #9ca3af)" }}>
-          {contextMenu.lat.toFixed(5)}, {contextMenu.lng.toFixed(5)}
+          {coords}
         </div>
       )}
       <button className="map-context-menu__item" onClick={onMeasure}><RulerIcon /> Measure from here</button>
@@ -43,7 +54,14 @@ export function MapContextMenu({ contextMenu, onMeasure, onDirections, onStreetV
       <button className="map-context-menu__item" onClick={onAddPlace}><PinIcon /> Add place here</button>
       <button className="map-context-menu__item" onClick={onAddNote}><NoteIcon /> Add note here</button>
       <div className="map-context-menu__divider" />
-      <button className="map-context-menu__item" onClick={onCopyCoords}><CopyIcon /> Copy coordinates</button>
+      {address && (
+        <button className="map-context-menu__item" onClick={() => handleCopy(address, "address")}>
+          <CopyIcon /> {copied === "address" ? "Copied!" : "Copy address"}
+        </button>
+      )}
+      <button className="map-context-menu__item" onClick={() => handleCopy(coords, "coords")}>
+        <CopyIcon /> {copied === "coords" ? "Copied!" : "Copy coordinates"}
+      </button>
     </div>
   );
 }
