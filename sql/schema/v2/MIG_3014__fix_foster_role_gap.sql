@@ -59,6 +59,9 @@ WHERE vug.atlas_role = 'foster'
 -- ============================================================================
 -- Creates foster roles for people with ShelterLuv foster evidence (person_cat)
 -- who don't already have a foster role from any source.
+-- VH = authority for ACTIVE fosters. SL = historical evidence → 'inactive'.
+-- If the person is also in a VH foster group, process_volunteerhub_group_roles()
+-- will have already created an 'active' role, so ON CONFLICT skips them.
 
 \echo ''
 \echo '2. Creating sot.ensure_foster_roles_from_person_cat()...'
@@ -71,10 +74,10 @@ BEGIN
     INSERT INTO sot.person_roles (person_id, role, role_status, source_system, source_record_id, notes)
     SELECT DISTINCT pc.person_id,
         'foster',
-        'active',
+        'inactive',  -- SL evidence = historical. VH is authority for active status.
         'shelterluv',
         'person_cat_evidence',
-        'Auto-created from ShelterLuv foster events (MIG_3014)'
+        'Historical foster from ShelterLuv events (MIG_3014)'
     FROM sot.person_cat pc
     WHERE pc.relationship_type = 'foster'
       -- Skip people who already have a foster role (from any source)
