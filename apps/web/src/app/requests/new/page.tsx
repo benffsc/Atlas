@@ -13,10 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
 import {
-  OWNERSHIP_OPTIONS,
-  HANDLEABILITY_OPTIONS,
   FIXED_STATUS_OPTIONS,
-  IMPORTANT_NOTE_OPTIONS,
 } from "@/lib/form-options";
 import {
   PersonSection,
@@ -25,6 +22,8 @@ import {
   CatDetailsSection,
   KittenAssessmentSection,
   UrgencyNotesSection,
+  StaffTriagePanel,
+  EMPTY_STAFF_TRIAGE,
 } from "@/components/request-sections";
 import type {
   PersonSectionValue,
@@ -33,6 +32,7 @@ import type {
   CatDetailsSectionValue,
   KittenAssessmentValue,
   UrgencyNotesValue,
+  StaffTriageValue,
 } from "@/components/request-sections";
 import {
   EntryModeSelector,
@@ -92,23 +92,19 @@ function NewRequestForm() {
   const [authorizationPending, setAuthorizationPending] = useState(false);
   const [bestContactTimes, setBestContactTimes] = useState("");
 
-  // Permission & Access
+  // Permission & Access (hasPropertyAccess, trapsOvernightSafe, accessWithoutContact now facade-derived / in StaffTriagePanel)
   const [permissionStatus, setPermissionStatus] = useState("unknown");
-  const [hasPropertyAccess, setHasPropertyAccess] = useState<boolean | null>(null);
   const [accessNotes, setAccessNotes] = useState("");
-  const [trapsOvernightSafe, setTrapsOvernightSafe] = useState<boolean | null>(null);
-  const [accessWithoutContact, setAccessWithoutContact] = useState<boolean | null>(null);
 
-  // Trapping Details (moved from collapsed section to inline in new layout)
+  // Trapping Details — some fields now in CatDetailsSection or StaffTriagePanel
   const [ownershipStatus, setOwnershipStatus] = useState("");
   const [handleability, setHandleability] = useState("");
   const [fixedStatus, setFixedStatus] = useState("");
   const [dogsOnSite, setDogsOnSite] = useState("");
-  const [trapSavvy, setTrapSavvy] = useState("");
-  const [previousTnr, setPreviousTnr] = useState("");
   const [bestTrappingTime, setBestTrappingTime] = useState("");
-  const [catDescription, setCatDescription] = useState("");
-  const [importantNotes, setImportantNotes] = useState<string[]>([]);
+
+  // Staff Triage (Phase 2) — collapsible panel below form
+  const [staffTriageValue, setStaffTriageValue] = useState<StaffTriageValue>(EMPTY_STAFF_TRIAGE);
 
   // Request Purpose (multi-select)
   const [requestPurposes, setRequestPurposes] = useState<string[]>(["tnr"]);
@@ -120,17 +116,12 @@ function NewRequestForm() {
   const hasRelocation = requestPurposes.includes("relocation");
   const hasRescue = requestPurposes.includes("rescue");
 
-  // About the Cats
-  const [totalCatsReported, setTotalCatsReported] = useState<number | "">("");
+  // About the Cats (totalCatsReported, peakCount, countConfidence, awarenessDuration, catsAreFriendly now facade-derived)
   const [catName, setCatName] = useState("");
   const [estimatedCatCount, setEstimatedCatCount] = useState<number | "">("");
-  const [peakCount, setPeakCount] = useState<number | "">("");  // MIG_2532: Beacon critical
-  const [countConfidence, setCountConfidence] = useState("unknown");
   const [colonyDuration, setColonyDuration] = useState("unknown");
-  const [awarenessDuration, setAwarenessDuration] = useState("unknown");  // MIG_2532: How long requester aware
   const [eartipCount, setEartipCount] = useState<number | "">("");
   const [eartipEstimate, setEartipEstimate] = useState("unknown");
-  const [catsAreFriendly, setCatsAreFriendly] = useState<boolean | null>(null);
 
   // MIG_2532: Third-party tracking (affects requester intelligence)
   const [isThirdPartyReport, setIsThirdPartyReport] = useState(false);
@@ -371,12 +362,6 @@ function NewRequestForm() {
     }
   }, [detectedPhone]);
 
-  const toggleImportantNote = (note: string) => {
-    setImportantNotes((prev) =>
-      prev.includes(note) ? prev.filter((n) => n !== note) : [...prev, note]
-    );
-  };
-
   // ─── Section Adapter Values (FFS-493) ─────────────────────────────────────
   // Bridge individual state vars → section component value objects.
   // State stays flat (no refactor of submit/effects), components read these.
@@ -433,18 +418,12 @@ function NewRequestForm() {
 
   const propertyAccessValue: PropertyAccessValue = {
     permissionStatus,
-    hasPropertyAccess,
-    trapsOvernightSafe,
-    accessWithoutContact,
     accessNotes,
   };
 
   const handlePropertyAccessChange = useCallback(
     (v: PropertyAccessValue) => {
       setPermissionStatus(v.permissionStatus);
-      setHasPropertyAccess(v.hasPropertyAccess);
-      setTrapsOvernightSafe(v.trapsOvernightSafe);
-      setAccessWithoutContact(v.accessWithoutContact);
       setAccessNotes(v.accessNotes);
     },
     []
@@ -452,35 +431,28 @@ function NewRequestForm() {
 
   const catDetailsValue: CatDetailsSectionValue = {
     estimatedCatCount,
-    totalCatsReported,
-    peakCount,
-    countConfidence,
     colonyDuration,
-    awarenessDuration,
     eartipCount,
     eartipEstimate,
-    catsAreFriendly,
     catName,
-    catDescription,
+    catDescription: "",
     wellnessCatCount,
     requestPurposes,
+    handleability,
+    ownershipStatus,
   };
 
   const handleCatDetailsChange = useCallback(
     (v: CatDetailsSectionValue) => {
       setEstimatedCatCount(v.estimatedCatCount);
-      setTotalCatsReported(v.totalCatsReported);
-      setPeakCount(v.peakCount);
-      setCountConfidence(v.countConfidence);
       setColonyDuration(v.colonyDuration);
-      setAwarenessDuration(v.awarenessDuration);
       setEartipCount(v.eartipCount);
       setEartipEstimate(v.eartipEstimate);
-      setCatsAreFriendly(v.catsAreFriendly);
       setCatName(v.catName);
-      setCatDescription(v.catDescription);
       setWellnessCatCount(v.wellnessCatCount);
       setRequestPurposes(v.requestPurposes);
+      setHandleability(v.handleability);
+      setOwnershipStatus(v.ownershipStatus);
     },
     []
   );
@@ -535,6 +507,13 @@ function NewRequestForm() {
       setSummary(v.summary);
       setNotes(v.notes);
       setInternalNotes(v.internalNotes);
+    },
+    []
+  );
+
+  const handleStaffTriageChange = useCallback(
+    (v: StaffTriageValue) => {
+      setStaffTriageValue(v);
     },
     []
   );
@@ -638,21 +617,37 @@ function NewRequestForm() {
         is_property_owner: hasPropertyAuthority,
         // Permission & Access
         permission_status: permissionStatus,
-        has_property_access: hasPropertyAccess,
+        // Facade: derive has_property_access from permissionStatus
+        has_property_access: permissionStatus === "yes" || permissionStatus === "not_needed" ? true
+          : permissionStatus === "no" ? false : null,
         access_notes: accessNotes || null,
-        traps_overnight_safe: trapsOvernightSafe,
-        access_without_contact: accessWithoutContact,
+        // Facade: traps_overnight_safe + access_without_contact from StaffTriagePanel (Phase 2)
+        traps_overnight_safe: staffTriageValue.trapsOvernightSafe,
+        access_without_contact: staffTriageValue.accessWithoutContact,
         // About the Cats
         estimated_cat_count: estimatedCatCount !== "" ? estimatedCatCount : null,
-        total_cats_reported: totalCatsReported !== "" ? totalCatsReported : null,
-        peak_count: peakCount !== "" ? peakCount : null,  // MIG_2532: Beacon critical
+        // Facade: total_cats_reported defaults to estimated unless Phase 2 overrides
+        total_cats_reported: staffTriageValue.totalCatsOverride !== ""
+          ? staffTriageValue.totalCatsOverride
+          : (estimatedCatCount !== "" ? estimatedCatCount : null),
+        // Facade: peak_count defaults to estimated unless Phase 2 overrides
+        peak_count: staffTriageValue.peakCount !== ""
+          ? staffTriageValue.peakCount
+          : (estimatedCatCount !== "" ? estimatedCatCount : null),
         wellness_cat_count: hasWellness ? (wellnessCatCount !== "" ? wellnessCatCount : null) : null,
-        count_confidence: countConfidence,
+        // Facade: count_confidence from StaffTriagePanel (Phase 2), default unknown
+        count_confidence: staffTriageValue.countConfidence,
         colony_duration: colonyDuration,
-        awareness_duration: awarenessDuration,  // MIG_2532
+        // Facade: derive awareness_duration from colonyDuration
+        awareness_duration: colonyDuration === "under_1_month" ? "weeks"
+          : colonyDuration === "1_to_6_months" ? "months"
+          : colonyDuration === "6_to_24_months" || colonyDuration === "over_2_years" ? "years"
+          : "unknown",
         eartip_count: showExactEartipCount ? (eartipCount !== "" ? eartipCount : null) : null,
         eartip_estimate: !showExactEartipCount ? eartipEstimate : null,
-        cats_are_friendly: catsAreFriendly,
+        // Facade: derive cats_are_friendly from handleability
+        cats_are_friendly: handleability === "friendly_carrier" ? true
+          : handleability === "unhandleable_trap" ? false : null,
         cat_name: (typeof estimatedCatCount === "number" && estimatedCatCount <= 3) ? catName || null : null,
         // MIG_2532: Third-party tracking
         is_third_party_report: isThirdPartyReport,
@@ -695,17 +690,22 @@ function NewRequestForm() {
         urgency_reasons: urgencyReasons.length > 0 ? urgencyReasons : null,
         urgency_deadline: urgencyDeadline || null,
         urgency_notes: urgencyNotes || null,
-        priority,
+        // Facade: priority from StaffTriagePanel if set, else from urgency section
+        priority: staffTriageValue.priority !== "normal" ? staffTriageValue.priority : priority,
+        // Triage category from StaffTriagePanel
+        triage_category: staffTriageValue.triageCategory || null,
         // Trapping Logistics (FFS-151)
         ownership_status: ownershipStatus || null,
         handleability: handleability || null,
         fixed_status: fixedStatus || null,
         dogs_on_site: dogsOnSite || null,
-        trap_savvy: trapSavvy || null,
-        previous_tnr: previousTnr || null,
+        // Facade: trap_savvy + previous_tnr from StaffTriagePanel (Phase 2)
+        trap_savvy: staffTriageValue.trapSavvy || null,
+        previous_tnr: staffTriageValue.previousTnr || null,
         best_trapping_time: bestTrappingTime || null,
-        cat_description: catDescription || null,
-        important_notes: importantNotes.length > 0 ? importantNotes : null,
+        // Facade: cat_description + important_notes from StaffTriagePanel (Phase 2)
+        cat_description: staffTriageValue.catDescription || null,
+        important_notes: staffTriageValue.importantNotes.length > 0 ? staffTriageValue.importantNotes : null,
         // Additional
         summary: effectiveSummary || null,
         notes: notes || null,
@@ -753,22 +753,20 @@ function NewRequestForm() {
     }
   };
 
-  // ─── Section Configuration (FFS-930 UX Overhaul) ──────────────────────────
+  // ─── Section Configuration (FFS-1001 UX Consolidation) ─────────────────────
   const FORM_SECTIONS = [
     { id: "caller", icon: "phone" as const, label: "Who\u2019s calling?", shortLabel: "Caller" },
     { id: "location", icon: "map-pin" as const, label: "Where are the cats?", shortLabel: "Location" },
     { id: "cats", icon: "cat" as const, label: "Tell me about the cats", shortLabel: "Cats" },
-    { id: "urgency", icon: "zap" as const, label: "How urgent is this?", shortLabel: "Urgency" },
-    { id: "wrapup", icon: "clipboard-list" as const, label: "Wrap up", shortLabel: "Details" },
+    { id: "anything-else", icon: "clipboard-list" as const, label: "Anything else?", shortLabel: "Anything else?" },
   ];
 
   // Section completeness for step indicators (FFS-933)
   const sectionStatus = {
     caller: requestorFirstName && requestorPhone ? "complete" : requestorFirstName || requestorPhone ? "partial" : "empty",
     location: selectedPlace ? "complete" : "empty",
-    cats: (estimatedCatCount !== "" && (catsAreFriendly !== null || handleability)) ? "complete" : estimatedCatCount !== "" ? "partial" : "empty",
-    urgency: priority !== "normal" || urgencyNotes ? "complete" : "empty",
-    wrapup: summary ? "complete" : notes || internalNotes ? "partial" : "empty",
+    cats: (estimatedCatCount !== "" && handleability) ? "complete" : estimatedCatCount !== "" ? "partial" : "empty",
+    "anything-else": summary ? "complete" : notes || internalNotes || urgencyNotes ? "partial" : "empty",
   } as Record<string, "complete" | "partial" | "empty">;
 
   const sectionDotColor = (status: string) =>
@@ -1361,7 +1359,7 @@ function NewRequestForm() {
             />
           </div>
 
-          {/* Site logistics — dogs, trap-savvy, previous TNR (promoted from hidden section) */}
+          {/* Site logistics — dogs on site (trap-savvy + previous TNR moved to StaffTriagePanel) */}
           <div style={{ marginTop: SPACING.md, paddingTop: SPACING.md, borderTop: "1px solid var(--border-light, #e5e7eb)" }}>
             <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: "0.75rem" }}>Site conditions</p>
             <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
@@ -1373,32 +1371,6 @@ function NewRequestForm() {
                   {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }].map((o) => (
                     <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
                       <input type="radio" name="dogsOnSite" checked={dogsOnSite === o.v} onChange={() => setDogsOnSite(o.v)} />
-                      {o.l}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                  Trap-savvy?
-                </label>
-                <div style={{ display: "flex", gap: "0.75rem" }}>
-                  {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }, { v: "unknown", l: "Unknown" }].map((o) => (
-                    <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
-                      <input type="radio" name="trapSavvy" checked={trapSavvy === o.v} onChange={() => setTrapSavvy(o.v)} />
-                      {o.l}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                  Previous TNR?
-                </label>
-                <div style={{ display: "flex", gap: "0.75rem" }}>
-                  {[{ v: "yes", l: "Yes" }, { v: "no", l: "No" }, { v: "partial", l: "Partial" }].map((o) => (
-                    <label key={o.v} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", fontSize: "0.85rem" }}>
-                      <input type="radio" name="previousTnr" checked={previousTnr === o.v} onChange={() => setPreviousTnr(o.v)} />
                       {o.l}
                     </label>
                   ))}
@@ -1425,21 +1397,8 @@ function NewRequestForm() {
             compact
           />
 
-          {/* Handleability + Fixed Status — PROMOTED from hidden trapping logistics */}
-          <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", marginTop: SPACING.md, paddingTop: SPACING.md, borderTop: "1px solid var(--border-light, #e5e7eb)" }}>
-            <div style={{ flex: "1 1 200px" }}>
-              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                Handleability
-              </label>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                {HANDLEABILITY_OPTIONS.map((opt) => (
-                  <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem" }}>
-                    <input type="radio" name="handleability" checked={handleability === opt.value} onChange={() => setHandleability(opt.value)} />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
+          {/* Fixed Status — inline (handleability + ownershipStatus now in CatDetailsSection) */}
+          <div style={{ marginTop: SPACING.md, paddingTop: SPACING.md, borderTop: "1px solid var(--border-light, #e5e7eb)" }}>
             <div style={{ flex: "1 1 200px" }}>
               <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.85rem" }}>
                 Fixed status
@@ -1623,12 +1582,17 @@ function NewRequestForm() {
           )}
         </div>
 
-        {/* ─── SECTION 4: How urgent is this? ──────────────────────── */}
-        <div id="section-urgency" className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "1rem" }}>
-            <Icon name="zap" size={20} color="var(--primary)" />
-            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600, color: "var(--foreground)" }}>How urgent is this?</h2>
+        {/* ─── SECTION 4: Anything else? ──────────────────────────── */}
+        <div id="section-anything-else" className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+            <Icon name="clipboard-list" size={20} color="var(--primary)" />
+            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600, color: "var(--foreground)" }}>Anything else?</h2>
           </div>
+          <p style={{ color: "var(--text-tertiary)", fontSize: "0.8rem", marginBottom: "1rem", marginLeft: "30px" }}>
+            Urgency, scheduling notes, and anything the caller wants to add
+          </p>
+
+          {/* Urgency section (merged from old section 4) */}
           <UrgencyNotesSection
             value={urgencyNotesValue}
             onChange={handleUrgencyNotesChange}
@@ -1684,81 +1648,17 @@ function NewRequestForm() {
               </button>
             </div>
           )}
-        </div>
 
-        {/* ─── SECTION 5: Wrap up ──────────────────────────────────── */}
-        <div id="section-wrapup" className="card card-elevated" style={{ padding: SPACING.xl, marginBottom: SPACING.xl }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-            <Icon name="clipboard-list" size={20} color="var(--primary)" />
-            <h2 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 600, color: "var(--foreground)" }}>Wrap up</h2>
-          </div>
-          <p style={{ color: "var(--text-tertiary)", fontSize: "0.8rem", marginBottom: "1rem", marginLeft: "30px" }}>
-            Summary, notes, and trapping details
-          </p>
-
-          {/* Ownership Status */}
+          {/* Best trapping time */}
           <div style={{ marginBottom: SPACING.md }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.85rem" }}>
-              Ownership status
+            <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
+              Best trapping time
             </label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-              {OWNERSHIP_OPTIONS.map((opt) => (
-                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.85rem" }}>
-                  <input type="radio" name="ownershipStatus" checked={ownershipStatus === opt.value} onChange={() => setOwnershipStatus(opt.value)} />
-                  {opt.shortLabel}
-                </label>
-              ))}
-            </div>
+            <input type="text" value={bestTrappingTime} onChange={(e) => setBestTrappingTime(e.target.value)} placeholder="e.g., Weekday evenings" style={{ width: "100%" }} />
           </div>
 
-          {/* Best trapping time + cat descriptions */}
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: SPACING.md }}>
-            <div style={{ flex: "1 1 220px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                Best trapping time
-              </label>
-              <input type="text" value={bestTrappingTime} onChange={(e) => setBestTrappingTime(e.target.value)} placeholder="e.g., Weekday evenings" style={{ width: "100%" }} />
-            </div>
-            <div style={{ flex: "2 1 300px" }}>
-              <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
-                Cat descriptions
-              </label>
-              <textarea value={catDescription} onChange={(e) => setCatDescription(e.target.value)} placeholder="Colors, markings, names — describe individual cats" rows={2} style={{ width: "100%", resize: "vertical" }} />
-            </div>
-          </div>
-
-          {/* Important notes toggle chips */}
-          <div style={{ marginBottom: SPACING.lg }}>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500, fontSize: "0.85rem" }}>
-              Important notes
-            </label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
-              {IMPORTANT_NOTE_OPTIONS.map((opt) => (
-                <label
-                  key={opt.value}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.4rem",
-                    padding: "0.35rem 0.6rem",
-                    border: `1px solid ${importantNotes.includes(opt.value) ? "var(--primary)" : "var(--border)"}`,
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    background: importantNotes.includes(opt.value) ? "var(--primary)" : "transparent",
-                    color: importantNotes.includes(opt.value) ? "#fff" : "inherit",
-                    fontSize: "0.8rem",
-                    transition: "all 150ms",
-                  }}
-                >
-                  <input type="checkbox" checked={importantNotes.includes(opt.value)} onChange={() => toggleImportantNote(opt.value)} style={{ display: "none" }} />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Summary + notes — always visible in wrap-up */}
-          <div style={{ marginBottom: SPACING.md }}>
+          {/* Summary + notes */}
+          <div style={{ marginBottom: SPACING.md, paddingTop: SPACING.md, borderTop: "1px solid var(--border-light, #e5e7eb)" }}>
             <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.85rem" }}>
               Request title
             </label>
@@ -1788,6 +1688,16 @@ function NewRequestForm() {
             </p>
           </div>
         </div>
+
+        {/* Staff Triage Panel (Phase 2) — between form and submit button */}
+        {entryMode !== "complete" && (
+          <StaffTriagePanel
+            value={staffTriageValue}
+            onChange={handleStaffTriageChange}
+            entryMode={entryMode}
+            estimatedCatCount={estimatedCatCount}
+          />
+        )}
 
         {/* SECTION: Completion Data (only shown in Quick Complete mode) */}
         {entryMode === "complete" && (

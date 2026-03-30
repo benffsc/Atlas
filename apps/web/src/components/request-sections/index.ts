@@ -36,3 +36,12 @@ export type {
   UrgencyNotesSectionProps,
   UrgencyNotesValue,
 } from "./UrgencyNotesSection";
+
+export {
+  StaffTriagePanel,
+  EMPTY_STAFF_TRIAGE,
+} from "./StaffTriagePanel";
+export type {
+  StaffTriagePanelProps,
+  StaffTriageValue,
+} from "./StaffTriagePanel";

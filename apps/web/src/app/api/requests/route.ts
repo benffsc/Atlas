@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
   const assignedToPersonId = searchParams.get("assigned_to_person");
   const trapperFilter = searchParams.get("trapper");
   const includeArchived = searchParams.get("include_archived") === "true";
+  const includeTestData = searchParams.get("include_test_data") === "true";
   const sortBy = searchParams.get("sort_by") || "status";
   const sortOrder = searchParams.get("sort_order") || "asc";
   const { limit, offset } = parsePagination(searchParams, { defaultLimit: 200, maxLimit: 500 });
@@ -66,6 +67,14 @@ export async function GET(request: NextRequest) {
   // By default, exclude archived requests unless explicitly requested
   if (!includeArchived) {
     conditions.push("(r.is_archived IS NOT TRUE)");
+  }
+
+  // By default, exclude E2E test requests unless explicitly requested
+  if (!includeTestData) {
+    conditions.push(`(
+      (r.internal_notes IS NULL OR r.internal_notes NOT LIKE '%E2E_TEST_MARKER%')
+      AND (r.summary IS NULL OR r.summary NOT LIKE 'E2E Test -%')
+    )`);
   }
 
   if (status) {

@@ -2,29 +2,36 @@
 
 import { useCallback } from "react";
 import {
-  COUNT_CONFIDENCE_OPTIONS,
   COLONY_DURATION_OPTIONS,
-  AWARENESS_DURATION_OPTIONS,
   EARTIP_ESTIMATE_OPTIONS,
   REQUEST_PURPOSE_OPTIONS,
+  HANDLEABILITY_OPTIONS,
+  OWNERSHIP_OPTIONS,
 } from "@/lib/form-options";
 
 // --- Types ---
 
 export interface CatDetailsSectionValue {
   estimatedCatCount: number | "";
-  totalCatsReported: number | "";
-  peakCount: number | "";
-  countConfidence: string;
+  /** @deprecated Moved to StaffTriagePanel — kept for backward compat */
+  totalCatsReported?: number | "";
+  /** @deprecated Moved to StaffTriagePanel — kept for backward compat */
+  peakCount?: number | "";
+  /** @deprecated Moved to StaffTriagePanel — kept for backward compat */
+  countConfidence?: string;
   colonyDuration: string;
-  awarenessDuration: string;
+  /** @deprecated Derived from colonyDuration in facade */
+  awarenessDuration?: string;
   eartipCount: number | "";
   eartipEstimate: string;
-  catsAreFriendly: boolean | null;
+  /** @deprecated Derived from handleability in facade */
+  catsAreFriendly?: boolean | null;
   catName: string;
   catDescription: string;
   wellnessCatCount: number | "";
   requestPurposes: string[];
+  handleability: string;
+  ownershipStatus: string;
 }
 
 export interface CatDetailsSectionProps {
@@ -49,6 +56,8 @@ export const EMPTY_CAT_DETAILS: CatDetailsSectionValue = {
   catDescription: "",
   wellnessCatCount: "",
   requestPurposes: ["tnr"],
+  handleability: "",
+  ownershipStatus: "",
 };
 
 // --- Component ---
@@ -170,8 +179,8 @@ export function CatDetailsSection({
       {showTnrFields && (
         <>
           <div style={rowStyle}>
-            <div style={{ flex: "1 1 120px" }}>
-              <label style={labelStyle}>Cats needing work</label>
+            <div style={{ flex: "1 1 140px" }}>
+              <label style={labelStyle}>How many cats?</label>
               <input
                 type="number"
                 min={1}
@@ -186,77 +195,14 @@ export function CatDetailsSection({
                 style={inputStyle}
               />
             </div>
-            <div style={{ flex: "1 1 120px" }}>
-              <label style={labelStyle}>Total cats at location</label>
-              <input
-                type="number"
-                min={0}
-                value={value.totalCatsReported}
-                onChange={(e) =>
-                  update({
-                    totalCatsReported:
-                      e.target.value === "" ? "" : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-                style={inputStyle}
-              />
-            </div>
-            <div style={{ flex: "1 1 120px" }}>
-              <label style={labelStyle}>Peak count</label>
-              <input
-                type="number"
-                min={0}
-                value={value.peakCount}
-                onChange={(e) =>
-                  update({
-                    peakCount:
-                      e.target.value === "" ? "" : Number(e.target.value),
-                  })
-                }
-                placeholder="0"
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          <div style={rowStyle}>
-            <div style={{ flex: "1 1 180px" }}>
-              <label style={labelStyle}>Count confidence</label>
-              <select
-                value={value.countConfidence}
-                onChange={(e) => update({ countConfidence: e.target.value })}
-                style={inputStyle}
-              >
-                {COUNT_CONFIDENCE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: "1 1 180px" }}>
-              <label style={labelStyle}>Colony duration</label>
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={labelStyle}>How long have cats been here?</label>
               <select
                 value={value.colonyDuration}
                 onChange={(e) => update({ colonyDuration: e.target.value })}
                 style={inputStyle}
               >
                 {COLONY_DURATION_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: "1 1 180px" }}>
-              <label style={labelStyle}>How long aware?</label>
-              <select
-                value={value.awarenessDuration}
-                onChange={(e) => update({ awarenessDuration: e.target.value })}
-                style={inputStyle}
-              >
-                {AWARENESS_DURATION_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
@@ -336,32 +282,55 @@ export function CatDetailsSection({
         </div>
       )}
 
-      {/* Cats friendly */}
+      {/* Handleability */}
       <div style={{ marginBottom: compact ? "8px" : "1rem" }}>
-        <label style={labelStyle}>Are the cats friendly?</label>
-        <div style={{ display: "flex", gap: "1rem" }}>
-          {[
-            { label: "Yes, friendly", val: true },
-            { label: "No, unhandleable", val: false },
-            { label: "Mixed/Unknown", val: null },
-          ].map((opt) => (
+        <label style={labelStyle}>Handleability</label>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {HANDLEABILITY_OPTIONS.map((opt) => (
             <label
-              key={String(opt.val)}
+              key={opt.value}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "0.25rem",
+                gap: "6px",
                 cursor: "pointer",
                 fontSize: compact ? "0.8rem" : "0.9rem",
               }}
             >
               <input
                 type="radio"
-                name="catsAreFriendly"
-                checked={value.catsAreFriendly === opt.val}
-                onChange={() => update({ catsAreFriendly: opt.val })}
+                name="handleability"
+                checked={value.handleability === opt.value}
+                onChange={() => update({ handleability: opt.value })}
               />
               {opt.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Ownership status */}
+      <div style={{ marginBottom: compact ? "8px" : "1rem" }}>
+        <label style={labelStyle}>Ownership status</label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+          {OWNERSHIP_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: "pointer",
+                fontSize: compact ? "0.8rem" : "0.9rem",
+              }}
+            >
+              <input
+                type="radio"
+                name="ownershipStatus"
+                checked={value.ownershipStatus === opt.value}
+                onChange={() => update({ ownershipStatus: opt.value })}
+              />
+              {opt.shortLabel}
             </label>
           ))}
         </div>

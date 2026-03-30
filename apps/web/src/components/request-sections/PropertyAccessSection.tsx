@@ -7,9 +7,12 @@ import { PERMISSION_STATUS_OPTIONS } from "@/lib/form-options";
 
 export interface PropertyAccessValue {
   permissionStatus: string;
-  hasPropertyAccess: boolean | null;
-  trapsOvernightSafe: boolean | null;
-  accessWithoutContact: boolean | null;
+  /** @deprecated Derived from permissionStatus in facade */
+  hasPropertyAccess?: boolean | null;
+  /** @deprecated Moved to StaffTriagePanel */
+  trapsOvernightSafe?: boolean | null;
+  /** @deprecated Moved to StaffTriagePanel */
+  accessWithoutContact?: boolean | null;
   accessNotes: string;
 }
 
@@ -28,76 +31,6 @@ export const EMPTY_PROPERTY_ACCESS: PropertyAccessValue = {
   accessWithoutContact: null,
   accessNotes: "",
 };
-
-// --- Helpers ---
-
-interface TriStateRadioProps {
-  name: string;
-  label: string;
-  value: boolean | null;
-  onChange: (v: boolean | null) => void;
-  compact?: boolean;
-}
-
-function TriStateRadio({
-  name,
-  label,
-  value,
-  onChange,
-  compact,
-}: TriStateRadioProps) {
-  const radioLabelStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.25rem",
-    cursor: "pointer",
-    fontSize: compact ? "0.8rem" : "0.9rem",
-  };
-
-  return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          marginBottom: "0.5rem",
-          fontWeight: 500,
-          fontSize: compact ? "0.8rem" : "0.9rem",
-        }}
-      >
-        {label}
-      </label>
-      <div style={{ display: "flex", gap: "1rem" }}>
-        <label style={radioLabelStyle}>
-          <input
-            type="radio"
-            name={name}
-            checked={value === true}
-            onChange={() => onChange(true)}
-          />
-          Yes
-        </label>
-        <label style={radioLabelStyle}>
-          <input
-            type="radio"
-            name={name}
-            checked={value === false}
-            onChange={() => onChange(false)}
-          />
-          No
-        </label>
-        <label style={radioLabelStyle}>
-          <input
-            type="radio"
-            name={name}
-            checked={value === null}
-            onChange={() => onChange(null)}
-          />
-          Unknown
-        </label>
-      </div>
-    </div>
-  );
-}
 
 // --- Component ---
 
@@ -164,38 +97,6 @@ export function PropertyAccessSection({
             </option>
           ))}
         </select>
-      </div>
-
-      {/* Three yes/no/unknown radio groups */}
-      <div
-        style={{
-          display: "flex",
-          gap: compact ? "1rem" : "2rem",
-          flexWrap: "wrap",
-          marginBottom: compact ? "8px" : "1rem",
-        }}
-      >
-        <TriStateRadio
-          name="hasPropertyAccess"
-          label="Does the requester have property access?"
-          value={value.hasPropertyAccess}
-          onChange={(v) => update({ hasPropertyAccess: v })}
-          compact={compact}
-        />
-        <TriStateRadio
-          name="trapsOvernight"
-          label="Can traps be left overnight?"
-          value={value.trapsOvernightSafe}
-          onChange={(v) => update({ trapsOvernightSafe: v })}
-          compact={compact}
-        />
-        <TriStateRadio
-          name="accessWithout"
-          label="Can trapper access without requester?"
-          value={value.accessWithoutContact}
-          onChange={(v) => update({ accessWithoutContact: v })}
-          compact={compact}
-        />
       </div>
 
       {/* Access Notes */}
