@@ -8,6 +8,8 @@ import {
   type LayerGroup,
 } from "@/components/map/GroupedLayerControl";
 import type { AtlasPin } from "@/hooks/useMapData";
+import type { AtlasSearchResult, PlacePrediction } from "@/components/map/types";
+import { fetchApi } from "@/lib/api-client";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
 
 export interface DashboardMapPin {
@@ -306,6 +308,425 @@ function spiralOffset(index: number, count: number): { dlat: number; dlng: numbe
 }
 
 // ---------------------------------------------------------------------------
+// Map search combobox — Atlas results + Google Places, keyboard nav, recents
+// ---------------------------------------------------------------------------
+
+const RECENT_SEARCHES_KEY = "dashboard-map-recent-searches";
+const MAX_RECENTS = 5;
+
+interface SearchItem {
+  id: string;
+  kind: "atlas" | "google" | "recent";
+  label: string;
+  subtitle?: string;
+  entityType?: string;
+  lat?: number;
+  lng?: number;
+  placeId?: string; // Google place_id
+}
+
+function getRecentSearches(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveRecentSearch(query: string) {
+  try {
+    const recents = getRecentSearches().filter(r => r !== query);
+    recents.unshift(query);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recents.slice(0, MAX_RECENTS)));
+  } catch { /* localStorage unavailable */ }
+}
+
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query || query.length < 2) return <>{text}</>;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <strong>{text.slice(idx, idx + query.length)}</strong>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
+const ENTITY_ICONS: Record<string, string> = {
+  place: "\u{1F4CD}",
+  person: "\u{1F464}",
+  cat: "\u{1F431}",
+  request: "\u{1F4CB}",
+  intake: "\u{1F4E5}",
+  google: "\u{1F30E}",
+  recent: "\u{1F552}",
+};
+
+function DashboardMapSearch({
+  onFilterPins,
+  map,
+  onPinClick,
+}: {
+  onFilterPins: (query: string) => void;
+  map: google.maps.Map | null;
+  onPinClick: (entityType: "request" | "place", entityId: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<SearchItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const filterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced pin filter (existing behavior)
+  const handleInput = useCallback((value: string) => {
+    setQuery(value);
+    setActiveIdx(-1);
+    if (filterTimeoutRef.current) clearTimeout(filterTimeoutRef.current);
+    filterTimeoutRef.current = setTimeout(() => onFilterPins(value), 400);
+  }, [onFilterPins]);
+
+  // Fetch suggestions when query changes (3+ chars)
+  useEffect(() => {
+    if (query.length < 3) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      try {
+        const [atlasRes, googleRes] = await Promise.allSettled([
+          fetchApi<{ suggestions?: AtlasSearchResult[] }>(
+            `/api/search?q=${encodeURIComponent(query)}&limit=5&suggestions=true`,
+            { signal: controller.signal },
+          ),
+          fetchApi<{ predictions?: PlacePrediction[] }>(
+            `/api/places/autocomplete?input=${encodeURIComponent(query)}`,
+            { signal: controller.signal },
+          ),
+        ]);
+
+        if (controller.signal.aborted) return;
+
+        const atlas = atlasRes.status === "fulfilled" ? atlasRes.value?.suggestions || [] : [];
+        const google = googleRes.status === "fulfilled" ? googleRes.value?.predictions || [] : [];
+
+        const newItems: SearchItem[] = [];
+
+        // Atlas results (up to 5)
+        for (const r of atlas.slice(0, 5)) {
+          newItems.push({
+            id: `atlas-${r.entity_id}`,
+            kind: "atlas",
+            label: r.display_name,
+            subtitle: r.subtitle || undefined,
+            entityType: r.entity_type,
+            lat: r.metadata?.lat,
+            lng: r.metadata?.lng,
+          });
+        }
+
+        // Google Places (up to 3, suppressed if Atlas has 5+ results)
+        if (atlas.length < 5) {
+          for (const p of google.slice(0, 3)) {
+            newItems.push({
+              id: `google-${p.place_id}`,
+              kind: "google",
+              label: p.structured_formatting.main_text,
+              subtitle: p.structured_formatting.secondary_text,
+              placeId: p.place_id,
+            });
+          }
+        }
+
+        setItems(newItems);
+        setLoading(false);
+      } catch {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Show recents on focus with empty query
+  const handleFocus = () => {
+    setOpen(true);
+    if (!query) {
+      const recents = getRecentSearches();
+      setItems(recents.map((r, i) => ({
+        id: `recent-${i}`,
+        kind: "recent" as const,
+        label: r,
+      })));
+    }
+  };
+
+  // Navigate to coordinates
+  const panTo = useCallback((lat: number, lng: number, zoom = 15) => {
+    if (!map) return;
+    map.panTo({ lat, lng });
+    map.setZoom(zoom);
+  }, [map]);
+
+  // Handle selecting a result
+  const handleSelect = useCallback(async (item: SearchItem) => {
+    setOpen(false);
+    saveRecentSearch(item.label);
+
+    if (item.kind === "recent") {
+      // Re-run the search with this text
+      setQuery(item.label);
+      onFilterPins(item.label);
+      return;
+    }
+
+    if (item.kind === "atlas") {
+      if (item.lat && item.lng) {
+        panTo(item.lat, item.lng);
+      }
+      // Also open preview if it's a place or request
+      if (item.entityType === "place") {
+        onPinClick("place", item.id.replace("atlas-", ""));
+      } else if (item.entityType === "request") {
+        onPinClick("request", item.id.replace("atlas-", ""));
+      }
+      setQuery("");
+      onFilterPins("");
+      return;
+    }
+
+    if (item.kind === "google" && item.placeId) {
+      try {
+        const data = await fetchApi<{
+          place: { geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string };
+        }>(`/api/places/details?place_id=${item.placeId}`);
+        const loc = data.place?.geometry?.location;
+        if (loc) panTo(loc.lat, loc.lng);
+      } catch { /* details lookup failed */ }
+      setQuery("");
+      onFilterPins("");
+    }
+  }, [map, panTo, onPinClick, onFilterPins]);
+
+  // Keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!open) return;
+    const selectable = items;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx(prev => (prev + 1) % selectable.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx(prev => (prev <= 0 ? selectable.length - 1 : prev - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIdx >= 0 && activeIdx < selectable.length) {
+        handleSelect(selectable[activeIdx]);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setActiveIdx(-1);
+    }
+  };
+
+  // Scroll active item into view
+  useEffect(() => {
+    if (activeIdx < 0 || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-idx="${activeIdx}"]`);
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }, [activeIdx]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (inputRef.current && !inputRef.current.closest(".dashboard-map-search")?.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Group items by kind for section headers
+  const atlasItems = items.filter(i => i.kind === "atlas");
+  const googleItems = items.filter(i => i.kind === "google");
+  const recentItems = items.filter(i => i.kind === "recent");
+  const hasResults = items.length > 0;
+  const showDropdown = open && (hasResults || loading || query.length >= 3);
+
+  return (
+    <div className="dashboard-map-search" style={{ position: "relative" }}>
+      <div className="dms-input-wrap">
+        <svg className="dms-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Search places, addresses..."
+          value={query}
+          onChange={e => handleInput(e.target.value)}
+          onFocus={handleFocus}
+          onKeyDown={handleKeyDown}
+          className="map-search-input dms-input"
+          role="combobox"
+          aria-expanded={showDropdown}
+          aria-controls="dms-listbox"
+          aria-activedescendant={activeIdx >= 0 ? `dms-item-${activeIdx}` : undefined}
+          aria-autocomplete="list"
+          aria-label="Search places and addresses"
+        />
+        {query && (
+          <button
+            className="dms-clear"
+            onClick={() => { setQuery(""); onFilterPins(""); setItems([]); inputRef.current?.focus(); }}
+            aria-label="Clear search"
+          >
+            &times;
+          </button>
+        )}
+      </div>
+
+      {showDropdown && (
+        <div id="dms-listbox" role="listbox" ref={listRef} className="dms-dropdown">
+          {/* Recent searches */}
+          {recentItems.length > 0 && (
+            <>
+              <div className="dms-section-header">Recent</div>
+              {recentItems.map((item, i) => {
+                const globalIdx = items.indexOf(item);
+                return (
+                  <div
+                    key={item.id}
+                    data-idx={globalIdx}
+                    id={`dms-item-${globalIdx}`}
+                    role="option"
+                    aria-selected={globalIdx === activeIdx}
+                    className={`dms-item${globalIdx === activeIdx ? " dms-item--active" : ""}`}
+                    onClick={() => handleSelect(item)}
+                    onMouseEnter={() => setActiveIdx(globalIdx)}
+                  >
+                    <span className="dms-item-icon">{ENTITY_ICONS.recent}</span>
+                    <span className="dms-item-label">{item.label}</span>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Atlas results */}
+          {atlasItems.length > 0 && (
+            <>
+              <div className="dms-section-header">In Atlas</div>
+              {atlasItems.map((item) => {
+                const globalIdx = items.indexOf(item);
+                return (
+                  <div
+                    key={item.id}
+                    data-idx={globalIdx}
+                    id={`dms-item-${globalIdx}`}
+                    role="option"
+                    aria-selected={globalIdx === activeIdx}
+                    className={`dms-item${globalIdx === activeIdx ? " dms-item--active" : ""}`}
+                    onClick={() => handleSelect(item)}
+                    onMouseEnter={() => setActiveIdx(globalIdx)}
+                  >
+                    <span className="dms-item-icon">{ENTITY_ICONS[item.entityType || "place"]}</span>
+                    <div className="dms-item-content">
+                      <span className="dms-item-label">
+                        <HighlightMatch text={item.label} query={query} />
+                      </span>
+                      {item.subtitle && (
+                        <span className="dms-item-subtitle">{item.subtitle}</span>
+                      )}
+                    </div>
+                    <span className="dms-item-badge" data-kind={item.entityType}>
+                      {item.entityType?.toUpperCase()}
+                    </span>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Google Places */}
+          {googleItems.length > 0 && (
+            <>
+              <div className="dms-section-header">Addresses</div>
+              {googleItems.map((item) => {
+                const globalIdx = items.indexOf(item);
+                return (
+                  <div
+                    key={item.id}
+                    data-idx={globalIdx}
+                    id={`dms-item-${globalIdx}`}
+                    role="option"
+                    aria-selected={globalIdx === activeIdx}
+                    className={`dms-item${globalIdx === activeIdx ? " dms-item--active" : ""}`}
+                    onClick={() => handleSelect(item)}
+                    onMouseEnter={() => setActiveIdx(globalIdx)}
+                  >
+                    <span className="dms-item-icon">{ENTITY_ICONS.google}</span>
+                    <div className="dms-item-content">
+                      <span className="dms-item-label">
+                        <HighlightMatch text={item.label} query={query} />
+                      </span>
+                      {item.subtitle && (
+                        <span className="dms-item-subtitle">{item.subtitle}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Loading skeleton */}
+          {loading && items.length === 0 && (
+            <div className="dms-loading">
+              {[1, 2, 3].map(n => (
+                <div key={n} className="dms-skeleton-row">
+                  <div className="dms-skeleton-circle" />
+                  <div className="dms-skeleton-lines">
+                    <div className="dms-skeleton-line dms-skeleton-line--long" />
+                    <div className="dms-skeleton-line dms-skeleton-line--short" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && query.length >= 3 && items.length === 0 && (
+            <div className="dms-empty">
+              <span>No results for &ldquo;{query}&rdquo;</span>
+              <span className="dms-empty-hint">Try a different address or name</span>
+            </div>
+          )}
+
+          {/* Live region for screen readers */}
+          <div aria-live="polite" className="sr-only">
+            {!loading && items.length > 0 && `${items.length} result${items.length !== 1 ? "s" : ""} found`}
+            {!loading && query.length >= 3 && items.length === 0 && "No results found"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Inner map component (inside APIProvider)
 // ---------------------------------------------------------------------------
 
@@ -322,8 +743,6 @@ function DashboardMapInner({
 }: DashboardMapProps) {
   const { mapCenter, mapZoom } = useGeoConfig();
   const map = useMap();
-  const [searchValue, setSearchValue] = useState("");
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [infoPin, setInfoPin] = useState<{ type: "request" | "atlas"; pin: DashboardMapPin | AtlasPin } | null>(null);
 
   // Track map bounds + zoom for SuperCluster
@@ -394,12 +813,6 @@ function DashboardMapInner({
       + (showAtlas ? atlasPins.filter(p => p.lat && p.lng).length : 0);
   }, [requestPins, intakePins, atlasPins, enabledLayers]);
 
-  const handleSearchInput = (value: string) => {
-    setSearchValue(value);
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    searchTimeoutRef.current = setTimeout(() => { onSearch(value); }, 400);
-  };
-
   const handleClusterClick = (layer: "requests" | "intake" | "atlas", clusterId: number, lat: number, lng: number) => {
     if (!map) return;
     const expansionZoom = getExpansionZoom(layer, clusterId);
@@ -438,15 +851,11 @@ function DashboardMapInner({
           counts={layerCounts}
           compact
         />
-        <div className="dashboard-map-search">
-          <input
-            type="text"
-            placeholder="Search places..."
-            value={searchValue}
-            onChange={(e) => handleSearchInput(e.target.value)}
-            className="map-search-input"
-          />
-        </div>
+        <DashboardMapSearch
+          onFilterPins={onSearch}
+          map={map}
+          onPinClick={onPinClick}
+        />
       </div>
 
       {/* Pin count badge */}
