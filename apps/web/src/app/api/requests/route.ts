@@ -72,7 +72,9 @@ export async function GET(request: NextRequest) {
   // By default, exclude E2E test requests unless explicitly requested
   if (!includeTestData) {
     conditions.push(`(
-      (r.internal_notes IS NULL OR r.internal_notes NOT LIKE '%E2E_TEST_MARKER%')
+      r.source_system != 'e2e_test'
+      AND (r.internal_notes IS NULL OR r.internal_notes NOT LIKE '%E2E_TEST_MARKER%')
+      AND (r.notes IS NULL OR r.notes NOT LIKE '%E2E_TEST_MARKER%')
       AND (r.summary IS NULL OR r.summary NOT LIKE 'E2E Test -%')
     )`);
   }

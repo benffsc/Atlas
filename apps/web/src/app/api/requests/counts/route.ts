@@ -26,7 +26,9 @@ export async function GET() {
         COUNT(*) FILTER (WHERE priority = 'urgent' AND status NOT IN ('completed', 'cancelled', 'partial', 'redirected', 'handed_off')) as urgent_count
       FROM ops.requests
       WHERE merged_into_request_id IS NULL
+        AND source_system != 'e2e_test'
         AND (internal_notes IS NULL OR internal_notes NOT LIKE '%E2E_TEST_MARKER%')
+        AND (notes IS NULL OR notes NOT LIKE '%E2E_TEST_MARKER%')
         AND (summary IS NULL OR summary NOT LIKE 'E2E Test -%')
     `);
 
