@@ -367,10 +367,12 @@ function DashboardMapSearch({
   onFilterPins,
   map,
   onPinClick,
+  onNavigate,
 }: {
   onFilterPins: (query: string) => void;
   map: google.maps.Map | null;
   onPinClick: (entityType: "request" | "place", entityId: string) => void;
+  onNavigate: (pin: { lat: number; lng: number; label: string } | null) => void;
 }) {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SearchItem[]>([]);
@@ -494,6 +496,7 @@ function DashboardMapSearch({
     if (item.kind === "atlas") {
       if (item.lat && item.lng) {
         panTo(item.lat, item.lng);
+        onNavigate({ lat: item.lat, lng: item.lng, label: item.label });
       }
       // Also open preview if it's a place or request
       if (item.entityType === "place") {
@@ -512,12 +515,15 @@ function DashboardMapSearch({
           place: { geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string };
         }>(`/api/places/details?place_id=${item.placeId}`);
         const loc = data.place?.geometry?.location;
-        if (loc) panTo(loc.lat, loc.lng);
+        if (loc) {
+          panTo(loc.lat, loc.lng);
+          onNavigate({ lat: loc.lat, lng: loc.lng, label: data.place?.formatted_address || item.label });
+        }
       } catch { /* details lookup failed */ }
       setQuery("");
       onFilterPins("");
     }
-  }, [map, panTo, onPinClick, onFilterPins]);
+  }, [map, panTo, onPinClick, onFilterPins, onNavigate]);
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -744,6 +750,7 @@ function DashboardMapInner({
   const { mapCenter, mapZoom } = useGeoConfig();
   const map = useMap();
   const [infoPin, setInfoPin] = useState<{ type: "request" | "atlas"; pin: DashboardMapPin | AtlasPin } | null>(null);
+  const [navigatedPin, setNavigatedPin] = useState<{ lat: number; lng: number; label: string } | null>(null);
 
   // Track map bounds + zoom for SuperCluster
   const [mapBounds, setMapBounds] = useState<{ west: number; south: number; east: number; north: number } | null>(null);
@@ -832,6 +839,7 @@ function DashboardMapInner({
     let greedySet = false;
     const listener = map.addListener("click", () => {
       setExpandedCluster(null);
+      setNavigatedPin(null);
       if (!greedySet) {
         map.setOptions({ gestureHandling: "greedy" });
         greedySet = true;
@@ -855,6 +863,7 @@ function DashboardMapInner({
           onFilterPins={onSearch}
           map={map}
           onPinClick={onPinClick}
+          onNavigate={setNavigatedPin}
         />
       </div>
 
@@ -1027,6 +1036,29 @@ function DashboardMapInner({
             );
           });
         })()}
+
+        {/* ── Navigated location marker (search result) ── */}
+        {navigatedPin && (
+          <AdvancedMarker position={{ lat: navigatedPin.lat, lng: navigatedPin.lng }} zIndex={20}>
+            <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{
+                background: "var(--background, #fff)", borderRadius: 6,
+                padding: "4px 8px", fontSize: 11, fontWeight: 600,
+                boxShadow: "0 2px 6px rgba(0,0,0,0.2)", whiteSpace: "nowrap",
+                maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis",
+                marginBottom: 4,
+              }}>
+                {navigatedPin.label}
+              </div>
+              <div style={{
+                width: 18, height: 18, borderRadius: "50%",
+                background: "#3b82f6", border: "3px solid #fff",
+                boxShadow: "0 0 0 3px rgba(59,130,246,0.3), 0 2px 6px rgba(0,0,0,0.3)",
+                animation: "dashboard-pin-pulse 2s infinite",
+              }} />
+            </div>
+          </AdvancedMarker>
+        )}
 
         {/* ── InfoWindow ── */}
         {infoPin && (() => {

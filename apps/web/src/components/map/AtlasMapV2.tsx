@@ -1077,12 +1077,23 @@ function AtlasMapV2Inner() {
         {/* ── Navigated location marker (Step 13) ── */}
         {search.navigatedLocation && (
           <AdvancedMarker position={{ lat: search.navigatedLocation.lat, lng: search.navigatedLocation.lng }} collisionBehavior={CollisionBehavior.REQUIRED} zIndex={20}>
-            <div style={{
-              width: 20, height: 20, borderRadius: "50%",
-              background: "#3b82f6", border: "3px solid white",
-              boxShadow: "0 0 0 3px rgba(59,130,246,0.3), 0 2px 6px rgba(0,0,0,0.3)",
-              animation: "pulse 2s infinite",
-            }} />
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{
+                background: "var(--background, #fff)", borderRadius: 6,
+                padding: "4px 8px", fontSize: 11, fontWeight: 600,
+                boxShadow: "0 2px 6px rgba(0,0,0,0.2)", whiteSpace: "nowrap",
+                maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis",
+                marginBottom: 4, color: "var(--foreground, #111)",
+              }}>
+                {search.navigatedLocation.address || "Searched location"}
+              </div>
+              <div style={{
+                width: 20, height: 20, borderRadius: "50%",
+                background: "#3b82f6", border: "3px solid white",
+                boxShadow: "0 0 0 3px rgba(59,130,246,0.3), 0 2px 6px rgba(0,0,0,0.3)",
+                animation: "pulse 2s infinite",
+              }} />
+            </div>
             <style>{`@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(59,130,246,0.3), 0 2px 6px rgba(0,0,0,0.3); } 50% { box-shadow: 0 0 0 8px rgba(59,130,246,0.1), 0 2px 6px rgba(0,0,0,0.3); } }`}</style>
           </AdvancedMarker>
         )}
