@@ -1146,8 +1146,10 @@
   justify-content: center;
   border-radius: 50%;
   background: var(--cluster-color, var(--primary));
+  border: 2px solid rgba(255, 255, 255, 0.6);
   color: white;
-  font-weight: 600;
+  font-weight: 700;
+  cursor: pointer;
   box-shadow: var(--map-shadow-md);
   transition: transform var(--map-transition-fast);
 }

@@ -187,7 +187,7 @@ function useDashboardClusters(
 ) {
   // Build SuperCluster instances per layer (matches old Leaflet createClusterGroup per-layer pattern)
   const requestIndex = useMemo(() => {
-    const sc = new Supercluster({ radius: 45, maxZoom: 14, minPoints: 2 });
+    const sc = new Supercluster({ radius: 45, maxZoom: 15, minPoints: 2 });
     const show = enabledLayers.requests_active || enabledLayers.requests_all || enabledLayers.requests_completed;
     if (!show) { sc.load([]); return sc; }
     const features: ClusterPoint[] = requestPins
@@ -202,7 +202,7 @@ function useDashboardClusters(
   }, [requestPins, enabledLayers]);
 
   const intakeIndex = useMemo(() => {
-    const sc = new Supercluster({ radius: 45, maxZoom: 14, minPoints: 2 });
+    const sc = new Supercluster({ radius: 45, maxZoom: 15, minPoints: 2 });
     if (!enabledLayers.intake_pending) { sc.load([]); return sc; }
     const features: ClusterPoint[] = intakePins
       .filter(p => p.lat && p.lng)
@@ -216,7 +216,7 @@ function useDashboardClusters(
   }, [intakePins, enabledLayers]);
 
   const atlasIndex = useMemo(() => {
-    const sc = new Supercluster({ radius: 45, maxZoom: 14, minPoints: 2 });
+    const sc = new Supercluster({ radius: 45, maxZoom: 15, minPoints: 2 });
     const showAtlas = enabledLayers.atlas_all || enabledLayers.atlas_disease || enabledLayers.atlas_watch;
     if (!showAtlas) { sc.load([]); return sc; }
     const filtered = atlasPins.filter(pin => {
@@ -253,7 +253,12 @@ function useDashboardClusters(
     } catch { return zoom + 2; }
   }, [requestIndex, intakeIndex, atlasIndex, zoom]);
 
-  return { clusters, getExpansionZoom };
+  const getClusterLeaves = useCallback((layer: "requests" | "intake" | "atlas", clusterId: number) => {
+    const idx = layer === "requests" ? requestIndex : layer === "intake" ? intakeIndex : atlasIndex;
+    return idx.getLeaves(clusterId, Infinity) as ClusterResult[];
+  }, [requestIndex, intakeIndex, atlasIndex]);
+
+  return { clusters, getExpansionZoom, getClusterLeaves };
 }
 
 // ---------------------------------------------------------------------------
@@ -261,38 +266,43 @@ function useDashboardClusters(
 // ---------------------------------------------------------------------------
 
 function ClusterBubble({ count, color }: { count: number; color: string }) {
-  const size = count < 10 ? 32 : count < 50 ? 38 : 44;
-  const fontSize = count < 10 ? 12 : count < 50 ? 13 : 14;
-  // Semi-transparent background matching old Leaflet markercluster style
+  const sizeClass = count < 10 ? "small" : count < 50 ? "medium" : "large";
   const alpha = count < 10 ? 0.7 : count < 50 ? 0.75 : 0.8;
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
 
   return (
-    <div style={{
-      width: size,
-      height: size,
-      borderRadius: "50%",
-      background: `rgba(${hexToRgb(color)}, ${alpha})`,
-      border: "2px solid rgba(255,255,255,0.6)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      color: "#fff",
-      fontWeight: 700,
-      fontSize,
-      boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
-      cursor: "pointer",
-      transition: "transform 0.2s ease",
-    }}>
-      {count}
+    <div className="map-cluster-icon">
+      <div
+        className={`map-cluster map-cluster--${sizeClass}`}
+        style={{ "--cluster-color": `rgba(${r}, ${g}, ${b}, ${alpha})` } as React.CSSProperties}
+      >
+        {count}
+      </div>
     </div>
   );
 }
 
-function hexToRgb(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `${r}, ${g}, ${b}`;
+// ---------------------------------------------------------------------------
+// Spiderfy-lite: spiral offset when cluster can't expand further
+// ---------------------------------------------------------------------------
+
+interface ExpandedCluster {
+  layer: "requests" | "intake" | "atlas";
+  clusterId: number;
+  lat: number;
+  lng: number;
+}
+
+function spiralOffset(index: number, count: number): { dlat: number; dlng: number } {
+  const angle = index * (2 * Math.PI / count);
+  const SPIRAL_FOOT = 13;
+  const SPIRAL_LENGTH_START = 11;
+  const SPIRAL_LENGTH_FACTOR = 5;
+  const radius = SPIRAL_FOOT + SPIRAL_LENGTH_START + index * SPIRAL_LENGTH_FACTOR;
+  const pixelScale = 0.00003; // approx lat/lng per pixel at zoom 16
+  return { dlat: Math.sin(angle) * radius * pixelScale, dlng: Math.cos(angle) * radius * pixelScale };
 }
 
 // ---------------------------------------------------------------------------
@@ -343,9 +353,12 @@ function DashboardMapInner({
   }, [map]);
 
   // Clustering
-  const { clusters, getExpansionZoom } = useDashboardClusters(
+  const { clusters, getExpansionZoom, getClusterLeaves } = useDashboardClusters(
     requestPins, intakePins, atlasPins, enabledLayers, mapBounds, currentZoom,
   );
+
+  // Spiderfy-lite: expanded cluster at max zoom
+  const [expandedCluster, setExpandedCluster] = useState<ExpandedCluster | null>(null);
 
   // Fit bounds when data loads (only once)
   const hasFittedRef = useRef(false);
@@ -390,16 +403,26 @@ function DashboardMapInner({
   const handleClusterClick = (layer: "requests" | "intake" | "atlas", clusterId: number, lat: number, lng: number) => {
     if (!map) return;
     const expansionZoom = getExpansionZoom(layer, clusterId);
-    map.setCenter({ lat, lng });
-    map.setZoom(Math.min(expansionZoom, 16));
+    if (expansionZoom > 16) {
+      // Max zoom reached — expand leaves with spiral offset (spiderfy-lite)
+      setExpandedCluster({ layer, clusterId, lat, lng });
+    } else {
+      setExpandedCluster(null);
+      map.setCenter({ lat, lng });
+      map.setZoom(Math.min(expansionZoom, 16));
+    }
   };
 
-  // Enable scroll-wheel zoom after first click on map
+  // Enable scroll-wheel zoom after first click on map + clear spiderfy
   useEffect(() => {
     if (!map) return;
+    let greedySet = false;
     const listener = map.addListener("click", () => {
-      map.setOptions({ gestureHandling: "greedy" });
-      google.maps.event.removeListener(listener);
+      setExpandedCluster(null);
+      if (!greedySet) {
+        map.setOptions({ gestureHandling: "greedy" });
+        greedySet = true;
+      }
     });
     return () => { google.maps.event.removeListener(listener); };
   }, [map]);
@@ -543,15 +566,58 @@ function DashboardMapInner({
               zIndex={isActive ? 2 : 0}
               onClick={() => { setInfoPin({ type: "atlas", pin }); onPinClick("place", pin.id); }}
             >
-              <div style={{
-                width: size, height: size, borderRadius: "50%",
-                background: color, border: `2px solid ${isActive ? "#fff" : "rgba(255,255,255,0.6)"}`,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.3)", opacity: isActive ? 1 : 0.65,
-                cursor: "pointer", transition: "transform 0.15s",
-              }} />
+              <div
+                className={isActive ? "atlas-pin-active" : "atlas-pin-ref"}
+                style={{
+                  width: size, height: size, borderRadius: "50%",
+                  background: color, border: `2px solid ${isActive ? "#fff" : "rgba(255,255,255,0.6)"}`,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.3)", opacity: isActive ? 1 : 0.65,
+                  cursor: "pointer",
+                }}
+              />
             </AdvancedMarker>
           );
         })}
+
+        {/* ── Spiderfy-lite: expanded cluster leaves ── */}
+        {expandedCluster && (() => {
+          const leaves = getClusterLeaves(expandedCluster.layer, expandedCluster.clusterId);
+          const clusterColor = LAYER_CLUSTER_COLORS[expandedCluster.layer];
+          return leaves.map((leaf, i) => {
+            const offset = spiralOffset(i, leaves.length);
+            const lat = expandedCluster.lat + offset.dlat;
+            const lng = expandedCluster.lng + offset.dlng;
+            const pin = leaf.properties.requestPin || leaf.properties.atlasPin;
+            if (!pin) return null;
+            const isAtlas = !!leaf.properties.atlasPin;
+            const color = isAtlas
+              ? ATLAS_PIN_COLORS[(pin as AtlasPin).pin_style] || ATLAS_PIN_COLORS.minimal
+              : getPinColor(pin as DashboardMapPin);
+            return (
+              <AdvancedMarker
+                key={`spider-${i}`}
+                position={{ lat, lng }}
+                zIndex={10}
+                onClick={() => {
+                  if (isAtlas) {
+                    setInfoPin({ type: "atlas", pin });
+                    onPinClick("place", (pin as AtlasPin).id);
+                  } else {
+                    setInfoPin({ type: "request", pin });
+                    onPinClick("request", (pin as DashboardMapPin).request_id);
+                  }
+                }}
+              >
+                <div style={{
+                  width: 14, height: 14, borderRadius: "50%",
+                  background: color, border: "2px solid #fff",
+                  boxShadow: `0 1px 3px rgba(0,0,0,0.3), 0 0 0 2px ${clusterColor}40`,
+                  cursor: "pointer",
+                }} />
+              </AdvancedMarker>
+            );
+          });
+        })()}
 
         {/* ── InfoWindow ── */}
         {infoPin && (() => {
