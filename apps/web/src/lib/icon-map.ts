@@ -109,6 +109,12 @@ import {
   HeartHandshake,
   Handshake,
   PawPrint,
+  Boxes,
+  ClipboardCheck,
+  QrCode,
+  Receipt,
+  Package,
+  FileOutput,
   type LucideIcon,
 } from "lucide-react";
 
@@ -243,6 +249,14 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   "heart-handshake": HeartHandshake,
   handshake: Handshake,
   "paw-print": PawPrint,
+
+  // Equipment management
+  boxes: Boxes,
+  "clipboard-check": ClipboardCheck,
+  "qr-code": QrCode,
+  receipt: Receipt,
+  package: Package,
+  "file-output": FileOutput,
 };
 
 export type IconName = keyof typeof ICON_MAP;

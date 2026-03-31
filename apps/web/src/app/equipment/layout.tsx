@@ -5,25 +5,33 @@ const equipmentSections: NavSection[] = [
   {
     title: "Equipment",
     items: [
-      { label: "Inventory", href: "/equipment", icon: "|||" },
-      { label: "Scanner", href: "/equipment/scan", icon: ">>>" },
-      { label: "Restock", href: "/equipment/restock", icon: "+++" },
-      { label: "Kits", href: "/equipment/kits", icon: "[ ]" },
-      { label: "Collections", href: "/equipment/collections", icon: "<<<" },
+      { label: "Inventory", href: "/equipment", icon: "boxes" },
+      { label: "Scanner", href: "/equipment/scan", icon: "scan-barcode" },
+      { label: "Restock", href: "/equipment/restock", icon: "clipboard-check" },
+      { label: "Kits", href: "/equipment/kits", icon: "package" },
+      { label: "Collections", href: "/equipment/collections", icon: "layers" },
     ],
   },
   {
-    title: "Kiosk (iPad)",
+    title: "Print Forms",
     items: [
-      { label: "Open Kiosk", href: "/kiosk/equipment/scan", icon: "scan-barcode" },
-      { label: "iPad Setup Guide", href: "/kiosk/setup", icon: "settings" },
+      { label: "Checkout Slips", href: "/equipment/print/slips", icon: "receipt" },
+      { label: "Log Sheet", href: "/equipment/print/log", icon: "file-output" },
+    ],
+  },
+  {
+    title: "Kiosk",
+    items: [
+      { label: "Open Kiosk", href: "/kiosk", icon: "tablet" },
+      { label: "Kiosk Config", href: "/equipment/kiosk-config", icon: "settings" },
+      { label: "iPad Setup", href: "/kiosk/setup", icon: "smartphone" },
     ],
   },
   {
     title: "Related",
     items: [
-      { label: "Trappers", href: "/trappers", icon: ">>>" },
-      { label: "Requests", href: "/requests", icon: ">>>" },
+      { label: "Trappers", href: "/trappers", icon: "snail" },
+      { label: "Requests", href: "/requests", icon: "clipboard-list" },
     ],
   },
 ];

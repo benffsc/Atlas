@@ -9,13 +9,13 @@ const TABS = [
   { href: "/kiosk/equipment/scan", icon: "scan-barcode", label: "Scan" },
   { href: "/kiosk/equipment/add", icon: "plus", label: "Add" },
   { href: "/kiosk/equipment/inventory", icon: "list", label: "List" },
-  { href: "/kiosk/equipment/print", icon: "printer", label: "Print" },
+  { href: "/kiosk/equipment/print/slip", icon: "receipt", label: "Slips" },
+  { href: "/kiosk/equipment/print", icon: "printer", label: "Log", exact: true },
 ] as const;
 
 /**
- * Fixed bottom tab bar for the kiosk layout.
+ * Fixed bottom tab bar for the kiosk equipment layout.
  * 64px tall + safe-area inset for notched devices.
- * Active tab uses --primary color.
  */
 export function KioskTabBar() {
   const isMobile = useIsMobile();
@@ -40,7 +40,9 @@ export function KioskTabBar() {
       }}
     >
       {TABS.map((tab) => {
-        const isActive = pathname?.startsWith(tab.href);
+        const isActive = "exact" in tab && tab.exact
+          ? pathname === tab.href
+          : pathname?.startsWith(tab.href);
         return (
           <Link
             key={tab.href}
@@ -55,13 +57,13 @@ export function KioskTabBar() {
               height: "64px",
               textDecoration: "none",
               color: isActive ? "var(--primary)" : "var(--muted)",
-              fontSize: isMobile ? "0.8rem" : "0.7rem",
+              fontSize: isMobile ? "0.75rem" : "0.7rem",
               fontWeight: isActive ? 600 : 400,
               transition: "color 150ms ease",
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <Icon name={tab.icon} size={24} color={isActive ? "var(--primary)" : "var(--muted)"} />
+            <Icon name={tab.icon} size={22} color={isActive ? "var(--primary)" : "var(--muted)"} />
             {tab.label}
           </Link>
         );
