@@ -295,6 +295,7 @@ export default function KioskScanPage() {
               equipmentName={equipment.display_name}
               currentCondition={equipment.condition_status}
               hasDeposit={
+                equipment.checkout_type === "public" ||
                 equipment.checkout_type === "client" ||
                 equipment.checkout_type === "foster"
               }

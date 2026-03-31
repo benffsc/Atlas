@@ -10,10 +10,8 @@ import { KioskPersonCollector, resolveCollectedPerson, type CollectedPerson } fr
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import {
-  type FormOption,
   getLabel,
   EQUIPMENT_CHECKOUT_TYPE_OPTIONS,
-  EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS,
 } from "@/lib/form-options";
 import type { EquipmentContextResponse } from "@/lib/types/view-contracts";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -50,13 +48,6 @@ function defaultDueDate(): string {
   return dueDateFromOffset(14);
 }
 
-const PURPOSE_ICONS: Record<string, string> = {
-  tnr_appointment: "scissors",
-  kitten_rescue: "baby",
-  colony_check: "search",
-  feeding_station: "utensils",
-  personal_pet: "heart",
-};
 
 /**
  * Single-screen checkout form for kiosk — replaces the 3-step CheckoutWizard.
@@ -353,62 +344,12 @@ export function CheckoutForm({
           onChange={setCollectedPerson}
         />
 
-        {/* ===================== PURPOSE CHIPS ===================== */}
-        <div>
-          <label style={labelStyle}>Purpose</label>
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              flexWrap: "wrap",
-            }}
-          >
-            {(EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS as readonly FormOption[]).map((opt) => {
-              const isSelected = checkoutPurpose === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setCheckoutPurpose(isSelected ? "" : opt.value)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.5rem 0.875rem",
-                    borderRadius: "999px",
-                    border: isSelected
-                      ? "2px solid var(--primary)"
-                      : "2px solid var(--card-border, #e5e7eb)",
-                    background: isSelected
-                      ? "var(--primary-bg, rgba(59,130,246,0.08))"
-                      : "var(--background, #fff)",
-                    color: isSelected ? "var(--primary)" : "var(--text-primary)",
-                    cursor: "pointer",
-                    fontSize: "0.85rem",
-                    fontWeight: isSelected ? 700 : 500,
-                    transition: "all 150ms ease",
-                    WebkitTapHighlightColor: "transparent",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  <Icon
-                    name={PURPOSE_ICONS[opt.value] || "box"}
-                    size={14}
-                    color={isSelected ? "var(--primary)" : "var(--muted)"}
-                  />
-                  {opt.shortLabel || opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* ===================== TYPE + DEPOSIT (side by side) ===================== */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "1rem" }}>
           {/* Checkout type */}
           <div>
             <label style={labelStyle}>Type *</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.375rem" }}>
+            <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
               {EQUIPMENT_CHECKOUT_TYPE_OPTIONS.map((opt) => {
                 const isSelected = checkoutType === opt.value;
                 return (
@@ -418,6 +359,7 @@ export function CheckoutForm({
                     onClick={() => setCheckoutType(opt.value)}
                     style={{
                       minHeight: "44px",
+                      padding: "0.5rem 0.875rem",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -431,17 +373,12 @@ export function CheckoutForm({
                         : "var(--background, #fff)",
                       color: isSelected ? "var(--primary)" : "var(--text-primary)",
                       cursor: "pointer",
-                      fontSize: "0.8rem",
+                      fontSize: "0.85rem",
                       fontWeight: isSelected ? 700 : 500,
                       transition: "all 150ms ease",
                       WebkitTapHighlightColor: "transparent",
                     }}
                   >
-                    <Icon
-                      name={checkoutTypeIcon(opt.value)}
-                      size={14}
-                      color={isSelected ? "var(--primary)" : "var(--muted)"}
-                    />
                     {opt.label}
                   </button>
                 );
@@ -726,13 +663,4 @@ function ContextPill({
 // Helpers
 // ---------------------------------------------------------------------------
 
-function checkoutTypeIcon(type: string): string {
-  switch (type) {
-    case "client": return "user";
-    case "trapper": return "target";
-    case "internal": return "building";
-    case "foster": return "heart";
-    default: return "box";
-  }
-}
 

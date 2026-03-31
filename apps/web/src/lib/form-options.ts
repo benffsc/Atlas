@@ -824,10 +824,11 @@ export const EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS = [
 ] as const satisfies readonly FormOption[];
 
 export const EQUIPMENT_CHECKOUT_TYPE_OPTIONS = [
-  { value: "client", label: "Client", shortLabel: "Client" },
+  { value: "public", label: "Public", shortLabel: "Public" },
   { value: "trapper", label: "Trapper", shortLabel: "Trapper" },
-  { value: "internal", label: "Internal", shortLabel: "Internal" },
   { value: "foster", label: "Foster", shortLabel: "Foster" },
+  { value: "relo", label: "Relocation", shortLabel: "Relo" },
+  { value: "clinic", label: "Clinic", shortLabel: "Clinic" },
 ] as const satisfies readonly FormOption[];
 
 export const EQUIPMENT_TRACKING_TIER_OPTIONS = [

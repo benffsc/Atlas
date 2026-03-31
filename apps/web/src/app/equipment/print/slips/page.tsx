@@ -14,12 +14,9 @@ interface ScannedEquipment {
   custody_status: string;
 }
 
-const TOTAL_ROWS = 20;
-
 /**
  * Checkout slips — two half-sheets per page (portrait).
- * Hand one to each person at checkout, they fill it in, staff enters it later.
- * Accessible from both /equipment/print/slips (main app) and /kiosk/equipment/print/slip (kiosk).
+ * Clients fill in their info, staff enters it into the system later.
  */
 export default function CheckoutSlipsPage() {
   const { nameShort, phone: orgPhone } = useOrgConfig();
@@ -49,71 +46,79 @@ export default function CheckoutSlipsPage() {
   const today = formatPrintDate(new Date().toISOString());
   const fmtCondition = (s: string) =>
     s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-
   const slipCount = Math.max(1, Math.min(copies, 4));
 
   return (
     <>
       <style jsx global>{`
-        /* ── Printable slips ── */
         .slip-page {
-          width: 8.5in;
-          margin: 1rem auto;
-          background: #fff;
+          width: 8.5in; margin: 1rem auto; background: #fff;
           border: 1px solid var(--card-border, #e5e7eb);
           font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
         .slip {
           width: 8.5in; height: 5.5in; box-sizing: border-box;
-          padding: 0.3in 0.4in 0.25in; position: relative; overflow: hidden;
+          padding: 0.25in 0.4in 0.2in; position: relative; overflow: hidden;
         }
         .slip + .slip { border-top: 2px dashed #bbb; }
 
-        .slip-header {
+        .slip-hdr {
           display: flex; justify-content: space-between; align-items: flex-end;
-          border-bottom: 2px solid #16a34a; padding-bottom: 4px; margin-bottom: 8px;
+          border-bottom: 2.5px solid #16a34a; padding-bottom: 3px; margin-bottom: 6px;
         }
-        .slip-header h1 { font-size: 12pt; font-weight: 700; margin: 0; }
-        .slip-header .slip-meta { font-size: 7.5pt; color: #666; text-align: right; }
-        .slip-header img { height: 32px; margin-left: 8px; }
+        .slip-hdr h1 { font-size: 13pt; font-weight: 700; margin: 0; }
+        .slip-hdr .meta { font-size: 7.5pt; color: #666; text-align: right; }
+        .slip-hdr img { height: 30px; margin-left: 6px; }
 
         .slip-grid {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px;
+          display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px;
         }
-        .slip-field {
-          border-bottom: 1px solid #d5d8dc; padding: 2px 0 1px; margin-bottom: 5px;
-          min-height: 20px; display: flex; align-items: flex-end;
+
+        .sf {
+          border-bottom: 1px solid #ccc; padding: 0; margin-bottom: 6px;
+          min-height: 22px; display: flex; align-items: flex-end;
         }
-        .slip-field-label {
+        .sf-lbl {
           font-size: 6.5pt; font-weight: 700; color: #16a34a;
           text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
-          margin-right: 6px; padding-bottom: 1px;
+          margin-right: 6px; padding-bottom: 2px; flex-shrink: 0;
         }
-        .slip-field-value { font-size: 8.5pt; font-weight: 500; flex: 1; }
-        .slip-field.full { grid-column: 1 / -1; }
-        .slip-field.tall { min-height: 32px; }
+        .sf-val { font-size: 9pt; font-weight: 500; flex: 1; padding-bottom: 1px; }
+        .sf.full { grid-column: 1 / -1; }
+        .sf.xl { min-height: 30px; }
 
-        .slip-checkboxes {
-          display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 7.5pt; padding: 3px 0;
+        .sf-cbs {
+          display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+          font-size: 8pt; padding: 2px 0;
         }
-        .slip-cb { display: inline-flex; align-items: center; gap: 3px; }
-        .slip-cb-box {
-          display: inline-block; width: 10px; height: 10px;
+        .sf-cb { display: inline-flex; align-items: center; gap: 3px; }
+        .sf-box {
+          display: inline-block; width: 11px; height: 11px;
           border: 1.5px solid #333; border-radius: 2px;
         }
 
-        .slip-section-label {
-          font-size: 7pt; font-weight: 700; color: #999;
-          text-transform: uppercase; letter-spacing: 0.5px;
-          margin: 6px 0 2px; grid-column: 1 / -1;
+        .sf-sec {
+          font-size: 6.5pt; font-weight: 800; color: #888;
+          text-transform: uppercase; letter-spacing: 0.6px;
+          margin: 7px 0 2px; grid-column: 1 / -1;
+          border-bottom: 1px solid #eee; padding-bottom: 1px;
         }
 
-        .slip-footer {
-          position: absolute; bottom: 0.2in; left: 0.4in; right: 0.4in;
-          display: flex; justify-content: space-between;
-          font-size: 6.5pt; color: #999; border-top: 1px solid #eee; padding-top: 3px;
+        .slip-staff-box {
+          margin-top: 4px; padding: 4px 8px;
+          border: 1.5px solid #ddd; border-radius: 4px;
+          background: #fafafa; grid-column: 1 / -1;
+          display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 16px;
         }
-        .slip-footer-scissors {
+        .slip-staff-box .sf { border-color: #ddd; margin-bottom: 2px; min-height: 18px; }
+        .slip-staff-box .sf-lbl { color: #999; font-size: 6pt; }
+
+        .slip-ft {
+          position: absolute; bottom: 0.15in; left: 0.4in; right: 0.4in;
+          display: flex; justify-content: space-between;
+          font-size: 6pt; color: #aaa;
+        }
+        .slip-ft-cut {
           position: absolute; top: -1px; left: -0.4in;
           font-size: 10pt; color: #bbb; transform: translateY(-50%);
         }
@@ -121,100 +126,49 @@ export default function CheckoutSlipsPage() {
         @media print {
           @page { size: letter portrait; margin: 0; }
           body { background: #fff !important; }
-          .slip-controls-panel, .tippy-fab, .tippy-chat-panel,
+          .slip-ctrl, .tippy-fab, .tippy-chat-panel,
           nav, aside, header, [data-sidebar] { display: none !important; }
           main { margin: 0 !important; padding: 0 !important; max-width: none !important; }
-          .slip-page { border: none; margin: 0; box-shadow: none; }
+          .slip-page { border: none; margin: 0; }
         }
       `}</style>
 
-      {/* Screen controls */}
-      <div className="slip-controls-panel" style={{ marginBottom: "1.5rem" }}>
+      {/* ── Screen controls ── */}
+      <div className="slip-ctrl" style={{ marginBottom: "1.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
           <Icon name="receipt" size={24} color="var(--primary)" />
           <h1 style={{ fontSize: "1.35rem", fontWeight: 700, margin: 0 }}>Checkout Slips</h1>
         </div>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 1.25rem" }}>
-          Print half-sheet forms — hand one to each person at checkout.
-          They fill it in, you enter the data into the system later.
+          Half-sheet forms — hand one to each person at checkout.
         </p>
 
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            marginBottom: "1rem",
-            background: "var(--card-bg)",
-            border: "1px solid var(--card-border)",
-            borderRadius: 10,
-            padding: "0.75rem 1rem",
-            alignItems: "center",
-          }}
-        >
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", background: "var(--card-bg)", border: "1px solid var(--card-border)", borderRadius: 10, padding: "0.75rem 1rem", alignItems: "center" }}>
           <input
-            type="text"
-            value={barcode}
+            type="text" value={barcode}
             onChange={(e) => setBarcode(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleScan(); }}
-            placeholder="Optional: scan barcode to pre-fill equipment..."
-            style={{
-              flex: 1,
-              padding: "0.5rem 0.75rem",
-              border: "1px solid var(--card-border)",
-              borderRadius: 8,
-              fontFamily: "monospace",
-              fontSize: "0.95rem",
-              outline: "none",
-            }}
+            placeholder="Optional: scan barcode to pre-fill..."
+            style={{ flex: 1, padding: "0.5rem 0.75rem", border: "1px solid var(--card-border)", borderRadius: 8, fontFamily: "monospace", fontSize: "0.95rem", outline: "none" }}
           />
           <Button variant="primary" size="sm" onClick={handleScan} disabled={loading || !barcode.trim()}>
             {loading ? "..." : "Look Up"}
           </Button>
         </div>
 
-        {error && (
-          <div style={{ color: "var(--danger-text)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ color: "var(--danger-text)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>{error}</div>}
         {equipment && (
-          <div
-            style={{
-              background: "var(--success-bg)",
-              border: "1px solid var(--success-border, #bbf7d0)",
-              borderRadius: 8,
-              padding: "0.5rem 0.75rem",
-              marginBottom: "0.75rem",
-              fontSize: "0.85rem",
-              color: "var(--success-text)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <span>
-              Pre-filling: <strong>{equipment.display_name}</strong> [{equipment.barcode}]
-            </span>
-            <button
-              onClick={() => { setEquipment(null); setBarcode(""); }}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--success-text)", fontSize: "1rem" }}
-            >
-              &times;
-            </button>
+          <div style={{ background: "var(--success-bg)", border: "1px solid var(--success-border, #bbf7d0)", borderRadius: 8, padding: "0.5rem 0.75rem", marginBottom: "0.75rem", fontSize: "0.85rem", color: "var(--success-text)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>Pre-filling: <strong>{equipment.display_name}</strong> [{equipment.barcode}]</span>
+            <button onClick={() => { setEquipment(null); setBarcode(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--success-text)", fontSize: "1rem" }}>&times;</button>
           </div>
         )}
 
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <Button variant="primary" icon="printer" onClick={() => window.print()}>
-            Print Slips
-          </Button>
+          <Button variant="primary" icon="printer" onClick={() => window.print()}>Print Slips</Button>
           <label style={{ display: "flex", alignItems: "center", gap: "0.375rem", fontSize: "0.85rem" }}>
             Per page:
-            <select
-              value={copies}
-              onChange={(e) => setCopies(Number(e.target.value))}
-              style={{ padding: "0.25rem 0.5rem", borderRadius: 6, border: "1px solid var(--card-border)" }}
-            >
+            <select value={copies} onChange={(e) => setCopies(Number(e.target.value))} style={{ padding: "0.25rem 0.5rem", borderRadius: 6, border: "1px solid var(--card-border)" }}>
               <option value={1}>1 slip</option>
               <option value={2}>2 slips</option>
             </select>
@@ -222,115 +176,101 @@ export default function CheckoutSlipsPage() {
         </div>
       </div>
 
-      {/* Printable slips */}
+      {/* ── Printable slips ── */}
       <div className="slip-page">
         {Array.from({ length: slipCount }).map((_, i) => (
-          <CheckoutSlip
-            key={i}
-            orgName={nameShort || "FFSC"}
-            orgPhone={orgPhone}
-            date={today}
-            equipment={equipment}
-            showScissors={i > 0}
-            fmtCondition={fmtCondition}
-          />
+          <Slip key={i} org={nameShort || "FFSC"} phone={orgPhone} date={today} eq={equipment} cut={i > 0} fmt={fmtCondition} />
         ))}
       </div>
     </>
   );
 }
 
-function CheckoutSlip({
-  orgName,
-  orgPhone,
-  date,
-  equipment,
-  showScissors,
-  fmtCondition,
-}: {
-  orgName: string;
-  orgPhone: string;
-  date: string;
-  equipment: ScannedEquipment | null;
-  showScissors: boolean;
-  fmtCondition: (s: string) => string;
+/* ── Single slip ── */
+
+function Slip({ org, phone, date, eq, cut, fmt }: {
+  org: string; phone: string; date: string;
+  eq: ScannedEquipment | null; cut: boolean;
+  fmt: (s: string) => string;
 }) {
   return (
     <div className="slip">
-      <div className="slip-header">
-        <div><h1>{orgName} — Equipment Checkout</h1></div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-          <div className="slip-meta"><div>{date}</div></div>
+      {/* Header */}
+      <div className="slip-hdr">
+        <h1>{org} — Equipment Checkout</h1>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
+          <div className="meta">{date}</div>
           <img src="/logo.png" alt="" />
         </div>
       </div>
 
       <div className="slip-grid">
-        <div className="slip-section-label">Your Information</div>
-        <Field label="First Name" />
-        <Field label="Last Name" />
-        <Field label="Phone" />
-        <Field label="Email" />
+        {/* ── YOUR INFORMATION ── */}
+        <div className="sf-sec">Your Information (please print clearly)</div>
+        <F label="First Name" />
+        <F label="Last Name" />
+        <F label="Phone" />
+        <F label="Email" />
+        <F label="Address (where trapping)" full />
+        <F label="City / ZIP" />
+        <F label="Appointment Date" />
 
-        <div className="slip-section-label">Equipment</div>
-        <Field label="Equipment" value={equipment?.display_name} />
-        <Field label="Barcode" value={equipment?.barcode || undefined} mono />
-        <div className="slip-field">
-          <span className="slip-field-label">Type:</span>
-          <div className="slip-checkboxes">
-            <span className="slip-cb"><span className="slip-cb-box" /> Client</span>
-            <span className="slip-cb"><span className="slip-cb-box" /> Trapper</span>
-            <span className="slip-cb"><span className="slip-cb-box" /> Internal</span>
-            <span className="slip-cb"><span className="slip-cb-box" /> Foster</span>
+        {/* ── EQUIPMENT ── */}
+        <div className="sf-sec">Equipment</div>
+        <F label="Equipment" val={eq?.display_name} />
+        <F label="Barcode" val={eq?.barcode || undefined} mono />
+
+        {/* Type — staff circles one */}
+        <div className="sf full">
+          <span className="sf-lbl">Type:</span>
+          <div className="sf-cbs">
+            {["Public", "Trapper", "Foster", "Relo", "Clinic"].map((t) => (
+              <span key={t} className="sf-cb"><span className="sf-box" /> {t}</span>
+            ))}
           </div>
         </div>
-        <Field label="Condition" value={equipment ? fmtCondition(equipment.condition_status) : undefined} />
 
-        <div className="slip-section-label">Purpose &amp; Location</div>
-        <div className="slip-field full">
-          <span className="slip-field-label">Purpose:</span>
-          <div className="slip-checkboxes">
-            <span className="slip-cb"><span className="slip-cb-box" /> TNR Appt</span>
-            <span className="slip-cb"><span className="slip-cb-box" /> Kitten Rescue</span>
-            <span className="slip-cb"><span className="slip-cb-box" /> Colony Check</span>
-            <span className="slip-cb"><span className="slip-cb-box" /> Feeding Station</span>
-            <span className="slip-cb"><span className="slip-cb-box" /> Personal Pet</span>
+        {/* Condition — circle one */}
+        <div className="sf full">
+          <span className="sf-lbl">Condition Out:</span>
+          <div className="sf-cbs">
+            {["New", "Good", "Fair", "Poor", "Damaged"].map((c) => (
+              <span key={c} className="sf-cb"><span className="sf-box" /> {c}</span>
+            ))}
           </div>
         </div>
-        <Field label="Trapping Address" full />
-        <Field label="City / ZIP" />
-        <Field label="Appointment Date" />
 
-        <div className="slip-section-label">Checkout Details</div>
-        <Field label="Deposit $" />
-        <Field label="Due Date" />
-        <Field label="Notes" full tall />
+        {/* ── DETAILS ── */}
+        <div className="sf-sec">Details</div>
+        <F label="Purpose / Notes" full xl />
+        <F label="Deposit $" />
+        <F label="Due Date" />
 
-        <div className="slip-section-label">Staff Use Only</div>
-        <Field label="Staff Initials" />
-        <Field label="Entered in System" />
+        {/* ── STAFF USE ── */}
+        <div className="slip-staff-box">
+          <F label="Staff" />
+          <F label="Entered" />
+          <F label="Deposit Returned" />
+        </div>
       </div>
 
-      <div className="slip-footer">
-        {showScissors && <span className="slip-footer-scissors">✂</span>}
-        <span>Please return equipment by the due date. Call {orgPhone} with questions.</span>
+      {/* Footer */}
+      <div className="slip-ft">
+        {cut && <span className="slip-ft-cut">✂</span>}
+        <span>Return by due date. Call {phone} with questions.</span>
         <span>Deposits refunded on return in good condition.</span>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, full, tall, mono }: {
-  label: string; value?: string; full?: boolean; tall?: boolean; mono?: boolean;
+function F({ label, val, full, xl, mono }: {
+  label: string; val?: string; full?: boolean; xl?: boolean; mono?: boolean;
 }) {
   return (
-    <div className={`slip-field${full ? " full" : ""}${tall ? " tall" : ""}`}>
-      <span className="slip-field-label">{label}:</span>
-      {value && (
-        <span className="slip-field-value" style={mono ? { fontFamily: "monospace", fontWeight: 600 } : undefined}>
-          {value}
-        </span>
-      )}
+    <div className={`sf${full ? " full" : ""}${xl ? " xl" : ""}`}>
+      <span className="sf-lbl">{label}:</span>
+      {val && <span className="sf-val" style={mono ? { fontFamily: "monospace", fontWeight: 600 } : undefined}>{val}</span>}
     </div>
   );
 }

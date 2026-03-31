@@ -113,7 +113,7 @@ export const POST = withErrorHandling(async (
 
   // Validate checkout_type enum if provided
   if (checkout_type) {
-    const validTypes = ["client", "trapper", "internal", "foster"];
+    const validTypes = ["public", "trapper", "foster", "relo", "clinic", "client", "internal"];
     if (!validTypes.includes(checkout_type)) {
       throw new ApiError(`Invalid checkout_type: ${checkout_type}`, 400);
     }

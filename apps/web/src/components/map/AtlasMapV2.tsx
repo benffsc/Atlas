@@ -23,7 +23,7 @@ import { SearchResultsPanel } from "@/components/map/components/SearchResultsPan
 import { MapContextMenu } from "@/components/map/components/MapContextMenu";
 import { BottomSheet } from "@/components/map/components/BottomSheet";
 import { BulkActionBar } from "@/components/map/components/BulkActionBar";
-import { GroupedLayerControl } from "@/components/map/GroupedLayerControl";
+import { GroupedLayerControl, type PinKeyConfig } from "@/components/map/GroupedLayerControl";
 import {
   PlaceDetailDrawer,
   PersonDetailDrawer,
@@ -97,6 +97,27 @@ function AtlasMapV2Inner() {
   const { mapCenter, mapZoom } = useGeoConfig();
   const { colors } = useMapColors();
   const { pinConfig } = useMapPinConfig();
+
+  // Pin key for layer panel legend (derived from admin-configurable pinConfig)
+  const pinKey = useMemo<PinKeyConfig>(() => ({
+    colors: [
+      { color: pinConfig.colors.disease || "#dc2626", label: pinConfig.labels.disease || "Disease Risk", shape: "teardrop" as const },
+      { color: pinConfig.colors.watch_list || "#d97706", label: pinConfig.labels.watch_list || "Watch List", shape: "teardrop" as const },
+      { color: pinConfig.colors.active || "#3b82f6", label: pinConfig.labels.active || "Verified Cats", shape: "teardrop" as const },
+      { color: pinConfig.colors.active_requests || "#3b82f6", label: pinConfig.labels.active_requests || "Active Requests", shape: "teardrop" as const },
+      { color: pinConfig.colors.reference || "#94a3b8", label: pinConfig.labels.reference || "Reference", shape: "circle" as const },
+    ],
+    statusDots: [
+      { color: pinConfig.statusDots.disease || "#dc2626", label: "Disease at location" },
+      { color: pinConfig.statusDots.needs_trapper || "#f97316", label: "Needs trapper" },
+      { color: pinConfig.statusDots.has_volunteer || "#7c3aed", label: "Has volunteer / staff" },
+    ],
+    sizes: [
+      { label: "Large", detail: `${pinConfig.sizes.hotspot}px — 10+ cats, disease, 2+ requests` },
+      { label: "Medium", detail: `${pinConfig.sizes.active}px — active places` },
+      { label: "Small", detail: `${pinConfig.sizes.reference}px — reference (zoom 14+)` },
+    ],
+  }), [pinConfig]);
 
   // ── Core state ──
   const [loading, setLoading] = useState(true);
@@ -1501,7 +1522,7 @@ function AtlasMapV2Inner() {
             </select>
           </div>
           <div className="map-layer-panel__layers">
-            <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} />
+            <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
           </div>
         </div>
       )}
