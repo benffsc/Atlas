@@ -116,6 +116,8 @@ interface RequestDetailRow {
   requester_phone: string | null;
   requester_role_at_submission: string | null;
   requester_is_site_contact: boolean | null;
+  requester_home_place_id: string | null;
+  requester_home_address: string | null;
   // Site contact info (MIG_2522)
   site_contact_person_id: string | null;
   site_contact_name: string | null;
@@ -309,6 +311,9 @@ export async function GET(
          ORDER BY pi.confidence DESC NULLS LAST LIMIT 1) AS requester_phone,
         r.requester_role_at_submission,
         r.requester_is_site_contact,
+        -- Requester home address (FFS-1028: dual display when cats ≠ requester home)
+        rpp_place.place_id AS requester_home_place_id,
+        COALESCE(rpp_place.display_name, rpp_addr.formatted_address) AS requester_home_address,
         -- Site contact info (MIG_2522 - may be same as requester or different)
         r.site_contact_person_id,
         sc.display_name AS site_contact_name,
@@ -416,6 +421,15 @@ export async function GET(
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
       LEFT JOIN sot.people per ON per.person_id = r.requester_person_id
+      LEFT JOIN LATERAL (
+        SELECT pp.place_id FROM sot.person_place pp
+        WHERE pp.person_id = r.requester_person_id
+          AND pp.relationship_type IN ('resident', 'owner', 'home')
+        ORDER BY pp.is_primary DESC NULLS LAST, pp.created_at DESC
+        LIMIT 1
+      ) rpp ON TRUE
+      LEFT JOIN sot.places rpp_place ON rpp_place.place_id = rpp.place_id
+      LEFT JOIN sot.addresses rpp_addr ON rpp_addr.address_id = rpp_place.sot_address_id AND rpp_addr.merged_into_address_id IS NULL
       LEFT JOIN sot.people sc ON sc.person_id = r.site_contact_person_id
       LEFT JOIN sot.v_place_colony_status pcs ON pcs.place_id = r.place_id
       WHERE r.request_id = $1

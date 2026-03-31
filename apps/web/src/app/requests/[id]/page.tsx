@@ -19,9 +19,7 @@ import { ClassificationSuggestionBanner } from "@/components/admin";
 import { EntityPreviewModal } from "@/components/search";
 import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import { SmartField, TabBar, TabPanel } from "@/components/ui";
-import PlaceResolver from "@/components/forms/PlaceResolver";
-import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { EnrichmentDrawer } from "@/components/request/EnrichmentDrawer";
+import { UpdateSituationDrawer } from "@/components/request/UpdateSituationDrawer";
 import { formatPhone, formatAddress } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
@@ -100,55 +98,8 @@ export default function RequestDetailPage() {
   // Site contact editing state (FFS-442)
   const [savingSiteContact, setSavingSiteContact] = useState(false);
 
-  // Location editing state (FFS-1015)
-  const [editingLocation, setEditingLocation] = useState(false);
-  const [locationPlace, setLocationPlace] = useState<ResolvedPlace | null>(null);
-  const [locationDesc, setLocationDesc] = useState("");
-  const [savingLocation, setSavingLocation] = useState(false);
-
-  // Enrichment drawer state (FFS-1015)
-  const [showEnrichment, setShowEnrichment] = useState(false);
-
-  // FFS-1015: Location editing handlers
-  const startEditLocation = () => {
-    setLocationPlace(request ? {
-      place_id: request.place_id || "",
-      display_name: request.place_name || "",
-      formatted_address: request.place_address || null,
-      locality: request.place_city || null,
-    } : null);
-    setLocationDesc(request?.location_description || "");
-    setEditingLocation(true);
-  };
-
-  const handleSaveLocation = async () => {
-    setSavingLocation(true);
-    try {
-      const patch: Record<string, unknown> = {};
-      if (locationPlace?.place_id && locationPlace.place_id !== request?.place_id) {
-        patch.place_id = locationPlace.place_id;
-      }
-      if (locationDesc !== (request?.location_description || "")) {
-        patch.location_description = locationDesc || null;
-      }
-      if (Object.keys(patch).length > 0) {
-        await postApi(`/api/requests/${requestId}`, patch, { method: "PATCH" });
-        // Fire-and-forget journal entry
-        postApi("/api/journal", {
-          request_id: requestId,
-          entry_kind: "system",
-          tags: ["location_change"],
-          body: patch.place_id ? "Location updated" : "Location description updated",
-        }).catch(() => {});
-        await refreshRequest();
-      }
-      setEditingLocation(false);
-    } catch (err) {
-      console.error("Failed to save location:", err);
-    } finally {
-      setSavingLocation(false);
-    }
-  };
+  // Update Situation drawer (FFS-1028, replaces FFS-1015 Add Info + Location Edit)
+  const [showSituation, setShowSituation] = useState(false);
 
   // Footer tab state (replaces collapsible sections)
   const [activeTab, setActiveTab] = useState<string>("cats");
@@ -406,7 +357,7 @@ export default function RequestDetailPage() {
 
         {/* Secondary actions row */}
         <div style={{ display: "flex", gap: SPACING.sm, flexWrap: "wrap", marginBottom: SPACING.lg }}>
-          <button onClick={() => setShowEnrichment(true)} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Add Info</button>
+          <button onClick={() => setShowSituation(true)} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
           {request.requester_email && <button onClick={() => setShowEmailModal(true)} className="btn btn-sm btn-secondary">Email</button>}
           {request.status !== "redirected" && request.status !== "handed_off" && !isResolved && (
             <>
@@ -564,36 +515,14 @@ export default function RequestDetailPage() {
 
         {/* Location Card */}
         <div style={{ marginTop: "1rem", background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", overflow: "hidden" }}>
-          <div style={{ padding: "0.75rem 1rem", background: "linear-gradient(135deg, #166534 0%, #22c55e 100%)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ padding: "0.75rem 1rem", background: "linear-gradient(135deg, #166534 0%, #22c55e 100%)", color: "#fff" }}>
             <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <span style={{ fontSize: "1rem" }}>📍</span>
               Location
             </h3>
-            {!editingLocation && (
-              <button onClick={startEditLocation} title="Edit location" style={{ background: "rgba(255,255,255,0.2)", border: "none", cursor: "pointer", color: "#fff", fontSize: "0.75rem", padding: "0.2rem 0.5rem", borderRadius: "4px" }}>
-                Edit
-              </button>
-            )}
           </div>
           <div style={{ padding: "1rem" }}>
-            {editingLocation ? (
-              <div>
-                <label style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.25rem", display: "block" }}>Address</label>
-                <PlaceResolver value={locationPlace} onChange={setLocationPlace} placeholder="Search for an address..." />
-                <label style={{ fontSize: "0.8rem", fontWeight: 600, marginTop: "0.75rem", marginBottom: "0.25rem", display: "block" }}>Location Description</label>
-                <textarea
-                  value={locationDesc}
-                  onChange={(e) => setLocationDesc(e.target.value)}
-                  placeholder="Cross-street info, landmarks, additional addresses where cats are seen"
-                  rows={3}
-                  style={{ width: "100%", padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.9rem", resize: "vertical" }}
-                />
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-                  <button onClick={handleSaveLocation} disabled={savingLocation} className="btn btn-sm">{savingLocation ? "Saving..." : "Save"}</button>
-                  <button onClick={() => setEditingLocation(false)} className="btn btn-sm btn-secondary">Cancel</button>
-                </div>
-              </div>
-            ) : request.place_id ? (
+            {request.place_id ? (
               <div>
                 <a href={`/places/${request.place_id}`} onClick={preview.handleClick("place", request.place_id)} style={{ fontWeight: 600, fontSize: "1.1rem", color: "var(--foreground)", textDecoration: "none" }}>
                   {request.place_name || formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true })}
@@ -607,6 +536,12 @@ export default function RequestDetailPage() {
                 {request.location_description && (
                   <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
                     {request.location_description}
+                  </div>
+                )}
+                {/* Dual display: requester lives somewhere else */}
+                {request.requester_home_place_id && request.requester_home_place_id !== request.place_id && request.requester_home_address && (
+                  <div style={{ marginTop: "0.5rem", padding: "0.4rem 0.6rem", background: "#eef2ff", borderRadius: "6px", fontSize: "0.8rem", color: "#4338ca" }}>
+                    <span style={{ fontWeight: 600 }}>Requester lives at:</span> {request.requester_home_address}
                   </div>
                 )}
                 {request.place_coordinates && (
@@ -1037,13 +972,13 @@ export default function RequestDetailPage() {
         entityId={preview.entityId}
       />
 
-      {/* Enrichment Drawer (FFS-1015) */}
-      <EnrichmentDrawer
-        isOpen={showEnrichment}
+      {/* Update Situation Drawer (FFS-1028) */}
+      <UpdateSituationDrawer
+        isOpen={showSituation}
         requestId={requestId}
         request={request}
-        onClose={() => setShowEnrichment(false)}
-        onSuccess={() => { setShowEnrichment(false); refreshRequest(); fetchJournalEntries(); }}
+        onClose={() => setShowSituation(false)}
+        onSuccess={() => { setShowSituation(false); refreshRequest(); fetchJournalEntries(); }}
       />
     </div>
   );

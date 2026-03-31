@@ -175,6 +175,10 @@ export interface RequestDetail {
   requester_phone: string | null;
   requester_role_at_submission: string | null;
   requester_is_site_contact: boolean | null;
+  /** Requester's home place_id (FFS-1028: for dual display when cats ≠ home) */
+  requester_home_place_id: string | null;
+  /** Requester's home address display string */
+  requester_home_address: string | null;
   // Site contact info (MIG_2522 - may be same as requester or different)
   site_contact_person_id: string | null;
   site_contact_name: string | null;
