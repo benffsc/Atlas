@@ -5,7 +5,7 @@
  * This module contains hooks, components, and types for the main map interface.
  *
  * Usage:
- *   import { useMapSearch, MapControls, MapLegend } from '@/components/map';
+ *   import { useMapSearch, MapControls } from '@/components/map';
  *   import type { AtlasPin, Place } from '@/components/map';
  */
 
@@ -21,7 +21,6 @@ export {
 
 // Components
 export { MapControls } from "./components/MapControls";
-export { MapLegend } from "./components/MapLegend";
 export { DateRangeFilter } from "./components/DateRangeFilter";
 export { LocationComparisonPanel } from "./components/LocationComparisonPanel";
 

@@ -95,13 +95,13 @@ export const MAP_COLORS = {
   },
 
   // Atlas pin style colors (teardrop marker fill)
+  // 4-color urgency palette: red (action now), amber (monitor), blue (handled), gray (reference)
   pinStyle: {
-    disease: '#ea580c',        // Orange-red
-    watch_list: '#8b5cf6',     // Violet
-    active: '#22c55e',         // Green
-    active_requests: '#14b8a6', // Teal
-    has_history: '#6366f1',    // Indigo
-    minimal: '#94a3b8',        // Slate
+    disease: '#dc2626',        // Red — needs action NOW
+    watch_list: '#d97706',     // Amber — monitor/pending
+    active: '#3b82f6',         // Blue — active/handled
+    active_requests: '#3b82f6', // Blue — active/handled
+    reference: '#94a3b8',      // Gray — reference
     default: '#3b82f6',        // Blue
   },
 

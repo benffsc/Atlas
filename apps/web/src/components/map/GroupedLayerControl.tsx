@@ -7,6 +7,10 @@ export interface LayerItem {
   label: string;
   color: string;
   defaultEnabled: boolean;
+  /** Show a small pin SVG swatch next to the label */
+  pinSwatch?: "teardrop" | "circle";
+  /** Override swatch size (default: 12) */
+  pinSwatchSize?: number;
 }
 
 export interface LayerGroup {
@@ -31,6 +35,39 @@ export interface GroupedLayerControlProps {
   compact?: boolean;
   /** Inline mode renders groups directly without trigger button/popover (for sidebar panels) */
   inline?: boolean;
+}
+
+/** Small pin shape for layer toggle items — shows what each layer looks like */
+function PinSwatchIcon({ shape, color, size }: { shape: "teardrop" | "circle"; color: string; size: number }) {
+  if (shape === "circle") {
+    return (
+      <span
+        style={{
+          display: "inline-block",
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          background: color,
+          border: "1.5px solid white",
+          boxShadow: "0 0 0 0.5px rgba(0,0,0,0.15)",
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
+  const h = Math.round(size * 1.35);
+  return (
+    <svg width={size} height={h} viewBox="0 0 24 32" style={{ flexShrink: 0 }}>
+      <path
+        fill={color}
+        stroke="#fff"
+        strokeWidth="1.5"
+        d="M12 0C6.5 0 2 4.5 2 10c0 7 10 20 10 20s10-13 10-20c0-5.5-4.5-10-10-10z"
+      />
+      <circle cx="12" cy="10" r="4" fill="white" />
+      <circle cx="12" cy="10" r="2" fill={color} />
+    </svg>
+  );
 }
 
 function LayerGroupList({
@@ -104,10 +141,14 @@ function LayerGroupList({
                       className={`layer-item${isOn ? " active" : ""}`}
                       onClick={() => onToggleLayer(item.id)}
                     >
-                      <span
-                        className="layer-color-swatch"
-                        style={{ background: item.color }}
-                      />
+                      {item.pinSwatch ? (
+                        <PinSwatchIcon shape={item.pinSwatch} color={item.color} size={item.pinSwatchSize ?? 12} />
+                      ) : (
+                        <span
+                          className="layer-color-swatch"
+                          style={{ background: item.color }}
+                        />
+                      )}
                       {group.exclusive ? (
                         <span className={`layer-radio${isOn ? " checked" : ""}`} />
                       ) : (

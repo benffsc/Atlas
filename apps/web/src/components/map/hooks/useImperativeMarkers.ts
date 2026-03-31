@@ -19,7 +19,8 @@ import { CollisionBehavior } from "@vis.gl/react-google-maps";
 import type { ClusterFeature } from "./useMapClustering";
 import { isCluster, getClusterColor, getClusterSizeClass } from "./useMapClustering";
 import { computePinSize } from "../components/AtlasPinMarker";
-import type { AtlasPin } from "../types";
+import type { AtlasPin, MapPinConfig } from "../types";
+import { DEFAULT_PIN_CONFIG } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,6 +35,8 @@ interface UseImperativeMarkersOptions {
   onClusterClick: (clusterId: number, lat: number, lng: number) => void;
   /** Called when a pin needs an InfoWindow (e.g. non-modifier click) */
   onPinSelect: (pin: AtlasPin) => void;
+  /** Admin-configurable pin rendering (colors, sizes, labels). Falls back to defaults. */
+  pinConfig?: MapPinConfig;
 }
 
 interface ManagedMarker {
@@ -71,25 +74,38 @@ function createReferencePinDOM(
   opacity: number,
   isSelected: boolean,
   title?: string,
+  size = 10,
 ): HTMLDivElement {
-  const div = document.createElement("div");
-  if (title) div.title = title;
-  div.className = "atlas-pin-ref";
-  Object.assign(div.style, {
-    width: "14px",
-    height: "14px",
+  // Outer wrapper: 44px hit target for WCAG 2.5.8 touch compliance
+  const wrapper = document.createElement("div");
+  if (title) wrapper.title = title;
+  wrapper.className = "atlas-pin-ref";
+  Object.assign(wrapper.style, {
+    width: "44px",
+    height: "44px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+  });
+
+  // Inner circle: visible pin
+  const dot = document.createElement("div");
+  Object.assign(dot.style, {
+    width: `${size}px`,
+    height: `${size}px`,
     borderRadius: "50%",
     background: color,
     border: "2px solid white",
     opacity: String(opacity),
-    cursor: "pointer",
     transition: "transform 0.12s ease, box-shadow 0.12s ease",
     transform: isSelected ? "scale(1.25)" : "",
     boxShadow: isSelected
       ? "0 0 0 3px #facc15, 0 1px 3px rgba(0,0,0,0.3)"
       : "0 1px 3px rgba(0,0,0,0.3)",
   });
-  return div;
+  wrapper.appendChild(dot);
+  return wrapper;
 }
 
 /**
@@ -108,18 +124,22 @@ function createActivePinDOM(opts: {
   zoomLevel: number;
   size: number;
   title?: string;
+  statusDotColors?: Record<string, string>;
 }): HTMLDivElement {
   const {
     color, catCount, diseaseCount, needsTrapper, hasVolunteer,
-    diseaseBadges, isSelected, zoomLevel, size, title,
+    diseaseBadges, isSelected, zoomLevel, size, title, statusDotColors,
   } = opts;
 
-  // Status dot (priority cascade)
+  // Status dot (priority cascade) — uses configurable colors
+  const dotRed = statusDotColors?.disease ?? STATUS_DOT_RED;
+  const dotOrange = statusDotColors?.needs_trapper ?? STATUS_DOT_ORANGE;
+  const dotViolet = statusDotColors?.has_volunteer ?? STATUS_DOT_VIOLET;
   let statusDotColor: string | null = null;
   if (zoomLevel >= 11) {
-    if (diseaseCount > 0) statusDotColor = STATUS_DOT_RED;
-    else if (needsTrapper) statusDotColor = STATUS_DOT_ORANGE;
-    else if (hasVolunteer) statusDotColor = STATUS_DOT_VIOLET;
+    if (diseaseCount > 0) statusDotColor = dotRed;
+    else if (needsTrapper) statusDotColor = dotOrange;
+    else if (hasVolunteer) statusDotColor = dotViolet;
   }
 
   // Inner content by zoom level
@@ -161,10 +181,9 @@ function createActivePinDOM(opts: {
   const viewBoxHeight = hasCodeBar ? 38 : 32;
   const svgHeight = Math.round(size * 1.35 * (viewBoxHeight / 32));
 
-  const wrapper = document.createElement("div");
-  if (title) wrapper.title = title;
-  wrapper.className = "atlas-pin-active";
-  Object.assign(wrapper.style, {
+  const svgEl = document.createElement("div");
+  svgEl.className = "atlas-pin-active";
+  Object.assign(svgEl.style, {
     cursor: "pointer",
     transition: "transform 0.12s ease",
     transform: isSelected ? "scale(1.25)" : "",
@@ -173,14 +192,30 @@ function createActivePinDOM(opts: {
       : "drop-shadow(0 2px 1.5px rgba(0,0,0,0.35))",
   });
 
-  wrapper.innerHTML = `<svg width="${size}" height="${svgHeight}" viewBox="0 0 24 ${viewBoxHeight}" xmlns="http://www.w3.org/2000/svg">
+  svgEl.innerHTML = `<svg width="${size}" height="${svgHeight}" viewBox="0 0 24 ${viewBoxHeight}" xmlns="http://www.w3.org/2000/svg">
     <ellipse cx="12" cy="30" rx="5" ry="2" fill="rgba(0,0,0,0.2)"/>
     <path fill="${color}" stroke="#fff" stroke-width="1.5" d="M12 0C6.5 0 2 4.5 2 10c0 7 10 20 10 20s10-13 10-20c0-5.5-4.5-10-10-10z"/>
     ${innerSVG}
     ${statusDotSVG}
   </svg>`;
 
-  return wrapper;
+  // WCAG 2.5.8: ensure min 44px touch target
+  if (size < 44) {
+    const wrapper = document.createElement("div");
+    if (title) wrapper.title = title;
+    Object.assign(wrapper.style, {
+      minWidth: "44px",
+      minHeight: "44px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    });
+    wrapper.appendChild(svgEl);
+    return wrapper;
+  }
+
+  if (title) svgEl.title = title;
+  return svgEl;
 }
 
 /**
@@ -219,12 +254,11 @@ function createClusterDOM(
 function getPinColor(style: string): string {
   // Mirror of MAP_COLORS.pinStyle — inline to avoid importing the full map-colors module
   switch (style) {
-    case "disease": return "#ea580c";
-    case "watch_list": return "#8b5cf6";
-    case "active": return "#22c55e";
-    case "active_requests": return "#14b8a6";
-    case "has_history": return "#6366f1";
-    case "minimal": return "#94a3b8";
+    case "disease": return "#dc2626";
+    case "watch_list": return "#d97706";
+    case "active": return "#3b82f6";
+    case "active_requests": return "#3b82f6";
+    case "reference": return "#94a3b8";
     default: return "#3b82f6";
   }
 }
@@ -235,7 +269,7 @@ function getPinZIndex(pinStyle: string): number {
     case "active_requests": return 3;
     case "watch_list": return 3;
     case "active": return 2;
-    case "has_history": return 1;
+    case "reference": return 1;
     default: return 0;
   }
 }
@@ -257,7 +291,9 @@ export function useImperativeMarkers({
   onPinClick,
   onClusterClick,
   onPinSelect,
+  pinConfig,
 }: UseImperativeMarkersOptions) {
+  const cfg = pinConfig ?? DEFAULT_PIN_CONFIG;
   const markersRef = useRef<Map<string, ManagedMarker>>(new Map());
 
   // Keep callback refs stable to avoid re-creating click listeners
@@ -269,6 +305,8 @@ export function useImperativeMarkers({
   onPinSelectRef.current = onPinSelect;
   const bulkSelectedRef = useRef(bulkSelectedPlaceIds);
   bulkSelectedRef.current = bulkSelectedPlaceIds;
+  const cfgRef = useRef(cfg);
+  cfgRef.current = cfg;
 
   // Build set of current keys and diff against existing markers
   useEffect(() => {
@@ -329,10 +367,11 @@ export function useImperativeMarkers({
         const pin = feature.properties.pin;
         if (!pin) continue;
 
-        const pinTier = pin.pin_tier || (pin.pin_style === "has_history" || pin.pin_style === "minimal" ? "reference" : "active");
+        const pinTier = pin.pin_tier || (pin.pin_style === "reference" ? "reference" : "active");
 
         // Gate: hide reference pins at zoom < 11
-        if (pinTier === "reference" && quantizedZoomLevel < 11) continue;
+        // Reference pins hidden until zoom 14 (raised from 11 for less clutter)
+        if (pinTier === "reference" && quantizedZoomLevel < 14) continue;
 
         const key = pin.id;
         currentKeys.add(key);
@@ -355,13 +394,13 @@ export function useImperativeMarkers({
             }
           }
           // Always update content — zoom level or selection state may have changed
-          existing.marker.content = createPinContent(pin, pinTier, isSelected, hasVol, quantizedZoomLevel);
+          existing.marker.content = createPinContent(pin, pinTier, isSelected, hasVol, quantizedZoomLevel, cfgRef.current);
           existing.pin = pin;
           continue;
         }
 
         // Create new pin marker
-        const content = createPinContent(pin, pinTier, isSelected, hasVol, quantizedZoomLevel);
+        const content = createPinContent(pin, pinTier, isSelected, hasVol, quantizedZoomLevel, cfgRef.current);
 
         const marker = new google.maps.marker.AdvancedMarkerElement({
           map,
@@ -402,13 +441,13 @@ export function useImperativeMarkers({
     for (const [key, managed] of pool) {
       if (!managed.pin) continue; // skip clusters
       const pin = managed.pin;
-      const pinTier = pin.pin_tier || (pin.pin_style === "has_history" || pin.pin_style === "minimal" ? "reference" : "active");
+      const pinTier = pin.pin_tier || (pin.pin_style === "reference" ? "reference" : "active");
       const isSelected = bulkSelectedPlaceIds.has(pin.id);
       const hasVol = Array.isArray(pin.people) && pin.people.some(
         (p: { roles: string[]; is_staff: boolean }) =>
           p.is_staff || p.roles?.some((r: string) => r === "trapper" || r === "foster" || r === "staff" || r === "caretaker"),
       );
-      managed.marker.content = createPinContent(pin, pinTier, isSelected, hasVol, quantizedZoomLevel);
+      managed.marker.content = createPinContent(pin, pinTier, isSelected, hasVol, quantizedZoomLevel, cfgRef.current);
     }
   }, [bulkSelectedPlaceIds, quantizedZoomLevel]);
 
@@ -437,12 +476,14 @@ function createPinContent(
   isSelected: boolean,
   hasVolunteer: boolean,
   zoomLevel: number,
+  cfg: MapPinConfig,
 ): HTMLDivElement {
-  const color = getPinColor(pin.pin_style);
+  const color = cfg.colors[pin.pin_style] || cfg.colors.default || getPinColor(pin.pin_style);
 
   if (pinTier === "reference") {
-    const opacity = zoomLevel >= 16 ? 0.8 : zoomLevel >= 14 ? 0.65 : 0.5;
-    return createReferencePinDOM(color, opacity, isSelected, pin.address);
+    const opacity = zoomLevel >= 16 ? 0.5 : 0.35;
+    const refSize = cfg.sizes.reference;
+    return createReferencePinDOM(color, opacity, isSelected, pin.address, refSize);
   }
 
   const size = computePinSize(
@@ -450,6 +491,7 @@ function createPinContent(
     pin.cat_count,
     pin.disease_count,
     pin.active_request_count,
+    cfg.sizes,
   );
 
   return createActivePinDOM({
@@ -464,5 +506,6 @@ function createPinContent(
     zoomLevel,
     size,
     title: pin.address,
+    statusDotColors: cfg.statusDots,
   });
 }

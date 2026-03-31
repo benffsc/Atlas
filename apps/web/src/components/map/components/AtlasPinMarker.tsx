@@ -6,7 +6,7 @@ import React from "react";
 // Types
 // ---------------------------------------------------------------------------
 
-type PinStyle = "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
+type PinStyle = "disease" | "watch_list" | "active" | "active_requests" | "reference";
 type PinTier = "active" | "reference";
 
 interface AtlasPinMarkerProps {
@@ -44,11 +44,12 @@ export function computePinSize(
   catCount: number,
   diseaseCount: number,
   activeRequestCount: number,
+  sizes?: { hotspot: number; active: number; reference: number },
 ): number {
-  if (pinTier === "reference") return 14;
-  if (catCount >= 10 || diseaseCount >= 2 || activeRequestCount >= 2) return 40;
-  if (catCount >= 1) return 32;
-  return 24;
+  const s = sizes ?? { hotspot: 32, active: 22, reference: 10 };
+  if (pinTier === "reference") return s.reference;
+  if (catCount >= 10 || diseaseCount >= 2 || activeRequestCount >= 2) return s.hotspot;
+  return s.active;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,16 +67,16 @@ function ReferencePinInner({
   zoomLevel: number;
   title?: string;
 }) {
-  // Reference pins hidden at zoom < 11 (handled by parent, but just in case)
-  const opacity = zoomLevel >= 16 ? 0.8 : zoomLevel >= 14 ? 0.65 : 0.5;
+  // Reference pins hidden at zoom < 14 (handled by parent, but just in case)
+  const opacity = zoomLevel >= 16 ? 0.5 : 0.35;
 
   return (
     <div
       title={title}
       className="atlas-pin-ref"
       style={{
-        width: 14,
-        height: 14,
+        width: 10,
+        height: 10,
         borderRadius: "50%",
         background: color,
         border: "2px solid white",
@@ -99,7 +100,7 @@ const ReferencePin = React.memo(ReferencePinInner);
 
 function ActivePinInner({
   color,
-  pinStyle = "minimal",
+  pinStyle = "reference",
   catCount = 0,
   diseaseCount = 0,
   needsTrapper = false,
@@ -233,7 +234,7 @@ const ActivePin = React.memo(ActivePinInner);
 
 function AtlasPinMarkerInner({
   color,
-  pinStyle = "minimal",
+  pinStyle = "reference",
   pinTier = "active",
   catCount = 0,
   activeRequestCount = 0,

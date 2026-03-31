@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
       intake_count: number;
       total_altered: number;
       last_alteration_at: string | null;
-      pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
+      pin_style: "disease" | "watch_list" | "active" | "active_requests" | "reference";
       pin_tier: "active" | "reference";
     }>;
     // DATE-FILTERED layer (FFS-538)
@@ -316,7 +316,7 @@ export async function GET(req: NextRequest) {
           intake_count: number;
           total_altered: number;
           last_alteration_at: string | null;
-          pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
+          pin_style: "disease" | "watch_list" | "active" | "active_requests" | "reference";
           pin_tier: "active" | "reference";
         }>(`
           SELECT
@@ -360,7 +360,7 @@ export async function GET(req: NextRequest) {
               WHEN 'disease' THEN 1
               WHEN 'watch_list' THEN 2
               WHEN 'active' THEN 3
-              WHEN 'has_history' THEN 4
+              WHEN 'reference' THEN 4
               ELSE 5
             END,
             (cat_count + request_count + person_count + google_entry_count) DESC
@@ -427,7 +427,7 @@ export async function GET(req: NextRequest) {
           intake_count: 0,
           total_altered: 0,
           last_alteration_at: null,
-          pin_style: "minimal" as const,
+          pin_style: "reference" as const,
           pin_tier: "reference" as const,
         }));
       }

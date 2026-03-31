@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { APIProvider, Map, AdvancedMarker, AdvancedMarkerAnchorPoint, InfoWindow, useMap, CollisionBehavior } from "@vis.gl/react-google-maps";
 import { useMapData } from "@/hooks/useMapData";
 import { useMapColors } from "@/hooks/useMapColors";
+import { useMapPinConfig } from "@/hooks/useMapPinConfig";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
 import { useToast } from "@/components/feedback/Toast";
 import { fetchApi } from "@/lib/api-client";
@@ -29,7 +30,6 @@ import {
   CatDetailDrawer,
   AnnotationDetailDrawer,
   PlacementPanel,
-  MapLegend,
   DateRangeFilter,
   LocationComparisonPanel,
   SERVICE_ZONES,
@@ -96,11 +96,11 @@ function AtlasMapV2Inner() {
   const map = useMap();
   const { mapCenter, mapZoom } = useGeoConfig();
   const { colors } = useMapColors();
+  const { pinConfig } = useMapPinConfig();
 
   // ── Core state ──
   const [loading, setLoading] = useState(true);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
-  const [showLegend, setShowLegend] = useState(!isMobile);
   const [basemap, setBasemap] = useState<BasemapType>("street");
   const [selectedZone, setSelectedZone] = useState("All Zones");
   const [dateFrom, setDateFrom] = useState<string | null>(null);
@@ -355,6 +355,7 @@ function AtlasMapV2Inner() {
     onPinSelect: useCallback((pin: AtlasPin) => {
       setSelectedPin(pin);
     }, []),
+    pinConfig,
   });
 
   // ── Comparison handlers (Step 2) ──
@@ -1002,10 +1003,7 @@ function AtlasMapV2Inner() {
         case "1":
           toggleLayer("atlas_all");
           break;
-        case "k":
-        case "K":
-          setShowLegend(prev => !prev);
-          break;
+        // K shortcut removed — legend replaced by layer toggle panel (FFS-1021)
         case "a":
         case "A":
           if (!st.addPointMode) {
@@ -1190,7 +1188,7 @@ function AtlasMapV2Inner() {
             position={{ lat: selectedPin.lat, lng: selectedPin.lng }}
             onCloseClick={() => setSelectedPin(null)}
           >
-            {(selectedPin.pin_tier === "reference" || selectedPin.pin_style === "has_history" || selectedPin.pin_style === "minimal") ? (
+            {(selectedPin.pin_tier === "reference" || selectedPin.pin_style === "reference") ? (
               /* ── Reference pin popup (compact but useful) ── */
               <div style={{ minWidth: 220, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
@@ -1505,8 +1503,7 @@ function AtlasMapV2Inner() {
       {/* ── Date range filter ── */}
       <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
 
-      {/* ── Legend ── */}
-      {!isMobile && <MapLegend showLegend={showLegend} onToggle={() => setShowLegend(prev => !prev)} colors={colors} />}
+      {/* Legend removed — layer toggle panel IS the legend (FFS-1021) */}
 
       {/* ── Stats bar ── */}
       {summary && !isMobile && (

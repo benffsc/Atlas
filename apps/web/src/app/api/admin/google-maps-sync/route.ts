@@ -4,6 +4,7 @@ import { requireRole, AuthError, getCurrentUser } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { parseStringPromise } from "xml2js";
 import JSZip from "jszip";
+import { syncFromMyMapsKml } from "@/lib/mymaps-sync";
 
 /**
  * Google Maps Sync API
@@ -346,5 +347,49 @@ export async function POST(request: NextRequest) {
     }
     console.error("Error syncing Google Maps data:", error);
     return apiError(error instanceof Error ? error.message : "Unknown error", 500);
+  }
+}
+
+/**
+ * PUT: Sync from Google MyMaps KML URL
+ *
+ * Fetches the public KML for the configured MyMaps map ID, parses placemarks,
+ * and upserts into source.google_map_entries with content_hash change detection.
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    await requireRole(request, ["admin"]);
+
+    // Read map ID from request body or fall back to app_config
+    const body = await request.json().catch(() => ({}));
+    let mapId = body.mapId as string | undefined;
+
+    if (!mapId) {
+      const configRow = await queryOne<{ value: string }>(
+        `SELECT value::text FROM ops.app_config WHERE key = 'map.mymaps.mid'`
+      );
+      if (configRow?.value) {
+        // app_config stores JSONB — value is a quoted string
+        mapId = JSON.parse(configRow.value);
+      }
+    }
+
+    if (!mapId) {
+      return apiError("No MyMaps map ID configured. Set map.mymaps.mid in Admin > Config.", 400);
+    }
+
+    const result = await syncFromMyMapsKml(mapId);
+
+    return apiSuccess({
+      message: "MyMaps KML sync complete",
+      mapId,
+      ...result,
+    });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return apiError(error.message, error.statusCode);
+    }
+    console.error("Error syncing from MyMaps KML:", error);
+    return apiError(error instanceof Error ? error.message : "MyMaps sync failed", 500);
   }
 }

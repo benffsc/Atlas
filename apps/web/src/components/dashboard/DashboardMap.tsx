@@ -41,14 +41,13 @@ interface DashboardMapProps {
   layerCounts?: Record<string, number>;
 }
 
-// Pin style → color (matches AtlasMap.tsx)
+// Pin style → color (matches AtlasMap.tsx — 4-color urgency palette)
 const ATLAS_PIN_COLORS: Record<string, string> = {
-  disease: "#ea580c",
-  watch_list: "#8b5cf6",
-  active: "#22c55e",
-  active_requests: "#14b8a6",
-  has_history: "#6366f1",
-  minimal: "#94a3b8",
+  disease: "#dc2626",
+  watch_list: "#d97706",
+  active: "#3b82f6",
+  active_requests: "#3b82f6",
+  reference: "#94a3b8",
 };
 
 // Match StatusBadge + design-tokens exactly

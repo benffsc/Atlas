@@ -88,7 +88,7 @@ export interface AtlasPin {
   intake_count: number;
   total_altered: number;
   last_alteration_at: string | null;
-  pin_style: "disease" | "watch_list" | "active" | "active_requests" | "has_history" | "minimal";
+  pin_style: "disease" | "watch_list" | "active" | "active_requests" | "reference";
   pin_tier: "active" | "reference";
 }
 

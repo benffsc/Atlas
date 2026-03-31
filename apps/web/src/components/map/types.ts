@@ -168,10 +168,41 @@ export interface AtlasPin {
     | "watch_list"
     | "active"
     | "active_requests"
-    | "has_history"
-    | "minimal";
+    | "reference";
   pin_tier: "active" | "reference";
 }
+
+// Admin-configurable pin rendering config (white-label)
+export interface MapPinConfig {
+  colors: Record<string, string>;       // pin_style → hex
+  statusDots: Record<string, string>;   // disease/needs_trapper/has_volunteer → hex
+  sizes: { hotspot: number; active: number; reference: number };
+  labels: Record<string, string>;       // pin_style → display label
+}
+
+export const DEFAULT_PIN_CONFIG: MapPinConfig = {
+  colors: {
+    disease: "#dc2626",
+    watch_list: "#d97706",
+    active: "#3b82f6",
+    active_requests: "#3b82f6",
+    reference: "#94a3b8",
+    default: "#3b82f6",
+  },
+  statusDots: {
+    disease: "#dc2626",
+    needs_trapper: "#f97316",
+    has_volunteer: "#7c3aed",
+  },
+  sizes: { hotspot: 32, active: 22, reference: 10 },
+  labels: {
+    disease: "Disease Risk",
+    watch_list: "Watch List",
+    active: "Verified Cats",
+    active_requests: "Active Requests",
+    reference: "Reference",
+  },
+};
 
 export interface MapSummary {
   total_places: number;
@@ -279,7 +310,7 @@ export const PRIMARY_LAYER_CONFIGS: LayerConfig[] = [
     id: "atlas_disease",
     label: "Disease Risk",
     icon: "🦠",
-    color: "#ea580c",
+    color: "#dc2626",
     description: "Places with disease risk",
     defaultEnabled: false,
   },
@@ -287,7 +318,7 @@ export const PRIMARY_LAYER_CONFIGS: LayerConfig[] = [
     id: "atlas_watch",
     label: "Watch List",
     icon: "👁",
-    color: "#8b5cf6",
+    color: "#d97706",
     description: "Watch list places",
     defaultEnabled: false,
   },
