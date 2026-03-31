@@ -17,6 +17,8 @@ interface PlaceForPerson {
   is_primary_contact: boolean;
   source_system: string;
   created_at: string;
+  last_confirmed_at: string | null;
+  effective_to: string | null;
   // Place metadata
   latitude: number | null;
   longitude: number | null;
@@ -72,6 +74,8 @@ export async function GET(
           COALESCE(ppd.is_primary_contact, FALSE) as is_primary_contact,
           pp.source_system,
           pp.created_at::text,
+          pp.last_confirmed_at::text,
+          pp.effective_to::text,
           ST_Y(pl.location::geometry) as latitude,
           ST_X(pl.location::geometry) as longitude
         FROM sot.person_place pp
@@ -79,9 +83,9 @@ export async function GET(
         LEFT JOIN sot.person_place_details ppd ON ppd.person_place_id = pp.id
         WHERE pp.person_id = $1
         ORDER BY
-          COALESCE(ppd.is_primary_contact, FALSE) DESC,
+          pp.effective_to IS NULL DESC,
           COALESCE(pp.is_staff_verified, FALSE) DESC,
-          pp.created_at DESC`,
+          pp.last_confirmed_at DESC NULLS LAST`,
         [personId]
       );
     } catch (err) {
@@ -166,11 +170,13 @@ export async function POST(
       `INSERT INTO sot.person_place (
         person_id, place_id, relationship_type,
         confidence, evidence_type, source_system,
-        is_staff_verified, verified_at, verification_method
+        is_staff_verified, verified_at, verification_method,
+        last_confirmed_at
       ) VALUES (
         $1, $2, $3,
         1.0, 'staff_verified', 'atlas_ui',
-        $4, CASE WHEN $4 THEN NOW() ELSE NULL END, CASE WHEN $4 THEN 'request_update' ELSE NULL END
+        $4, CASE WHEN $4 THEN NOW() ELSE NULL END, CASE WHEN $4 THEN 'request_update' ELSE NULL END,
+        NOW()
       )
       ON CONFLICT (person_id, place_id, relationship_type)
       DO UPDATE SET
@@ -178,6 +184,7 @@ export async function POST(
         is_staff_verified = COALESCE($4, sot.person_place.is_staff_verified),
         verified_at = CASE WHEN $4 THEN NOW() ELSE sot.person_place.verified_at END,
         verification_method = CASE WHEN $4 THEN 'request_update' ELSE sot.person_place.verification_method END,
+        last_confirmed_at = NOW(),
         updated_at = NOW()
       RETURNING id`,
       [personId, place_id, relationship_type, is_staff_verified]

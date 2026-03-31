@@ -422,11 +422,7 @@ export async function GET(
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
       LEFT JOIN sot.people per ON per.person_id = r.requester_person_id
       LEFT JOIN LATERAL (
-        SELECT pp.place_id FROM sot.person_place pp
-        WHERE pp.person_id = r.requester_person_id
-          AND pp.relationship_type IN ('resident', 'owner', 'home')
-        ORDER BY pp.is_primary DESC NULLS LAST, pp.created_at DESC
-        LIMIT 1
+        SELECT place_id FROM sot.best_address_for_person(r.requester_person_id)
       ) rpp ON TRUE
       LEFT JOIN sot.places rpp_place ON rpp_place.place_id = rpp.place_id
       LEFT JOIN sot.addresses rpp_addr ON rpp_addr.address_id = rpp_place.sot_address_id AND rpp_addr.merged_into_address_id IS NULL

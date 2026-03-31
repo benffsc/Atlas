@@ -422,12 +422,15 @@ BEGIN
 
     -- CRITICAL: Step 3 — Link people to places
     v_step := v_step + 1;
-    INSERT INTO sot.person_place (person_id, place_id, relationship_type, confidence, source_system, source_table)
+    -- MIG_3022: Added last_confirmed_at + ON CONFLICT UPDATE to bump freshness.
+    -- Every ClinicHQ batch that re-reports an owner at an address bumps
+    -- last_confirmed_at, so stale addresses naturally fall behind.
+    INSERT INTO sot.person_place (person_id, place_id, relationship_type, confidence, source_system, source_table, last_confirmed_at)
     SELECT DISTINCT
       pi.person_id, p.place_id,
       CASE WHEN sot.is_excluded_from_cat_place_linking(pi.person_id) THEN 'trapper_at' ELSE 'resident' END,
       CASE WHEN sot.is_excluded_from_cat_place_linking(pi.person_id) THEN 0.3 ELSE 0.7 END,
-      'clinichq', 'owner_info'
+      'clinichq', 'owner_info', NOW()
     FROM ops.staged_records sr
     JOIN sot.person_identifiers pi ON (
       (pi.id_type = 'email' AND pi.id_value_norm = NULLIF(LOWER(TRIM(sr.payload->>'Owner Email')), ''))
@@ -440,11 +443,9 @@ BEGIN
       AND sr.file_upload_id = p_upload_id
       AND sr.payload->>'Owner Address' IS NOT NULL
       AND TRIM(sr.payload->>'Owner Address') != ''
-      AND NOT EXISTS (
-        SELECT 1 FROM sot.person_place pp
-        WHERE pp.person_id = pi.person_id AND pp.place_id = p.place_id
-      )
-    ON CONFLICT DO NOTHING;
+    ON CONFLICT (person_id, place_id, relationship_type) DO UPDATE SET
+      last_confirmed_at = NOW(),
+      updated_at = NOW();
     GET DIAGNOSTICS v_count = ROW_COUNT;
     v_results := v_results || jsonb_build_object('person_place_links', v_count);
 

@@ -108,7 +108,8 @@ export async function POST(
              verified_at = NOW(),
              verified_by = $2,
              verification_method = $3,
-             relationship_type = $4
+             relationship_type = $4,
+             last_confirmed_at = NOW()
          WHERE id = $1`,
         [personPlaceId, verified_by || null, verification_method, newType]
       );

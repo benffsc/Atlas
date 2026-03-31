@@ -4552,6 +4552,10 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
   const people = report.people || [];
   const requestHistory = report.request_history || {};
   const shelterLuvOutcomes = report.shelterluv_outcomes || [];
+  const intakeSubmissions = report.intake_submissions || [];
+  const requestDetails = report.request_details || [];
+  const journalEntries = report.journal_entries || [];
+  const trapperAssignments = report.trapper_assignments || [];
 
   // Build interpretation hints based on the data
   const interpretationHints: string[] = [];
@@ -4607,6 +4611,48 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
   }
   if (requestHistory.completed > 0) {
     interpretationHints.push(`HISTORY: ${requestHistory.completed} completed request(s) at this location.`);
+  }
+
+  // Intake submissions — what callers reported
+  if (intakeSubmissions.length > 0) {
+    const latest = intakeSubmissions[0] as { requester_name?: string; situation?: string; is_emergency?: boolean; submitted_at?: string };
+    const situation = latest.situation ? ` They reported: "${latest.situation.slice(0, 200)}"` : '';
+    interpretationHints.push(`INTAKE: ${intakeSubmissions.length} intake submission(s). Most recent from ${latest.requester_name || 'unknown'} on ${latest.submitted_at?.slice(0, 10) || 'unknown date'}.${situation}${latest.is_emergency ? ' FLAGGED AS EMERGENCY.' : ''}`);
+  }
+
+  // Rich request details — trapping guidance, medical info, staff notes
+  if (requestDetails.length > 0) {
+    for (const req of requestDetails as Array<Record<string, unknown>>) {
+      const details: string[] = [];
+      if (req.best_trapping_time) details.push(`Best trapping time: ${req.best_trapping_time}`);
+      if (req.has_medical_concerns) details.push(`Medical concerns: ${req.medical_description || 'yes'}`);
+      if (req.has_kittens) details.push(`Kittens present${req.kitten_count ? ` (${req.kitten_count})` : ''}`);
+      if (req.important_notes && Array.isArray(req.important_notes) && (req.important_notes as string[]).length > 0) details.push(`Notes: ${(req.important_notes as string[]).join('; ')}`);
+      if (req.internal_notes) details.push(`Staff notes: ${(req.internal_notes as string).slice(0, 200)}`);
+      if (req.notes) details.push(`Request notes: ${(req.notes as string).slice(0, 200)}`);
+      if (req.trap_savvy) details.push('Cats are trap-savvy');
+      if (req.dogs_on_site) details.push('Dogs on site');
+      if (details.length > 0) {
+        interpretationHints.push(`REQUEST DETAILS (${req.status}): ${details.join('. ')}.`);
+      }
+    }
+  }
+
+  // Journal entries — staff activity log
+  if (journalEntries.length > 0) {
+    const recentEntries = (journalEntries as Array<{ entry_type?: string; content?: string; created_at?: string; author?: string }>).slice(0, 3);
+    const entryTexts = recentEntries.map(e =>
+      `${e.created_at?.slice(0, 10) || '?'} (${e.entry_type || 'note'}${e.author ? ` by ${e.author}` : ''}): ${(e.content || '').slice(0, 150)}`
+    );
+    interpretationHints.push(`STAFF ACTIVITY: ${journalEntries.length} journal entries. Recent: ${entryTexts.join(' | ')}`);
+  }
+
+  // Trapper assignments
+  if (trapperAssignments.length > 0) {
+    const trappers = (trapperAssignments as Array<{ trapper_name?: string; trapper_type?: string; status?: string }>)
+      .map(t => `${t.trapper_name || 'unknown'} (${t.trapper_type || 'trapper'}, ${t.status || 'assigned'})`)
+      .join(', ');
+    interpretationHints.push(`TRAPPERS ASSIGNED: ${trappers}`);
   }
 
   // Part 2: Enrich with domain knowledge module interpretations
@@ -4722,6 +4768,10 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
       appointment_timeline: report.appointment_timeline,
       disease_testing: report.disease_testing,
       request_history: report.request_history,
+      request_details: report.request_details,
+      intake_submissions: report.intake_submissions,
+      journal_entries: report.journal_entries,
+      trapper_assignments: report.trapper_assignments,
       colony_estimate: report.colony_estimate,
       shelterluv_outcomes: report.shelterluv_outcomes,
       related_places: report.related_places,

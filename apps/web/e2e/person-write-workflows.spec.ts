@@ -144,16 +144,10 @@ test.describe('Person Write Workflows @workflow', () => {
     await navigateTo(page, `/people/${personId}`);
     await waitForLoaded(page);
 
-    // Navigate to Details tab
-    const detailsTab = page.locator('[role="tab"]:has-text("Details")').first();
-    if (await detailsTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await detailsTab.click();
-      await page.waitForTimeout(1000);
-    }
-
-    // Look for an edit button for contact info
+    // Person detail uses config-driven tabs. No specific "Details" tab.
+    // Look for "Edit Contact Info" button directly on the overview.
     const editBtn = page.locator(
-      'button:has-text("Edit"), button[aria-label="Edit"], button:has-text("Edit Contact")'
+      'button:has-text("Edit Contact Info"), button:has-text("Edit Contact"), button:has-text("Edit"), button[aria-label="Edit"]'
     ).first();
     const hasEdit = await editBtn.isVisible({ timeout: 5000 }).catch(() => false);
     test.skip(!hasEdit, 'No edit button found on person detail page');
@@ -168,7 +162,7 @@ test.describe('Person Write Workflows @workflow', () => {
     }
 
     // Save
-    const saveBtn = page.locator('button:has-text("Save")').first();
+    const saveBtn = page.locator('button:has-text("Save"), button:has-text("Update")').first();
     if (await saveBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await saveBtn.click();
       await page.waitForTimeout(1000);
