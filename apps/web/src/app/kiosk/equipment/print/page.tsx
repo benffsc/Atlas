@@ -227,6 +227,7 @@ export default function EquipmentCheckoutPrintPage() {
 
         <div className="ctrl-actions">
           <button onClick={() => window.print()}>Print / Save PDF</button>
+          <a href="/kiosk/equipment/print/slip">Checkout Slips</a>
           <a href="/kiosk/equipment/scan">Back to Kiosk</a>
         </div>
       </div>
