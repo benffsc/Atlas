@@ -76,6 +76,8 @@ export const POST = withErrorHandling(async (
     checkout_purpose, custodian_name_raw, resolution_status,
     // MIG_3005 fields
     photo_url,
+    // MIG_3017 fields
+    deposit_returned_at,
   } = body;
 
   if (!event_type) {
@@ -150,8 +152,8 @@ export const POST = withErrorHandling(async (
        due_date, notes, source_system,
        checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id,
        checkout_purpose, custodian_name_raw, resolution_status,
-       photo_url
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14, $15, $16, $17, $18)
+       photo_url, deposit_returned_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
      RETURNING event_id`,
     [
       id, event_type, custodian_person_id || null,
@@ -164,6 +166,7 @@ export const POST = withErrorHandling(async (
       appointment_id || null,
       checkout_purpose || null, custodian_name_raw || null, resolution_status || null,
       photo_url || null,
+      deposit_returned_at || null,
     ]
   );
 

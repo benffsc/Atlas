@@ -5,7 +5,8 @@ import { postApi, fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Skeleton } from "@/components/feedback/Skeleton";
 import { useFormAutoSave } from "@/hooks/useFormAutoSave";
-import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { KioskPersonCollector, resolveCollectedPerson, type CollectedPerson } from "./KioskPersonCollector";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import {
@@ -78,6 +79,10 @@ export function CheckoutForm({
     `checkout_v2_${equipmentId}`,
     {
       personRef: { person_id: null, display_name: "", is_resolved: false } as PersonReference,
+      collectedPerson: {
+        person_id: null, display_name: "", first_name: "", last_name: "",
+        phone: "", email: "", is_resolved: false, resolution_type: "unresolved",
+      } as CollectedPerson,
       resolutionStatus: "resolved" as ResolutionStatus,
       checkoutPurpose: "",
       checkoutType: "",
@@ -124,6 +129,7 @@ export function CheckoutForm({
 
   // Updaters
   const setPersonRef = (ref: PersonReference) => setSaved((p) => ({ ...p, personRef: ref }));
+  const setCollectedPerson = (cp: CollectedPerson) => setSaved((p) => ({ ...p, collectedPerson: cp }));
   const setResolutionStatus = (v: ResolutionStatus) => setSaved((p) => ({ ...p, resolutionStatus: v }));
   const setCheckoutPurpose = (v: string) => {
     setSaved((p) => {
@@ -150,10 +156,12 @@ export function CheckoutForm({
     setSaved((p) => ({ ...p, linkedPlaceId: id, linkedPlaceLabel: label }));
 
   // Derived: who is the custodian?
-  const custodianName = personRef.display_name;
-  const custodianPersonId = personRef.person_id;
+  // Prefer collectedPerson (new flow), fall back to personRef (legacy/restored sessions)
+  const collectedPerson = saved.collectedPerson;
+  const custodianName = collectedPerson.display_name || personRef.display_name;
+  const custodianPersonId = collectedPerson.person_id || personRef.person_id;
 
-  const canSubmit = (personRef.display_name.length > 0) && checkoutType.length > 0;
+  const canSubmit = (custodianName.length > 0 && collectedPerson.first_name.trim().length > 0) && checkoutType.length > 0;
 
   // Resolved deposit
   const resolvedDeposit = useMemo(() => {
@@ -220,9 +228,18 @@ export function CheckoutForm({
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      // Resolve collected person to a person_id (creates if needed)
+      let resolvedPersonId = custodianPersonId;
+      let resolvedStatus: string = resolutionStatus;
+      if (collectedPerson.first_name.trim() && !collectedPerson.is_resolved) {
+        const resolution = await resolveCollectedPerson(collectedPerson);
+        resolvedPersonId = resolution.person_id;
+        resolvedStatus = resolution.resolution_type;
+      }
+
       await postApi(`/api/equipment/${equipmentId}/events`, {
         event_type: "check_out",
-        custodian_person_id: custodianPersonId || undefined,
+        custodian_person_id: resolvedPersonId || undefined,
         custodian_name: custodianName || undefined,
         checkout_type: checkoutType,
         deposit_amount: resolvedDeposit > 0 ? resolvedDeposit : undefined,
@@ -235,7 +252,7 @@ export function CheckoutForm({
         // MIG_2996 fields
         checkout_purpose: checkoutPurpose || undefined,
         custodian_name_raw: custodianName || undefined,
-        resolution_status: resolutionStatus,
+        resolution_status: resolvedStatus,
       });
       clearSaved();
       setSuccessName(custodianName);
@@ -254,6 +271,10 @@ export function CheckoutForm({
     clearSaved();
     setSaved({
       personRef: { person_id: null, display_name: "", is_resolved: false },
+      collectedPerson: {
+        person_id: null, display_name: "", first_name: "", last_name: "",
+        phone: "", email: "", is_resolved: false, resolution_type: "unresolved",
+      },
       resolutionStatus: "resolved",
       checkoutPurpose: "",
       checkoutType: "",
@@ -327,14 +348,9 @@ export function CheckoutForm({
     <KioskCard icon="log-out" title="Check Out" subtitle={equipmentName} showResumed={showResumed}>
       <div style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         {/* ===================== WHO ===================== */}
-        <PersonReferencePicker
-          value={personRef}
-          onChange={setPersonRef}
-          onResolutionType={setResolutionStatus}
-          placeholder="Search for a person..."
-          label="Who *"
-          allowCreate
-          inputStyle={{ minHeight: "48px", fontSize: "1rem" }}
+        <KioskPersonCollector
+          value={collectedPerson}
+          onChange={setCollectedPerson}
         />
 
         {/* ===================== PURPOSE CHIPS ===================== */}

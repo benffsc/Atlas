@@ -395,6 +395,7 @@ const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
     title: "Settings",
     items: [
       { label: "All Settings", href: "/admin/settings", icon: "settings" },
+      { label: "Kiosk Config", href: "/admin/kiosk", icon: "tablet" },
     ],
   },
   {

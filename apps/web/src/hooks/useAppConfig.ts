@@ -40,6 +40,15 @@ const DEFAULTS: Record<string, unknown> = {
   "terminology.program_staff": "TNR",
   "terminology.action_public": "fix",
   "terminology.action_staff": "alter",
+  // Kiosk hub (MIG_3016)
+  "kiosk.modules_enabled": ["equipment", "help"],
+  "kiosk.session_timeout_public": 120,
+  "kiosk.session_timeout_equipment": 300,
+  "kiosk.splash_title": "How can we help?",
+  "kiosk.splash_subtitle": "Tap an option to get started",
+  "kiosk.cats_slideshow_interval": 8,
+  "kiosk.success_message": "Thank you! We'll be in touch.",
+  "kiosk.help_questions": null,
 };
 
 interface ConfigRow {

@@ -106,6 +106,9 @@ import {
   Lock,
   Scissors,
   Utensils,
+  HeartHandshake,
+  Handshake,
+  PawPrint,
   type LucideIcon,
 } from "lucide-react";
 
@@ -235,6 +238,11 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   lock: Lock,
   scissors: Scissors,
   utensils: Utensils,
+
+  // Kiosk hub
+  "heart-handshake": HeartHandshake,
+  handshake: Handshake,
+  "paw-print": PawPrint,
 };
 
 export type IconName = keyof typeof ICON_MAP;

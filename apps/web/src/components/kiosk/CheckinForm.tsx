@@ -100,6 +100,8 @@ export function CheckinForm({
         event_type: "check_in",
         condition_after: conditionAfter,
         photo_url: uploadedPhotoUrl,
+        deposit_returned_at:
+          hasDeposit && depositReturned ? new Date().toISOString() : undefined,
         notes: [
           notes.trim(),
           hasDeposit
