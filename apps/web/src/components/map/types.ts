@@ -194,7 +194,7 @@ export const DEFAULT_PIN_CONFIG: MapPinConfig = {
     needs_trapper: "#f97316",
     has_volunteer: "#7c3aed",
   },
-  sizes: { hotspot: 32, active: 22, reference: 10 },
+  sizes: { hotspot: 32, active: 22, reference: 12 },
   labels: {
     disease: "Disease Risk",
     watch_list: "Watch List",

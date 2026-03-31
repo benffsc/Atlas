@@ -481,7 +481,7 @@ function createPinContent(
   const color = cfg.colors[pin.pin_style] || cfg.colors.default || getPinColor(pin.pin_style);
 
   if (pinTier === "reference") {
-    const opacity = zoomLevel >= 16 ? 0.5 : 0.35;
+    const opacity = zoomLevel >= 16 ? 0.6 : 0.45;
     const refSize = cfg.sizes.reference;
     return createReferencePinDOM(color, opacity, isSelected, pin.address, refSize);
   }

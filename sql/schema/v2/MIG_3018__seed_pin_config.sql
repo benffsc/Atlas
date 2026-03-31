@@ -35,7 +35,7 @@ ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, description = EXCLUDED.d
 INSERT INTO ops.app_config (key, value, description, category)
 VALUES (
   'map.pin.sizes',
-  '{"hotspot": 32, "active": 22, "reference": 10}'::jsonb,
+  '{"hotspot": 32, "active": 22, "reference": 12}'::jsonb,
   'Pin size tiers in pixels. Hotspot=10+ cats, Active=default, Reference=minimal data.',
   'map'
 )

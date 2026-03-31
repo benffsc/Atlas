@@ -68,15 +68,15 @@ function ReferencePinInner({
   title?: string;
 }) {
   // Reference pins hidden at zoom < 14 (handled by parent, but just in case)
-  const opacity = zoomLevel >= 16 ? 0.5 : 0.35;
+  const opacity = zoomLevel >= 16 ? 0.6 : 0.45;
 
   return (
     <div
       title={title}
       className="atlas-pin-ref"
       style={{
-        width: 10,
-        height: 10,
+        width: 12,
+        height: 12,
         borderRadius: "50%",
         background: color,
         border: "2px solid white",

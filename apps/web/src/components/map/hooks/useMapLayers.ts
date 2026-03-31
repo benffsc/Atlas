@@ -11,11 +11,11 @@ export const HEATMAP_LAYER_IDS = ["heatmap_density", "heatmap_disease"] as const
 
 export const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
   { id: "atlas_data", label: "Atlas Data", icon: "\u{1F4CD}", color: MAP_COLORS.layers.places, defaultExpanded: true, exclusive: true, children: [
-    { id: "atlas_all", label: "All Places", color: MAP_COLORS.layers.places, defaultEnabled: true },
-    { id: "atlas_disease", label: "Disease Risk", color: MAP_COLORS.pinStyle.disease, defaultEnabled: false },
-    { id: "atlas_watch", label: "Watch List", color: MAP_COLORS.pinStyle.watch_list, defaultEnabled: false },
-    { id: "atlas_needs_tnr", label: "Needs TNR", color: MAP_COLORS.priority.critical, defaultEnabled: false },
-    { id: "atlas_needs_trapper", label: "Needs Trapper", color: MAP_COLORS.priority.high, defaultEnabled: false },
+    { id: "atlas_all", label: "All Places", color: MAP_COLORS.layers.places, defaultEnabled: true, pinSwatch: "teardrop" as const },
+    { id: "atlas_disease", label: "Disease Risk", color: MAP_COLORS.pinStyle.disease, defaultEnabled: false, pinSwatch: "teardrop" as const },
+    { id: "atlas_watch", label: "Watch List", color: MAP_COLORS.pinStyle.watch_list, defaultEnabled: false, pinSwatch: "teardrop" as const },
+    { id: "atlas_needs_tnr", label: "Needs TNR", color: MAP_COLORS.priority.critical, defaultEnabled: false, pinSwatch: "teardrop" as const },
+    { id: "atlas_needs_trapper", label: "Needs Trapper", color: MAP_COLORS.priority.high, defaultEnabled: false, pinSwatch: "teardrop" as const },
   ]},
   { id: "disease_filter", label: "Disease Filter", icon: "\u{1F9A0}", color: MAP_COLORS.pinStyle.disease, defaultExpanded: true, children: [
     { id: "dis_felv", label: "FeLV", color: MAP_COLORS.disease.felv, defaultEnabled: false },
@@ -34,13 +34,8 @@ export const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
     { id: "clinic_clients", label: "Clinic Clients", color: MAP_COLORS.layers.clinic_clients, defaultEnabled: false },
     { id: "trapper_territories", label: "Trapper Coverage", color: MAP_COLORS.layers.trapper_coverage, defaultEnabled: false },
   ]},
-  { id: "historical", label: "Historical", icon: "\u{1F4DC}", color: MAP_COLORS.layers.volunteers, defaultExpanded: false, children: [
-    { id: "places", label: "Cat Locations", color: MAP_COLORS.layers.places, defaultEnabled: false },
-    { id: "google_pins", label: "Google Pins", color: MAP_COLORS.layers.google_pins, defaultEnabled: false },
-    { id: "tnr_priority", label: "TNR Priority", color: MAP_COLORS.layers.tnr_priority, defaultEnabled: false },
-    { id: "historical_sources", label: "Historical Sources", color: MAP_COLORS.layers.historical_sources, defaultEnabled: false },
-    { id: "data_coverage", label: "Data Coverage", color: MAP_COLORS.layers.data_coverage, defaultEnabled: false },
-  ]},
+  // "Historical" group removed — legacy layers (places, google_pins, tnr_priority,
+  // historical_sources, data_coverage) overlap with atlas pins and are unused.
 ];
 
 function getDefaults(): Record<string, boolean> {

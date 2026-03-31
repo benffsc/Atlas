@@ -353,8 +353,14 @@ function AtlasMapV2Inner() {
       map?.setZoom(zoom);
     }, [map, getClusterExpansionZoom]),
     onPinSelect: useCallback((pin: AtlasPin) => {
-      setSelectedPin(pin);
-    }, []),
+      // If a drawer is already open, swap directly to the new place
+      if (selectedPlaceId) {
+        setSelectedPlaceId(pin.id);
+      } else {
+        // No drawer open — show InfoWindow
+        setSelectedPin(pin);
+      }
+    }, [selectedPlaceId]),
     pinConfig,
   });
 
