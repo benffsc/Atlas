@@ -816,11 +816,11 @@ export const EQUIPMENT_COLLECTION_STATUS_OPTIONS = [
 // =============================================================================
 
 export const EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS = [
-  { value: "tnr_appointment", label: "TNR Appointment", shortLabel: "TNR" },
-  { value: "kitten_rescue", label: "Kitten Rescue", shortLabel: "Kitten" },
-  { value: "colony_check", label: "Colony Check", shortLabel: "Colony" },
-  { value: "feeding_station", label: "Feeding Station", shortLabel: "Feed" },
-  { value: "personal_pet", label: "Personal Pet", shortLabel: "Pet" },
+  { value: "ffr", label: "FFR (Find Fix Return)", shortLabel: "FFR" },
+  { value: "well_check", label: "Well-check", shortLabel: "Well-check" },
+  { value: "rescue_recovery", label: "Rescue / Recovery", shortLabel: "Rescue" },
+  { value: "trap_training", label: "Trap Training", shortLabel: "Training" },
+  { value: "transport", label: "Transport Only", shortLabel: "Transport" },
 ] as const satisfies readonly FormOption[];
 
 export const EQUIPMENT_CHECKOUT_TYPE_OPTIONS = [

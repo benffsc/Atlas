@@ -12,6 +12,7 @@ import { Icon } from "@/components/ui/Icon";
 import {
   getLabel,
   EQUIPMENT_CHECKOUT_TYPE_OPTIONS,
+  EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS,
 } from "@/lib/form-options";
 import type { EquipmentContextResponse } from "@/lib/types/view-contracts";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -76,6 +77,8 @@ export function CheckoutForm({
       } as CollectedPerson,
       resolutionStatus: "resolved" as ResolutionStatus,
       checkoutPurpose: "",
+      selectedPurposes: [] as string[],
+      clientStatedPurpose: "",
       checkoutType: "",
       depositAmount: 0,
       customDeposit: "",
@@ -133,6 +136,12 @@ export function CheckoutForm({
     });
   };
   const setCheckoutType = (v: string) => setSaved((p) => ({ ...p, checkoutType: v }));
+  const togglePurpose = (v: string) => setSaved((p) => {
+    const current = p.selectedPurposes || [];
+    const next = current.includes(v) ? current.filter((x) => x !== v) : [...current, v];
+    return { ...p, selectedPurposes: next, checkoutPurpose: next.join(",") };
+  });
+  const setClientStatedPurpose = (v: string) => setSaved((p) => ({ ...p, clientStatedPurpose: v }));
   const setDepositAmount = (v: number) => setSaved((p) => ({ ...p, depositAmount: v }));
   const setCustomDeposit = (v: string) => setSaved((p) => ({ ...p, customDeposit: v }));
   const setDueDate = (v: string) => setSaved((p) => ({ ...p, dueDate: v, dueDateManuallySet: true }));
@@ -240,8 +249,9 @@ export function CheckoutForm({
         request_id: saved.linkedRequestId || undefined,
         appointment_id: saved.linkedAppointmentId || undefined,
         place_id: saved.linkedPlaceId || undefined,
-        // MIG_2996 fields
+        // MIG_2996 / MIG_3023 fields
         checkout_purpose: checkoutPurpose || undefined,
+        client_stated_purpose: saved.clientStatedPurpose?.trim() || undefined,
         custodian_name_raw: custodianName || undefined,
         resolution_status: resolvedStatus,
       });
@@ -268,6 +278,8 @@ export function CheckoutForm({
       },
       resolutionStatus: "resolved",
       checkoutPurpose: "",
+      selectedPurposes: [],
+      clientStatedPurpose: "",
       checkoutType: "",
       depositAmount: 0,
       customDeposit: "",
@@ -558,6 +570,60 @@ export function CheckoutForm({
               }}
             />
           </div>
+        </div>
+
+        {/* ===================== STAFF: PURPOSE (multi-select) ===================== */}
+        <div
+          style={{
+            border: "1px solid var(--card-border, #e5e7eb)",
+            borderRadius: "10px",
+            padding: "0.875rem",
+            background: "var(--section-bg, #f9fafb)",
+          }}
+        >
+          <label style={{ ...labelStyle, fontSize: "0.7rem", color: "var(--muted)" }}>
+            Staff Use — Checkout Purpose (select all that apply)
+          </label>
+          <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "0.625rem" }}>
+            {(EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS as readonly { value: string; label: string; shortLabel: string }[]).map((opt) => {
+              const isSelected = (saved.selectedPurposes || []).includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => togglePurpose(opt.value)}
+                  style={{
+                    padding: "0.4rem 0.75rem",
+                    borderRadius: "8px",
+                    border: isSelected
+                      ? "2px solid var(--primary)"
+                      : "1px solid var(--card-border, #e5e7eb)",
+                    background: isSelected
+                      ? "var(--primary-bg, rgba(59,130,246,0.08))"
+                      : "var(--card-bg, #fff)",
+                    color: isSelected ? "var(--primary)" : "var(--text-primary)",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                    fontWeight: isSelected ? 700 : 500,
+                    fontFamily: "inherit",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  {opt.shortLabel || opt.label}
+                </button>
+              );
+            })}
+          </div>
+          <label style={{ ...labelStyle, fontSize: "0.7rem", color: "var(--muted)" }}>
+            Client-Stated Purpose (from paper slip)
+          </label>
+          <input
+            type="text"
+            value={saved.clientStatedPurpose || ""}
+            onChange={(e) => setClientStatedPurpose(e.target.value)}
+            placeholder="What the client wrote..."
+            style={{ ...inputStyle, minHeight: "36px", padding: "0.4rem 0.75rem", fontSize: "0.85rem" }}
+          />
         </div>
 
         {/* ===================== ACTIONS ===================== */}

@@ -78,6 +78,8 @@ export const POST = withErrorHandling(async (
     photo_url,
     // MIG_3017 fields
     deposit_returned_at,
+    // MIG_3023 fields
+    client_stated_purpose,
   } = body;
 
   if (!event_type) {
@@ -119,11 +121,16 @@ export const POST = withErrorHandling(async (
     }
   }
 
-  // Validate checkout_purpose enum if provided (MIG_2996)
+  // Validate checkout_purpose — multi-select, comma-separated (MIG_3023)
   if (checkout_purpose) {
-    const validPurposes = ["tnr_appointment", "kitten_rescue", "colony_check", "feeding_station", "personal_pet"];
-    if (!validPurposes.includes(checkout_purpose)) {
-      throw new ApiError(`Invalid checkout_purpose: ${checkout_purpose}`, 400);
+    const validPurposes = ["ffr", "well_check", "rescue_recovery", "trap_training", "transport",
+      // Legacy values (still accepted for backward compat)
+      "tnr_appointment", "kitten_rescue", "colony_check", "feeding_station", "personal_pet"];
+    const purposes = String(checkout_purpose).split(",").map((p) => p.trim()).filter(Boolean);
+    for (const p of purposes) {
+      if (!validPurposes.includes(p)) {
+        throw new ApiError(`Invalid checkout_purpose: ${p}`, 400);
+      }
     }
   }
 
@@ -152,8 +159,8 @@ export const POST = withErrorHandling(async (
        due_date, notes, source_system,
        checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id,
        checkout_purpose, custodian_name_raw, resolution_status,
-       photo_url, deposit_returned_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+       photo_url, deposit_returned_at, client_stated_purpose
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      RETURNING event_id`,
     [
       id, event_type, custodian_person_id || null,
@@ -167,6 +174,7 @@ export const POST = withErrorHandling(async (
       checkout_purpose || null, custodian_name_raw || null, resolution_status || null,
       photo_url || null,
       deposit_returned_at || null,
+      client_stated_purpose || null,
     ]
   );
 

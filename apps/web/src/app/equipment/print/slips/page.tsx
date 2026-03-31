@@ -242,12 +242,20 @@ function Slip({ org, phone, date, eq, cut, fmt }: {
 
         {/* ── DETAILS ── */}
         <div className="sf-sec">Details</div>
-        <F label="Purpose / Notes" full xl />
         <F label="Deposit $" />
         <F label="Due Date" />
+        <F label="Notes" full xl />
 
         {/* ── STAFF USE ── */}
         <div className="slip-staff-box">
+          <div className="sf full" style={{ marginBottom: 4 }}>
+            <span className="sf-lbl">Purpose:</span>
+            <div className="sf-cbs">
+              {["TNR", "Kitten", "Colony", "Feeding", "Pet", "Other"].map((p) => (
+                <span key={p} className="sf-cb"><span className="sf-box" /> {p}</span>
+              ))}
+            </div>
+          </div>
           <F label="Staff" />
           <F label="Entered" />
           <F label="Deposit Returned" />
