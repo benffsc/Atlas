@@ -1,4 +1,5 @@
-import { queryOne, queryRows } from "@/lib/db";
+import { queryOne, queryRows, execute } from "@/lib/db";
+import { logFieldEdits } from "@/lib/audit";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 // Domain knowledge & data quality modules (Part 2)
 import { interpretPlaceSituation, expandRegion } from "./domain-knowledge";
@@ -1152,6 +1153,35 @@ Example queries:
       required: ["anomaly_type", "description"],
     },
   },
+  // FFS-1015: Update existing request with new information
+  {
+    name: "update_request",
+    description:
+      "Update an existing request with new information. Use when staff provides new details about a request they're viewing — e.g., 'update this request: there are 5 cats, a tabby with a bad eye.' ALWAYS confirm proposed changes with the user before calling. Cannot change status, priority, or place_id (those require staff action).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        request_id: {
+          type: "string",
+          description: "UUID of the request (from page context)",
+        },
+        fields: {
+          type: "object",
+          description:
+            "Fields to update. Allowed: summary, notes, estimated_cat_count, total_cats_reported, cat_name, cat_description, location_description, has_kittens, kitten_count, kitten_age_estimate, has_medical_concerns, medical_description, is_being_fed, feeder_name, feeding_frequency, feeding_time, feeding_location, best_times_seen, best_trapping_time, urgency_notes, access_notes, handleability, dogs_on_site, trap_savvy, previous_tnr, colony_duration, cats_are_friendly, ownership_status, important_notes",
+        },
+        reasoning: {
+          type: "string",
+          description: "What info is being added and where it came from",
+        },
+        source_description: {
+          type: "string",
+          description: "e.g., 'email from requester', 'follow-up call'",
+        },
+      },
+      required: ["request_id", "fields", "reasoning"],
+    },
+  },
 ];
 
 /**
@@ -1476,6 +1506,15 @@ export async function executeToolCall(
           toolInput.entity_id as string | undefined,
           toolInput.severity as string | undefined,
           toolInput.evidence as Record<string, unknown> | undefined,
+          context
+        );
+
+      case "update_request":
+        return await updateRequest(
+          toolInput.request_id as string,
+          toolInput.fields as Record<string, unknown>,
+          toolInput.reasoning as string,
+          toolInput.source_description as string | undefined,
           context
         );
 
@@ -6341,6 +6380,143 @@ async function flagAnomaly(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to flag anomaly",
+    };
+  }
+}
+
+// ============================================================================
+// FFS-1015: Update existing request with new information
+// ============================================================================
+
+const UPDATE_REQUEST_ALLOWED_FIELDS = new Set([
+  "summary", "notes", "estimated_cat_count", "total_cats_reported",
+  "cat_name", "cat_description", "location_description",
+  "has_kittens", "kitten_count", "kitten_age_estimate",
+  "has_medical_concerns", "medical_description",
+  "is_being_fed", "feeder_name", "feeding_frequency", "feeding_time", "feeding_location",
+  "best_times_seen", "best_trapping_time", "urgency_notes", "access_notes",
+  "handleability", "dogs_on_site", "trap_savvy", "previous_tnr",
+  "colony_duration", "cats_are_friendly", "important_notes",
+]);
+
+async function updateRequest(
+  requestId: string,
+  fields: Record<string, unknown>,
+  reasoning: string,
+  sourceDescription?: string,
+  context?: ToolContext
+): Promise<ToolResult> {
+  if (!context?.staffId) {
+    return {
+      success: false,
+      error: "Staff context required to update requests. Please try again.",
+    };
+  }
+
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(requestId)) {
+    return { success: false, error: "Invalid request ID format" };
+  }
+
+  // Filter to allowed fields only
+  const safeFields: Record<string, unknown> = {};
+  const rejectedFields: string[] = [];
+  for (const [key, value] of Object.entries(fields)) {
+    if (UPDATE_REQUEST_ALLOWED_FIELDS.has(key)) {
+      safeFields[key] = value;
+    } else {
+      rejectedFields.push(key);
+    }
+  }
+
+  if (Object.keys(safeFields).length === 0) {
+    return {
+      success: false,
+      error: `No valid fields to update.${rejectedFields.length ? ` Rejected: ${rejectedFields.join(", ")}` : ""}`,
+    };
+  }
+
+  try {
+    // Verify request exists
+    const existing = await queryOne<{ request_id: string }>(
+      `SELECT request_id FROM ops.requests WHERE request_id = $1 AND merged_into_request_id IS NULL`,
+      [requestId]
+    );
+    if (!existing) {
+      return { success: false, error: "Request not found" };
+    }
+
+    // Build dynamic UPDATE
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    const auditChanges: Array<{ field: string; oldValue: unknown; newValue: unknown }> = [];
+    let paramIndex = 1;
+
+    for (const [key, value] of Object.entries(safeFields)) {
+      updates.push(`${key} = $${paramIndex}`);
+      values.push(value ?? null);
+      auditChanges.push({ field: key, oldValue: null, newValue: value });
+      paramIndex++;
+    }
+
+    updates.push(`updated_at = NOW()`);
+    values.push(requestId);
+
+    await execute(
+      `UPDATE ops.requests SET ${updates.join(", ")} WHERE request_id = $${paramIndex}`,
+      values
+    );
+
+    // Audit trail
+    if (auditChanges.length > 0) {
+      try {
+        await logFieldEdits("request", requestId, auditChanges, {
+          editedBy: context.staffId,
+          editSource: "api",
+        });
+      } catch (err) {
+        console.error("[update_request] logFieldEdits failed:", err);
+      }
+    }
+
+    // Journal entry
+    try {
+      const journalBody = [
+        reasoning,
+        sourceDescription ? `Source: ${sourceDescription}` : null,
+        `Fields updated: ${Object.keys(safeFields).join(", ")}`,
+      ].filter(Boolean).join("\n");
+
+      await execute(
+        `INSERT INTO ops.request_journal (request_id, entry_kind, body, tags, created_by)
+         VALUES ($1, 'communication', $2, $3, $4)`,
+        [
+          requestId,
+          journalBody,
+          JSON.stringify(["tippy_enrichment"]),
+          context.staffId,
+        ]
+      );
+    } catch (err) {
+      console.error("[update_request] journal entry failed:", err);
+    }
+
+    const updatedFields = Object.keys(safeFields);
+    let message = `Updated ${updatedFields.length} field(s): ${updatedFields.join(", ")}.`;
+    if (rejectedFields.length) {
+      message += ` (Skipped restricted fields: ${rejectedFields.join(", ")})`;
+    }
+
+    return {
+      success: true,
+      data: { message, updated_fields: updatedFields, rejected_fields: rejectedFields },
+    };
+  } catch (error) {
+    console.error("updateRequest error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update request",
     };
   }
 }

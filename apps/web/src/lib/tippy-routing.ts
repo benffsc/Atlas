@@ -14,6 +14,7 @@ export const WRITE_TOOLS = [
   "send_staff_message",
   "create_draft_request",
   "flag_anomaly",
+  "update_request",
 ];
 
 // Tools that require full access only (admin/engineer level)

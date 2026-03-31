@@ -546,7 +546,8 @@ export async function PATCH(
     const currentSql = `
       SELECT status::TEXT, priority::TEXT, summary, notes, estimated_cat_count,
              has_kittens, hold_reason::TEXT, resolution, access_notes,
-             kitten_count, no_trapper_reason, site_contact_person_id
+             kitten_count, no_trapper_reason, site_contact_person_id,
+             place_id, location_description, total_cats_reported
       FROM ops.requests WHERE request_id = $1
     `;
     const current = await queryOne<{
@@ -562,6 +563,9 @@ export async function PATCH(
       kitten_count: number | null;
       no_trapper_reason: string | null;
       site_contact_person_id: string | null;
+      place_id: string | null;
+      location_description: string | null;
+      total_cats_reported: number | null;
     }>(currentSql, [id]);
 
     if (!current) {
@@ -987,6 +991,30 @@ export async function PATCH(
         updates.push(`requester_is_site_contact = FALSE`);
       }
       auditChanges.push({ field: "site_contact_person_id", oldValue: current.site_contact_person_id, newValue: body.site_contact_person_id });
+    }
+
+    // Location editing (FFS-1015)
+    if (body.place_id !== undefined) {
+      auditChanges.push({ field: "place_id", oldValue: current.place_id, newValue: body.place_id });
+      if (body.place_id === null) {
+        updates.push(`place_id = NULL`);
+      } else {
+        updates.push(`place_id = $${paramIndex}`);
+        values.push(body.place_id);
+        paramIndex++;
+      }
+    }
+
+    if (body.location_description !== undefined) {
+      updates.push(`location_description = $${paramIndex}`);
+      values.push(body.location_description || null);
+      paramIndex++;
+    }
+
+    if (body.total_cats_reported !== undefined) {
+      updates.push(`total_cats_reported = $${paramIndex}`);
+      values.push(body.total_cats_reported);
+      paramIndex++;
     }
 
     // Trapping logistics

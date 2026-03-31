@@ -225,6 +225,12 @@ export const UpdateRequestSchema = z.object({
   // ──────────────────────────────────────────────────────────────────────────
   site_contact_person_id: z.string().uuid().nullable().optional(),
   // ──────────────────────────────────────────────────────────────────────────
+  // Location editing (FFS-1015)
+  // ──────────────────────────────────────────────────────────────────────────
+  place_id: z.string().uuid().nullable().optional(),
+  location_description: z.string().max(2000).nullable().optional(),
+  total_cats_reported: z.number().int().min(0).max(999).nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
   // Staff/admin
   // ──────────────────────────────────────────────────────────────────────────
   received_by: z.string().uuid().nullable().optional(),

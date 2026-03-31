@@ -295,6 +295,13 @@ export const REQUEST_SECTIONS: RequestSectionConfig[] = [
         fullWidth: true,
         helpText: "Gate codes, parking, hazards, special instructions",
       },
+      {
+        key: "location_description",
+        label: "Location Description",
+        type: "textarea",
+        fullWidth: true,
+        helpText: "Cross-street info, landmarks, additional addresses where cats are seen",
+      },
     ],
   },
 
