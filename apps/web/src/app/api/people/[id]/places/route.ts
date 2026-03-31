@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import { queryOne, queryRows } from "@/lib/db";
+import { queryOne, queryRows, execute } from "@/lib/db";
 import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest } from "@/lib/api-response";
+import { logFieldEdit } from "@/lib/audit";
 
 interface PlaceForPerson {
   person_place_id: string;
@@ -119,5 +120,87 @@ export async function GET(
     }
     console.error("Error fetching places for person:", error);
     return apiServerError("Failed to fetch places for person");
+  }
+}
+
+/**
+ * POST /api/people/[id]/places
+ *
+ * FFS-1028: Link a person to a place (e.g., save requester's home address
+ * when changing a request's cat location). Staff-verified, confidence 1.0.
+ *
+ * Body: { place_id: UUID, relationship_type?: string, is_staff_verified?: boolean }
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: personId } = await params;
+
+  try {
+    requireValidUUID(personId, "person");
+
+    const body = await request.json();
+    const { place_id, relationship_type = "resident", is_staff_verified = true } = body;
+
+    if (!place_id || typeof place_id !== "string") {
+      return apiBadRequest("place_id is required");
+    }
+    requireValidUUID(place_id, "place");
+
+    // Verify both person and place exist
+    const person = await queryOne<{ person_id: string }>(
+      `SELECT person_id FROM sot.people WHERE person_id = $1 AND merged_into_person_id IS NULL`,
+      [personId]
+    );
+    if (!person) return apiNotFound("Person", personId);
+
+    const place = await queryOne<{ place_id: string; display_name: string | null; formatted_address: string | null }>(
+      `SELECT place_id, display_name, formatted_address FROM sot.places WHERE place_id = $1 AND merged_into_place_id IS NULL`,
+      [place_id]
+    );
+    if (!place) return apiNotFound("Place", place_id);
+
+    // Upsert person_place
+    const result = await queryOne<{ id: string }>(
+      `INSERT INTO sot.person_place (
+        person_id, place_id, relationship_type,
+        confidence, evidence_type, source_system,
+        is_staff_verified, verified_at, verification_method
+      ) VALUES (
+        $1, $2, $3,
+        1.0, 'staff_verified', 'atlas_ui',
+        $4, CASE WHEN $4 THEN NOW() ELSE NULL END, CASE WHEN $4 THEN 'request_update' ELSE NULL END
+      )
+      ON CONFLICT (person_id, place_id, relationship_type)
+      DO UPDATE SET
+        confidence = GREATEST(sot.person_place.confidence, 1.0),
+        is_staff_verified = COALESCE($4, sot.person_place.is_staff_verified),
+        verified_at = CASE WHEN $4 THEN NOW() ELSE sot.person_place.verified_at END,
+        verification_method = CASE WHEN $4 THEN 'request_update' ELSE sot.person_place.verification_method END,
+        updated_at = NOW()
+      RETURNING id`,
+      [personId, place_id, relationship_type, is_staff_verified]
+    );
+
+    await logFieldEdit("person", personId, "person_place", null, place_id, {
+      editedBy: "web_user",
+      editSource: "web_ui",
+      reason: `Saved ${relationship_type} address: ${place.display_name || place.formatted_address}`,
+    });
+
+    return apiSuccess({
+      person_place_id: result?.id,
+      place_id,
+      relationship_type,
+      is_staff_verified,
+      address: place.display_name || place.formatted_address,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "ApiError") {
+      return apiBadRequest(error.message);
+    }
+    console.error("Error linking person to place:", error);
+    return apiServerError("Failed to link person to place");
   }
 }

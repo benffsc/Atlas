@@ -87,6 +87,9 @@ export function UpdateSituationDrawer({
   const [contactDirty, setContactDirty] = useState(false);
   const [contactWarnings, setContactWarnings] = useState<string[]>([]);
 
+  // Preserve home address state (when changing cat location away from requester's home)
+  const [saveOldAsHome, setSaveOldAsHome] = useState(true);
+
   // Situation state
   const [hasKittens, setHasKittens] = useState<boolean | null>(request.has_kittens);
   const [hasMedical, setHasMedical] = useState<boolean | null>(request.has_medical_concerns);
@@ -195,6 +198,25 @@ export function UpdateSituationDrawer({
 
       if (Object.keys(requestPatch).length > 0) {
         await postApi(`/api/requests/${requestId}`, requestPatch, { method: "PATCH" });
+      }
+
+      // 1b. Preserve old address as requester's home when changing cat location
+      if (
+        requestPatch.place_id &&
+        request.place_id &&
+        request.requester_person_id &&
+        saveOldAsHome
+      ) {
+        try {
+          await postApi(`/api/people/${request.requester_person_id}/places`, {
+            place_id: request.place_id,
+            relationship_type: "resident",
+            is_staff_verified: true,
+          });
+        } catch (err) {
+          console.error("Failed to save requester home address:", err);
+          // Non-blocking — request update still succeeded
+        }
       }
 
       // 2. Update contact info
@@ -326,6 +348,23 @@ export function UpdateSituationDrawer({
         ) : (
           <div style={{ marginTop: "0.25rem" }}>
             <PlaceResolver value={newPlace} onChange={setNewPlace} placeholder="Search for the cat location..." />
+            {request.place_id && request.requester_person_id && (
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: "0.4rem", marginTop: "0.5rem",
+                fontSize: "0.8rem", color: "#4338ca", cursor: "pointer",
+                padding: "0.4rem 0.6rem", background: "#eef2ff", borderRadius: "6px",
+              }}>
+                <input
+                  type="checkbox"
+                  checked={saveOldAsHome}
+                  onChange={(e) => setSaveOldAsHome(e.target.checked)}
+                  style={{ marginTop: "0.15rem", accentColor: "#4338ca" }}
+                />
+                <span>
+                  Save <strong>{currentAddress}</strong> as {request.requester_name || "requester"}&apos;s verified home address
+                </span>
+              </label>
+            )}
           </div>
         )}
 
