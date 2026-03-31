@@ -70,14 +70,20 @@ CREATE OR REPLACE FUNCTION sot.ensure_foster_roles_from_person_cat()
 RETURNS TABLE(roles_created INT) AS $$
 DECLARE
     v_created INT;
+    v_default_status TEXT;
 BEGIN
+    -- Read default status from admin config (MIG_3016), fallback to 'inactive'
+    SELECT TRIM(BOTH '"' FROM value::text) INTO v_default_status
+    FROM ops.app_config WHERE key = 'foster.sl_default_status';
+    IF v_default_status IS NULL THEN v_default_status := 'inactive'; END IF;
+
     INSERT INTO sot.person_roles (person_id, role, role_status, source_system, source_record_id, notes)
     SELECT DISTINCT pc.person_id,
         'foster',
-        'inactive',  -- SL evidence = historical. VH is authority for active status.
+        v_default_status,
         'shelterluv',
         'person_cat_evidence',
-        'Historical foster from ShelterLuv events (MIG_3014)'
+        'Auto-created from ShelterLuv foster events'
     FROM sot.person_cat pc
     WHERE pc.relationship_type = 'foster'
       -- Skip people who already have a foster role (from any source)
@@ -100,8 +106,8 @@ $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION sot.ensure_foster_roles_from_person_cat IS
 'Creates foster roles from ShelterLuv person_cat evidence for people who lack
-a foster role from any source. Safe to call repeatedly (ON CONFLICT DO NOTHING).
-Added to entity linking pipeline as Step 3e. MIG_3014/FFS-324.';
+a foster role from any source. Reads default status from ops.app_config
+key "foster.sl_default_status" (admin-editable). MIG_3014/MIG_3016.';
 
 
 -- ============================================================================
