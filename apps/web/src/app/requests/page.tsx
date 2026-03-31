@@ -896,6 +896,13 @@ function RequestsPageContent() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
 
+  // Refetch when user returns to this page (back button, tab switch)
+  useEffect(() => {
+    const handleFocus = () => setRefreshTrigger((n) => n + 1);
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);

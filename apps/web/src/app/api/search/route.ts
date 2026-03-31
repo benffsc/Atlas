@@ -534,6 +534,49 @@ export async function GET(request: NextRequest) {
       ? groupResults(possibleMatches)
       : [];
 
+    // Enrich person results with contact info (phone, email, address)
+    // This helps staff distinguish between people with the same name
+    const allPersonResults = [...mainResults, ...fuzzyResults].filter(r => r.entity_type === "person");
+    if (allPersonResults.length > 0 && allPersonResults.length <= 20) {
+      try {
+        const personIds = allPersonResults.map(r => r.entity_id);
+        const contactRows = await queryRows<{
+          person_id: string;
+          email: string | null;
+          phone: string | null;
+          address: string | null;
+        }>(
+          `SELECT
+             p.person_id,
+             sot.get_email(p.person_id) as email,
+             sot.get_phone(p.person_id) as phone,
+             (SELECT pl.formatted_address FROM sot.places pl
+              JOIN sot.person_place pp ON pl.place_id = pp.place_id
+              WHERE pp.person_id = p.person_id AND pl.merged_into_place_id IS NULL
+              LIMIT 1) as address
+           FROM sot.people p
+           WHERE p.person_id = ANY($1::UUID[])`,
+          [personIds]
+        );
+        const contactMap = new Map(contactRows.map(r => [r.person_id, r]));
+        for (const result of allPersonResults) {
+          const contact = contactMap.get(result.entity_id);
+          if (contact) {
+            const parts: string[] = [];
+            if (contact.phone) parts.push(contact.phone);
+            if (contact.email) parts.push(contact.email);
+            if (contact.address) parts.push(contact.address);
+            if (parts.length > 0) {
+              result.subtitle = parts.join(" · ");
+            }
+          }
+        }
+      } catch (err) {
+        // Contact enrichment is best-effort — don't fail the search
+        console.error("Person contact enrichment error:", err);
+      }
+    }
+
     return apiSuccess(
       {
         query: q,

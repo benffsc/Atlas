@@ -676,6 +676,8 @@ export const THIRD_PARTY_RELATIONSHIP_OPTIONS = [
 export const REQUESTER_RELATIONSHIP_OPTIONS = [
   { value: "resident", label: "I live here" },
   { value: "property_owner", label: "I own this property" },
+  { value: "property_manager", label: "Property manager" },
+  { value: "employee", label: "Employee / Staff" },
   { value: "colony_caretaker", label: "Colony caretaker" },
   { value: "neighbor", label: "Neighbor" },
   { value: "concerned_citizen", label: "Concerned citizen" },
