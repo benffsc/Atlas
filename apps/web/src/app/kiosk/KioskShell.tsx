@@ -1,11 +1,13 @@
 "use client";
 
+import React from "react";
 import { ToastProvider } from "@/components/feedback/Toast";
 import { KioskGate } from "@/components/kiosk/KioskGate";
 import { KioskTabBar } from "@/components/kiosk/KioskTabBar";
 import { KioskHomeButton } from "@/components/kiosk/KioskHomeButton";
 import { KioskSessionProvider } from "@/components/kiosk/KioskSessionProvider";
 import { OfflineBanner } from "@/components/kiosk/OfflineBanner";
+import { Icon } from "@/components/ui/Icon";
 import { usePathname } from "next/navigation";
 
 /**
@@ -15,8 +17,7 @@ import { usePathname } from "next/navigation";
  * Equipment routes: PIN gate + bottom tab bar.
  * Setup/print routes: no gate, no tab bar.
  *
- * KioskSessionProvider tracks inactivity on ALL kiosk pages and resets
- * to splash after timeout. Does NOT clear PIN (equipment stays unlocked).
+ * Includes error boundary so a crash in any kiosk page doesn't white-screen.
  */
 export function KioskShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,14 +27,10 @@ export function KioskShell({ children }: { children: React.ReactNode }) {
   const isEquipmentRoute = pathname?.startsWith("/kiosk/equipment");
   const isSplash = pathname === "/kiosk";
 
-  // Equipment routes need PIN gate + tab bar
-  // Public routes (help, cats, trapper, splash) need neither
-  // Setup/print need neither
   const needsGate = isEquipmentRoute && !isPrintRoute && !isSetupRoute;
   const showTabBar = isEquipmentRoute && !isPrintRoute;
   const showHomeButton = !isSplash && !isSetupRoute && !isPrintRoute;
 
-  // Only add bottom padding for tab bar (equipment) or home button (public pages)
   const bottomPadding = showTabBar
     ? "calc(64px + env(safe-area-inset-bottom, 0px))"
     : showHomeButton
@@ -57,10 +54,97 @@ export function KioskShell({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
       <KioskSessionProvider>
-        {needsGate ? <KioskGate>{content}</KioskGate> : content}
+        <KioskErrorBoundary>
+          {needsGate ? <KioskGate>{content}</KioskGate> : content}
+        </KioskErrorBoundary>
         {showTabBar && <KioskTabBar />}
         {showHomeButton && !showTabBar && <KioskHomeButton />}
       </KioskSessionProvider>
     </ToastProvider>
   );
+}
+
+/**
+ * Error boundary for kiosk — shows a recovery screen instead of white-screening.
+ * Staff can tap "Return to Home" to get back to the splash screen.
+ */
+class KioskErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("[KIOSK] Error boundary caught:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          style={{
+            minHeight: "100dvh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "2rem",
+            textAlign: "center",
+            gap: "1.5rem",
+            background: "var(--background, #f9fafb)",
+            fontFamily: "-apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+          }}
+        >
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              background: "var(--warning-bg, #fffbeb)",
+              border: "2px solid var(--warning-border, #fcd34d)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="alert-triangle" size={36} color="var(--warning-text, #92400e)" />
+          </div>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+            Something went wrong
+          </h1>
+          <p style={{ fontSize: "1rem", color: "var(--text-secondary)", margin: 0, maxWidth: 360 }}>
+            The kiosk encountered an error. Tap below to return to the home screen.
+          </p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false });
+              window.location.href = "/kiosk";
+            }}
+            style={{
+              padding: "0.875rem 2rem",
+              fontSize: "1.05rem",
+              fontWeight: 600,
+              background: "var(--primary)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 14,
+              cursor: "pointer",
+              minHeight: 56,
+            }}
+          >
+            Return to Home
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
 }

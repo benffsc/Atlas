@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import type { IndirectQuestion } from "@/lib/kiosk-questions";
 
@@ -16,6 +16,7 @@ interface KioskQuestionCardProps {
 /**
  * Renders one IndirectQuestion as large touchable option cards.
  * Tap an option → brief highlight → optional auto-advance after delay.
+ * Locked for duration of auto-advance to prevent double-tap issues.
  */
 export function KioskQuestionCard({
   question,
@@ -25,18 +26,36 @@ export function KioskQuestionCard({
   onAutoAdvance,
 }: KioskQuestionCardProps) {
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const [locked, setLocked] = useState(false);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
+  }, []);
+
+  // Reset lock when question changes (new screen)
+  useEffect(() => {
+    setLocked(false);
+  }, [question.id]);
 
   const handleSelect = useCallback(
     (value: string) => {
+      if (locked) return;
       onSelect(value);
 
-      // Auto-advance after brief highlight
+      // Auto-advance after brief highlight — lock to prevent double-tap
       if (autoAdvanceMs > 0 && onAutoAdvance) {
+        setLocked(true);
         if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
-        advanceTimerRef.current = setTimeout(onAutoAdvance, autoAdvanceMs);
+        advanceTimerRef.current = setTimeout(() => {
+          onAutoAdvance();
+          setLocked(false);
+        }, autoAdvanceMs);
       }
     },
-    [onSelect, autoAdvanceMs, onAutoAdvance],
+    [onSelect, autoAdvanceMs, onAutoAdvance, locked],
   );
 
   return (

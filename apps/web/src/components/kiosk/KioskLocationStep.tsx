@@ -51,7 +51,7 @@ export function KioskLocationStep({
             showDescribeLocation={false}
           />
           <button
-            onClick={() => setUseDescribe(true)}
+            onClick={() => { setUseDescribe(true); onPlaceChange(null); }}
             style={{
               background: "none",
               border: "none",
@@ -85,7 +85,7 @@ export function KioskLocationStep({
             />
           </div>
           <button
-            onClick={() => setUseDescribe(false)}
+            onClick={() => { setUseDescribe(false); onFreeformChange(""); }}
             style={{
               background: "none",
               border: "none",

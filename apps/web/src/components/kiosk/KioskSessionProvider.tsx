@@ -17,32 +17,46 @@ export function useKioskSession() {
   return useContext(KioskSessionContext);
 }
 
+/** Routes where the session timeout should NOT run */
+const EXEMPT_ROUTES = ["/kiosk", "/kiosk/setup"];
+
+function isExemptRoute(pathname: string | null): boolean {
+  if (!pathname) return true;
+  return EXEMPT_ROUTES.includes(pathname) || pathname.includes("/print");
+}
+
 /**
- * KioskSessionProvider — tracks inactivity on public kiosk pages.
+ * KioskSessionProvider — tracks inactivity on kiosk pages.
  *
- * When the user is idle for longer than the configured timeout, shows
- * a "Are you still there?" modal with a 30-second countdown. If they
- * don't interact, resets to the splash screen.
- *
- * Does NOT clear PIN state — equipment stays unlocked for the staff shift.
+ * Exempt on splash (/kiosk), setup, and print routes.
+ * When idle past timeout, shows countdown modal → reset to splash.
+ * Does NOT clear PIN — equipment stays unlocked for the staff shift.
  */
 export function KioskSessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
   const isEquipmentRoute = pathname?.startsWith("/kiosk/equipment");
+  const exempt = isExemptRoute(pathname);
   const { value: publicTimeout } = useAppConfig<number>("kiosk.session_timeout_public");
   const { value: equipmentTimeout } = useAppConfig<number>("kiosk.session_timeout_equipment");
 
-  const timeout = isEquipmentRoute ? equipmentTimeout : publicTimeout;
+  const timeout = exempt ? 0 : isEquipmentRoute ? equipmentTimeout : publicTimeout;
 
   const lastInteractionRef = useRef(Date.now());
+  const showModalRef = useRef(false);
   const [showModal, setShowModal] = useState(false);
 
   const resetTimer = useCallback(() => {
     lastInteractionRef.current = Date.now();
+    showModalRef.current = false;
     setShowModal(false);
   }, []);
+
+  // Reset timer when route changes (prevents jarring modal on navigate)
+  useEffect(() => {
+    lastInteractionRef.current = Date.now();
+  }, [pathname]);
 
   // Track user interactions
   useEffect(() => {
@@ -57,25 +71,27 @@ export function KioskSessionProvider({ children }: { children: React.ReactNode }
     };
   }, []);
 
-  // Check elapsed time every second
+  // Check elapsed time every second (using ref to avoid re-creating interval on modal toggle)
   useEffect(() => {
     if (!timeout || timeout <= 0) return;
 
     const interval = setInterval(() => {
       const elapsed = (Date.now() - lastInteractionRef.current) / 1000;
-      if (elapsed >= timeout && !showModal) {
+      if (elapsed >= timeout && !showModalRef.current) {
+        showModalRef.current = true;
         setShowModal(true);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timeout, showModal]);
+  }, [timeout]);
 
   const handleDismiss = useCallback(() => {
     resetTimer();
   }, [resetTimer]);
 
   const handleTimeout = useCallback(() => {
+    showModalRef.current = false;
     setShowModal(false);
     lastInteractionRef.current = Date.now();
     router.push("/kiosk");

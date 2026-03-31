@@ -61,6 +61,31 @@ export default function KioskSplashPage() {
 
   const visibleModules = ALL_MODULES.filter((m) => enabledModules?.includes(m.id));
 
+  if (visibleModules.length === 0) {
+    return (
+      <div
+        style={{
+          minHeight: "100dvh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "2rem",
+          textAlign: "center",
+          gap: "1rem",
+        }}
+      >
+        <Icon name="settings" size={48} color="var(--muted)" />
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>
+          Kiosk Not Configured
+        </h1>
+        <p style={{ fontSize: "1rem", color: "var(--text-secondary)", margin: 0 }}>
+          No modules are enabled. Ask an administrator to configure the kiosk.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{

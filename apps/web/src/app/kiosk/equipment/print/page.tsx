@@ -12,7 +12,7 @@ interface ScannedEquipment {
   custody_status: string;
 }
 
-const TOTAL_ROWS = 15;
+const TOTAL_ROWS = 20;
 
 export default function EquipmentCheckoutPrintPage() {
   const { nameFull, phone, website } = useOrgConfig();
@@ -47,10 +47,9 @@ export default function EquipmentCheckoutPrintPage() {
   return (
     <>
       <style jsx global>{`
-        /* Reset for print page */
         body { margin: 0; background: var(--bg-secondary, #f5f5f5); }
 
-        /* Screen controls */
+        /* ── Screen controls ── */
         .print-controls {
           max-width: 700px;
           margin: 1rem auto;
@@ -92,74 +91,93 @@ export default function EquipmentCheckoutPrintPage() {
         }
         .ctrl-actions a { color: var(--healthy-text, #16a34a); font-size: 0.85rem; text-decoration: none; }
 
-        /* Print page (visible on screen as preview, sole content on print) */
+        /* ── Printable form ── */
         .print-sheet {
-          max-width: 1050px;
+          width: 10in;
           margin: 1rem auto;
-          padding: 0.4in 0.5in;
+          padding: 0.35in 0.4in;
           background: #fff;
           border: 1px solid var(--border-default, #e5e7eb);
-          font-family: 'Raleway', Helvetica, Arial, sans-serif;
-          font-size: 9pt;
+          font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          font-size: 8.5pt;
+          box-sizing: border-box;
         }
 
         .sheet-header {
           display: flex;
           justify-content: space-between;
-          align-items: flex-start;
-          border-bottom: 3px solid var(--healthy-text, #16a34a);
-          padding-bottom: 8px;
-          margin-bottom: 10px;
+          align-items: flex-end;
+          border-bottom: 2.5px solid #16a34a;
+          padding-bottom: 6px;
+          margin-bottom: 8px;
         }
-        .sheet-header h1 { font-size: 16pt; font-weight: 700; margin: 0 0 2px; }
-        .sheet-header .date { font-size: 9pt; color: var(--text-secondary, #666); }
-        .sheet-header img { height: 48px; }
+        .sheet-header h1 { font-size: 14pt; font-weight: 700; margin: 0 0 1px; letter-spacing: -0.3px; }
+        .sheet-header .date { font-size: 8.5pt; color: #666; }
+        .sheet-header img { height: 40px; }
 
+        /* Main table — 7 practical columns */
         .sheet-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
+          table-layout: fixed;
         }
         .sheet-table th {
-          background: var(--healthy-bg, #f0fdf4);
-          border: 1px solid var(--border-default, #bdc3c7);
-          padding: 4px 5px;
-          font-size: 7pt;
+          background: #f0fdf4;
+          border: 1px solid #bdc3c7;
+          padding: 3px 4px;
+          font-size: 6.5pt;
           font-weight: 700;
-          color: var(--healthy-text, #16a34a);
+          color: #16a34a;
           text-transform: uppercase;
-          letter-spacing: 0.3px;
-          white-space: nowrap;
+          letter-spacing: 0.4px;
           text-align: left;
         }
         .sheet-table td {
-          border-bottom: 1px solid var(--border-default, #d5d8dc);
-          border-left: 1px solid var(--card-border, #ecf0f1);
-          border-right: 1px solid var(--card-border, #ecf0f1);
-          padding: 5px 4px;
-          height: 28px;
+          border-bottom: 1px solid #d5d8dc;
+          border-left: 1px solid #ecf0f1;
+          border-right: 1px solid #ecf0f1;
+          padding: 0 4px;
+          height: 24px;
           vertical-align: bottom;
         }
-        .sheet-table tr:last-child td { border-bottom: 1px solid var(--border-default, #bdc3c7); }
-        .sheet-table td.filled { background: var(--healthy-bg, #f0fdf4); font-weight: 500; vertical-align: middle; }
+        .sheet-table tr:last-child td { border-bottom: 1px solid #bdc3c7; }
+        .sheet-table td.filled { background: #f0fdf4; font-weight: 500; vertical-align: middle; font-size: 8pt; }
         .sheet-table .rn {
-          color: var(--border-default, #bdc3c7); font-size: 7pt; text-align: center; width: 18px;
-          border-right: 1px solid var(--card-border, #ecf0f1); border-left: 1px solid var(--border-default, #bdc3c7);
-          padding: 2px; vertical-align: middle;
+          color: #bdc3c7; font-size: 6.5pt; text-align: center; width: 16px;
+          border-right: 1px solid #ecf0f1; border-left: 1px solid #bdc3c7;
+          padding: 1px; vertical-align: middle;
         }
 
-        .sheet-hint { font-size: 7pt; color: var(--muted, #95a5a6); margin-bottom: 6px; }
-        .sheet-hint b { font-weight: 600; }
+        /* Column widths (percentage of table) */
+        .col-name     { width: 22%; }
+        .col-phone    { width: 14%; }
+        .col-equip    { width: 22%; }
+        .col-type     { width: 10%; }
+        .col-deposit  { width: 9%; }
+        .col-due      { width: 12%; }
+        .col-staff    { width: 11%; }
+
+        .sheet-legend {
+          display: flex;
+          gap: 1.5rem;
+          font-size: 7pt;
+          color: #666;
+          margin-bottom: 5px;
+          flex-wrap: wrap;
+        }
+        .sheet-legend b { font-weight: 700; color: #333; }
+
         .sheet-footer {
           display: flex; justify-content: space-between;
-          font-size: 8pt; color: var(--text-secondary, #666); border-top: 1px solid var(--border-default, #ddd); padding-top: 4px;
+          font-size: 7.5pt; color: #666; border-top: 1px solid #ddd; padding-top: 4px;
         }
 
         @media print {
-          @page { size: letter landscape; margin: 0.3in; }
+          @page { size: letter landscape; margin: 0.25in; }
           body { background: #fff; }
           .print-controls, .tippy-fab, .tippy-chat-panel { display: none !important; }
-          .print-sheet { border: none; margin: 0; padding: 0; max-width: none; box-shadow: none; }
+          .print-sheet { border: none; margin: 0; padding: 0.2in 0.25in; max-width: none; width: auto; box-shadow: none; }
         }
       `}</style>
 
@@ -213,7 +231,7 @@ export default function EquipmentCheckoutPrintPage() {
         </div>
       </div>
 
-      {/* Printable sheet */}
+      {/* Printable sheet — 7 columns, landscape letter */}
       <div className="print-sheet">
         <div className="sheet-header">
           <div>
@@ -227,30 +245,31 @@ export default function EquipmentCheckoutPrintPage() {
           <thead>
             <tr>
               <th className="rn">#</th>
-              <th style={{ width: "9%" }}>Date / Time</th>
-              <th style={{ width: "15%" }}>Name</th>
-              <th style={{ width: "10%" }}>Phone</th>
-              <th style={{ width: "7%" }}>Barcode</th>
-              <th style={{ width: "16%" }}>Equipment Description</th>
-              <th style={{ width: "9%" }}>Checkout Type</th>
-              <th style={{ width: "6%" }}>Deposit</th>
-              <th style={{ width: "9%" }}>Condition</th>
-              <th style={{ width: "8%" }}>Due Date</th>
-              <th style={{ width: "6%" }}>Staff</th>
+              <th className="col-name">Name (First &amp; Last)</th>
+              <th className="col-phone">Phone</th>
+              <th className="col-equip">Equipment / Barcode</th>
+              <th className="col-type">Type</th>
+              <th className="col-deposit">Deposit</th>
+              <th className="col-due">Due Date</th>
+              <th className="col-staff">Staff / Notes</th>
             </tr>
           </thead>
           <tbody>
             {mode === "prefilled" && equipment && (
               <tr>
                 <td className="rn">1</td>
-                <td className="filled">{today}</td>
                 <td />
                 <td />
-                <td className="filled" style={{ fontFamily: "monospace", fontWeight: 600 }}>{equipment.barcode || ""}</td>
-                <td className="filled">{equipment.display_name}</td>
+                <td className="filled">
+                  {equipment.display_name}
+                  {equipment.barcode && (
+                    <span style={{ fontFamily: "monospace", fontSize: "7.5pt", marginLeft: 6, color: "#666" }}>
+                      [{equipment.barcode}]
+                    </span>
+                  )}
+                </td>
                 <td />
                 <td />
-                <td className="filled">{fmtCondition(equipment.condition_status)}</td>
                 <td />
                 <td />
               </tr>
@@ -260,22 +279,22 @@ export default function EquipmentCheckoutPrintPage() {
               return (
                 <tr key={i}>
                   <td className="rn">{n}</td>
-                  <td /><td /><td /><td /><td /><td /><td /><td /><td /><td />
+                  <td /><td /><td /><td /><td /><td /><td />
                 </tr>
               );
             })}
           </tbody>
         </table>
 
-        <div className="sheet-hint">
-          <b>Checkout Type:</b> Client / Trapper / Internal / Foster &nbsp;&nbsp;
-          <b>Condition:</b> Good / Fair / Needs Repair &nbsp;&nbsp;
-          <b>Deposit:</b> Record amount collected, if any
+        <div className="sheet-legend">
+          <span><b>Type:</b> C = Client &nbsp; T = Trapper &nbsp; I = Internal &nbsp; F = Foster</span>
+          <span><b>Deposit:</b> $ amount collected</span>
+          <span><b>Condition note:</b> mark if damaged or poor</span>
         </div>
 
         <div className="sheet-footer">
           <span>{nameFull || "Forgotten Felines of Sonoma County"}</span>
-          <span>{[phone, website].filter(Boolean).join(" | ")}</span>
+          <span>{[phone, website].filter(Boolean).join(" · ")}</span>
         </div>
       </div>
     </>

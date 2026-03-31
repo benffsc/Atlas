@@ -39,7 +39,7 @@ export default function KioskHelpPage() {
   const { value: customQuestions } = useAppConfig<IndirectQuestion[] | null>("kiosk.help_questions");
   const { value: successMessage } = useAppConfig<string>("kiosk.success_message");
   const questions = useMemo(
-    () => (customQuestions && Array.isArray(customQuestions) ? customQuestions : DEFAULT_QUESTIONS),
+    () => (Array.isArray(customQuestions) && customQuestions.length > 0 ? customQuestions : DEFAULT_QUESTIONS),
     [customQuestions],
   );
 
@@ -49,6 +49,7 @@ export default function KioskHelpPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [place, setPlace] = useState<ResolvedPlace | null>(null);
   const [freeformAddress, setFreeformAddress] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [contact, setContact] = useState<KioskContactData>({
     firstName: "",
     phone: "",
@@ -111,8 +112,8 @@ export default function KioskHelpPage() {
         handleability: scoring.handleability,
         cat_count_estimate:
           answers["q_count"] === "one" ? 1 : answers["q_count"] === "few" ? 3 : answers["q_count"] === "many" ? 8 : undefined,
-        has_kittens: answers["q_kittens"] === "yes" || answers["q_kittens"] === "maybe" || undefined,
-        has_medical_concerns: answers["q_medical"] === "yes" || answers["q_medical"] === "maybe" || undefined,
+        has_kittens: (answers["q_kittens"] === "yes" || answers["q_kittens"] === "maybe") ? true : undefined,
+        has_medical_concerns: (answers["q_medical"] === "yes" || answers["q_medical"] === "maybe") ? true : undefined,
         custom_fields: {
           kiosk_answers: JSON.stringify(answers),
           kiosk_scores: JSON.stringify(scoring.scores),
@@ -122,11 +123,12 @@ export default function KioskHelpPage() {
         },
       });
 
+      setSubmitError(null);
       setPhase("success");
       toastSuccess("Request submitted!");
     } catch (err) {
       console.error("[KIOSK] Submit error:", err);
-      toastError("Something went wrong. Please try again or ask for help.");
+      setSubmitError("Something went wrong. Please try again or ask staff for help.");
       setPhase("review");
     }
   }, [contact, place, freeformAddress, answers, scoring, toastSuccess, toastError]);
@@ -402,14 +404,32 @@ export default function KioskHelpPage() {
       canGoNext
       nextLabel="Submit Request"
     >
-      <KioskReviewStep
-        answers={answers}
-        questions={questions}
-        scoring={scoring}
-        contact={contact}
-        place={place}
-        freeformAddress={freeformAddress}
-      />
+      <>
+        {submitError && (
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              background: "var(--danger-bg)",
+              border: "1px solid var(--danger-border)",
+              borderRadius: 10,
+              color: "var(--danger-text)",
+              fontSize: "0.9rem",
+              fontWeight: 500,
+              marginBottom: "1rem",
+            }}
+          >
+            {submitError}
+          </div>
+        )}
+        <KioskReviewStep
+          answers={answers}
+          questions={questions}
+          scoring={scoring}
+          contact={contact}
+          place={place}
+          freeformAddress={freeformAddress}
+        />
+      </>
     </KioskWizardShell>
   );
 }
