@@ -24,8 +24,10 @@ interface LinkedCat {
   // Health data (FFS-428)
   is_deceased?: boolean;
   health_flags?: HealthFlag[];
-  // Adoption context (MIG_3005)
+  // Adoption context (MIG_3005/MIG_3017)
   placement_type?: string | null;
+  adoption_date?: string | null;
+  source_system?: string | null;
 }
 
 interface LinkedCatsSectionProps {
@@ -50,6 +52,7 @@ interface LinkedCatsSectionProps {
 function SourceBadge({ dataSource }: { dataSource: string }) {
   const sourceLabels: Record<string, { label: string; bg: string; color: string }> = {
     clinichq: { label: "ClinicHQ", bg: "#198754", color: "#fff" },
+    shelterluv: { label: "ShelterLuv", bg: "#7c3aed", color: "#fff" },
     petlink: { label: "PetLink", bg: "#6c757d", color: "#fff" },
     airtable: { label: "Airtable", bg: "#fcb400", color: "#000" },
     web_intake: { label: "Web", bg: "#0d6efd", color: "#fff" },
@@ -218,6 +221,11 @@ export function LinkedCatsSection({
                     <CatHealthBadges healthFlags={cat.health_flags} isDeceased={cat.is_deceased} maxInline={2} />
                   </div>
                 ) : null}
+                {cat.adoption_date && (
+                  <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: "0.15rem", fontWeight: 500 }}>
+                    Adopted {new Date(cat.adoption_date).toLocaleDateString()}
+                  </div>
+                )}
                 {cat.last_appointment_date && (
                   <div style={{ fontSize: "0.75rem", color: "var(--muted, #6c757d)", marginTop: "0.15rem" }}>
                     Last appt: {new Date(cat.last_appointment_date).toLocaleDateString()}

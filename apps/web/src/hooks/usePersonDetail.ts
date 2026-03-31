@@ -39,6 +39,8 @@ export interface PersonCat {
   source_system: string;
   data_source: string;
   microchip: string | null;
+  adoption_date: string | null;
+  placement_type: string | null;
 }
 
 export interface PersonPlace {

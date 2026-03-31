@@ -14,6 +14,9 @@ export function LinkedCatsSectionAdapter({ data }: SectionProps) {
     microchip: c.microchip,
     altered_status: null,
     linked_at: person.created_at,
+    data_source: c.data_source || c.source_system || null,
+    adoption_date: c.adoption_date || null,
+    placement_type: c.placement_type || null,
   })) || [];
 
   if (catsForSection.length === 0) {
