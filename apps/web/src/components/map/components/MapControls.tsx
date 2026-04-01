@@ -111,7 +111,7 @@ const NoteIcon = () => (
   </svg>
 );
 
-export type BasemapType = "street" | "google" | "satellite";
+export type BasemapType = "street" | "satellite";
 
 interface MapControlsProps {
   isMobile: boolean;
@@ -175,7 +175,6 @@ export function MapControls({
 
   const basemapOptions: Array<{ type: BasemapType; label: string; icon: React.ReactNode }> = [
     { type: "street", label: "Street", icon: <MapIcon /> },
-    { type: "google", label: "Google Maps", icon: <GoogleIcon /> },
     { type: "satellite", label: "Satellite", icon: <SatelliteIcon /> },
   ];
 
@@ -312,8 +311,8 @@ export function MapControls({
             title="Change basemap"
             className={`map-control-btn ${basemap !== "street" ? "map-control-btn--active" : ""}`}
           >
-            {basemap === "satellite" ? <SatelliteIcon /> : basemap === "google" ? <GoogleIcon /> : <MapIcon />}
-            {!isMobile && (basemap === "street" ? "Basemap" : basemap === "google" ? "Google" : "Satellite")}
+            {basemap === "satellite" ? <SatelliteIcon /> : <MapIcon />}
+            {!isMobile && (basemap === "satellite" ? "Satellite" : "Basemap")}
           </button>
           {showBasemapMenu && (
             <div className="map-basemap-menu">

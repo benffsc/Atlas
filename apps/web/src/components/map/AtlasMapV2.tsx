@@ -396,6 +396,10 @@ function AtlasMapV2Inner() {
         setSelectedPin(pin);
       }
     }, [selectedPlaceId]),
+    measureActive,
+    onMeasurePoint: useCallback((latlng: { lat: number; lng: number }) => {
+      setMeasurePoints(prev => [...prev, latlng]);
+    }, []),
     pinConfig,
   });
 

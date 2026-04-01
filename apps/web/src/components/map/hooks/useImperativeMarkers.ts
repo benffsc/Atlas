@@ -35,6 +35,10 @@ interface UseImperativeMarkersOptions {
   onClusterClick: (clusterId: number, lat: number, lng: number) => void;
   /** Called when a pin needs an InfoWindow (e.g. non-modifier click) */
   onPinSelect: (pin: AtlasPin) => void;
+  /** When true, pin clicks forward coordinates to onMeasurePoint instead of selecting */
+  measureActive?: boolean;
+  /** Called with pin coordinates when measureActive and a pin is clicked */
+  onMeasurePoint?: (latlng: { lat: number; lng: number }) => void;
   /** Admin-configurable pin rendering (colors, sizes, labels). Falls back to defaults. */
   pinConfig?: MapPinConfig;
 }
@@ -291,6 +295,8 @@ export function useImperativeMarkers({
   onPinClick,
   onClusterClick,
   onPinSelect,
+  measureActive = false,
+  onMeasurePoint,
   pinConfig,
 }: UseImperativeMarkersOptions) {
   const cfg = pinConfig ?? DEFAULT_PIN_CONFIG;
@@ -303,6 +309,10 @@ export function useImperativeMarkers({
   onClusterClickRef.current = onClusterClick;
   const onPinSelectRef = useRef(onPinSelect);
   onPinSelectRef.current = onPinSelect;
+  const measureActiveRef = useRef(measureActive);
+  measureActiveRef.current = measureActive;
+  const onMeasurePointRef = useRef(onMeasurePoint);
+  onMeasurePointRef.current = onMeasurePoint;
   const bulkSelectedRef = useRef(bulkSelectedPlaceIds);
   bulkSelectedRef.current = bulkSelectedPlaceIds;
   const cfgRef = useRef(cfg);
@@ -413,6 +423,11 @@ export function useImperativeMarkers({
         });
 
         const clickListener = marker.addListener("click", (e: google.maps.MapMouseEvent) => {
+          // In measurement mode, forward pin coordinates to measurement handler instead of selecting
+          if (measureActiveRef.current && onMeasurePointRef.current) {
+            onMeasurePointRef.current({ lat: pin.lat, lng: pin.lng });
+            return;
+          }
           const domEvent = (e as any)?.domEvent as MouseEvent | undefined;
           if (domEvent && (domEvent.ctrlKey || domEvent.metaKey || domEvent.shiftKey)) {
             onPinClickRef.current(pin, domEvent);
