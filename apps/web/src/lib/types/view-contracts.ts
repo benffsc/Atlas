@@ -633,6 +633,32 @@ export interface EquipmentStatsRow {
 }
 
 /**
+ * Contract for ops.v_equipment_activity view
+ * Extends EquipmentEventRow with equipment context fields.
+ * @see sql/schema/v2/MIG_3030__equipment_activity_view.sql
+ * @route /api/equipment/activity
+ */
+export interface EquipmentActivityRow extends EquipmentEventRow {
+  equipment_name: string;
+  equipment_barcode: string | null;
+  equipment_category: string;
+  equipment_type_name: string;
+}
+
+/**
+ * Contract for GET /api/equipment/stats/today
+ * @route /api/equipment/stats/today
+ */
+export interface KioskDailyStatsRow {
+  checkouts_today: number;
+  checkins_today: number;
+  deposits_today: number;
+  overdue_count: number;
+  last_activity_at: string | null;
+  active_staff_today: string[];
+}
+
+/**
  * Contract for ops.equipment_types rows
  * @route /api/equipment/types
  */

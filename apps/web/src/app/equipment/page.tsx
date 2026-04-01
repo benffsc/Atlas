@@ -574,6 +574,39 @@ function EquipmentPageContent() {
         </div>
       )}
 
+      {/* Overdue alert banner (FFS-1058) */}
+      {stats && stats.overdue > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.625rem",
+            padding: "0.625rem 1rem",
+            marginBottom: "0.75rem",
+            borderRadius: "8px",
+            background: "var(--danger-bg)",
+            borderLeft: "4px solid var(--danger-text)",
+          }}
+        >
+          <Icon name="alert-triangle" size={18} color="var(--danger-text)" />
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 600, color: "var(--danger-text)", fontSize: "0.9rem" }}>
+              {stats.overdue} overdue item{stats.overdue !== 1 ? "s" : ""}
+            </span>
+            <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginLeft: "0.375rem" }}>
+              — past due date and still checked out
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFilter("custody_status", "checked_out")}
+          >
+            View Overdue
+          </Button>
+        </div>
+      )}
+
       {/* Stats — compact row */}
       {stats && (
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>

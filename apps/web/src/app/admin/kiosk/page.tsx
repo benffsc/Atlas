@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import useSWR from "swr";
 import { useAppConfig, useAllConfigs } from "@/hooks/useAppConfig";
-import { postApi } from "@/lib/api-client";
+import { postApi, fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { StatCard } from "@/components/ui/StatCard";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
+import type { KioskDailyStatsRow } from "@/lib/types/view-contracts";
 import {
   DEFAULT_QUESTIONS,
   scoreAnswers,
@@ -31,11 +34,216 @@ export default function AdminKioskPage() {
         Kiosk Configuration
       </h1>
       <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 2rem" }}>
-        Configure modules, session timeouts, and the help form question set.
+        Configure modules, session timeouts, staff picker, and the help form question set.
       </p>
+      <LiveStatusSection />
+      <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
       <ModuleConfig />
       <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
+      <CheckoutDefaultsConfig />
+      <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
+      <StaffPickerConfig />
+      <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
       <QuestionEditor />
+    </div>
+  );
+}
+
+// ── Live Status Section (FFS-1056) ───────────────────────────────────────────
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function LiveStatusSection() {
+  const { data } = useSWR<KioskDailyStatsRow>(
+    "/api/equipment/stats/today",
+    (url: string) => fetchApi<KioskDailyStatsRow>(url),
+    { refreshInterval: 60_000, revalidateOnFocus: true }
+  );
+
+  if (!data) return null;
+
+  return (
+    <div style={{ marginBottom: "0.5rem" }}>
+      <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: "0 0 0.75rem" }}>
+        <Icon name="activity" size={18} color="var(--primary)" /> Today&apos;s Activity
+      </h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.75rem", marginBottom: "0.75rem" }}>
+        <StatCard label="Checkouts" value={data.checkouts_today} valueColor="var(--warning-text)" />
+        <StatCard label="Check-ins" value={data.checkins_today} valueColor="var(--success-text)" />
+        <StatCard label="Deposits" value={data.deposits_today} valueColor="var(--info-text)" />
+        <StatCard
+          label="Overdue"
+          value={data.overdue_count}
+          valueColor={data.overdue_count > 0 ? "var(--danger-text)" : "var(--muted)"}
+        />
+      </div>
+      <div style={{ display: "flex", gap: "1rem", fontSize: "0.8rem", color: "var(--muted)", flexWrap: "wrap" }}>
+        {data.last_activity_at && (
+          <span>Last activity: <strong style={{ color: "var(--text-secondary)" }}>{timeAgo(data.last_activity_at)}</strong></span>
+        )}
+        {data.active_staff_today.length > 0 && (
+          <span>
+            Staff today:{" "}
+            <strong style={{ color: "var(--text-secondary)" }}>
+              {data.active_staff_today.join(", ")}
+            </strong>
+          </span>
+        )}
+        {!data.last_activity_at && data.active_staff_today.length === 0 && (
+          <span>No kiosk activity recorded today.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Checkout Defaults Config (FFS-1057) ──────────────────────────────────────
+
+function CheckoutDefaultsConfig() {
+  const { mutate } = useAllConfigs();
+  const { value: depositPresets } = useAppConfig<number[]>("kiosk.deposit_presets");
+  const { value: purposeOffsets } = useAppConfig<Record<string, number>>("kiosk.purpose_due_offsets");
+  const { value: countdownSecs } = useAppConfig<number>("kiosk.inactivity_countdown");
+  const { success: showSuccess, error: showError } = useToast();
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const saveKey = useCallback(
+    async (key: string, value: unknown) => {
+      setSaving(key);
+      try {
+        await postApi("/api/admin/config", { key, value }, { method: "PUT" });
+        await mutate();
+        showSuccess(`Updated ${key}`);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Failed to save");
+      } finally {
+        setSaving(null);
+      }
+    },
+    [mutate, showSuccess, showError],
+  );
+
+  const [depositDraft, setDepositDraft] = useState("");
+  const [editingDeposit, setEditingDeposit] = useState(false);
+
+  // Initialize draft when data loads
+  useEffect(() => {
+    if (depositPresets) setDepositDraft(depositPresets.join(", "));
+  }, [depositPresets]);
+
+  const saveDeposit = () => {
+    const parsed = depositDraft.split(",").map((s) => Number(s.trim())).filter((n) => !isNaN(n) && n >= 0);
+    if (parsed.length === 0) {
+      showError("Enter at least one valid deposit amount");
+      return;
+    }
+    saveKey("kiosk.deposit_presets", parsed);
+    setEditingDeposit(false);
+  };
+
+  const PURPOSE_LABELS: Record<string, string> = {
+    tnr_appointment: "TNR Appointment",
+    kitten_rescue: "Kitten Rescue",
+    colony_check: "Colony Check",
+    feeding_station: "Feeding Station",
+    personal_pet: "Personal Pet",
+    ffr: "Find Fix Return",
+    well_check: "Well Check",
+    rescue_recovery: "Rescue/Recovery",
+    trap_training: "Trap Training",
+    transport: "Transport",
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: "0 0 1rem" }}>Checkout Defaults</h2>
+
+      {/* Deposit Presets */}
+      <div style={{ marginBottom: "1.25rem" }}>
+        <label style={smallLabelStyle}>Deposit Presets ($)</label>
+        {editingDeposit ? (
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <input
+              value={depositDraft}
+              onChange={(e) => setDepositDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveDeposit();
+                if (e.key === "Escape") setEditingDeposit(false);
+              }}
+              placeholder="0, 50, 75"
+              autoFocus
+              style={{
+                flex: 1, padding: "0.5rem 0.75rem", border: "1px solid var(--primary)",
+                borderRadius: 8, fontSize: "0.9rem", outline: "none", background: "var(--card-bg)",
+              }}
+            />
+            <Button variant="primary" size="sm" loading={saving === "kiosk.deposit_presets"} onClick={saveDeposit}>Save</Button>
+            <Button variant="ghost" size="sm" onClick={() => setEditingDeposit(false)}>Cancel</Button>
+          </div>
+        ) : (
+          <div
+            onClick={() => setEditingDeposit(true)}
+            style={{
+              padding: "0.5rem 0.75rem", background: "var(--card-bg)", border: "1px solid var(--card-border)",
+              borderRadius: 8, fontSize: "0.9rem", cursor: "pointer", display: "flex", alignItems: "center",
+            }}
+          >
+            {depositPresets?.map((v) => `$${v}`).join(", ") || "Click to edit"}
+          </div>
+        )}
+      </div>
+
+      {/* Due Date Offsets */}
+      <div style={{ marginBottom: "1.25rem" }}>
+        <label style={smallLabelStyle}>Due Date Offsets (days by purpose)</label>
+        <div style={{
+          background: "var(--card-bg)", border: "1px solid var(--card-border)", borderRadius: 8, overflow: "hidden",
+        }}>
+          {purposeOffsets && Object.entries(purposeOffsets).map(([purpose, days]) => (
+            <div
+              key={purpose}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--border-light, #f0f0f0)",
+              }}
+            >
+              <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
+                {PURPOSE_LABELS[purpose] || purpose}
+              </span>
+              <input
+                type="number"
+                value={days}
+                onChange={(e) => {
+                  const newVal = Number(e.target.value) || 0;
+                  saveKey("kiosk.purpose_due_offsets", { ...purposeOffsets, [purpose]: newVal });
+                }}
+                min={1}
+                style={{
+                  width: 60, padding: "0.25rem 0.5rem", textAlign: "center",
+                  border: "1px solid var(--card-border)", borderRadius: 4, fontSize: "0.85rem",
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Inactivity Countdown */}
+      <InlineEditField
+        label="Inactivity Countdown (seconds)"
+        value={String(countdownSecs)}
+        onSave={(v) => saveKey("kiosk.inactivity_countdown", Number(v))}
+        saving={saving === "kiosk.inactivity_countdown"}
+        type="number"
+      />
     </div>
   );
 }
@@ -161,6 +369,170 @@ function ModuleConfig() {
           saving={saving === "kiosk.success_message"}
         />
       </div>
+    </div>
+  );
+}
+
+// ── Staff Picker Config ───────────────────────────────────────────────────────
+
+interface StaffRow {
+  staff_id: string;
+  first_name: string;
+  last_name: string | null;
+  display_name: string;
+  department: string | null;
+  role: string | null;
+  is_active: boolean;
+  show_in_kiosk?: boolean;
+}
+
+function StaffPickerConfig() {
+  const { success: showSuccess, error: showError } = useToast();
+  const { mutate } = useAllConfigs();
+  const { value: required } = useAppConfig<boolean>("kiosk.staff_selection_required");
+  const [staff, setStaff] = useState<StaffRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [savingRequired, setSavingRequired] = useState(false);
+
+  useEffect(() => {
+    fetchApi<{ staff: StaffRow[] }>("/api/staff?active=true")
+      .then((data) => {
+        setStaff(data.staff || []);
+      })
+      .catch(() => setStaff([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleKiosk = useCallback(
+    async (staffId: string, current: boolean) => {
+      setToggling(staffId);
+      try {
+        await postApi(`/api/admin/staff/${staffId}`, { show_in_kiosk: !current }, { method: "PUT" });
+        setStaff((prev) =>
+          prev.map((s) =>
+            s.staff_id === staffId ? { ...s, show_in_kiosk: !current } : s
+          )
+        );
+        showSuccess(`Updated kiosk visibility`);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Failed to update");
+      } finally {
+        setToggling(null);
+      }
+    },
+    [showSuccess, showError]
+  );
+
+  const toggleRequired = useCallback(async () => {
+    setSavingRequired(true);
+    try {
+      await postApi("/api/admin/config", { key: "kiosk.staff_selection_required", value: !required }, { method: "PUT" });
+      await mutate();
+      showSuccess(
+        !required ? "Staff selection is now required" : "Staff selection is now optional"
+      );
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingRequired(false);
+    }
+  }, [required, mutate, showSuccess, showError]);
+
+  const enabledCount = staff.filter((s) => s.show_in_kiosk).length;
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
+        Staff Picker
+      </h2>
+      <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "0 0 1rem" }}>
+        Select which staff appear in the kiosk &quot;Who&apos;s at the desk?&quot; picker.
+        {enabledCount > 0 && (
+          <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+            {" "}{enabledCount} staff enabled.
+          </span>
+        )}
+      </p>
+
+      {/* Require toggle */}
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          padding: "0.75rem 1rem",
+          background: "var(--card-bg)",
+          border: "1px solid var(--card-border)",
+          borderRadius: 10,
+          cursor: "pointer",
+          marginBottom: "1rem",
+          opacity: savingRequired ? 0.6 : 1,
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={required || false}
+          onChange={toggleRequired}
+          disabled={savingRequired}
+          style={{ width: 18, height: 18, accentColor: "var(--primary)" }}
+        />
+        <div>
+          <div style={{ fontWeight: 500, color: "var(--text-primary)", fontSize: "0.9rem" }}>
+            Require staff selection
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+            When enabled, hides the &quot;Skip&quot; option — every session must identify the staff member.
+          </div>
+        </div>
+      </label>
+
+      {/* Staff checklist */}
+      {loading ? (
+        <div style={{ color: "var(--muted)", fontSize: "0.85rem", padding: "1rem 0" }}>
+          Loading staff...
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+          {staff.map((s) => (
+            <label
+              key={s.staff_id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                padding: "0.5rem 1rem",
+                background: "var(--card-bg)",
+                border: "1px solid var(--card-border)",
+                borderRadius: 8,
+                cursor: toggling === s.staff_id ? "wait" : "pointer",
+                opacity: toggling === s.staff_id ? 0.6 : 1,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={s.show_in_kiosk || false}
+                onChange={() => toggleKiosk(s.staff_id, s.show_in_kiosk || false)}
+                disabled={toggling === s.staff_id}
+                style={{ width: 16, height: 16, accentColor: "var(--primary)" }}
+              />
+              <span style={{ flex: 1, fontWeight: 500, fontSize: "0.9rem", color: "var(--text-primary)" }}>
+                {s.display_name}
+              </span>
+              {s.department && (
+                <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                  {s.department}
+                </span>
+              )}
+              {s.role && (
+                <span style={{ fontSize: "0.7rem", color: "var(--muted)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {s.role}
+                </span>
+              )}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

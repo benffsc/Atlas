@@ -40,6 +40,7 @@ export function KioskSessionProvider({ children }: { children: React.ReactNode }
   const exempt = isExemptRoute(pathname);
   const { value: publicTimeout } = useAppConfig<number>("kiosk.session_timeout_public");
   const { value: equipmentTimeout } = useAppConfig<number>("kiosk.session_timeout_equipment");
+  const { value: countdownSeconds } = useAppConfig<number>("kiosk.inactivity_countdown");
 
   const timeout = exempt ? 0 : isEquipmentRoute ? equipmentTimeout : publicTimeout;
 
@@ -94,6 +95,8 @@ export function KioskSessionProvider({ children }: { children: React.ReactNode }
     showModalRef.current = false;
     setShowModal(false);
     lastInteractionRef.current = Date.now();
+    // Clear staff selection so next user sees the picker
+    localStorage.removeItem("kiosk_active_staff");
     router.push("/kiosk");
   }, [router]);
 
@@ -104,7 +107,7 @@ export function KioskSessionProvider({ children }: { children: React.ReactNode }
         <KioskInactivityModal
           onDismiss={handleDismiss}
           onTimeout={handleTimeout}
-          countdownSeconds={30}
+          countdownSeconds={countdownSeconds}
         />
       )}
     </KioskSessionContext.Provider>

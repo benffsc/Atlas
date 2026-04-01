@@ -49,6 +49,11 @@ const DEFAULTS: Record<string, unknown> = {
   "kiosk.cats_slideshow_interval": 8,
   "kiosk.success_message": "Thank you! We'll be in touch.",
   "kiosk.help_questions": null,
+  "kiosk.staff_selection_required": false,
+  // Checkout defaults (MIG_3031 / FFS-1057)
+  "kiosk.deposit_presets": [0, 50, 75],
+  "kiosk.purpose_due_offsets": { tnr_appointment: 3, kitten_rescue: 14, colony_check: 7, feeding_station: 90, personal_pet: 14, ffr: 3, well_check: 7, rescue_recovery: 14, trap_training: 7, transport: 3 },
+  "kiosk.inactivity_countdown": 30,
 };
 
 interface ConfigRow {

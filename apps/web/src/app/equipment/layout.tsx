@@ -6,6 +6,7 @@ const equipmentSections: NavSection[] = [
     title: "Equipment",
     items: [
       { label: "Inventory", href: "/equipment", icon: "boxes" },
+      { label: "Activity", href: "/equipment/activity", icon: "activity" },
       { label: "Scanner", href: "/equipment/scan", icon: "scan-barcode" },
       { label: "Restock", href: "/equipment/restock", icon: "clipboard-check" },
       { label: "Kits", href: "/equipment/kits", icon: "package" },

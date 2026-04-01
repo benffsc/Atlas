@@ -16,6 +16,8 @@ import {
 } from "@/lib/form-options";
 import type { EquipmentContextResponse } from "@/lib/types/view-contracts";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useAppConfig } from "@/hooks/useAppConfig";
+import { useKioskStaff } from "./KioskStaffContext";
 import { KioskCard } from "./KioskCard";
 import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
 
@@ -27,17 +29,6 @@ interface CheckoutFormProps {
 }
 
 type ResolutionStatus = "resolved" | "unresolved" | "created";
-
-const DEPOSIT_PRESETS = [0, 50, 75];
-
-/** Days offset by purpose — how long a checkout typically lasts */
-const PURPOSE_DUE_OFFSET: Record<string, number> = {
-  tnr_appointment: 3,
-  kitten_rescue: 14,
-  colony_check: 7,
-  feeding_station: 90,
-  personal_pet: 14,
-};
 
 function dueDateFromOffset(days: number): string {
   const d = new Date();
@@ -61,6 +52,9 @@ export function CheckoutForm({
   onCancel,
 }: CheckoutFormProps) {
   const toast = useToast();
+  const { activeStaff } = useKioskStaff();
+  const { value: DEPOSIT_PRESETS } = useAppConfig<number[]>("kiosk.deposit_presets");
+  const { value: PURPOSE_DUE_OFFSET } = useAppConfig<Record<string, number>>("kiosk.purpose_due_offsets");
   const [submitting, setSubmitting] = useState(false);
   const [showResumed, setShowResumed] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -239,6 +233,7 @@ export function CheckoutForm({
 
       await postApi(`/api/equipment/${equipmentId}/events`, {
         event_type: "check_out",
+        actor_person_id: activeStaff?.person_id || undefined,
         custodian_person_id: resolvedPersonId || undefined,
         custodian_name: custodianName || undefined,
         checkout_type: checkoutType,
