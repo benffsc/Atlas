@@ -6,7 +6,6 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { SkeletonStats } from "@/components/feedback/Skeleton";
-import { useToast } from "@/components/feedback/Toast";
 import { fetchApi } from "@/lib/api-client";
 import ClinicHQUploadModal from "@/components/modals/ClinicHQUploadModal";
 
@@ -399,10 +398,10 @@ function DataSourcesSection() {
 // ============================================================================
 
 function PipelineHealthSection() {
-  const { addToast } = useToast();
   const [data, setData] = useState<ProcessingStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [runningJobs, setRunningJobs] = useState(false);
+  const [jobMessage, setJobMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const fetchProcessing = () => {
     fetchApi<ProcessingStats>("/api/admin/data/processing")
@@ -417,17 +416,18 @@ function PipelineHealthSection() {
 
   const handleRunJobs = async () => {
     setRunningJobs(true);
+    setJobMessage(null);
     try {
       const res = await fetch("/api/admin/data/processing", { method: "POST" });
       const result = await res.json();
       if (result.success) {
-        addToast({ type: "success", message: result.message || "Jobs started" });
+        setJobMessage({ type: "success", text: result.message || "Jobs started" });
         fetchProcessing();
       } else {
-        addToast({ type: "error", message: result.error || "Failed to start jobs" });
+        setJobMessage({ type: "error", text: result.error || "Failed to start jobs" });
       }
     } catch {
-      addToast({ type: "error", message: "Failed to start jobs" });
+      setJobMessage({ type: "error", text: "Failed to start jobs" });
     } finally {
       setRunningJobs(false);
     }
@@ -478,6 +478,19 @@ function PipelineHealthSection() {
               </Button>
             )}
           </div>
+          {jobMessage && (
+            <div style={{
+              padding: "0.5rem 0.75rem",
+              borderRadius: "6px",
+              fontSize: "0.8rem",
+              fontWeight: 500,
+              marginBottom: "0.5rem",
+              background: jobMessage.type === "success" ? "#dcfce7" : "#fee2e2",
+              color: jobMessage.type === "success" ? "#166534" : "#991b1b",
+            }}>
+              {jobMessage.text}
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.5rem" }}>
             <StatCard label="Pending" value={data.jobs.pending} accentColor="#f59e0b" />
             <StatCard label="Running" value={data.jobs.running} accentColor="var(--primary, #3b82f6)" />
