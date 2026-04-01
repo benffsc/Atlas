@@ -25,6 +25,7 @@ import {
   Settings,
   LayoutDashboard,
   Upload,
+  UploadCloud,
   ListChecks,
   Mail,
   FileText,
@@ -147,6 +148,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   // Admin - Dashboard
   "layout-dashboard": LayoutDashboard,
   upload: Upload,
+  "upload-cloud": UploadCloud,
   "list-checks": ListChecks,
 
   // Admin - Beacon
