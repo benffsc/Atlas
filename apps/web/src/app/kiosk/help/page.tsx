@@ -48,7 +48,12 @@ export default function KioskHelpPage() {
   const { value: customTree } = useAppConfig<TippyTree | null>("kiosk.help_tree");
   const { value: successMessage } = useAppConfig<string>("kiosk.success_message");
   const tree = useMemo(
-    () => (customTree && typeof customTree === "object" && "root" in customTree ? customTree : DEFAULT_TIPPY_TREE),
+    () => {
+      if (!customTree || typeof customTree !== "object") return DEFAULT_TIPPY_TREE;
+      // Support both formats: new { nodes, scoring } and legacy { root, ... }
+      if ("nodes" in customTree || "root" in customTree) return customTree as TippyTree;
+      return DEFAULT_TIPPY_TREE;
+    },
     [customTree],
   );
 
@@ -125,7 +130,7 @@ export default function KioskHelpPage() {
     setPhase("submitting");
 
     try {
-      const payload = buildIntakePayload(treeState, contact, place, freeformAddress);
+      const payload = buildIntakePayload(treeState, contact, place, freeformAddress, tree);
       await postApi("/api/intake", payload);
       setSubmitError(null);
       setPhase("success");
@@ -135,7 +140,7 @@ export default function KioskHelpPage() {
       setSubmitError("Something went wrong. Please try again or ask staff for help.");
       setPhase("review");
     }
-  }, [contact, place, freeformAddress, treeState, toastSuccess]);
+  }, [contact, place, freeformAddress, treeState, tree, toastSuccess]);
 
   // Navigation
   const goNext = useCallback(() => {

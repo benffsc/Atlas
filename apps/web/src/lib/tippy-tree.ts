@@ -83,7 +83,50 @@ export interface TippyNode {
   data_key?: string;
 }
 
-export type TippyTree = Record<string, TippyNode>;
+// ── Scoring & Interpretation Config (travels with the tree) ────────────────────
+
+/** A single scoring rule: if tag matches, add points */
+export interface TippyScoringRule {
+  /** Tag key to check */
+  tag: string;
+  /** How to evaluate: "truthy" (any truthy value), "equals" (exact match), "numeric" (use tag value as points) */
+  op: "truthy" | "equals" | "numeric";
+  /** For "equals" op: value(s) that trigger this rule */
+  match?: (string | number | boolean)[];
+  /** Points to add when rule matches */
+  points: number;
+}
+
+/** Maps tag keys → intake custom_field keys for top-level queryable fields */
+export interface TippyFieldMapping {
+  /** Tag key to read from */
+  tag: string;
+  /** custom_fields key to write to (prefixed with tippy_ automatically) */
+  field: string;
+  /** How to format: "string" (as-is), "boolean" ("true"/"false"), "number" (String()) */
+  format?: "string" | "boolean" | "number";
+}
+
+/** Config that controls how tags are interpreted — stored in the tree, not hardcoded */
+export interface TippyScoringConfig {
+  /** Tag keys that represent cat count (first match wins) */
+  cat_count_tags: string[];
+  /** Rules for computing priority score */
+  scoring_rules: TippyScoringRule[];
+  /** Maps tags → intake custom_fields for easy querying */
+  field_mappings: TippyFieldMapping[];
+}
+
+export interface TippyTreeConfig {
+  nodes: Record<string, TippyNode>;
+  scoring: TippyScoringConfig;
+}
+
+/**
+ * TippyTree is the full config: nodes + scoring interpretation.
+ * For backward compat, also accept a plain Record<string, TippyNode> (legacy format).
+ */
+export type TippyTree = TippyTreeConfig | Record<string, TippyNode>;
 
 export interface TippyState {
   history: Array<{ node_id: string; value: string }>;
@@ -91,6 +134,22 @@ export interface TippyState {
   outcome: TippyOutcome | null;
   /** Accumulated tags from all answered options */
   tags: Record<string, string | number | boolean>;
+}
+
+// ── Tree Accessors (handle both legacy & new format) ───────────────────────────
+
+function isTreeConfig(tree: TippyTree): tree is TippyTreeConfig {
+  return "nodes" in tree && "scoring" in tree;
+}
+
+/** Get the nodes map from either format */
+export function getNodes(tree: TippyTree): Record<string, TippyNode> {
+  return isTreeConfig(tree) ? tree.nodes : tree;
+}
+
+/** Get the scoring config (returns default if legacy format) */
+export function getScoring(tree: TippyTree): TippyScoringConfig {
+  return isTreeConfig(tree) ? tree.scoring : DEFAULT_SCORING_CONFIG;
 }
 
 // ── Resource Card Data ─────────────────────────────────────────────────────────
@@ -158,7 +217,57 @@ const EMERGENCY_ANIMAL_HOSPITAL_CARD: TippyResourceCard = {
 //
 // Each option carries `tags` that accumulate into structured intake data.
 
+// ── Default Scoring Config ──────────────────────────────────────────────────────
+//
+// This config controls how accumulated tags are interpreted into priority scores
+// and mapped to intake fields. It ships with the default tree but can be
+// overridden by admin via kiosk.help_tree (the scoring section).
+//
+// If you rename a tag in the tree, update the corresponding rule/mapping here.
+
+export const DEFAULT_SCORING_CONFIG: TippyScoringConfig = {
+  cat_count_tags: ["cat_count", "kitten_count"],
+
+  scoring_rules: [
+    // Direct boosts set by options
+    { tag: "priority_boost", op: "numeric", points: 1 }, // uses the tag's numeric value directly
+    // Colony indicators
+    { tag: "sterilization_gap", op: "equals", match: [1.0], points: 2 },
+    { tag: "sterilization_gap", op: "equals", match: [0.5], points: 1 },
+    { tag: "colony_likely", op: "truthy", points: 1 },
+    // Reproductive urgency
+    { tag: "has_kittens", op: "equals", match: [true], points: 1 },
+    { tag: "has_pregnant", op: "truthy", points: 2 },
+    // Feasibility & urgency
+    { tag: "needs_trapper", op: "truthy", points: 1 },
+    { tag: "urgency", op: "equals", match: ["animal_control", "hostile_neighbors"], points: 3 },
+    { tag: "urgency", op: "equals", match: ["deadline"], points: 2 },
+  ],
+
+  field_mappings: [
+    { tag: "ear_tip_coverage", field: "ear_tip_coverage", format: "string" },
+    { tag: "growth", field: "growth", format: "string" },
+    { tag: "handleability", field: "handleability", format: "string" },
+    { tag: "trapping_feasibility", field: "trapping_feasibility", format: "string" },
+    { tag: "caller_role", field: "caller_role", format: "string" },
+    { tag: "urgency", field: "urgency", format: "string" },
+    { tag: "has_feeder", field: "has_feeder", format: "boolean" },
+    { tag: "trapping_willing", field: "trapping_willing", format: "boolean" },
+    { tag: "pet_likelihood", field: "pet_likelihood", format: "number" },
+    { tag: "kitten_age", field: "kitten_age", format: "string" },
+    { tag: "kitten_urgency", field: "kitten_urgency", format: "string" },
+    { tag: "kitten_condition", field: "kitten_condition", format: "string" },
+    { tag: "mom_present", field: "mom_present", format: "string" },
+    { tag: "symptom", field: "symptom", format: "string" },
+    { tag: "triage_level", field: "triage_level", format: "string" },
+  ],
+};
+
+// ── Default Tree ───────────────────────────────────────────────────────────────
+
 export const DEFAULT_TIPPY_TREE: TippyTree = {
+  scoring: DEFAULT_SCORING_CONFIG,
+  nodes: {
 
   // ════════════════════════════════════════════════════════════════════════════
   // ROOT
@@ -628,6 +737,7 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
       intake_overrides: { call_type: "kitten_rescue", has_kittens: true },
     },
   },
+  }, // close nodes
 };
 
 // ── Traversal Engine ───────────────────────────────────────────────────────────
@@ -664,12 +774,12 @@ function evaluateCondition(condition: TippyCondition, history: Array<{ node_id: 
  * Resolve the actual next node, handling show_when conditions.
  * If a node's condition fails, follow its skip_to chain.
  */
-function resolveNextNode(nodeId: string, tree: TippyTree, history: Array<{ node_id: string; value: string }>): string | null {
+function resolveNextNode(nodeId: string, nodes: Record<string, TippyNode>, history: Array<{ node_id: string; value: string }>): string | null {
   let current = nodeId;
   const visited = new Set<string>(); // prevent infinite loops
   while (current && !visited.has(current)) {
     visited.add(current);
-    const node = tree[current];
+    const node = nodes[current];
     if (!node) return null;
     if (!node.show_when || evaluateCondition(node.show_when, history)) {
       return current; // condition passes, show this node
@@ -689,7 +799,8 @@ function resolveNextNode(nodeId: string, tree: TippyTree, history: Array<{ node_
  * Handles conditional nodes via show_when + skip_to resolution.
  */
 export function advanceTree(state: TippyState, value: string, tree: TippyTree): TippyState {
-  const currentNode = tree[state.current_node_id];
+  const nodes = getNodes(tree);
+  const currentNode = nodes[state.current_node_id];
   if (!currentNode) return state;
 
   const option = currentNode.options.find((o) => o.value === value);
@@ -712,7 +823,7 @@ export function advanceTree(state: TippyState, value: string, tree: TippyTree): 
   }
 
   // Resolve next node (handling show_when/skip_to)
-  const resolvedId = resolveNextNode(option.next_node_id, tree, newHistory);
+  const resolvedId = resolveNextNode(option.next_node_id, nodes, newHistory);
 
   if (!resolvedId) {
     // All skip targets exhausted — treat as terminal on current node
@@ -749,7 +860,7 @@ export function goBackTree(state: TippyState): TippyState {
 }
 
 export function getCurrentNode(state: TippyState, tree: TippyTree): TippyNode | null {
-  return tree[state.current_node_id] ?? null;
+  return getNodes(tree)[state.current_node_id] ?? null;
 }
 
 /**
@@ -761,15 +872,16 @@ export function getProgress(
   tree: TippyTree,
   createsIntake: boolean,
 ): { current: number; total: number } {
+  const nodes = getNodes(tree);
   let maxDepth = 4;
   for (const entry of state.history) {
-    const node = tree[entry.node_id];
+    const node = nodes[entry.node_id];
     if (node?.max_depth != null) {
       maxDepth = node.max_depth;
       break;
     }
   }
-  const currentNode = tree[state.current_node_id];
+  const currentNode = nodes[state.current_node_id];
   if (currentNode?.max_depth != null) {
     maxDepth = currentNode.max_depth;
   }
@@ -783,15 +895,70 @@ export function getProgress(
 }
 
 /**
+ * Compute priority score from tags using configurable scoring rules.
+ * Rules live in the tree config so admins can tune without code changes.
+ */
+export function computePriorityScore(tags: Record<string, string | number | boolean>, rules: TippyScoringRule[]): number {
+  let score = 0;
+  for (const rule of rules) {
+    const val = tags[rule.tag];
+    if (val === undefined || val === null) continue;
+
+    switch (rule.op) {
+      case "truthy":
+        if (val) score += rule.points;
+        break;
+      case "equals":
+        if (rule.match && rule.match.includes(val)) score += rule.points;
+        break;
+      case "numeric":
+        if (typeof val === "number") score += val * rule.points;
+        break;
+    }
+  }
+  return score;
+}
+
+/**
+ * Map tags → custom_fields using configurable field mappings.
+ * Admins can add/remove/rename mappings without touching code.
+ */
+function mapTagsToFields(
+  tags: Record<string, string | number | boolean>,
+  mappings: TippyFieldMapping[],
+): Record<string, string | undefined> {
+  const fields: Record<string, string | undefined> = {};
+  for (const mapping of mappings) {
+    const val = tags[mapping.tag];
+    if (val === undefined || val === null) continue;
+    const fmt = mapping.format || "string";
+    const key = `tippy_${mapping.field}`;
+    switch (fmt) {
+      case "boolean":
+        fields[key] = val === true ? "true" : val === false ? "false" : String(val);
+        break;
+      case "number":
+        fields[key] = String(val);
+        break;
+      default:
+        fields[key] = String(val);
+    }
+  }
+  return fields;
+}
+
+/**
  * Build the intake API payload from tree state + contact/location data.
- * Maps accumulated tags into structured intake fields.
+ * Scoring and field mappings are driven by the tree's scoring config — not hardcoded.
  */
 export function buildIntakePayload(
   state: TippyState,
   contact: { firstName: string; phone: string; email: string },
   place: { formatted_address?: string | null; display_name?: string | null; place_id?: string } | null,
   freeformAddress: string,
+  tree?: TippyTree,
 ) {
+  const scoring = tree ? getScoring(tree) : DEFAULT_SCORING_CONFIG;
   const outcome = state.outcome;
   const overrides = outcome?.intake_overrides ?? {};
   const tags = state.tags;
@@ -802,26 +969,24 @@ export function buildIntakePayload(
     tippyAnswers[entry.node_id] = entry.value;
   }
 
-  // Derive cat count from tags or answers
-  const catCount = typeof tags.cat_count === "number" ? tags.cat_count
-    : typeof tags.kitten_count === "number" ? tags.kitten_count
-    : undefined;
+  // Derive cat count from configured tag keys (first numeric match wins)
+  let catCount: number | undefined;
+  for (const key of scoring.cat_count_tags) {
+    if (typeof tags[key] === "number") {
+      catCount = tags[key] as number;
+      break;
+    }
+  }
 
   const catsAddress =
     place?.formatted_address || place?.display_name || freeformAddress.trim() || "Unknown";
   const phoneDigits = contact.phone.replace(/\D/g, "");
 
-  // Compute priority score from accumulated tags
-  let priorityScore = 0;
-  if (typeof tags.priority_boost === "number") priorityScore += tags.priority_boost;
-  if (tags.sterilization_gap === 1.0) priorityScore += 2;
-  if (tags.sterilization_gap === 0.5) priorityScore += 1;
-  if (tags.colony_likely) priorityScore += 1;
-  if (tags.has_kittens === true) priorityScore += 1;
-  if (tags.has_pregnant === true) priorityScore += 2;
-  if (tags.needs_trapper === true) priorityScore += 1;
-  if (tags.urgency === "animal_control" || tags.urgency === "hostile_neighbors") priorityScore += 3;
-  if (tags.urgency === "deadline") priorityScore += 2;
+  // Compute priority score from configurable rules
+  const priorityScore = computePriorityScore(tags, scoring.scoring_rules);
+
+  // Map tags to custom_fields via configurable mappings
+  const mappedFields = mapTagsToFields(tags, scoring.field_mappings);
 
   return {
     source: "in_person" as const,
@@ -837,23 +1002,16 @@ export function buildIntakePayload(
     has_kittens: overrides.has_kittens || tags.has_kittens === true || undefined,
     has_medical_concerns: overrides.has_medical_concerns || undefined,
     custom_fields: {
-      // Tree metadata
+      // Tree metadata (always present)
       tippy_branch: outcome?.type || "unknown",
       tippy_outcome: outcome?.headline || "unknown",
       tippy_answers: JSON.stringify(tippyAnswers),
-      // Structured Beacon data from tags
+      // Full tags dump (for Beacon deep queries)
       tippy_tags: JSON.stringify(tags),
       tippy_priority_score: String(priorityScore),
-      // Key colony indicators (top-level for easy querying)
       tippy_cat_count: catCount != null ? String(catCount) : undefined,
-      tippy_ear_tip_coverage: typeof tags.ear_tip_coverage === "string" ? tags.ear_tip_coverage : undefined,
-      tippy_growth: typeof tags.growth === "string" ? tags.growth : undefined,
-      tippy_handleability: typeof tags.handleability === "string" ? tags.handleability : undefined,
-      tippy_trapping_feasibility: typeof tags.trapping_feasibility === "string" ? tags.trapping_feasibility : undefined,
-      tippy_caller_role: typeof tags.caller_role === "string" ? tags.caller_role : undefined,
-      tippy_urgency: typeof tags.urgency === "string" ? tags.urgency : undefined,
-      tippy_has_feeder: tags.has_feeder === true ? "true" : tags.has_feeder === false ? "false" : undefined,
-      tippy_trapping_willing: tags.trapping_willing === true ? "true" : tags.trapping_willing === false ? "false" : undefined,
+      // Config-driven field mappings
+      ...mappedFields,
     },
   };
 }

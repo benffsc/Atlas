@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/Button";
 import type { KioskDailyStatsRow } from "@/lib/types/view-contracts";
 import {
   DEFAULT_TIPPY_TREE,
+  getNodes,
+  getScoring,
   type TippyTree,
   type TippyNode,
 } from "@/lib/tippy-tree";
@@ -626,12 +628,14 @@ const OUTCOME_TYPE_LABELS: Record<string, string> = {
 
 function TippyTreePreview() {
   const { value: customTree } = useAppConfig<TippyTree | null>("kiosk.help_tree");
-  const tree = customTree && typeof customTree === "object" && "root" in customTree
+  const tree = customTree && typeof customTree === "object"
     ? customTree
     : DEFAULT_TIPPY_TREE;
 
-  const nodeCount = Object.keys(tree).length;
-  const outcomeNodes = Object.values(tree).filter((n) => n.outcome);
+  const nodes = getNodes(tree);
+  const scoring = getScoring(tree);
+  const nodeCount = Object.keys(nodes).length;
+  const outcomeNodes = Object.values(nodes).filter((n) => n.outcome);
 
   return (
     <div>
@@ -669,7 +673,7 @@ function TippyTreePreview() {
           marginBottom: "1.5rem",
         }}
       >
-        <TreeNode node={tree["root"]} tree={tree} depth={0} />
+        <TreeNode node={nodes["root"]} tree={nodes} depth={0} />
       </div>
 
       {/* Outcome summary */}
@@ -722,11 +726,40 @@ function TippyTreePreview() {
           ))}
         </div>
       </div>
+      {/* Scoring config summary */}
+      <div
+        style={{
+          background: "var(--muted-bg, #f9fafb)",
+          border: "1px solid var(--card-border)",
+          borderRadius: 12,
+          padding: "1rem",
+          marginTop: "1rem",
+        }}
+      >
+        <div style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+          <Icon name="calculator" size={16} color="var(--primary)" /> Scoring Rules ({scoring.scoring_rules.length})
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8rem" }}>
+          {scoring.scoring_rules.map((rule, i) => (
+            <div key={i} style={{ display: "flex", gap: "0.5rem", color: "var(--text-secondary)" }}>
+              <code style={{ fontWeight: 600, color: "var(--text-primary)", minWidth: 140 }}>{rule.tag}</code>
+              <span>{rule.op === "truthy" ? "is truthy" : rule.op === "numeric" ? `× ${rule.points}` : `= ${rule.match?.join(" | ")}`}</span>
+              <span style={{ marginLeft: "auto", fontWeight: 600, color: "var(--primary)" }}>+{rule.points}pts</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontWeight: 700, fontSize: "0.9rem", marginTop: "1rem", marginBottom: "0.5rem" }}>
+          Field Mappings ({scoring.field_mappings.length})
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.6 }}>
+          {scoring.field_mappings.map((m) => `${m.tag} → tippy_${m.field}`).join(" · ")}
+        </div>
+      </div>
     </div>
   );
 }
 
-function TreeNode({ node, tree, depth }: { node: TippyNode; tree: TippyTree; depth: number }) {
+function TreeNode({ node, tree, depth }: { node: TippyNode; tree: Record<string, TippyNode>; depth: number }) {
   const [expanded, setExpanded] = useState(depth < 1);
   const hasChildren = node.options.some((o) => o.next_node_id !== null);
 
