@@ -291,6 +291,32 @@ export function KioskEquipmentCard({ equipment, onAction }: KioskEquipmentCardPr
             value={getLabel(EQUIPMENT_CHECKOUT_TYPE_OPTIONS, equipment.checkout_type)}
           />
         )}
+
+        {/* Location — when checked out to a place */}
+        {isOut && equipment.current_place_address && (
+          <InfoCell
+            label="Location"
+            value={equipment.current_place_address}
+            icon="map-pin"
+          />
+        )}
+
+        {/* Total checkouts — usage history indicator */}
+        {equipment.total_checkouts > 0 && (
+          <InfoCell
+            label="Total Checkouts"
+            value={String(equipment.total_checkouts)}
+          />
+        )}
+
+        {/* Notes — if any exist on the equipment */}
+        {equipment.notes && (
+          <InfoCell
+            label="Notes"
+            value={equipment.notes}
+            full
+          />
+        )}
       </div>
 
       {/* Action buttons */}
@@ -351,16 +377,18 @@ function InfoCell({
   value,
   icon,
   valueColor,
+  full,
   children,
 }: {
   label: string;
   value?: string;
   icon?: string;
   valueColor?: string;
+  full?: boolean;
   children?: React.ReactNode;
 }) {
   return (
-    <div>
+    <div style={full ? { gridColumn: "1 / -1" } : undefined}>
       <div
         style={{
           fontSize: "0.7rem",

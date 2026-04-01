@@ -312,16 +312,50 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
           >
             {error}
           </p>
+
+          {error.includes("denied") && (
+            <p
+              style={{
+                color: "rgba(255,255,255,0.6)",
+                fontSize: "0.8rem",
+                marginTop: "0.75rem",
+                textAlign: "center",
+                lineHeight: 1.5,
+                maxWidth: 280,
+              }}
+            >
+              On iPad: Settings → Safari → Camera → Allow.
+              Then come back and try again.
+            </p>
+          )}
+
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               gap: "0.75rem",
-              marginTop: "1.5rem",
+              marginTop: "1.25rem",
               width: "100%",
               maxWidth: "280px",
             }}
           >
+            {!error.includes("denied") && (
+              <Button
+                variant="outline"
+                size="lg"
+                icon="rotate-ccw"
+                fullWidth
+                onClick={() => {
+                  setError(null);
+                  setStarting(true);
+                  // Force re-mount by toggling a key — parent will re-render
+                  onClose();
+                }}
+                style={{ minHeight: "48px", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}
+              >
+                Try Again
+              </Button>
+            )}
             <Button
               variant="primary"
               size="lg"
