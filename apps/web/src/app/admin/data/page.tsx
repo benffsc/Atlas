@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { TabBar } from "@/components/ui/TabBar";
@@ -345,6 +345,10 @@ function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
 function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRefresh?: () => void }) {
   const { addToast } = useToast();
   const [runningJobs, setRunningJobs] = useState(false);
+  const [vhUploading, setVhUploading] = useState(false);
+  const [vhProcessing, setVhProcessing] = useState(false);
+  const [vhResult, setVhResult] = useState<{ total: number; inserted: number; updated: number; errors: number } | null>(null);
+  const vhFileRef = useRef<HTMLInputElement>(null);
 
   if (!data) {
     return <p className="text-muted">Loading processing status...</p>;
@@ -365,6 +369,50 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
       addToast({ type: "error", message: "Failed to start jobs" });
     } finally {
       setRunningJobs(false);
+    }
+  };
+
+  const handleVhUpload = async (file: File) => {
+    setVhUploading(true);
+    setVhResult(null);
+    try {
+      // Step 1: Upload the file
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("source_system", "volunteerhub");
+      formData.append("source_table", "users");
+
+      const uploadRes = await fetch("/api/ingest/upload", { method: "POST", body: formData });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok || !uploadData.data?.upload_id) {
+        throw new Error(uploadData.error?.message || "Upload failed");
+      }
+      const uploadId = uploadData.data.upload_id;
+      addToast({ type: "info", message: `File uploaded — processing ${file.name}...` });
+
+      // Step 2: Process the upload
+      setVhUploading(false);
+      setVhProcessing(true);
+      const processRes = await fetch("/api/ingest/process-vh-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id: uploadId }),
+      });
+      const processData = await processRes.json();
+      if (!processRes.ok) {
+        throw new Error(processData.error?.message || "Processing failed");
+      }
+
+      const result = processData.data || processData;
+      setVhResult({ total: result.total, inserted: result.inserted, updated: result.updated, errors: result.errors });
+      addToast({ type: "success", message: `Processed ${result.total} volunteers: ${result.inserted} new, ${result.updated} updated` });
+      onRefresh?.();
+    } catch (err) {
+      addToast({ type: "error", message: err instanceof Error ? err.message : "VH upload failed" });
+    } finally {
+      setVhUploading(false);
+      setVhProcessing(false);
+      if (vhFileRef.current) vhFileRef.current.value = "";
     }
   };
 
@@ -452,25 +500,26 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
 
               {/* Manual upload for VolunteerHub (fallback when API is down) */}
               {key === "volunteerhub" && (
-                <Link
-                  href="/admin/data?tab=processing&source=volunteerhub"
+                <button
+                  onClick={() => vhFileRef.current?.click()}
+                  disabled={vhUploading || vhProcessing}
                   style={{
                     display: "block",
                     width: "100%",
                     padding: "0.6rem 1rem",
-                    background: config.color,
+                    background: vhUploading || vhProcessing ? "var(--muted, #9ca3af)" : config.color,
                     color: "#fff",
                     border: "none",
                     borderRadius: "6px",
                     fontSize: "0.85rem",
                     fontWeight: 500,
                     textAlign: "center",
-                    textDecoration: "none",
+                    cursor: vhUploading || vhProcessing ? "wait" : "pointer",
                     marginTop: "0.5rem",
                   }}
                 >
-                  Upload Excel Export →
-                </Link>
+                  {vhUploading ? "Uploading..." : vhProcessing ? "Processing..." : "Upload Excel Export"}
+                </button>
               )}
 
               {/* API cron status indicator */}
@@ -490,6 +539,34 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
           );
         })}
       </div>
+
+      {/* Hidden VH file input */}
+      <input
+        ref={vhFileRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleVhUpload(file);
+        }}
+      />
+
+      {/* VH Upload Result */}
+      {vhResult && (
+        <div style={{
+          padding: "1rem",
+          background: vhResult.errors > 0 ? "var(--warning-bg, #fef3c7)" : "var(--success-bg, #ecfdf5)",
+          border: `1px solid ${vhResult.errors > 0 ? "var(--warning-border, #fcd34d)" : "var(--success-border, #6ee7b7)"}`,
+          borderRadius: "8px",
+          marginBottom: "1.5rem",
+          fontSize: "0.85rem",
+        }}>
+          <strong>VolunteerHub Import Complete:</strong>{" "}
+          {vhResult.total} volunteers processed — {vhResult.inserted} new, {vhResult.updated} updated
+          {vhResult.errors > 0 && <span style={{ color: "var(--danger-text, #dc2626)" }}>, {vhResult.errors} errors</span>}
+        </div>
+      )}
 
       {/* Entity Linking */}
       <h3 style={{ marginBottom: "1rem" }}>Entity Linking Pipeline</h3>
