@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { TabBar } from "@/components/ui/TabBar";
 import { StatCard } from "@/components/ui/StatCard";
-import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { SkeletonStats } from "@/components/feedback/Skeleton";
 import { useToast } from "@/components/feedback/Toast";
+import { fetchApi } from "@/lib/api-client";
+import ClinicHQUploadModal from "@/components/modals/ClinicHQUploadModal";
 
 // ============================================================================
 // Types
@@ -65,6 +67,13 @@ interface SourceStatus {
   description: string;
 }
 
+interface StalenessAlert {
+  source: string;
+  level: "warning" | "critical";
+  message: string;
+  hours_stale: number;
+}
+
 interface ProcessingStats {
   sources: Record<string, SourceStatus>;
   entity_linking: {
@@ -79,647 +88,13 @@ interface ProcessingStats {
     completed_24h: number;
     failed_24h: number;
   };
-}
-
-interface RuleEffectiveness {
-  rule_name: string;
-  is_active: boolean;
-  total_matches: number;
-  avg_score: number;
+  staleness_alerts?: StalenessAlert[];
+  staged_backlog?: Array<{ source_system: string; source_table: string; pending: number }>;
 }
 
 // ============================================================================
-// Tab Components
+// Helpers
 // ============================================================================
-
-function ReviewQueueTab({ data }: { data: QueueSummary | null }) {
-  const [activeSubTab, setActiveSubTab] = useState<"identity" | "places" | "quality" | "ai" | "owner">("identity");
-
-  if (!data) {
-    return <p className="text-muted">Loading review queues...</p>;
-  }
-
-  const subTabs = [
-    { id: "identity" as const, label: "Identity", count: data.identity.total },
-    { id: "places" as const, label: "Places", count: data.places.total },
-    { id: "quality" as const, label: "Quality", count: data.quality.total },
-    { id: "ai" as const, label: "AI-Parsed", count: data.ai_parsed.total },
-    { id: "owner" as const, label: "Owner Changes", count: data.owner_changes?.total || 0, highlight: true },
-  ];
-
-  return (
-    <div>
-      {/* Sub-tabs with counts */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-        {subTabs.map((tab) => {
-          const isHighlight = "highlight" in tab && tab.highlight && tab.count > 0;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSubTab(tab.id)}
-              style={{
-                padding: "0.5rem 1rem",
-                borderRadius: "6px",
-                border: activeSubTab === tab.id
-                  ? "2px solid #3b82f6"
-                  : isHighlight
-                    ? "2px solid #f59e0b"
-                    : "1px solid #e5e7eb",
-                background: activeSubTab === tab.id
-                  ? "#eff6ff"
-                  : isHighlight
-                    ? "#fffbeb"
-                    : "white",
-                cursor: "pointer",
-                fontWeight: activeSubTab === tab.id ? 600 : 400,
-              }}
-            >
-              {tab.label}
-              <span
-                style={{
-                  marginLeft: "0.5rem",
-                  padding: "0.15rem 0.5rem",
-                  borderRadius: "9999px",
-                  background: isHighlight ? "#fef3c7" : tab.count > 0 ? "#fef3c7" : "#f3f4f6",
-                  color: isHighlight ? "#d97706" : tab.count > 0 ? "#92400e" : "#6b7280",
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                }}
-              >
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Identity sub-tab content */}
-      {activeSubTab === "identity" && (
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            <StatCard
-              label="Tier 1: Email Match"
-              value={data.identity.tier1_email}
-              href="/admin/person-dedup?tier=1"
-              accentColor="var(--primary, #3b82f6)"
-            />
-            <StatCard
-              label="Tier 2: Phone + Name"
-              value={data.identity.tier2_phone_name}
-              href="/admin/person-dedup?tier=2"
-              accentColor="#8b5cf6"
-            />
-            <StatCard
-              label="Tier 3: Phone Only"
-              value={data.identity.tier3_phone_only}
-              href="/admin/person-dedup?tier=3"
-              accentColor="#f59e0b"
-            />
-            <StatCard
-              label="Tier 4: Name + Address"
-              value={data.identity.tier4_name_address}
-              href="/admin/merge-review"
-              accentColor="#ef4444"
-            />
-            <StatCard
-              label="Tier 5: Name Only"
-              value={data.identity.tier5_name_only}
-              href="/admin/person-dedup?tier=5"
-              accentColor="#6b7280"
-            />
-            <StatCard
-              label="Data Engine Pending"
-              value={data.identity.data_engine_pending}
-              href="/admin/data-engine/review"
-              accentColor="#10b981"
-            />
-          </div>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <Link href="/admin/person-dedup" className="btn btn-primary">
-              Review Person Duplicates
-            </Link>
-            <Link href="/admin/merge-review" className="btn btn-secondary">
-              Same-Name-Same-Address Queue
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Places sub-tab content */}
-      {activeSubTab === "places" && (
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            <StatCard
-              label="Close Similar"
-              value={data.places.close_similar}
-              href="/admin/place-dedup?type=similar"
-              accentColor="var(--primary, #3b82f6)"
-            />
-            <StatCard
-              label="Close Different"
-              value={data.places.close_different}
-              href="/admin/place-dedup?type=different"
-              accentColor="#f59e0b"
-            />
-          </div>
-          <Link href="/admin/place-dedup" className="btn btn-primary">
-            Review Place Duplicates
-          </Link>
-        </div>
-      )}
-
-      {/* Quality sub-tab content */}
-      {activeSubTab === "quality" && (
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            <StatCard
-              label="Quality Issues"
-              value={data.quality.total}
-              href="/admin/data-quality/review"
-              accentColor="#ef4444"
-            />
-          </div>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <Link href="/admin/data-quality" className="btn btn-primary">
-              Review Quality Issues
-            </Link>
-            <Link href="/admin/orphan-places" className="btn btn-secondary">
-              Orphan Places
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* AI-Parsed sub-tab content */}
-      {activeSubTab === "ai" && (
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            <StatCard
-              label="Colony Estimates"
-              value={data.ai_parsed.colony_estimates}
-              href="/admin/beacon/colony-estimates"
-              accentColor="#10b981"
-            />
-            <StatCard
-              label="Reproduction Data"
-              value={data.ai_parsed.reproduction}
-              href="/admin/beacon/reproduction"
-              accentColor="#8b5cf6"
-            />
-            <StatCard
-              label="Mortality Data"
-              value={data.ai_parsed.mortality}
-              href="/admin/beacon/mortality"
-              accentColor="#6b7280"
-            />
-          </div>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <Link href="/admin/tippy-corrections" className="btn btn-primary">
-              Tippy Corrections
-            </Link>
-            <Link href="/admin/classification-review" className="btn btn-secondary">
-              AI Classification Review
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* Owner Changes sub-tab content (MIG_2504) */}
-      {activeSubTab === "owner" && (
-        <div>
-          {data.owner_changes?.total === 0 ? (
-            <div style={{
-              padding: "2rem",
-              textAlign: "center",
-              background: "var(--success-bg)",
-              borderRadius: "0.5rem",
-              border: "1px solid var(--success-border)",
-            }}>
-              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>No pending reviews</div>
-              <p style={{ color: "#6b7280", margin: 0 }}>All owner changes have been resolved</p>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-                <StatCard
-                  label="Ownership Transfers"
-                  value={data.owner_changes?.transfers || 0}
-                  href="/admin/owner-changes?type=transfer"
-                  accentColor="#dc2626"
-                />
-                <StatCard
-                  label="Household Changes"
-                  value={data.owner_changes?.household || 0}
-                  href="/admin/owner-changes?type=household"
-                  accentColor="#f59e0b"
-                />
-                <StatCard
-                  label="Total Pending"
-                  value={data.owner_changes?.total || 0}
-                  href="/admin/owner-changes"
-                  accentColor="var(--primary, #3b82f6)"
-                />
-              </div>
-              <div style={{
-                padding: "0.75rem 1rem",
-                background: "#fef3c7",
-                borderRadius: "0.375rem",
-                border: "1px solid #fcd34d",
-                marginBottom: "1rem",
-                fontSize: "0.875rem",
-              }}>
-                <strong>What to review:</strong> When ClinicHQ account names change (e.g., "Jill Manning" → "Kathleen Sartori"),
-                review whether it's the same person updating their info or a different person taking over cat care.
-              </div>
-            </>
-          )}
-          <Link href="/admin/owner-changes" className="btn btn-primary">
-            Review Owner Changes
-          </Link>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRefresh?: () => void }) {
-  const { addToast } = useToast();
-  const [runningJobs, setRunningJobs] = useState(false);
-  const [vhUploading, setVhUploading] = useState(false);
-  const [vhProcessing, setVhProcessing] = useState(false);
-  const [vhResult, setVhResult] = useState<{ total: number; inserted: number; updated: number; errors: number } | null>(null);
-  const vhFileRef = useRef<HTMLInputElement>(null);
-
-  if (!data) {
-    return <p className="text-muted">Loading processing status...</p>;
-  }
-
-  const handleRunJobs = async () => {
-    setRunningJobs(true);
-    try {
-      const res = await fetch("/api/admin/data/processing", { method: "POST" });
-      const result = await res.json();
-      if (result.success) {
-        addToast({ type: "success", message: result.message });
-        onRefresh?.();
-      } else {
-        addToast({ type: "error", message: result.error || "Failed to start jobs" });
-      }
-    } catch (err) {
-      addToast({ type: "error", message: "Failed to start jobs" });
-    } finally {
-      setRunningJobs(false);
-    }
-  };
-
-  const handleVhUpload = async (file: File) => {
-    setVhUploading(true);
-    setVhResult(null);
-    try {
-      // Step 1: Upload the file
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("source_system", "volunteerhub");
-      formData.append("source_table", "users");
-
-      const uploadRes = await fetch("/api/ingest/upload", { method: "POST", body: formData });
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok || !uploadData.data?.upload_id) {
-        throw new Error(uploadData.error?.message || "Upload failed");
-      }
-      const uploadId = uploadData.data.upload_id;
-      addToast({ type: "info", message: `File uploaded — processing ${file.name}...` });
-
-      // Step 2: Process the upload
-      setVhUploading(false);
-      setVhProcessing(true);
-      const processRes = await fetch("/api/ingest/process-vh-upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upload_id: uploadId }),
-      });
-      const processData = await processRes.json();
-      if (!processRes.ok) {
-        throw new Error(processData.error?.message || "Processing failed");
-      }
-
-      const result = processData.data || processData;
-      setVhResult({ total: result.total, inserted: result.inserted, updated: result.updated, errors: result.errors });
-      addToast({ type: "success", message: `Processed ${result.total} volunteers: ${result.inserted} new, ${result.updated} updated` });
-      onRefresh?.();
-    } catch (err) {
-      addToast({ type: "error", message: err instanceof Error ? err.message : "VH upload failed" });
-    } finally {
-      setVhUploading(false);
-      setVhProcessing(false);
-      if (vhFileRef.current) vhFileRef.current.value = "";
-    }
-  };
-
-  // Source display config
-  const sourceConfig: Record<string, { color: string; label: string; syncLabel: string }> = {
-    clinichq: { color: "#2563eb", label: "ClinicHQ", syncLabel: "File Upload" },
-    shelterluv: { color: "#10b981", label: "ShelterLuv", syncLabel: "API Cron" },
-    airtable: { color: "#f59e0b", label: "Airtable", syncLabel: "Legacy" },
-    volunteerhub: { color: "#8b5cf6", label: "VolunteerHub", syncLabel: "API Cron + Manual Upload" },
-    petlink: { color: "#ec4899", label: "PetLink", syncLabel: "File Upload" },
-  };
-
-  return (
-    <div>
-      {/* Data Sources Overview */}
-      <h3 style={{ marginBottom: "1rem" }}>Data Sources</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        {Object.entries(data.sources || {}).map(([key, source]) => {
-          const config = sourceConfig[key] || { color: "#6b7280", label: key, syncLabel: "Unknown" };
-          const isFileUpload = source.sync_type === "file_upload";
-
-          return (
-            <div
-              key={key}
-              style={{
-                padding: "1.25rem",
-                background: "var(--card-bg, white)",
-                borderRadius: "8px",
-                border: "1px solid var(--border, #e5e7eb)",
-                borderLeft: `4px solid ${config.color}`,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-                <div>
-                  <strong style={{ fontSize: "1rem" }}>{config.label}</strong>
-                  <div style={{ fontSize: "0.7rem", color: "var(--muted, #6b7280)", marginTop: "2px" }}>
-                    {config.syncLabel}
-                  </div>
-                </div>
-                <StatusBadge status={source.status} />
-              </div>
-              <div style={{ fontSize: "0.8rem", color: "var(--muted, #6b7280)", marginBottom: "0.75rem" }}>
-                <div>Last sync: {source.last_sync ? new Date(source.last_sync).toLocaleDateString() : "Never"}</div>
-                <div>{source.description}</div>
-                {source.total_records > 0 && (
-                  <div style={{ marginTop: "0.25rem" }}>Total: {source.total_records.toLocaleString()} records</div>
-                )}
-              </div>
-
-              {/* PetLink warning */}
-              {key === "petlink" && (
-                <div style={{
-                  fontSize: "0.7rem",
-                  padding: "0.4rem 0.6rem",
-                  background: "#fef3c7",
-                  borderRadius: "4px",
-                  marginBottom: "0.5rem",
-                  color: "#92400e",
-                }}>
-                  ⚠️ Contains fabricated emails - filtered in matching
-                </div>
-              )}
-
-              {/* Action button for file uploads */}
-              {(isFileUpload && key === "clinichq") && (
-                <Link
-                  href="/admin/data?tab=processing"
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    padding: "0.6rem 1rem",
-                    background: config.color,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "0.85rem",
-                    fontWeight: 500,
-                    textAlign: "center",
-                    textDecoration: "none",
-                  }}
-                >
-                  Upload Data →
-                </Link>
-              )}
-
-              {/* Manual upload for VolunteerHub (fallback when API is down) */}
-              {key === "volunteerhub" && (
-                <button
-                  onClick={() => vhFileRef.current?.click()}
-                  disabled={vhUploading || vhProcessing}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    padding: "0.6rem 1rem",
-                    background: vhUploading || vhProcessing ? "var(--muted, #9ca3af)" : config.color,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "0.85rem",
-                    fontWeight: 500,
-                    textAlign: "center",
-                    cursor: vhUploading || vhProcessing ? "wait" : "pointer",
-                    marginTop: "0.5rem",
-                  }}
-                >
-                  {vhUploading ? "Uploading..." : vhProcessing ? "Processing..." : "Upload Excel Export"}
-                </button>
-              )}
-
-              {/* API cron status indicator */}
-              {source.sync_type === "api_cron" && (
-                <div style={{
-                  fontSize: "0.7rem",
-                  color: "var(--muted, #6b7280)",
-                  padding: "0.4rem 0.6rem",
-                  background: "var(--bg-secondary, #f3f4f6)",
-                  borderRadius: "4px",
-                  textAlign: "center",
-                }}>
-                  Automatic - No action needed
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Hidden VH file input */}
-      <input
-        ref={vhFileRef}
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        style={{ display: "none" }}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleVhUpload(file);
-        }}
-      />
-
-      {/* VH Upload Result */}
-      {vhResult && (
-        <div style={{
-          padding: "1rem",
-          background: vhResult.errors > 0 ? "var(--warning-bg, #fef3c7)" : "var(--success-bg, #ecfdf5)",
-          border: `1px solid ${vhResult.errors > 0 ? "var(--warning-border, #fcd34d)" : "var(--success-border, #6ee7b7)"}`,
-          borderRadius: "8px",
-          marginBottom: "1.5rem",
-          fontSize: "0.85rem",
-        }}>
-          <strong>VolunteerHub Import Complete:</strong>{" "}
-          {vhResult.total} volunteers processed — {vhResult.inserted} new, {vhResult.updated} updated
-          {vhResult.errors > 0 && <span style={{ color: "var(--danger-text, #dc2626)" }}>, {vhResult.errors} errors</span>}
-        </div>
-      )}
-
-      {/* Entity Linking */}
-      <h3 style={{ marginBottom: "1rem" }}>Entity Linking Pipeline</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Appointments Linked" value={data.entity_linking.appointments_linked} accentColor="var(--primary, #3b82f6)" />
-        <StatCard label="Cats Linked" value={data.entity_linking.cats_linked} accentColor="#10b981" />
-        <StatCard label="Places Inferred" value={data.entity_linking.places_inferred} accentColor="#8b5cf6" />
-      </div>
-
-      {/* Job Queue */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h3 style={{ margin: 0 }}>Background Jobs</h3>
-        {data.jobs.pending > 0 && (
-          <button
-            onClick={handleRunJobs}
-            disabled={runningJobs}
-            style={{
-              padding: "0.5rem 1rem",
-              background: runningJobs ? "var(--muted, #9ca3af)" : "#f59e0b",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "0.85rem",
-              fontWeight: 500,
-              cursor: runningJobs ? "not-allowed" : "pointer",
-            }}
-          >
-            {runningJobs ? "Starting..." : `Run ${data.jobs.pending} Pending Jobs`}
-          </button>
-        )}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
-        <StatCard label="Pending" value={data.jobs.pending} accentColor="#f59e0b" />
-        <StatCard label="Running" value={data.jobs.running} accentColor="var(--primary, #3b82f6)" />
-        <StatCard label="Completed (24h)" value={data.jobs.completed_24h} accentColor="#10b981" />
-        <StatCard label="Failed (24h)" value={data.jobs.failed_24h} accentColor="#ef4444" />
-      </div>
-    </div>
-  );
-}
-
-function ConfigurationTab({ rules }: { rules: RuleEffectiveness[] }) {
-  return (
-    <div>
-      {/* Matching Rules */}
-      <h3 style={{ marginBottom: "1rem" }}>Matching Rules</h3>
-      <div style={{ background: "var(--background)", borderRadius: "8px", border: "1px solid var(--border)", overflow: "hidden", marginBottom: "2rem" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "var(--section-bg)" }}>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "left", borderBottom: "1px solid var(--border)" }}>Rule</th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)" }}>Status</th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)" }}>Matches</th>
-              <th style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)" }}>Avg Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rules.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
-                  No matching rules configured
-                </td>
-              </tr>
-            ) : (
-              rules.map((rule) => (
-                <tr key={rule.rule_name}>
-                  <td style={{ padding: "0.75rem 1rem", borderBottom: "1px solid var(--border)" }}>{rule.rule_name}</td>
-                  <td style={{ padding: "0.75rem 1rem", textAlign: "center", borderBottom: "1px solid var(--border)" }}>
-                    <StatusBadge status={rule.is_active ? "active" : "inactive"} />
-                  </td>
-                  <td style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)" }}>
-                    {rule.total_matches.toLocaleString()}
-                  </td>
-                  <td style={{ padding: "0.75rem 1rem", textAlign: "right", borderBottom: "1px solid var(--border)" }}>
-                    {(rule.avg_score * 100).toFixed(0)}%
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Quick Links */}
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-        <Link href="/admin/source-confidence" className="btn btn-secondary">
-          Source Confidence Levels
-        </Link>
-        <Link href="/admin/known-organizations" className="btn btn-secondary">
-          Known Organizations
-        </Link>
-        <Link href="/admin/data-engine/households" className="btn btn-secondary">
-          Households
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function HealthTab({ health }: { health: HealthData | null }) {
-  if (!health) {
-    return <p className="text-muted">Loading health metrics...</p>;
-  }
-
-  const h = health.health;
-
-  return (
-    <div>
-      {/* Overall Status */}
-      <div
-        style={{
-          padding: "1rem",
-          background: h.status === "healthy" ? "#dcfce7" : "#fef3c7",
-          borderRadius: "8px",
-          marginBottom: "1.5rem",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.75rem",
-        }}
-      >
-        <span style={{ fontSize: "1.5rem" }}>{h.status === "healthy" ? "✓" : "⚠"}</span>
-        <span style={{ fontWeight: 600 }}>
-          Data Engine Status: {h.status.charAt(0).toUpperCase() + h.status.slice(1)}
-        </span>
-      </div>
-
-      {/* Metrics Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Total Decisions" value={h.total_decisions} accentColor="var(--primary, #3b82f6)" />
-        <StatCard label="Decisions (24h)" value={h.decisions_24h} accentColor="#10b981" />
-        <StatCard label="Pending Reviews" value={h.pending_reviews} accentColor="#f59e0b" />
-        <StatCard label="Total Households" value={h.total_households} accentColor="#8b5cf6" />
-        <StatCard label="Active Rules" value={h.active_rules} accentColor="#6b7280" />
-        <StatCard label="Avg Processing" value={`${h.avg_processing_ms}ms`} accentColor="var(--primary, #3b82f6)" />
-      </div>
-
-      {/* Links */}
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-        <Link href="/api/health/data-engine" className="btn btn-secondary" target="_blank">
-          Full Health JSON
-        </Link>
-        <Link href="/admin/identity-health" className="btn btn-secondary">
-          Identity Resolution Health
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// Helper Components
-// ============================================================================
-
 
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; color: string }> = {
@@ -751,119 +126,465 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ============================================================================
-// Main Page
-// ============================================================================
-
-type TabId = "review" | "processing" | "config" | "health";
-
-const validTabs: TabId[] = ["review", "processing", "config", "health"];
-
-// Wrapper component to handle Suspense boundary for useSearchParams
-export default function DataHubPage() {
-  return (
-    <Suspense fallback={<div style={{ padding: "2rem" }}>Loading Data Hub...</div>}>
-      <DataHubContent />
-    </Suspense>
-  );
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
 }
 
-function DataHubContent() {
-  const searchParams = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const initialTab: TabId = tabParam && validTabs.includes(tabParam as TabId)
-    ? (tabParam as TabId)
-    : "review";
+const sourceConfig: Record<string, { color: string; label: string; syncLabel: string }> = {
+  clinichq: { color: "#2563eb", label: "ClinicHQ", syncLabel: "File Upload" },
+  shelterluv: { color: "#10b981", label: "ShelterLuv", syncLabel: "API Cron" },
+  airtable: { color: "#f59e0b", label: "Airtable", syncLabel: "Legacy" },
+  volunteerhub: { color: "#8b5cf6", label: "VolunteerHub", syncLabel: "Manual + Cron" },
+  petlink: { color: "#ec4899", label: "PetLink", syncLabel: "File Upload" },
+};
 
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+// ============================================================================
+// Section: Health Banner
+// ============================================================================
 
-  // Data for each tab
-  const [queueData, setQueueData] = useState<QueueSummary | null>(null);
-  const [processingData, setProcessingData] = useState<ProcessingStats | null>(null);
-  const [healthData, setHealthData] = useState<HealthData | null>(null);
-  const [rulesData, setRulesData] = useState<RuleEffectiveness[]>([]);
-
-  // Sync tab with URL param
-  useEffect(() => {
-    if (tabParam && validTabs.includes(tabParam as TabId)) {
-      setActiveTab(tabParam as TabId);
-    }
-  }, [tabParam]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [queue, processing, health, stats] = await Promise.all([
-        fetch("/api/admin/reviews/summary").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-        fetch("/api/admin/data/processing").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-        fetch("/api/health/data-engine").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-        fetch("/api/admin/data-engine/stats").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      ]);
-      // Only set data if it has the expected structure (not an error response)
-      setQueueData(queue?.identity ? queue : null);
-      setProcessingData(processing?.sources ? processing : null);
-      setHealthData(health?.health ? health : null);
-      setRulesData(stats?.rule_effectiveness || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  };
+function HealthBanner() {
+  const [health, setHealth] = useState<HealthData | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    fetchApi<HealthData>("/api/health/data-engine")
+      .then(setHealth)
+      .catch(() => setError(true));
   }, []);
-
-  const tabs = [
-    { id: "review" as const, label: "Review Queue", count: queueData ? queueData.identity.total + queueData.places.total + queueData.quality.total + queueData.ai_parsed.total : 0 },
-    { id: "processing" as const, label: "Processing", count: processingData?.jobs.pending || 0 },
-    { id: "config" as const, label: "Configuration", count: rulesData.length },
-    { id: "health" as const, label: "Health", count: null },
-  ];
 
   if (error) {
     return (
-      <div>
-        <h1>Data Hub</h1>
-        <div style={{ padding: "1rem", background: "#fef2f2", border: "1px solid #ef4444", borderRadius: "8px" }}>
-          <strong>Error:</strong> {error}
-        </div>
+      <div style={{
+        padding: "0.75rem 1rem",
+        background: "#fee2e2",
+        borderRadius: "8px",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        fontSize: "0.875rem",
+        color: "#dc2626",
+      }}>
+        <Icon name="alert-triangle" size={16} />
+        Pipeline health check failed
       </div>
     );
   }
 
+  if (!health) return null;
+
+  const h = health.health;
+  const isHealthy = h.status === "healthy";
+
+  return (
+    <div style={{
+      padding: "0.75rem 1rem",
+      background: isHealthy ? "#dcfce7" : "#fef3c7",
+      borderRadius: "8px",
+      display: "flex",
+      alignItems: "center",
+      gap: "0.5rem",
+      fontSize: "0.875rem",
+      color: isHealthy ? "#166534" : "#92400e",
+    }}>
+      <Icon name={isHealthy ? "check-circle" : "alert-triangle"} size={16} />
+      <span style={{ fontWeight: 600 }}>
+        Data Engine {h.status}
+      </span>
+      <span style={{ opacity: 0.8 }}>
+        — {h.decisions_24h} decisions in 24h, {h.pending_reviews} pending reviews, {h.total_households} households
+      </span>
+    </div>
+  );
+}
+
+// ============================================================================
+// Section 1: Needs Attention
+// ============================================================================
+
+function NeedsAttentionSection() {
+  const [data, setData] = useState<QueueSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchApi<QueueSummary>("/api/admin/reviews/summary")
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <SkeletonStats count={6} />;
+  if (!data) return null;
+
+  const totalAttention =
+    data.identity.total +
+    data.places.total +
+    data.quality.total +
+    data.ai_parsed.total +
+    (data.owner_changes?.total || 0) +
+    (data.identity.data_engine_pending || 0);
+
+  const cards = [
+    { label: "Person Dedup", value: data.identity.total, href: "/admin/person-dedup", color: "var(--primary, #3b82f6)" },
+    { label: "Data Engine Review", value: data.identity.data_engine_pending, href: "/admin/data-engine/review", color: "#10b981" },
+    { label: "Place Dedup", value: data.places.total, href: "/admin/place-dedup", color: "#8b5cf6" },
+    { label: "Quality Issues", value: data.quality.total, href: "/admin/data-quality", color: "#ef4444" },
+    { label: "AI-Parsed", value: data.ai_parsed.total, href: "/admin/tippy-corrections", color: "#f59e0b" },
+    { label: "Owner Changes", value: data.owner_changes?.total || 0, href: "/admin/owner-changes", color: "#dc2626" },
+  ];
+
+  return (
+    <section>
+      <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 0.75rem", color: "var(--text-secondary)" }}>
+        NEEDS ATTENTION {totalAttention > 0 && <span style={{
+          fontSize: "0.8rem",
+          padding: "0.15rem 0.5rem",
+          borderRadius: "9999px",
+          background: "#fef3c7",
+          color: "#92400e",
+          fontWeight: 600,
+          marginLeft: "0.5rem",
+        }}>{totalAttention}</span>}
+      </h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.75rem" }}>
+        {cards.map((card) => (
+          <StatCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            href={card.href}
+            accentColor={card.value > 0 ? card.color : undefined}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ============================================================================
+// Section 2: Data Sources
+// ============================================================================
+
+function DataSourcesSection() {
+  const [data, setData] = useState<ProcessingStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchApi<ProcessingStats>("/api/admin/data/processing")
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <SkeletonStats count={5} />;
+  if (!data) return null;
+
+  const alerts = data.staleness_alerts || [];
+  const totalStaged = (data.staged_backlog || []).reduce((sum, r) => sum + r.pending, 0);
+
+  return (
+    <section>
+      <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 0.75rem", color: "var(--text-secondary)" }}>
+        DATA SOURCES
+      </h2>
+
+      {/* Staleness banners */}
+      {alerts.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
+          {alerts.map((alert) => (
+            <div
+              key={alert.source}
+              style={{
+                padding: "0.6rem 1rem",
+                borderRadius: "6px",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                background: alert.level === "critical" ? "#fee2e2" : "#fef3c7",
+                color: alert.level === "critical" ? "#991b1b" : "#92400e",
+                border: `1px solid ${alert.level === "critical" ? "#fca5a5" : "#fcd34d"}`,
+              }}
+            >
+              <Icon name={alert.level === "critical" ? "alert-triangle" : "clock"} size={16} />
+              {alert.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Staged backlog summary */}
+      {totalStaged > 0 && (
+        <div style={{
+          padding: "0.6rem 1rem",
+          borderRadius: "6px",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          fontSize: "0.85rem",
+          fontWeight: 500,
+          background: totalStaged > 1000 ? "#fee2e2" : "#fef3c7",
+          color: totalStaged > 1000 ? "#991b1b" : "#92400e",
+          border: `1px solid ${totalStaged > 1000 ? "#fca5a5" : "#fcd34d"}`,
+          marginBottom: "1rem",
+        }}>
+          <Icon name="database" size={16} />
+          {totalStaged.toLocaleString()} unprocessed staged records
+          <span style={{ opacity: 0.7, fontSize: "0.75rem" }}>
+            ({(data.staged_backlog || []).map(b => `${b.source_system}/${b.source_table}: ${b.pending}`).join(", ")})
+          </span>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem" }}>
+        {Object.entries(data.sources || {}).map(([key, source]) => {
+          const config = sourceConfig[key] || { color: "#6b7280", label: key, syncLabel: "Unknown" };
+          return (
+            <div
+              key={key}
+              style={{
+                padding: "1rem",
+                background: "var(--surface-raised, var(--card-bg))",
+                borderRadius: "8px",
+                border: "1px solid var(--card-border)",
+                borderLeft: `4px solid ${config.color}`,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                <div>
+                  <strong style={{ fontSize: "0.95rem" }}>{config.label}</strong>
+                  <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "1px" }}>
+                    {config.syncLabel}
+                  </div>
+                </div>
+                <StatusBadge status={source.status} />
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                <div>Last sync: {source.last_sync ? timeAgo(source.last_sync) : "Never"}</div>
+                {source.total_records > 0 && (
+                  <div>{source.total_records.toLocaleString()} records</div>
+                )}
+              </div>
+
+              {key === "petlink" && (
+                <div style={{
+                  fontSize: "0.7rem",
+                  padding: "0.3rem 0.5rem",
+                  background: "#fef3c7",
+                  borderRadius: "4px",
+                  marginTop: "0.5rem",
+                  color: "#92400e",
+                }}>
+                  Contains fabricated emails - filtered in matching
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ============================================================================
+// Section 3: Pipeline Health
+// ============================================================================
+
+function PipelineHealthSection() {
+  const { addToast } = useToast();
+  const [data, setData] = useState<ProcessingStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [runningJobs, setRunningJobs] = useState(false);
+
+  const fetchProcessing = () => {
+    fetchApi<ProcessingStats>("/api/admin/data/processing")
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchProcessing();
+  }, []);
+
+  const handleRunJobs = async () => {
+    setRunningJobs(true);
+    try {
+      const res = await fetch("/api/admin/data/processing", { method: "POST" });
+      const result = await res.json();
+      if (result.success) {
+        addToast({ type: "success", message: result.message || "Jobs started" });
+        fetchProcessing();
+      } else {
+        addToast({ type: "error", message: result.error || "Failed to start jobs" });
+      }
+    } catch {
+      addToast({ type: "error", message: "Failed to start jobs" });
+    } finally {
+      setRunningJobs(false);
+    }
+  };
+
+  if (loading) return <SkeletonStats count={6} />;
+  if (!data) return null;
+
+  return (
+    <section>
+      <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 0.75rem", color: "var(--text-secondary)" }}>
+        PIPELINE HEALTH
+      </h2>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+        {/* Entity linking */}
+        <div>
+          <h3 style={{ fontSize: "0.85rem", fontWeight: 600, margin: "0 0 0.5rem", color: "var(--muted)" }}>
+            Entity Linking
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem" }}>
+            <StatCard label="Appts Linked" value={data.entity_linking.appointments_linked} accentColor="var(--primary, #3b82f6)" />
+            <StatCard label="Cats Linked" value={data.entity_linking.cats_linked} accentColor="#10b981" />
+            <StatCard label="Places Inferred" value={data.entity_linking.places_inferred} accentColor="#8b5cf6" />
+          </div>
+          {data.entity_linking.last_run && (
+            <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.35rem" }}>
+              Last run: {timeAgo(data.entity_linking.last_run)}
+            </div>
+          )}
+        </div>
+
+        {/* Jobs */}
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+            <h3 style={{ fontSize: "0.85rem", fontWeight: 600, margin: 0, color: "var(--muted)" }}>
+              Background Jobs
+            </h3>
+            {data.jobs.pending > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon="play"
+                loading={runningJobs}
+                onClick={handleRunJobs}
+              >
+                Run {data.jobs.pending} Pending
+              </Button>
+            )}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.5rem" }}>
+            <StatCard label="Pending" value={data.jobs.pending} accentColor="#f59e0b" />
+            <StatCard label="Running" value={data.jobs.running} accentColor="var(--primary, #3b82f6)" />
+            <StatCard label="Completed 24h" value={data.jobs.completed_24h} accentColor="#10b981" />
+            <StatCard label="Failed 24h" value={data.jobs.failed_24h} accentColor={data.jobs.failed_24h > 0 ? "#ef4444" : undefined} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================================
+// Section 4: Quick Links
+// ============================================================================
+
+function QuickLinksSection() {
+  const links = [
+    { label: "Source Confidence", href: "/admin/source-confidence", icon: "shield" },
+    { label: "Households", href: "/admin/data-engine/households", icon: "users" },
+    { label: "Known Organizations", href: "/admin/known-organizations", icon: "building" },
+    { label: "Matching Rules", href: "/api/admin/data-engine/stats", icon: "git-branch" },
+    { label: "Identity Health", href: "/admin/identity-health", icon: "heart-pulse" },
+    { label: "Orphan Places", href: "/admin/orphan-places", icon: "map-pin-off" },
+  ];
+
+  return (
+    <section>
+      <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 0.75rem", color: "var(--text-secondary)" }}>
+        ADVANCED
+      </h2>
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        {links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              padding: "0.4rem 0.75rem",
+              borderRadius: "6px",
+              border: "1px solid var(--card-border)",
+              background: "var(--surface-raised, var(--card-bg))",
+              color: "var(--text-secondary)",
+              fontSize: "0.8rem",
+              fontWeight: 500,
+              textDecoration: "none",
+            }}
+          >
+            <Icon name={link.icon} size={14} />
+            {link.label}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ============================================================================
+// Main Page
+// ============================================================================
+
+export default function DataHubPage() {
+  const [uploadOpen, setUploadOpen] = useState(false);
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1 style={{ margin: 0 }}>Data Hub</h1>
-        {healthData && (
-          <StatusBadge status={healthData.health.status} />
-        )}
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+        <div>
+          <h1 style={{ margin: "0 0 0.25rem" }}>Data Hub</h1>
+          <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
+            Data operations, review queues, pipeline health
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <Button variant="primary" icon="upload" onClick={() => setUploadOpen(true)}>
+            Upload ClinicHQ
+          </Button>
+          <Link href="/admin/vh-upload">
+            <Button variant="outline" icon="upload">
+              Upload VH
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Main Tabs */}
-      <TabBar
-        tabs={tabs.map((t) => ({ id: t.id, label: t.label, count: t.count ?? undefined }))}
-        activeTab={activeTab}
-        onTabChange={(id) => setActiveTab(id as TabId)}
+      {/* Health Banner */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <HealthBanner />
+      </div>
+
+      {/* Sections — each loads independently */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+        <NeedsAttentionSection />
+        <DataSourcesSection />
+        <PipelineHealthSection />
+        <QuickLinksSection />
+      </div>
+
+      {/* ClinicHQ Upload Modal */}
+      <ClinicHQUploadModal
+        isOpen={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onSuccess={() => setUploadOpen(false)}
       />
-
-      {/* Tab Content */}
-      <div style={{ background: "var(--bg-secondary, #f9fafb)", padding: "1.5rem", borderRadius: "8px", minHeight: "400px" }}>
-        {loading ? (
-          <div style={{ padding: "1rem 0" }}><SkeletonTable rows={5} columns={4} /></div>
-        ) : (
-          <>
-            {activeTab === "review" && <ReviewQueueTab data={queueData} />}
-            {activeTab === "processing" && <ProcessingTab data={processingData} onRefresh={fetchData} />}
-            {activeTab === "config" && <ConfigurationTab rules={rulesData} />}
-            {activeTab === "health" && <HealthTab health={healthData} />}
-          </>
-        )}
-      </div>
     </div>
   );
 }

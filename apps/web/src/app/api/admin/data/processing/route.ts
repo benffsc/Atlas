@@ -1,5 +1,6 @@
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
+import { getServerConfig } from "@/lib/server-config";
 
 /**
  * Processing Status API for Data Hub
@@ -35,6 +36,15 @@ interface ProcessingStats {
 
 export async function GET() {
   try {
+    // Read staleness thresholds from config (MIG_3016 seeds)
+    const [clinichqStaleHours, volunteerhubStaleHours, shelterluvStaleHours, stagedBacklogWarning] =
+      await Promise.all([
+        getServerConfig("sync.clinichq_stale_hours", 48),
+        getServerConfig("sync.volunteerhub_stale_hours", 48),
+        getServerConfig("sync.shelterluv_stale_hours", 24),
+        getServerConfig("sync.staged_backlog_warning", 500),
+      ]);
+
     // Initialize sources
     const sources: Record<string, SourceStatus> = {
       clinichq: {
@@ -99,7 +109,7 @@ export async function GET() {
       sources.clinichq.total_records = clinichqStatus.total_records;
       if (clinichqStatus.last_sync) {
         const hoursSince = (Date.now() - new Date(clinichqStatus.last_sync).getTime()) / (1000 * 60 * 60);
-        sources.clinichq.status = hoursSince <= 168 ? "ok" : "stale"; // 7 days
+        sources.clinichq.status = hoursSince <= clinichqStaleHours ? "ok" : "stale";
       }
     }
 
@@ -147,7 +157,7 @@ export async function GET() {
       sources.volunteerhub.total_records = volunteerhubStatus.total_count;
       if (volunteerhubStatus.last_sync) {
         const hoursSince = (Date.now() - new Date(volunteerhubStatus.last_sync).getTime()) / (1000 * 60 * 60);
-        sources.volunteerhub.status = hoursSince <= 48 ? "active" : "stale";
+        sources.volunteerhub.status = hoursSince <= volunteerhubStaleHours ? "active" : "stale";
       }
     }
 
@@ -223,6 +233,69 @@ export async function GET() {
       FROM ops.processing_jobs
     `);
 
+    // Get staged records backlog per source
+    const stagedBacklog = await queryRows<{
+      source_system: string;
+      source_table: string;
+      pending: number;
+    }>(`
+      SELECT source_system, source_table, COUNT(*)::int as pending
+      FROM ops.staged_records
+      WHERE NOT is_processed
+      GROUP BY source_system, source_table
+      ORDER BY pending DESC
+    `).catch(() => []);
+
+    const totalStagedPending = stagedBacklog.reduce((sum, r) => sum + r.pending, 0);
+
+    // Build staleness alerts for frontend banners
+    const stalenessAlerts: Array<{
+      source: string;
+      level: "warning" | "critical";
+      message: string;
+      hours_stale: number;
+    }> = [];
+
+    for (const [key, source] of Object.entries(sources)) {
+      if (source.status === "stale" && source.last_sync) {
+        const hoursSince = Math.round(
+          (Date.now() - new Date(source.last_sync).getTime()) / (1000 * 60 * 60)
+        );
+        const daysSince = Math.round(hoursSince / 24);
+        const thresholdHours =
+          key === "clinichq" ? clinichqStaleHours
+          : key === "volunteerhub" ? volunteerhubStaleHours
+          : key === "shelterluv" ? shelterluvStaleHours
+          : 168;
+
+        // Critical if 3x the stale threshold
+        const level = hoursSince > thresholdHours * 3 ? "critical" : "warning";
+        const label = key === "clinichq" ? "ClinicHQ" : key === "volunteerhub" ? "VolunteerHub" : key === "shelterluv" ? "ShelterLuv" : key;
+        stalenessAlerts.push({
+          source: key,
+          level,
+          message: `${label} last synced ${daysSince} day${daysSince !== 1 ? "s" : ""} ago`,
+          hours_stale: hoursSince,
+        });
+      } else if (source.status === "never" && key !== "petlink" && key !== "airtable") {
+        stalenessAlerts.push({
+          source: key,
+          level: "critical",
+          message: `${key === "shelterluv" ? "ShelterLuv" : key === "volunteerhub" ? "VolunteerHub" : key} has never synced`,
+          hours_stale: -1,
+        });
+      }
+    }
+
+    if (totalStagedPending > stagedBacklogWarning) {
+      stalenessAlerts.push({
+        source: "staged_records",
+        level: totalStagedPending > stagedBacklogWarning * 3 ? "critical" : "warning",
+        message: `${totalStagedPending.toLocaleString()} unprocessed staged records waiting`,
+        hours_stale: 0,
+      });
+    }
+
     const stats: ProcessingStats = {
       sources,
       entity_linking: {
@@ -239,7 +312,11 @@ export async function GET() {
       },
     };
 
-    return apiSuccess(stats);
+    return apiSuccess({
+      ...stats,
+      staged_backlog: stagedBacklog,
+      staleness_alerts: stalenessAlerts,
+    });
   } catch (error) {
     console.error("Error fetching processing stats:", error);
     return apiServerError(error instanceof Error ? error.message : "Unknown error");
