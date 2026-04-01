@@ -767,6 +767,20 @@ function TreeNode({ node, tree, depth }: { node: TippyNode; tree: TippyTree; dep
         <span style={{ flex: 1, fontWeight: 600, fontSize: "0.85rem", color: "var(--text-primary)" }}>
           {node.tippy_text}
         </span>
+        {node.show_when && (
+          <span
+            style={{
+              fontSize: "0.6rem",
+              fontWeight: 600,
+              padding: "0.1rem 0.3rem",
+              borderRadius: 3,
+              background: "var(--info-bg, rgba(59,130,246,0.08))",
+              color: "var(--info-text, #2563eb)",
+            }}
+          >
+            conditional
+          </span>
+        )}
         <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>
           {node.options.length} opt
         </span>
@@ -806,11 +820,18 @@ function TreeNode({ node, tree, depth }: { node: TippyNode; tree: TippyTree; dep
                 <span style={{ color: "var(--muted)" }}>→</span>
                 {opt.icon && <Icon name={opt.icon} size={14} color="var(--muted)" />}
                 <span style={{ fontWeight: 500 }}>{opt.label}</span>
-                {opt.next_node_id === null && (
-                  <span style={{ fontSize: "0.7rem", color: "var(--muted)", marginLeft: "auto" }}>
-                    terminal
-                  </span>
-                )}
+                <span style={{ display: "flex", gap: "0.375rem", marginLeft: "auto", alignItems: "center" }}>
+                  {opt.tags && Object.keys(opt.tags).length > 0 && (
+                    <span style={{ fontSize: "0.6rem", color: "var(--muted)" }}>
+                      {Object.keys(opt.tags).length} tags
+                    </span>
+                  )}
+                  {opt.next_node_id === null && (
+                    <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>
+                      terminal
+                    </span>
+                  )}
+                </span>
               </div>
               {opt.next_node_id && tree[opt.next_node_id] && (
                 <TreeNode node={tree[opt.next_node_id]} tree={tree} depth={depth + 1} />

@@ -59,8 +59,10 @@ export default function CheckoutSlipsPage() {
         .slip {
           width: 8.5in; height: 5.5in; box-sizing: border-box;
           padding: 0.25in 0.4in 0.2in; position: relative; overflow: hidden;
+          page-break-inside: avoid; break-inside: avoid;
         }
         .slip + .slip { border-top: 2px dashed #bbb; }
+        .slip-page { page-break-after: always; break-after: page; }
 
         .slip-hdr {
           display: flex; justify-content: space-between; align-items: flex-end;
@@ -127,7 +129,8 @@ export default function CheckoutSlipsPage() {
           @page { size: letter portrait; margin: 0; }
           body { background: #fff !important; }
           .slip-ctrl, .tippy-fab, .tippy-chat-panel,
-          nav, aside, header, [data-sidebar] { display: none !important; }
+          nav, aside, header, footer, [data-sidebar],
+          [role="alert"], [data-banner], .transition-banner { display: none !important; }
           main { margin: 0 !important; padding: 0 !important; max-width: none !important; }
           .slip-page { border: none; margin: 0; }
         }

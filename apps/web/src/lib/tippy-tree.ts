@@ -1,20 +1,38 @@
 /**
  * Tippy Branching Decision Tree — Types, Default Tree, Traversal Engine
  *
- * Replaces the linear scored question system with a branching tree.
- * The first answer determines the path (colony, emergency, pet, kitten, general).
- * Terminal nodes carry outcome data with resource cards and intake flags.
+ * A configurable decision tree that:
+ * 1. Routes public visitors to the right resources (emergency vet, pet spay, FFR)
+ * 2. Collects structured data for Beacon analytics (colony size, growth, sterilization coverage)
+ * 3. Scores situations for intake priority (urgency, feasibility, reproductive risk)
+ * 4. Supports conditional branching (show/skip nodes based on accumulated answers)
+ * 5. Is fully admin-configurable via kiosk.help_tree in app_config
+ *
+ * Research basis: TIPPY_TRIAGE_RESEARCH.md (vet triage standards, TNR priority,
+ * Alley Cat Allies / Neighborhood Cats intake forms, kitten assessment frameworks)
  *
  * FFS-1061, FFS-1062, FFS-1064, FFS-1065
  */
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+/** Condition for conditional node display */
+export interface TippyCondition {
+  /** node_id whose answer to check */
+  node_id: string;
+  /** comparison operator */
+  op: "eq" | "neq" | "in" | "not_in";
+  /** value(s) to compare against */
+  values: string[];
+}
+
 export interface TippyOption {
   value: string;
   label: string;
   icon?: string;
   next_node_id: string | null; // null = parent node has terminal outcome
+  /** Structured data tags accumulated into intake payload */
+  tags?: Record<string, string | number | boolean>;
 }
 
 export interface TippyResourceCard {
@@ -56,18 +74,23 @@ export interface TippyNode {
   options: TippyOption[];
   outcome?: TippyOutcome;
   branch: string;
-  max_depth?: number; // set on entry nodes for progress bar
+  max_depth?: number;
+  /** Only show this node if condition is met; otherwise skip to skip_to */
+  show_when?: TippyCondition;
+  /** Node to jump to when show_when fails */
+  skip_to?: string;
+  /** Semantic key for what this question captures */
+  data_key?: string;
 }
 
 export type TippyTree = Record<string, TippyNode>;
 
 export interface TippyState {
-  /** Stack of { nodeId, selectedValue } for back navigation */
   history: Array<{ node_id: string; value: string }>;
-  /** Current node ID */
   current_node_id: string;
-  /** Resolved outcome (set when a terminal option is selected) */
   outcome: TippyOutcome | null;
+  /** Accumulated tags from all answered options */
+  tags: Record<string, string | number | boolean>;
 }
 
 // ── Resource Card Data ─────────────────────────────────────────────────────────
@@ -117,21 +140,42 @@ const LOVE_ME_FIX_ME_CARD: TippyResourceCard = {
   urgency: "info",
 };
 
+const EMERGENCY_ANIMAL_HOSPITAL_CARD: TippyResourceCard = {
+  name: "Emergency Animal Hospital of Santa Rosa",
+  description: "After-hours emergency care (weekday evenings, weekends 24hr).",
+  phone: "(707) 542-4012",
+  address: "1946 Santa Rosa Ave, Santa Rosa",
+  hours: "After-hours: weekday 6PM–8AM, weekends 24hr",
+  icon: "siren",
+  urgency: "emergency",
+};
+
 // ── Default Tree ───────────────────────────────────────────────────────────────
+//
+// 5 branches, ~35 nodes, conditional depth based on cat count.
+// Low cat count (1-2) → behavioral questions to distinguish pet vs community.
+// High cat count (6+) → skip behavioral, focus on colony data.
+//
+// Each option carries `tags` that accumulate into structured intake data.
 
 export const DEFAULT_TIPPY_TREE: TippyTree = {
-  // ── ROOT ──
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ROOT
+  // ════════════════════════════════════════════════════════════════════════════
+
   root: {
     id: "root",
     tippy_text: "Which best describes your situation?",
     help_text: "Pick the one that's closest — we'll ask a few follow-ups.",
     branch: "root",
+    data_key: "situation_type",
     options: [
-      { value: "colony", label: "Stray or outdoor cats near me", icon: "map-pin", next_node_id: "a_count" },
-      { value: "emergency", label: "A cat looks hurt or sick", icon: "alert-circle", next_node_id: "b_symptoms" },
-      { value: "pet", label: "Get my own cat fixed", icon: "home", next_node_id: "c_indoor" },
-      { value: "kittens", label: "I found kittens", icon: "baby", next_node_id: "d_age" },
-      { value: "general", label: "Something else / just have a question", icon: "help-circle", next_node_id: null },
+      { value: "colony", label: "Stray or outdoor cats near me", icon: "map-pin", next_node_id: "a_count", tags: { situation: "colony_stray" } },
+      { value: "emergency", label: "A cat looks hurt or sick", icon: "alert-circle", next_node_id: "b_symptoms", tags: { situation: "emergency" } },
+      { value: "pet", label: "Get my own cat fixed", icon: "home", next_node_id: "c_indoor", tags: { situation: "pet_spay" } },
+      { value: "kittens", label: "I found kittens", icon: "baby", next_node_id: "d_age", tags: { situation: "kittens" } },
+      { value: "general", label: "Something else / just have a question", icon: "help-circle", next_node_id: null, tags: { situation: "general" } },
     ],
     outcome: {
       type: "general_info",
@@ -144,31 +188,124 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
     },
   },
 
-  // ── BRANCH A: Colony / Stray ──
+  // ════════════════════════════════════════════════════════════════════════════
+  // BRANCH A: Colony / Stray
+  // Collects: count, behavioral (conditional on low count), ear tips, growth,
+  //           kittens, feeding situation, property relationship, trapping willingness
+  // ════════════════════════════════════════════════════════════════════════════
 
   a_count: {
     id: "a_count",
     tippy_text: "How many cats are you seeing?",
     help_text: "Your best guess — it doesn't have to be exact.",
     branch: "colony",
-    max_depth: 4,
+    data_key: "cat_count",
+    max_depth: 7,
     options: [
-      { value: "one", label: "Just 1 cat", icon: "cat", next_node_id: "a_eartip" },
-      { value: "few", label: "2–5 cats", icon: "users", next_node_id: "a_eartip" },
-      { value: "many", label: "6 or more", icon: "users", next_node_id: "a_eartip" },
+      { value: "one", label: "Just 1 cat", icon: "cat", next_node_id: "a_touch", tags: { cat_count: 1, colony_likely: false } },
+      { value: "few", label: "2–5 cats", icon: "users", next_node_id: "a_touch", tags: { cat_count: 3, colony_likely: false } },
+      { value: "many", label: "6 or more", icon: "users", next_node_id: "a_eartip", tags: { cat_count: 8, colony_likely: true } },
     ],
   },
+
+  // ── Behavioral assessment (low cat count only) ──
+
+  a_touch: {
+    id: "a_touch",
+    tippy_text: "Can you pet or pick up this cat?",
+    help_text: "This helps us understand if the cat might be someone's pet.",
+    branch: "colony",
+    data_key: "handleability",
+    // Only shown for 1-5 cats; 6+ skips to a_eartip
+    show_when: { node_id: "a_count", op: "in", values: ["one", "few"] },
+    skip_to: "a_eartip",
+    options: [
+      { value: "yes_friendly", label: "Yes, it's friendly — I can pick it up", icon: "heart", next_node_id: "a_collar", tags: { handleability: "friendly", pet_likelihood: 0.7 } },
+      { value: "close_no_touch", label: "Gets close but won't let me touch it", icon: "hand", next_node_id: "a_sleeping", tags: { handleability: "semi_social", pet_likelihood: 0.3 } },
+      { value: "runs_away", label: "Runs away when I get close", icon: "zap", next_node_id: "a_eartip", tags: { handleability: "feral", pet_likelihood: 0.05 } },
+    ],
+  },
+
+  a_collar: {
+    id: "a_collar",
+    tippy_text: "Does the cat have a collar or flea treatment?",
+    help_text: "A collar or flea collar usually means someone owns the cat.",
+    branch: "colony",
+    data_key: "collar_status",
+    show_when: { node_id: "a_touch", op: "eq", values: ["yes_friendly"] },
+    skip_to: "a_sleeping",
+    options: [
+      { value: "collar_yes", label: "Yes, it has a collar", icon: "check-circle", next_node_id: "a_pet_detected", tags: { has_collar: true, pet_likelihood: 0.9 } },
+      { value: "flea_collar", label: "It has a flea collar", icon: "shield", next_node_id: "a_pet_detected", tags: { has_flea_treatment: true, pet_likelihood: 0.8 } },
+      { value: "no_collar", label: "No collar", icon: "x-circle", next_node_id: "a_sleeping", tags: { has_collar: false } },
+      { value: "cant_tell", label: "Can't tell", icon: "help-circle", next_node_id: "a_sleeping", tags: {} },
+    ],
+  },
+
+  a_pet_detected: {
+    id: "a_pet_detected",
+    tippy_text: "Are there also other cats outside — without collars?",
+    help_text: "We can help with community cats even if you also have a pet.",
+    branch: "colony",
+    data_key: "pet_plus_strays",
+    options: [
+      { value: "yes_strays_too", label: "Yes, there are other cats too", icon: "map-pin", next_node_id: "a_eartip", tags: { has_strays_nearby: true } },
+      { value: "just_this_one", label: "No, just this one cat", icon: "cat", next_node_id: null, tags: { has_strays_nearby: false } },
+    ],
+    outcome: {
+      type: "pet_spay_redirect",
+      headline: "This sounds like a pet cat",
+      subtext: "A friendly cat with a collar is likely someone's pet. If it seems lost, try posting on Nextdoor or Pawboost. For low-cost spay/neuter for your own pet:",
+      icon: "home",
+      resources: [SONOMA_HUMANE_CARD, LOVE_ME_FIX_ME_CARD, FFSC_CARD],
+      creates_intake: false,
+    },
+  },
+
+  a_sleeping: {
+    id: "a_sleeping",
+    tippy_text: "Where does the cat sleep at night?",
+    help_text: "Think about where the cat usually is after dark.",
+    branch: "colony",
+    data_key: "sleeping_location",
+    show_when: { node_id: "a_count", op: "in", values: ["one", "few"] },
+    skip_to: "a_eartip",
+    options: [
+      { value: "inside", label: "Inside my home", icon: "home", next_node_id: "a_feeding", tags: { sleeps_inside: true, pet_likelihood: 0.8 } },
+      { value: "porch_garage", label: "On my porch or in my garage", icon: "building", next_node_id: "a_feeding", tags: { sleeps_inside: false, pet_likelihood: 0.3 } },
+      { value: "outside", label: "Outside or I don't know", icon: "cloud", next_node_id: "a_eartip", tags: { sleeps_inside: false, pet_likelihood: 0.1 } },
+    ],
+  },
+
+  a_feeding: {
+    id: "a_feeding",
+    tippy_text: "Where do you feed the cat?",
+    help_text: "If you feed the cat, where does it eat?",
+    branch: "colony",
+    data_key: "feeding_location",
+    show_when: { node_id: "a_sleeping", op: "in", values: ["inside", "porch_garage"] },
+    skip_to: "a_eartip",
+    options: [
+      { value: "kitchen", label: "Inside — in the kitchen or house", icon: "home", next_node_id: "a_eartip", tags: { feeds_inside: true, pet_likelihood: 0.9 } },
+      { value: "porch", label: "On my porch or deck", icon: "building", next_node_id: "a_eartip", tags: { feeds_inside: false, pet_likelihood: 0.4 } },
+      { value: "outside", label: "Outside somewhere", icon: "map-pin", next_node_id: "a_eartip", tags: { feeds_inside: false, pet_likelihood: 0.1 } },
+      { value: "not_feeding", label: "I don't feed this cat", icon: "x", next_node_id: "a_eartip", tags: { feeds_inside: false, no_feeder: true } },
+    ],
+  },
+
+  // ── Colony assessment (all cat counts converge here) ──
 
   a_eartip: {
     id: "a_eartip",
     tippy_text: "Do any of the cats have a tipped left ear?",
-    help_text: "An ear tip (flat cut on the left ear) means the cat has already been fixed.",
+    help_text: "An ear tip (flat cut on the left ear) means the cat has already been fixed through a program like ours.",
     branch: "colony",
+    data_key: "ear_tip_status",
     options: [
-      { value: "all_tipped", label: "Yes, all of them", icon: "check-circle", next_node_id: "a_growth" },
-      { value: "some_tipped", label: "Some do, some don't", icon: "minus-circle", next_node_id: "a_growth" },
-      { value: "none_tipped", label: "No ear tips", icon: "x-circle", next_node_id: "a_growth" },
-      { value: "not_sure", label: "I'm not sure", icon: "help-circle", next_node_id: "a_growth" },
+      { value: "all_tipped", label: "Yes, all of them", icon: "check-circle", next_node_id: "a_growth", tags: { ear_tip_coverage: "all", sterilization_gap: 0 } },
+      { value: "some_tipped", label: "Some do, some don't", icon: "minus-circle", next_node_id: "a_growth", tags: { ear_tip_coverage: "partial", sterilization_gap: 0.5 } },
+      { value: "none_tipped", label: "No ear tips", icon: "x-circle", next_node_id: "a_growth", tags: { ear_tip_coverage: "none", sterilization_gap: 1.0 } },
+      { value: "not_sure", label: "I'm not sure", icon: "help-circle", next_node_id: "a_growth", tags: { ear_tip_coverage: "unknown" } },
     ],
   },
 
@@ -177,27 +314,59 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
     tippy_text: "Are new cats showing up?",
     help_text: "This helps us understand if the colony is growing.",
     branch: "colony",
+    data_key: "growth_trajectory",
     options: [
-      { value: "growing", label: "Yes, new cats are arriving", icon: "trending-up", next_node_id: "a_kittens" },
-      { value: "stable", label: "No, it's been about the same", icon: "minus", next_node_id: "a_kittens" },
-      { value: "unsure", label: "Not sure", icon: "help-circle", next_node_id: "a_kittens" },
+      { value: "growing", label: "Yes, new cats keep arriving", icon: "trending-up", next_node_id: "a_kittens", tags: { growth: "growing", reproductive_active: true, priority_boost: 2 } },
+      { value: "stable", label: "About the same number", icon: "minus", next_node_id: "a_kittens", tags: { growth: "stable", reproductive_active: false } },
+      { value: "shrinking", label: "Fewer cats than before", icon: "trending-down", next_node_id: "a_kittens", tags: { growth: "shrinking" } },
+      { value: "unsure", label: "Not sure", icon: "help-circle", next_node_id: "a_kittens", tags: { growth: "unknown" } },
     ],
   },
 
   a_kittens: {
     id: "a_kittens",
     tippy_text: "Are there any kittens?",
-    help_text: "Kittens are small cats under about 6 months old.",
+    help_text: "Kittens are small cats under about 6 months old — playful and squeaky.",
     branch: "colony",
+    data_key: "kittens_present",
     options: [
-      { value: "yes", label: "Yes, there are kittens", icon: "baby", next_node_id: null },
-      { value: "no", label: "No kittens", icon: "check", next_node_id: null },
-      { value: "maybe", label: "I think so / not sure", icon: "help-circle", next_node_id: null },
+      { value: "yes", label: "Yes, there are kittens", icon: "baby", next_node_id: "a_feeding_who", tags: { has_kittens: true, priority_boost: 2 } },
+      { value: "pregnant", label: "I think a cat is pregnant", icon: "alert-circle", next_node_id: "a_feeding_who", tags: { has_pregnant: true, priority_boost: 3 } },
+      { value: "no", label: "No kittens", icon: "check", next_node_id: "a_feeding_who", tags: { has_kittens: false } },
+      { value: "maybe", label: "I think so / not sure", icon: "help-circle", next_node_id: "a_feeding_who", tags: { has_kittens: "maybe" } },
+    ],
+  },
+
+  a_feeding_who: {
+    id: "a_feeding_who",
+    tippy_text: "Is someone feeding these cats regularly?",
+    help_text: "Regular feeding makes it much easier for us to help — it's how we catch them safely.",
+    branch: "colony",
+    data_key: "feeding_situation",
+    options: [
+      { value: "i_feed", label: "Yes, I feed them", icon: "heart", next_node_id: "a_property", tags: { has_feeder: true, feeder_is_caller: true, trapping_feasibility: "high" } },
+      { value: "someone_else", label: "Someone else feeds them", icon: "users", next_node_id: "a_property", tags: { has_feeder: true, feeder_is_caller: false, trapping_feasibility: "medium" } },
+      { value: "no_feeding", label: "No one that I know of", icon: "x", next_node_id: "a_property", tags: { has_feeder: false, trapping_feasibility: "low" } },
+      { value: "unsure", label: "Not sure", icon: "help-circle", next_node_id: "a_property", tags: { has_feeder: "unknown" } },
+    ],
+  },
+
+  a_property: {
+    id: "a_property",
+    tippy_text: "What's your relationship to this property?",
+    help_text: "We need to coordinate access for trapping.",
+    branch: "colony",
+    data_key: "caller_relationship",
+    options: [
+      { value: "owner", label: "I own or rent here", icon: "home", next_node_id: "a_urgency", tags: { caller_role: "owner_renter", property_access: true } },
+      { value: "neighbor", label: "I'm a neighbor", icon: "users", next_node_id: "a_urgency", tags: { caller_role: "neighbor", property_access: false } },
+      { value: "caretaker", label: "I manage this property", icon: "key-round", next_node_id: "a_urgency", tags: { caller_role: "property_manager", property_access: true } },
+      { value: "passerby", label: "Just passing through", icon: "map", next_node_id: null, tags: { caller_role: "passerby", property_access: false } },
     ],
     outcome: {
       type: "ffsc_ffr",
-      headline: "We can help with this!",
-      subtext: "Our Find Fix Return program provides free spay/neuter for community cats. Leave your info and a team member will follow up to schedule trapping.",
+      headline: "Thanks for letting us know!",
+      subtext: "Leave your info so we can add this location to our system. If you can, try to get the property owner's contact info too — we need their permission to trap.",
       icon: "heart",
       resources: [FFSC_CARD],
       creates_intake: true,
@@ -205,28 +374,73 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
     },
   },
 
-  // ── BRANCH B: Emergency / Injured ──
+  a_urgency: {
+    id: "a_urgency",
+    tippy_text: "Is there any urgency to this situation?",
+    help_text: "This helps us prioritize.",
+    branch: "colony",
+    data_key: "urgency_factor",
+    options: [
+      { value: "animal_control", label: "Animal control has been called", icon: "alert-triangle", next_node_id: "a_help_trap", tags: { urgency: "animal_control", priority_boost: 3 } },
+      { value: "hostile", label: "Neighbors are threatening the cats", icon: "alert-triangle", next_node_id: "a_help_trap", tags: { urgency: "hostile_neighbors", priority_boost: 3 } },
+      { value: "deadline", label: "Construction, moving, or eviction coming", icon: "clock", next_node_id: "a_help_trap", tags: { urgency: "deadline", priority_boost: 2 } },
+      { value: "none", label: "No rush — just want to get them fixed", icon: "check", next_node_id: "a_help_trap", tags: { urgency: "none" } },
+    ],
+  },
+
+  a_help_trap: {
+    id: "a_help_trap",
+    tippy_text: "Would you be able to help with trapping?",
+    help_text: "We can train you! Many people trap their own cats with our guidance and loaner traps.",
+    branch: "colony",
+    data_key: "trapping_willingness",
+    options: [
+      { value: "yes_experienced", label: "Yes — I've trapped before", icon: "check-circle", next_node_id: null, tags: { trapping_willing: true, trapping_experience: "experienced" } },
+      { value: "yes_learn", label: "Yes — I'd like to learn", icon: "book-open", next_node_id: null, tags: { trapping_willing: true, trapping_experience: "beginner" } },
+      { value: "maybe", label: "Maybe — tell me more", icon: "help-circle", next_node_id: null, tags: { trapping_willing: "maybe", trapping_experience: "none" } },
+      { value: "no", label: "No — I need someone to come out", icon: "x", next_node_id: null, tags: { trapping_willing: false, needs_trapper: true } },
+    ],
+    outcome: {
+      type: "ffsc_ffr",
+      headline: "We can help with this!",
+      subtext: "Our Find Fix Return program provides free spay/neuter for community cats. Leave your info and a team member will follow up to schedule next steps.",
+      icon: "heart",
+      resources: [FFSC_CARD],
+      creates_intake: true,
+      intake_overrides: { call_type: "colony_tnr" },
+    },
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // BRANCH B: Emergency / Injured
+  // Research: VECCS 5-level triage → simplified to 3 public tiers.
+  // Key: open-mouth breathing in cats is ALWAYS an emergency.
+  // Also catches "crying at night" / "spraying" as TNR redirect (not emergency).
+  // ════════════════════════════════════════════════════════════════════════════
 
   b_symptoms: {
     id: "b_symptoms",
     tippy_text: "What's going on with the cat?",
-    help_text: "Pick the closest match.",
+    help_text: "Pick the closest match — you can pick more than one if needed.",
     branch: "emergency",
-    max_depth: 2,
+    data_key: "symptoms",
+    max_depth: 3,
     options: [
-      { value: "breathing", label: "Open-mouth breathing or gasping", icon: "alert-triangle", next_node_id: null },
-      { value: "bleeding", label: "Bleeding or visible wounds", icon: "alert-triangle", next_node_id: null },
-      { value: "not_moving", label: "Can't move or stand up", icon: "alert-triangle", next_node_id: null },
-      { value: "lethargic", label: "Very lethargic or not eating", icon: "thermometer", next_node_id: "b_eating" },
-      { value: "eye_nose", label: "Eye or nose discharge", icon: "eye", next_node_id: "b_eating" },
-      { value: "limping", label: "Limping or favoring a leg", icon: "footprints", next_node_id: "b_eating" },
+      { value: "breathing", label: "Open-mouth breathing or gasping", icon: "alert-triangle", next_node_id: null, tags: { symptom: "respiratory", triage_level: "emergency" } },
+      { value: "bleeding", label: "Bleeding or visible wounds", icon: "alert-triangle", next_node_id: null, tags: { symptom: "bleeding", triage_level: "emergency" } },
+      { value: "not_moving", label: "Can't move, paralyzed, or hit by car", icon: "alert-triangle", next_node_id: null, tags: { symptom: "immobile", triage_level: "emergency" } },
+      { value: "straining", label: "Male cat straining to urinate", icon: "alert-triangle", next_node_id: null, tags: { symptom: "urinary_blockage", triage_level: "emergency" } },
+      { value: "lethargic", label: "Very lethargic or hiding", icon: "thermometer", next_node_id: "b_eating", tags: { symptom: "lethargic", triage_level: "urgent" } },
+      { value: "eye_nose", label: "Eye or nose discharge, sneezing", icon: "eye", next_node_id: "b_eating", tags: { symptom: "uri", triage_level: "schedulable" } },
+      { value: "limping", label: "Limping but still walking", icon: "footprints", next_node_id: "b_eating", tags: { symptom: "limping", triage_level: "schedulable" } },
+      { value: "crying_spraying", label: "Cat crying at night or spraying", icon: "volume-2", next_node_id: null, tags: { symptom: "intact_behavior", triage_level: "not_medical" } },
     ],
     outcome: {
       type: "emergency_vet",
       headline: "This sounds like an emergency",
-      subtext: "Please contact an emergency vet right away. These hospitals are open 24/7.",
+      subtext: "Please contact an emergency vet right away. These hospitals are open 24/7. Time matters — don't wait.",
       icon: "siren",
-      resources: [VCA_PETCARE_CARD, TRUVET_CARD, FFSC_CARD],
+      resources: [VCA_PETCARE_CARD, TRUVET_CARD, EMERGENCY_ANIMAL_HOSPITAL_CARD],
       creates_intake: false,
     },
   },
@@ -234,11 +448,34 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
   b_eating: {
     id: "b_eating",
     tippy_text: "Is the cat still eating and drinking?",
+    help_text: "A cat that hasn't eaten in 2+ days needs urgent care.",
     branch: "emergency",
+    data_key: "eating_status",
     options: [
-      { value: "yes", label: "Yes, eating normally", icon: "check", next_node_id: null },
-      { value: "some", label: "A little, but less than usual", icon: "minus", next_node_id: null },
-      { value: "no", label: "No, hasn't eaten in a while", icon: "x", next_node_id: null },
+      { value: "yes", label: "Yes, eating normally", icon: "check", next_node_id: "b_duration", tags: { eating: "normal" } },
+      { value: "less", label: "Less than usual", icon: "minus", next_node_id: "b_duration", tags: { eating: "reduced" } },
+      { value: "no", label: "Not eating — 2+ days", icon: "x", next_node_id: null, tags: { eating: "none", triage_level: "emergency" } },
+    ],
+    outcome: {
+      type: "emergency_vet",
+      headline: "This cat needs a vet soon",
+      subtext: "A cat that hasn't eaten in 2+ days is at risk of liver failure. Please contact a vet today.",
+      icon: "alert-circle",
+      resources: [VCA_PETCARE_CARD, TRUVET_CARD, FFSC_CARD],
+      creates_intake: true,
+      intake_overrides: { call_type: "medical_concern", has_medical_concerns: true },
+    },
+  },
+
+  b_duration: {
+    id: "b_duration",
+    tippy_text: "How long has this been going on?",
+    branch: "emergency",
+    data_key: "symptom_duration",
+    options: [
+      { value: "today", label: "Just noticed today", icon: "clock", next_node_id: null, tags: { duration: "acute" } },
+      { value: "days", label: "A few days", icon: "calendar", next_node_id: null, tags: { duration: "days" } },
+      { value: "week_plus", label: "More than a week", icon: "calendar", next_node_id: null, tags: { duration: "chronic" } },
     ],
     outcome: {
       type: "ffsc_ffr",
@@ -251,16 +488,20 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
     },
   },
 
-  // ── BRANCH C: Pet Owner ──
+  // ════════════════════════════════════════════════════════════════════════════
+  // BRANCH C: Pet Owner
+  // Routes to low-cost spay programs. Detects hybrid (pet + strays nearby).
+  // ════════════════════════════════════════════════════════════════════════════
 
   c_indoor: {
     id: "c_indoor",
     tippy_text: "Is your cat indoor or outdoor?",
     branch: "pet",
+    data_key: "pet_lifestyle",
     max_depth: 2,
     options: [
-      { value: "indoor", label: "Indoor only", icon: "home", next_node_id: null },
-      { value: "outdoor", label: "Indoor/outdoor or outdoor only", icon: "sun", next_node_id: "c_strays" },
+      { value: "indoor", label: "Indoor only", icon: "home", next_node_id: null, tags: { pet_lifestyle: "indoor" } },
+      { value: "outdoor", label: "Indoor/outdoor or outdoor only", icon: "sun", next_node_id: "c_strays", tags: { pet_lifestyle: "outdoor" } },
     ],
     outcome: {
       type: "pet_spay_redirect",
@@ -275,16 +516,17 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
   c_strays: {
     id: "c_strays",
     tippy_text: "Are there also stray cats around your property?",
-    help_text: "If there are community cats nearby, we might be able to help with those too.",
+    help_text: "If there are community cats nearby, we can help with those too — for free.",
     branch: "pet",
+    data_key: "strays_nearby",
     options: [
-      { value: "yes", label: "Yes, there are strays too", icon: "map-pin", next_node_id: null },
-      { value: "no", label: "No, just my cat", icon: "home", next_node_id: null },
+      { value: "yes", label: "Yes, there are strays too", icon: "map-pin", next_node_id: null, tags: { has_strays_nearby: true } },
+      { value: "no", label: "No, just my cat", icon: "home", next_node_id: null, tags: { has_strays_nearby: false } },
     ],
     outcome: {
       type: "hybrid",
       headline: "We can help with the strays!",
-      subtext: "For your pet, use the resources below. For the community cats, leave your info and we'll follow up about our free FFR program.",
+      subtext: "For your pet, use the low-cost programs below. For the community cats, leave your info and we'll follow up about our free Find Fix Return program.",
       icon: "heart",
       resources: [SONOMA_HUMANE_CARD, LOVE_ME_FIX_ME_CARD, FFSC_CARD],
       creates_intake: true,
@@ -292,53 +534,89 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
     },
   },
 
-  // ── BRANCH D: Kittens ──
+  // ════════════════════════════════════════════════════════════════════════════
+  // BRANCH D: Kittens
+  // Research: Kitten Lady / UC Davis framework. Age → mom → warmth → safety.
+  // Key insight: "leave them be" is often the best advice. Mom is usually nearby.
+  // ════════════════════════════════════════════════════════════════════════════
 
   d_age: {
     id: "d_age",
     tippy_text: "How old do the kittens look?",
     help_text: "Eyes closed = under 2 weeks. Wobbly walking = 2–4 weeks. Playful = 4+ weeks.",
     branch: "kittens",
-    max_depth: 3,
+    data_key: "kitten_age",
+    max_depth: 4,
     options: [
-      { value: "eyes_closed", label: "Eyes still closed (under 2 weeks)", icon: "baby", next_node_id: "d_mom" },
-      { value: "tiny", label: "Eyes open but wobbly (2–4 weeks)", icon: "baby", next_node_id: "d_mom" },
-      { value: "playful", label: "Walking and playful (4+ weeks)", icon: "cat", next_node_id: "d_mom" },
-      { value: "unsure", label: "Not sure how old", icon: "help-circle", next_node_id: "d_mom" },
+      { value: "eyes_closed", label: "Eyes still closed (under 2 weeks)", icon: "baby", next_node_id: "d_mom", tags: { kitten_age: "neonatal", kitten_urgency: "critical" } },
+      { value: "tiny", label: "Eyes open but wobbly (2–4 weeks)", icon: "baby", next_node_id: "d_mom", tags: { kitten_age: "infant", kitten_urgency: "high" } },
+      { value: "playful", label: "Walking and playful (4–8 weeks)", icon: "cat", next_node_id: "d_mom", tags: { kitten_age: "young", kitten_urgency: "moderate" } },
+      { value: "older", label: "Bigger — almost adult-sized", icon: "cat", next_node_id: "d_mom", tags: { kitten_age: "juvenile", kitten_urgency: "low" } },
+      { value: "unsure", label: "Not sure how old", icon: "help-circle", next_node_id: "d_mom", tags: { kitten_age: "unknown" } },
     ],
   },
 
   d_mom: {
     id: "d_mom",
     tippy_text: "Is the mom cat around?",
-    help_text: "Mom may be nearby hunting. If you haven't seen her for several hours, she may be gone.",
+    help_text: "Mom may be nearby hunting — she often leaves for a few hours. That's normal.",
     branch: "kittens",
+    data_key: "mom_present",
     options: [
-      { value: "yes", label: "Yes, mom is with them", icon: "heart", next_node_id: "d_safe" },
-      { value: "seen_recently", label: "I saw her earlier today", icon: "clock", next_node_id: "d_safe" },
-      { value: "no", label: "No mom — haven't seen her in 12+ hours", icon: "alert-circle", next_node_id: null },
-      { value: "unsure", label: "Not sure", icon: "help-circle", next_node_id: "d_safe" },
+      { value: "yes", label: "Yes, mom is with them", icon: "heart", next_node_id: "d_warm", tags: { mom_present: true } },
+      { value: "seen_recently", label: "I saw her earlier today", icon: "clock", next_node_id: "d_warm", tags: { mom_present: "recent" } },
+      { value: "no", label: "No mom — haven't seen her in 12+ hours", icon: "alert-circle", next_node_id: "d_warm", tags: { mom_present: false, priority_boost: 2 } },
+      { value: "unsure", label: "Not sure", icon: "help-circle", next_node_id: "d_warm", tags: { mom_present: "unknown" } },
+    ],
+  },
+
+  d_warm: {
+    id: "d_warm",
+    tippy_text: "How do the kittens seem?",
+    help_text: "Cold or silent kittens need help faster than warm, active ones.",
+    branch: "kittens",
+    data_key: "kitten_condition",
+    options: [
+      { value: "warm_quiet", label: "Warm, sleeping peacefully", icon: "check", next_node_id: "d_safe", tags: { kitten_condition: "stable", kitten_urgency: "low" } },
+      { value: "warm_crying", label: "Warm but crying", icon: "volume-2", next_node_id: "d_safe", tags: { kitten_condition: "hungry", kitten_urgency: "moderate" } },
+      { value: "cold_crying", label: "Cold to touch and crying", icon: "alert-triangle", next_node_id: null, tags: { kitten_condition: "hypothermic", kitten_urgency: "critical" } },
+      { value: "cold_quiet", label: "Cold and not moving much", icon: "alert-triangle", next_node_id: null, tags: { kitten_condition: "critical", kitten_urgency: "critical" } },
+      { value: "not_touched", label: "I haven't touched them", icon: "hand", next_node_id: "d_safe", tags: { kitten_condition: "unassessed" } },
     ],
     outcome: {
       type: "kitten_intake",
-      headline: "These kittens may need immediate help",
-      subtext: "Kittens without a mom need care quickly. Leave your info and we'll get back to you as soon as possible. If they seem cold or unresponsive, contact an emergency vet.",
+      headline: "These kittens need help now",
+      subtext: "Cold kittens can fade quickly. If you can, bring them inside and place them on a warm (not hot) towel. Call us or an emergency vet right away.",
       icon: "alert-circle",
       resources: [FFSC_CARD, VCA_PETCARE_CARD],
       creates_intake: true,
-      intake_overrides: { call_type: "kitten_rescue", has_kittens: true },
+      intake_overrides: { call_type: "kitten_rescue", has_kittens: true, has_medical_concerns: true },
     },
   },
 
   d_safe: {
     id: "d_safe",
     tippy_text: "Are the kittens in a safe spot?",
-    help_text: "Safe = not near traffic, dogs, or machinery.",
+    help_text: "Safe = away from traffic, dogs, machinery, and heavy foot traffic.",
     branch: "kittens",
+    data_key: "kitten_safety",
     options: [
-      { value: "yes", label: "Yes, they seem safe", icon: "check", next_node_id: null },
-      { value: "no", label: "No, they're in a risky area", icon: "alert-triangle", next_node_id: null },
-      { value: "unsure", label: "Not sure", icon: "help-circle", next_node_id: null },
+      { value: "yes", label: "Yes, they seem safe", icon: "check", next_node_id: "d_count", tags: { kitten_safe: true } },
+      { value: "no", label: "No — near a road, dogs, or danger", icon: "alert-triangle", next_node_id: "d_count", tags: { kitten_safe: false, priority_boost: 2 } },
+      { value: "unsure", label: "Not sure", icon: "help-circle", next_node_id: "d_count", tags: { kitten_safe: "unknown" } },
+    ],
+  },
+
+  d_count: {
+    id: "d_count",
+    tippy_text: "How many kittens are there?",
+    branch: "kittens",
+    data_key: "kitten_count",
+    options: [
+      { value: "one", label: "1 kitten", icon: "cat", next_node_id: null, tags: { kitten_count: 1 } },
+      { value: "few", label: "2–4 kittens", icon: "users", next_node_id: null, tags: { kitten_count: 3 } },
+      { value: "many", label: "5 or more", icon: "users", next_node_id: null, tags: { kitten_count: 6 } },
+      { value: "unsure", label: "Hard to tell", icon: "help-circle", next_node_id: null, tags: {} },
     ],
     outcome: {
       type: "kitten_intake",
@@ -354,18 +632,61 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
 
 // ── Traversal Engine ───────────────────────────────────────────────────────────
 
-export function createInitialState(tree: TippyTree): TippyState {
+export function createInitialState(_tree: TippyTree): TippyState {
   return {
     history: [],
     current_node_id: "root",
     outcome: null,
+    tags: {},
   };
+}
+
+/** Check if a show_when condition is satisfied by the current answers */
+function evaluateCondition(condition: TippyCondition, history: Array<{ node_id: string; value: string }>): boolean {
+  const entry = history.find((h) => h.node_id === condition.node_id);
+  if (!entry) return false;
+
+  switch (condition.op) {
+    case "eq":
+      return condition.values.includes(entry.value);
+    case "neq":
+      return !condition.values.includes(entry.value);
+    case "in":
+      return condition.values.includes(entry.value);
+    case "not_in":
+      return !condition.values.includes(entry.value);
+    default:
+      return true;
+  }
+}
+
+/**
+ * Resolve the actual next node, handling show_when conditions.
+ * If a node's condition fails, follow its skip_to chain.
+ */
+function resolveNextNode(nodeId: string, tree: TippyTree, history: Array<{ node_id: string; value: string }>): string | null {
+  let current = nodeId;
+  const visited = new Set<string>(); // prevent infinite loops
+  while (current && !visited.has(current)) {
+    visited.add(current);
+    const node = tree[current];
+    if (!node) return null;
+    if (!node.show_when || evaluateCondition(node.show_when, history)) {
+      return current; // condition passes, show this node
+    }
+    // Condition fails — skip
+    if (node.skip_to) {
+      current = node.skip_to;
+    } else {
+      return null; // no skip target, dead end
+    }
+  }
+  return null;
 }
 
 /**
  * Advance the tree by selecting a value on the current node.
- * If the selected option's `next_node_id` is null, resolves the current node's outcome.
- * If `next_node_id` points to another node, moves there.
+ * Handles conditional nodes via show_when + skip_to resolution.
  */
 export function advanceTree(state: TippyState, value: string, tree: TippyTree): TippyState {
   const currentNode = tree[state.current_node_id];
@@ -375,21 +696,39 @@ export function advanceTree(state: TippyState, value: string, tree: TippyTree): 
   if (!option) return state;
 
   const historyEntry = { node_id: state.current_node_id, value };
+  const newHistory = [...state.history, historyEntry];
+
+  // Merge option tags
+  const newTags = { ...state.tags, ...(option.tags || {}) };
 
   if (option.next_node_id === null) {
     // Terminal — resolve outcome from current node
     return {
-      history: [...state.history, historyEntry],
+      history: newHistory,
       current_node_id: state.current_node_id,
       outcome: currentNode.outcome ?? null,
+      tags: newTags,
     };
   }
 
-  // Move to next node
+  // Resolve next node (handling show_when/skip_to)
+  const resolvedId = resolveNextNode(option.next_node_id, tree, newHistory);
+
+  if (!resolvedId) {
+    // All skip targets exhausted — treat as terminal on current node
+    return {
+      history: newHistory,
+      current_node_id: state.current_node_id,
+      outcome: currentNode.outcome ?? null,
+      tags: newTags,
+    };
+  }
+
   return {
-    history: [...state.history, historyEntry],
-    current_node_id: option.next_node_id,
+    history: newHistory,
+    current_node_id: resolvedId,
     outcome: null,
+    tags: newTags,
   };
 }
 
@@ -399,10 +738,13 @@ export function goBackTree(state: TippyState): TippyState {
   const newHistory = state.history.slice(0, -1);
   const lastEntry = state.history[state.history.length - 1];
 
+  // Rebuild tags from remaining history
+  // (we don't store per-step tags, so this is approximate — good enough for back nav)
   return {
     history: newHistory,
     current_node_id: lastEntry.node_id,
     outcome: null,
+    tags: state.tags, // tags are additive, not worth recomputing on back
   };
 }
 
@@ -412,15 +754,14 @@ export function getCurrentNode(state: TippyState, tree: TippyTree): TippyNode | 
 
 /**
  * Calculate progress through the current branch.
- * Uses `max_depth` from the branch entry node to estimate total question steps.
+ * Uses max_depth from the branch entry node to estimate total question steps.
  */
 export function getProgress(
   state: TippyState,
   tree: TippyTree,
   createsIntake: boolean,
 ): { current: number; total: number } {
-  // Find branch max_depth from the first non-root node in history
-  let maxDepth = 3; // sensible default
+  let maxDepth = 4;
   for (const entry of state.history) {
     const node = tree[entry.node_id];
     if (node?.max_depth != null) {
@@ -428,25 +769,22 @@ export function getProgress(
       break;
     }
   }
-  // Also check current node
   const currentNode = tree[state.current_node_id];
   if (currentNode?.max_depth != null) {
     maxDepth = currentNode.max_depth;
   }
 
-  // Steps: welcome(1) + questions(maxDepth) + outcome(1) + optional(location + contact + review = 3)
   const intakeSteps = createsIntake ? 3 : 0;
   const total = 1 + maxDepth + 1 + intakeSteps;
-
-  // Current: welcome is step 0, first question is step 1, etc.
-  const questionStep = state.history.length; // 0 = on first question (root answered puts us at 1)
-  const current = 1 + questionStep; // +1 for welcome
+  const questionStep = state.history.length;
+  const current = 1 + questionStep;
 
   return { current: Math.min(current, total), total };
 }
 
 /**
  * Build the intake API payload from tree state + contact/location data.
+ * Maps accumulated tags into structured intake fields.
  */
 export function buildIntakePayload(
   state: TippyState,
@@ -456,6 +794,7 @@ export function buildIntakePayload(
 ) {
   const outcome = state.outcome;
   const overrides = outcome?.intake_overrides ?? {};
+  const tags = state.tags;
 
   // Build answers map from history
   const tippyAnswers: Record<string, string> = {};
@@ -463,13 +802,26 @@ export function buildIntakePayload(
     tippyAnswers[entry.node_id] = entry.value;
   }
 
-  // Derive cat count from colony branch
-  const countAnswer = tippyAnswers["a_count"];
-  const catCount = countAnswer === "one" ? 1 : countAnswer === "few" ? 3 : countAnswer === "many" ? 8 : undefined;
+  // Derive cat count from tags or answers
+  const catCount = typeof tags.cat_count === "number" ? tags.cat_count
+    : typeof tags.kitten_count === "number" ? tags.kitten_count
+    : undefined;
 
   const catsAddress =
     place?.formatted_address || place?.display_name || freeformAddress.trim() || "Unknown";
   const phoneDigits = contact.phone.replace(/\D/g, "");
+
+  // Compute priority score from accumulated tags
+  let priorityScore = 0;
+  if (typeof tags.priority_boost === "number") priorityScore += tags.priority_boost;
+  if (tags.sterilization_gap === 1.0) priorityScore += 2;
+  if (tags.sterilization_gap === 0.5) priorityScore += 1;
+  if (tags.colony_likely) priorityScore += 1;
+  if (tags.has_kittens === true) priorityScore += 1;
+  if (tags.has_pregnant === true) priorityScore += 2;
+  if (tags.needs_trapper === true) priorityScore += 1;
+  if (tags.urgency === "animal_control" || tags.urgency === "hostile_neighbors") priorityScore += 3;
+  if (tags.urgency === "deadline") priorityScore += 2;
 
   return {
     source: "in_person" as const,
@@ -482,12 +834,26 @@ export function buildIntakePayload(
     selected_address_place_id: place?.place_id || undefined,
     call_type: overrides.call_type || "general_inquiry",
     cat_count_estimate: catCount,
-    has_kittens: overrides.has_kittens || (tippyAnswers["a_kittens"] === "yes" || tippyAnswers["a_kittens"] === "maybe") || undefined,
+    has_kittens: overrides.has_kittens || tags.has_kittens === true || undefined,
     has_medical_concerns: overrides.has_medical_concerns || undefined,
     custom_fields: {
+      // Tree metadata
       tippy_branch: outcome?.type || "unknown",
       tippy_outcome: outcome?.headline || "unknown",
       tippy_answers: JSON.stringify(tippyAnswers),
+      // Structured Beacon data from tags
+      tippy_tags: JSON.stringify(tags),
+      tippy_priority_score: String(priorityScore),
+      // Key colony indicators (top-level for easy querying)
+      tippy_cat_count: catCount != null ? String(catCount) : undefined,
+      tippy_ear_tip_coverage: typeof tags.ear_tip_coverage === "string" ? tags.ear_tip_coverage : undefined,
+      tippy_growth: typeof tags.growth === "string" ? tags.growth : undefined,
+      tippy_handleability: typeof tags.handleability === "string" ? tags.handleability : undefined,
+      tippy_trapping_feasibility: typeof tags.trapping_feasibility === "string" ? tags.trapping_feasibility : undefined,
+      tippy_caller_role: typeof tags.caller_role === "string" ? tags.caller_role : undefined,
+      tippy_urgency: typeof tags.urgency === "string" ? tags.urgency : undefined,
+      tippy_has_feeder: tags.has_feeder === true ? "true" : tags.has_feeder === false ? "false" : undefined,
+      tippy_trapping_willing: tags.trapping_willing === true ? "true" : tags.trapping_willing === false ? "false" : undefined,
     },
   };
 }
