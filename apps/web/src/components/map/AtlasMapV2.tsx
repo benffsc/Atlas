@@ -23,6 +23,7 @@ import { SearchResultsPanel } from "@/components/map/components/SearchResultsPan
 import { MapContextMenu } from "@/components/map/components/MapContextMenu";
 import { BottomSheet } from "@/components/map/components/BottomSheet";
 import { BulkActionBar } from "@/components/map/components/BulkActionBar";
+import { MapPinKey } from "@/components/map/components/MapPinKey";
 import { GroupedLayerControl, type PinKeyConfig } from "@/components/map/GroupedLayerControl";
 import {
   PlaceDetailDrawer,
@@ -1530,7 +1531,8 @@ function AtlasMapV2Inner() {
       {/* ── Date range filter ── */}
       <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
 
-      {/* Legend removed — layer toggle panel IS the legend (FFS-1021) */}
+      {/* ── Pin key (always-visible collapsible legend) ── */}
+      <MapPinKey pinConfig={pinConfig} isMobile={isMobile} />
 
       {/* ── Stats bar ── */}
       {summary && !isMobile && (
