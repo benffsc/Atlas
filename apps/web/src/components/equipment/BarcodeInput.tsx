@@ -22,6 +22,8 @@ export function BarcodeInput({ onScan, loading, placeholder = "Scan barcode or t
   const isScanner = useRef(false);
   // Debounce timer: fires when scanner stops sending characters (100ms gap)
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cooldown: prevent rapid-fire submissions (300ms between scans)
+  const lastScanTime = useRef(0);
 
   // Auto-focus on mount and after each scan
   useEffect(() => {
@@ -39,17 +41,22 @@ export function BarcodeInput({ onScan, loading, placeholder = "Scan barcode or t
 
   const handleSubmit = useCallback((overrideValue?: string) => {
     const trimmed = (overrideValue ?? value).trim();
-    if (trimmed && !loading) {
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-        debounceTimer.current = null;
-      }
-      onScan(trimmed);
-      setValue("");
-      isScanner.current = false;
-      // Re-focus for next scan
-      setTimeout(() => inputRef.current?.focus(), 100);
+    if (!trimmed || loading) return;
+
+    // Cooldown: ignore scans within 300ms of the last one
+    const now = Date.now();
+    if (now - lastScanTime.current < 300) return;
+    lastScanTime.current = now;
+
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
     }
+    onScan(trimmed);
+    setValue("");
+    isScanner.current = false;
+    // Re-focus for next scan
+    setTimeout(() => inputRef.current?.focus(), 100);
   }, [value, loading, onScan]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {

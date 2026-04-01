@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
@@ -32,7 +32,9 @@ interface ScanResult extends VEquipmentInventoryRow {
 
 /**
  * Kiosk scan page — barcode entry, equipment lookup, and inline action forms.
- * State machine: idle -> loading -> found/not_found -> action (checkout/checkin/etc.)
+ *
+ * FFS-828: AbortController prevents stale responses from overwriting state.
+ * Scan ID counter ensures only the latest scan result is displayed.
  */
 export default function KioskScanPage() {
   const toast = useToast();
@@ -42,17 +44,28 @@ export default function KioskScanPage() {
   const [lastBarcode, setLastBarcode] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
-  // Detect touch devices (phones, tablets)
+  // AbortController for cancelling in-flight scan requests
+  const abortRef = useRef<AbortController>();
+  // Monotonic scan ID — only the latest scan's response is applied
+  const scanIdRef = useRef(0);
+
+  // Cleanup on unmount
   useEffect(() => {
-    setIsTouchDevice(
-      "ontouchstart" in window || navigator.maxTouchPoints > 0
-    );
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, []);
 
   const handleScan = useCallback(
     async (barcode: string) => {
+      // Cancel any in-flight request
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const currentScanId = ++scanIdRef.current;
+
       setLastBarcode(barcode);
       setActiveAction(null);
       setState("loading");
@@ -61,11 +74,20 @@ export default function KioskScanPage() {
 
       try {
         const result = await fetchApi<ScanResult>(
-          `/api/equipment/scan?barcode=${encodeURIComponent(barcode)}`
+          `/api/equipment/scan?barcode=${encodeURIComponent(barcode)}`,
+          { signal: controller.signal }
         );
+
+        // Stale response guard — a newer scan may have fired
+        if (scanIdRef.current !== currentScanId) return;
+
         setEquipment(result);
         setState("found");
       } catch (err) {
+        // Don't update state for aborted requests
+        if (controller.signal.aborted) return;
+        if (scanIdRef.current !== currentScanId) return;
+
         const message =
           err instanceof Error ? err.message : "Failed to look up equipment";
         setErrorMessage(message);
@@ -86,16 +108,26 @@ export default function KioskScanPage() {
     setActiveAction(null);
     // Re-fetch equipment to show updated status
     if (lastBarcode) {
+      // Cancel any in-flight request
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       setState("loading");
       try {
         const result = await fetchApi<ScanResult>(
-          `/api/equipment/scan?barcode=${encodeURIComponent(lastBarcode)}`
+          `/api/equipment/scan?barcode=${encodeURIComponent(lastBarcode)}`,
+          { signal: controller.signal }
         );
-        setEquipment(result);
-        setState("found");
+        if (!controller.signal.aborted) {
+          setEquipment(result);
+          setState("found");
+        }
       } catch {
-        setState("idle");
-        setEquipment(null);
+        if (!controller.signal.aborted) {
+          setState("idle");
+          setEquipment(null);
+        }
       }
     } else {
       setState("idle");
@@ -109,6 +141,7 @@ export default function KioskScanPage() {
   }, []);
 
   const handleReset = useCallback(() => {
+    if (abortRef.current) abortRef.current.abort();
     setState("idle");
     setEquipment(null);
     setActiveAction(null);
