@@ -8,45 +8,53 @@ import { useToast } from "@/components/feedback/Toast";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { KioskWizardShell } from "@/components/kiosk/KioskWizardShell";
-import { KioskQuestionCard } from "@/components/kiosk/KioskQuestionCard";
+import { TippyQuestionCard } from "@/components/kiosk/TippyQuestionCard";
+import { TippyOutcomeScreen } from "@/components/kiosk/TippyOutcomeScreen";
 import { KioskLocationStep } from "@/components/kiosk/KioskLocationStep";
 import { KioskContactStep, type KioskContactData } from "@/components/kiosk/KioskContactStep";
-import { KioskReviewStep } from "@/components/kiosk/KioskReviewStep";
 import {
-  DEFAULT_QUESTIONS,
-  scoreAnswers,
-  SITUATION_TO_CALL_TYPE,
-  type IndirectQuestion,
-} from "@/lib/kiosk-questions";
+  DEFAULT_TIPPY_TREE,
+  createInitialState,
+  advanceTree,
+  goBackTree,
+  getCurrentNode,
+  getProgress,
+  buildIntakePayload,
+  type TippyTree,
+  type TippyState,
+} from "@/lib/tippy-tree";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { isValidPhone } from "@/lib/formatters";
 
-type WizardPhase = "welcome" | "questions" | "location" | "contact" | "review" | "submitting" | "success";
+type WizardPhase = "welcome" | "questions" | "outcome" | "location" | "contact" | "review" | "submitting" | "success";
 
 /**
- * Kiosk Help Request — public wizard flow.
+ * Kiosk Help Request — Tippy branching form.
  *
- * Welcome → Questions (1 per screen) → Location → Contact → Review → Submit → Success
+ * Welcome → Questions (branching tree) → Outcome
+ *   ├── creates_intake=true  → Location → Contact → Review → Submit → Success
+ *   └── creates_intake=false → Done (back to /kiosk)
  *
- * Submits to POST /api/intake with source_system: 'kiosk_help'.
- * Classification + scores stored in custom_fields for staff review.
+ * Submits to POST /api/intake with source_system: 'kiosk_tippy'.
+ * Tree answers + outcome stored in custom_fields for staff review.
+ *
+ * FFS-1061, FFS-1062, FFS-1064, FFS-1065
  */
 export default function KioskHelpPage() {
   const router = useRouter();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
 
-  // Load custom questions from admin config (null = use defaults)
-  const { value: customQuestions } = useAppConfig<IndirectQuestion[] | null>("kiosk.help_questions");
+  // Load custom tree from admin config (null = use default)
+  const { value: customTree } = useAppConfig<TippyTree | null>("kiosk.help_tree");
   const { value: successMessage } = useAppConfig<string>("kiosk.success_message");
-  const questions = useMemo(
-    () => (Array.isArray(customQuestions) && customQuestions.length > 0 ? customQuestions : DEFAULT_QUESTIONS),
-    [customQuestions],
+  const tree = useMemo(
+    () => (customTree && typeof customTree === "object" && "root" in customTree ? customTree : DEFAULT_TIPPY_TREE),
+    [customTree],
   );
 
   // Wizard state
   const [phase, setPhase] = useState<WizardPhase>("welcome");
-  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [treeState, setTreeState] = useState<TippyState>(() => createInitialState(tree));
   const [place, setPlace] = useState<ResolvedPlace | null>(null);
   const [freeformAddress, setFreeformAddress] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -56,73 +64,69 @@ export default function KioskHelpPage() {
     email: "",
   });
 
-  // Total wizard steps for progress dots
-  // welcome(1) + questions(N) + location(1) + contact(1) + review(1)
-  const totalSteps = 1 + questions.length + 3;
-  const currentStep =
-    phase === "welcome"
-      ? 0
-      : phase === "questions"
-        ? 1 + currentQuestionIdx
-        : phase === "location"
-          ? 1 + questions.length
-          : phase === "contact"
-            ? 2 + questions.length
-            : phase === "review"
-              ? 3 + questions.length
-              : 0;
+  const currentNode = getCurrentNode(treeState, tree);
+  const createsIntake = treeState.outcome?.creates_intake ?? false;
 
-  // Scoring
-  const scoring = useMemo(() => scoreAnswers(answers, questions), [answers, questions]);
+  // Progress calculation
+  const progressInfo = useMemo(
+    () => getProgress(treeState, tree, createsIntake),
+    [treeState, tree, createsIntake],
+  );
+
+  const totalSteps = useMemo(() => {
+    if (phase === "welcome" || phase === "questions") return progressInfo.total;
+    // Once we're past outcome, we know createsIntake
+    return progressInfo.total;
+  }, [phase, progressInfo.total]);
+
+  const currentStep = useMemo(() => {
+    if (phase === "welcome") return 0;
+    if (phase === "questions") return progressInfo.current;
+    if (phase === "outcome") return progressInfo.current;
+    // Intake collection steps come after outcome
+    const outcomeStep = progressInfo.current;
+    if (phase === "location") return outcomeStep + 1;
+    if (phase === "contact") return outcomeStep + 2;
+    if (phase === "review") return outcomeStep + 3;
+    return 0;
+  }, [phase, progressInfo.current]);
 
   // Can proceed?
   const canGoNext = useMemo(() => {
     if (phase === "welcome") return true;
     if (phase === "questions") {
-      const q = questions[currentQuestionIdx];
-      return !q?.is_required || !!answers[q.id];
+      // Need a selection on current node
+      return false; // auto-advance handles progression
     }
     if (phase === "location") return !!(place || freeformAddress.trim());
     if (phase === "contact") return !!(contact.firstName.trim() && contact.phone && isValidPhone(contact.phone));
     if (phase === "review") return true;
     return false;
-  }, [phase, questions, currentQuestionIdx, answers, place, freeformAddress, contact]);
+  }, [phase, place, freeformAddress, contact]);
 
-  // Submit to intake API (defined before goNext to avoid TDZ)
+  // Handle question answer — auto-advances via tree
+  const handleQuestionAnswer = useCallback(
+    (value: string) => {
+      const newState = advanceTree(treeState, value, tree);
+      setTreeState(newState);
+
+      // If outcome resolved, move to outcome phase
+      if (newState.outcome) {
+        // Small delay so the user sees their selection highlight
+        setTimeout(() => setPhase("outcome"), 500);
+      }
+      // Otherwise tree moved to next node automatically (TippyQuestionCard handles display)
+    },
+    [treeState, tree],
+  );
+
+  // Submit to intake API
   const handleSubmit = useCallback(async () => {
     setPhase("submitting");
 
-    const catsAddress =
-      place?.formatted_address || place?.display_name || freeformAddress.trim() || "Unknown";
-
-    // Extract phone digits for the API
-    const phoneDigits = contact.phone.replace(/\D/g, "");
-
     try {
-      await postApi("/api/intake", {
-        source: "in_person" as const,
-        source_system: "kiosk_help",
-        first_name: contact.firstName.trim(),
-        last_name: "(Walk-in)",
-        phone: phoneDigits,
-        email: contact.email.trim() || undefined,
-        cats_address: catsAddress,
-        selected_address_place_id: place?.place_id || undefined,
-        call_type: SITUATION_TO_CALL_TYPE[scoring.classification],
-        handleability: scoring.handleability,
-        cat_count_estimate:
-          answers["q_count"] === "one" ? 1 : answers["q_count"] === "few" ? 3 : answers["q_count"] === "many" ? 8 : undefined,
-        has_kittens: (answers["q_kittens"] === "yes" || answers["q_kittens"] === "maybe") ? true : undefined,
-        has_medical_concerns: (answers["q_medical"] === "yes" || answers["q_medical"] === "maybe") ? true : undefined,
-        custom_fields: {
-          kiosk_answers: JSON.stringify(answers),
-          kiosk_scores: JSON.stringify(scoring.scores),
-          kiosk_classification: scoring.classification,
-          kiosk_confidence: String(scoring.confidence),
-          kiosk_needs_review: scoring.confidence < 0.3 ? "true" : "false",
-        },
-      });
-
+      const payload = buildIntakePayload(treeState, contact, place, freeformAddress);
+      await postApi("/api/intake", payload);
       setSubmitError(null);
       setPhase("success");
       toastSuccess("Request submitted!");
@@ -131,19 +135,13 @@ export default function KioskHelpPage() {
       setSubmitError("Something went wrong. Please try again or ask staff for help.");
       setPhase("review");
     }
-  }, [contact, place, freeformAddress, answers, scoring, toastSuccess, toastError]);
+  }, [contact, place, freeformAddress, treeState, toastSuccess]);
 
   // Navigation
   const goNext = useCallback(() => {
     if (phase === "welcome") {
       setPhase("questions");
-      setCurrentQuestionIdx(0);
-    } else if (phase === "questions") {
-      if (currentQuestionIdx < questions.length - 1) {
-        setCurrentQuestionIdx((i) => i + 1);
-      } else {
-        setPhase("location");
-      }
+      setTreeState(createInitialState(tree));
     } else if (phase === "location") {
       setPhase("contact");
     } else if (phase === "contact") {
@@ -151,24 +149,29 @@ export default function KioskHelpPage() {
     } else if (phase === "review") {
       handleSubmit();
     }
-  }, [phase, currentQuestionIdx, questions.length, handleSubmit]);
+  }, [phase, tree, handleSubmit]);
 
   const goBack = useCallback(() => {
     if (phase === "questions") {
-      if (currentQuestionIdx > 0) {
-        setCurrentQuestionIdx((i) => i - 1);
+      if (treeState.history.length > 0) {
+        setTreeState(goBackTree(treeState));
       } else {
         setPhase("welcome");
       }
-    } else if (phase === "location") {
+    } else if (phase === "outcome") {
+      // Go back to questions, undo the last answer
+      const prevState = goBackTree(treeState);
+      setTreeState(prevState);
       setPhase("questions");
-      setCurrentQuestionIdx(questions.length - 1);
+    } else if (phase === "location") {
+      // Back to outcome
+      setPhase("outcome");
     } else if (phase === "contact") {
       setPhase("location");
     } else if (phase === "review") {
       setPhase("contact");
     }
-  }, [phase, currentQuestionIdx, questions.length]);
+  }, [phase, treeState]);
 
   // ── Success screen ──────────────────────────────────────────────────────────
 
@@ -294,7 +297,7 @@ export default function KioskHelpPage() {
               justifyContent: "center",
             }}
           >
-            <Icon name="heart-handshake" size={36} color="var(--primary)" />
+            <Icon name="cat" size={36} color="var(--primary)" />
           </div>
           <h1
             style={{
@@ -305,7 +308,7 @@ export default function KioskHelpPage() {
               lineHeight: 1.2,
             }}
           >
-            Let&apos;s figure out how we can help
+            Hi! I&apos;m Tippy!
           </h1>
           <p
             style={{
@@ -316,8 +319,7 @@ export default function KioskHelpPage() {
               lineHeight: 1.5,
             }}
           >
-            We&apos;ll ask a few quick questions about your situation, then get your
-            contact info so we can follow up.
+            I&apos;ll ask a few quick questions to figure out the best way to help.
           </p>
           <p
             style={{
@@ -326,37 +328,58 @@ export default function KioskHelpPage() {
               margin: 0,
             }}
           >
-            Takes about 2 minutes
+            Takes about 1 minute
           </p>
         </div>
       </KioskWizardShell>
     );
   }
 
-  // ── Question step ───────────────────────────────────────────────────────────
+  // ── Outcome screen ──────────────────────────────────────────────────────────
 
-  if (phase === "questions") {
-    const question = questions[currentQuestionIdx];
+  if (phase === "outcome" && treeState.outcome) {
     return (
       <KioskWizardShell
         currentStep={currentStep}
         totalSteps={totalSteps}
         onBack={goBack}
-        onNext={goNext}
-        canGoNext={canGoNext}
-        nextLabel={currentQuestionIdx === questions.length - 1 ? "Continue" : "Next"}
+        onNext={() => {}}
+        canGoNext={false}
       >
-        <KioskQuestionCard
-          question={question}
-          selectedValue={answers[question.id]}
-          onSelect={(value) => setAnswers((prev) => ({ ...prev, [question.id]: value }))}
-          onAutoAdvance={canGoNext ? goNext : undefined}
+        <TippyOutcomeScreen
+          outcome={treeState.outcome}
+          onContinueToIntake={() => setPhase("location")}
+          onDone={() => router.push("/kiosk")}
         />
       </KioskWizardShell>
     );
   }
 
-  // ── Location step ───────────────────────────────────────────────────────────
+  // ── Question step ─────────────────────────────────────────────────────────
+
+  if (phase === "questions" && currentNode) {
+    // Find the currently selected value (last history entry for this node, if any)
+    const lastHistoryForNode = treeState.history.find((h) => h.node_id === currentNode.id);
+    const selectedValue = lastHistoryForNode?.value;
+
+    return (
+      <KioskWizardShell
+        currentStep={currentStep}
+        totalSteps={totalSteps}
+        onBack={goBack}
+        onNext={() => {}}
+        canGoNext={false}
+      >
+        <TippyQuestionCard
+          node={currentNode}
+          selectedValue={selectedValue}
+          onSelect={handleQuestionAnswer}
+        />
+      </KioskWizardShell>
+    );
+  }
+
+  // ── Location step ─────────────────────────────────────────────────────────
 
   if (phase === "location") {
     return (
@@ -377,7 +400,7 @@ export default function KioskHelpPage() {
     );
   }
 
-  // ── Contact step ────────────────────────────────────────────────────────────
+  // ── Contact step ──────────────────────────────────────────────────────────
 
   if (phase === "contact") {
     return (
@@ -393,7 +416,10 @@ export default function KioskHelpPage() {
     );
   }
 
-  // ── Review step ─────────────────────────────────────────────────────────────
+  // ── Review step (inline — simpler than old KioskReviewStep) ───────────────
+
+  const locationDisplay = place?.display_name || place?.formatted_address || freeformAddress || "Not provided";
+  const outcomeLabel = treeState.outcome?.headline || "Unknown";
 
   return (
     <KioskWizardShell
@@ -421,15 +447,105 @@ export default function KioskHelpPage() {
             {submitError}
           </div>
         )}
-        <KioskReviewStep
-          answers={answers}
-          questions={questions}
-          scoring={scoring}
-          contact={contact}
-          place={place}
-          freeformAddress={freeformAddress}
-        />
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <h2
+            style={{
+              fontSize: "1.35rem",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              margin: 0,
+            }}
+          >
+            Review your request
+          </h2>
+
+          {/* Outcome summary */}
+          <div
+            style={{
+              background: "var(--primary-bg, rgba(59,130,246,0.08))",
+              border: "2px solid var(--primary)",
+              borderRadius: 16,
+              padding: "1rem 1.25rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: "var(--primary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Icon name={treeState.outcome?.icon || "check"} size={20} color="#fff" />
+            </div>
+            <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--primary)" }}>
+              {outcomeLabel}
+            </div>
+          </div>
+
+          {/* Contact & location summary */}
+          <div
+            style={{
+              background: "var(--card-bg, #fff)",
+              border: "1px solid var(--card-border, #e5e7eb)",
+              borderRadius: 14,
+              overflow: "hidden",
+            }}
+          >
+            <SummaryRow label="Name" value={contact.firstName} />
+            <SummaryRow label="Phone" value={contact.phone} />
+            {contact.email && <SummaryRow label="Email" value={contact.email} />}
+            <SummaryRow label="Location" value={locationDisplay} />
+          </div>
+        </div>
       </>
     </KioskWizardShell>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        padding: "0.75rem 1rem",
+        borderBottom: "1px solid var(--card-border, #e5e7eb)",
+        gap: "1rem",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.8rem",
+          fontWeight: 600,
+          color: "var(--text-secondary)",
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          flexShrink: 0,
+          maxWidth: "40%",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: "0.9rem",
+          color: "var(--text-primary)",
+          textAlign: "right",
+          lineHeight: 1.3,
+        }}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
