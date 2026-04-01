@@ -62,12 +62,22 @@ export async function PATCH(
           [normEmail, id]
         );
 
-        // Upsert the identifier
+        // Upsert the identifier (MIG_3025: include source_systems, last_confirmed_at, confirmation_count)
         await execute(
-          `INSERT INTO sot.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, confidence, source_system)
-           VALUES ($1, 'email', $2, $3, 1.0, 'atlas_ui')
+          `INSERT INTO sot.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, confidence, source_system, source_systems, last_confirmed_at, confirmation_count)
+           VALUES ($1, 'email', $2, $3, 1.0, 'atlas_ui', ARRAY['atlas_ui'::TEXT], NOW(), 1)
            ON CONFLICT (id_type, id_value_norm)
-           DO UPDATE SET id_value_raw = EXCLUDED.id_value_raw, confidence = 1.0, source_system = 'atlas_ui'`,
+           DO UPDATE SET
+             id_value_raw = EXCLUDED.id_value_raw,
+             confidence = 1.0,
+             source_system = 'atlas_ui',
+             last_confirmed_at = NOW(),
+             confirmation_count = sot.person_identifiers.confirmation_count + 1,
+             source_systems = (
+               SELECT array_agg(DISTINCT s ORDER BY s)
+               FROM unnest(COALESCE(sot.person_identifiers.source_systems, ARRAY[sot.person_identifiers.source_system]) || ARRAY['atlas_ui'::TEXT]) AS s
+               WHERE s IS NOT NULL
+             )`,
           [id, email.trim(), normEmail]
         );
 
@@ -115,10 +125,20 @@ export async function PATCH(
         );
 
         await execute(
-          `INSERT INTO sot.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, confidence, source_system)
-           VALUES ($1, 'phone', $2, $3, 1.0, 'atlas_ui')
+          `INSERT INTO sot.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, confidence, source_system, source_systems, last_confirmed_at, confirmation_count)
+           VALUES ($1, 'phone', $2, $3, 1.0, 'atlas_ui', ARRAY['atlas_ui'::TEXT], NOW(), 1)
            ON CONFLICT (id_type, id_value_norm)
-           DO UPDATE SET id_value_raw = EXCLUDED.id_value_raw, confidence = 1.0, source_system = 'atlas_ui'`,
+           DO UPDATE SET
+             id_value_raw = EXCLUDED.id_value_raw,
+             confidence = 1.0,
+             source_system = 'atlas_ui',
+             last_confirmed_at = NOW(),
+             confirmation_count = sot.person_identifiers.confirmation_count + 1,
+             source_systems = (
+               SELECT array_agg(DISTINCT s ORDER BY s)
+               FROM unnest(COALESCE(sot.person_identifiers.source_systems, ARRAY[sot.person_identifiers.source_system]) || ARRAY['atlas_ui'::TEXT]) AS s
+               WHERE s IS NOT NULL
+             )`,
           [id, phone.trim(), normPhone]
         );
 
