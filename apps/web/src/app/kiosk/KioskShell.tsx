@@ -6,6 +6,8 @@ import { KioskGate } from "@/components/kiosk/KioskGate";
 import { KioskTabBar } from "@/components/kiosk/KioskTabBar";
 import { KioskHomeButton } from "@/components/kiosk/KioskHomeButton";
 import { KioskSessionProvider } from "@/components/kiosk/KioskSessionProvider";
+import { KioskStaffProvider } from "@/components/kiosk/KioskStaffContext";
+import { KioskStaffBadge } from "@/components/kiosk/KioskStaffBadge";
 import { OfflineBanner } from "@/components/kiosk/OfflineBanner";
 import { Icon } from "@/components/ui/Icon";
 import { usePathname } from "next/navigation";
@@ -53,13 +55,16 @@ export function KioskShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastProvider>
-      <KioskSessionProvider>
-        <KioskErrorBoundary>
-          {needsGate ? <KioskGate>{content}</KioskGate> : content}
-        </KioskErrorBoundary>
-        {showTabBar && <KioskTabBar />}
-        {showHomeButton && !showTabBar && <KioskHomeButton />}
-      </KioskSessionProvider>
+      <KioskStaffProvider>
+        <KioskSessionProvider>
+          <KioskErrorBoundary>
+            {needsGate ? <KioskGate>{content}</KioskGate> : content}
+          </KioskErrorBoundary>
+          {showTabBar && <KioskTabBar />}
+          {showTabBar && <KioskStaffBadge />}
+          {showHomeButton && !showTabBar && <KioskHomeButton />}
+        </KioskSessionProvider>
+      </KioskStaffProvider>
     </ToastProvider>
   );
 }

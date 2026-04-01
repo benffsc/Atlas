@@ -408,11 +408,13 @@ export function useImperativeMarkers({
           content,
           collisionBehavior: getPinCollisionBehavior(pinTier) as google.maps.CollisionBehavior,
           zIndex: getPinZIndex(pin.pin_style),
+          gmpClickable: true,
+          title: pin.address || pin.display_name || undefined,
         });
 
         const clickListener = marker.addListener("click", (e: google.maps.MapMouseEvent) => {
           const domEvent = (e as any)?.domEvent as MouseEvent | undefined;
-          if (domEvent && (domEvent.ctrlKey || domEvent.metaKey)) {
+          if (domEvent && (domEvent.ctrlKey || domEvent.metaKey || domEvent.shiftKey)) {
             onPinClickRef.current(pin, domEvent);
           } else {
             onPinSelectRef.current(pin);

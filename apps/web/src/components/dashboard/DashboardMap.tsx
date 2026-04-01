@@ -879,7 +879,7 @@ function DashboardMapInner({
       )}
 
       <Map
-        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "atlas-map-v2"}
+        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || undefined}
         defaultCenter={{ lat: mapCenter[0], lng: mapCenter[1] }}
         defaultZoom={mapZoom}
         gestureHandling="cooperative"

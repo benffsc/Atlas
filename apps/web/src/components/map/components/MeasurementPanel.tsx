@@ -16,11 +16,11 @@ export function MeasurementPanel({ points, totalDistance, cursorDistance, onUndo
   return (
     <div className="map-measure-panel">
       {showLive ? (
-        <span className="map-measure-panel__distance" style={{ color: "#3b82f6" }}>
+        <span className="map-measure-panel__distance" aria-live="polite" style={{ color: "#3b82f6" }}>
           {formatDistance(cursorDistance)}
         </span>
       ) : (
-        <span className="map-measure-panel__distance">
+        <span className="map-measure-panel__distance" aria-live="polite">
           {points.length >= 2 ? formatDistance(totalDistance) : "Click to measure"}
         </span>
       )}

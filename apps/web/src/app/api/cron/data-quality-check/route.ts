@@ -47,6 +47,13 @@ interface DataQualityMetrics {
   mislinked_appointments: number;
 }
 
+interface SyncStaleness {
+  source_system: string;
+  last_sync_at: string | null;
+  hours_since_sync: number | null;
+  pending_staged: number;
+}
+
 interface Alert {
   level: "warning" | "critical";
   metric: string;
@@ -286,6 +293,95 @@ export async function GET(request: NextRequest) {
         threshold: mislinkedApptsWarning,
         message: `${metrics.mislinked_appointments} appointments where owner_address doesn't match inferred place.`,
       });
+    }
+
+    // Sync staleness checks — alert when data sources go stale
+    const [syncStaleClinicHQ, syncStaleVH, syncStaleSL, syncStaleStagedWarning] = await Promise.all([
+      getServerConfig("sync.clinichq_stale_hours", 48),
+      getServerConfig("sync.volunteerhub_stale_hours", 48),
+      getServerConfig("sync.shelterluv_stale_hours", 24),
+      getServerConfig("sync.staged_backlog_warning", 500),
+    ]);
+
+    const staleness = await queryRows<SyncStaleness>(`
+      SELECT * FROM (
+        -- ClinicHQ: last completed file upload
+        SELECT
+          'clinichq' as source_system,
+          MAX(processed_at)::text as last_sync_at,
+          EXTRACT(EPOCH FROM (NOW() - MAX(processed_at)))::numeric / 3600 as hours_since_sync,
+          0 as pending_staged
+        FROM ops.file_uploads
+        WHERE source_system = 'clinichq' AND status = 'completed'
+        UNION ALL
+        -- VolunteerHub: last API sync or manual upload
+        SELECT
+          'volunteerhub',
+          MAX(last_api_sync_at)::text,
+          EXTRACT(EPOCH FROM (NOW() - MAX(last_api_sync_at)))::numeric / 3600,
+          0
+        FROM source.volunteerhub_volunteers
+        UNION ALL
+        -- ShelterLuv: last sync from sync state
+        SELECT
+          'shelterluv',
+          MAX(last_sync_at)::text,
+          EXTRACT(EPOCH FROM (NOW() - MAX(last_sync_at)))::numeric / 3600,
+          0
+        FROM source.shelterluv_sync_state
+        UNION ALL
+        -- Staged records backlog
+        SELECT
+          'staged_records',
+          NULL,
+          NULL,
+          COUNT(*)::numeric
+        FROM ops.staged_records
+        WHERE NOT is_processed
+      ) sync_checks
+    `).catch(() => []);
+
+    for (const s of staleness) {
+      if (s.source_system === "staged_records") {
+        if (s.pending_staged > syncStaleStagedWarning) {
+          alerts.push({
+            level: s.pending_staged > syncStaleStagedWarning * 3 ? "critical" : "warning",
+            metric: "staged_records_backlog",
+            current: s.pending_staged,
+            threshold: syncStaleStagedWarning,
+            message: `${s.pending_staged} unprocessed staged records waiting. Run entity linking or check processors.`,
+          });
+        }
+        continue;
+      }
+
+      if (!s.last_sync_at || s.hours_since_sync === null) continue;
+
+      const thresholdHours =
+        s.source_system === "clinichq" ? syncStaleClinicHQ
+        : s.source_system === "volunteerhub" ? syncStaleVH
+        : s.source_system === "shelterluv" ? syncStaleSL
+        : 168;
+
+      if (s.hours_since_sync > thresholdHours) {
+        const daysSince = Math.round(s.hours_since_sync / 24);
+        const label =
+          s.source_system === "clinichq" ? "ClinicHQ"
+          : s.source_system === "volunteerhub" ? "VolunteerHub"
+          : s.source_system === "shelterluv" ? "ShelterLuv"
+          : s.source_system;
+
+        // Critical if 3x the stale threshold (e.g. VH >6 days, CHQ >6 days)
+        const isCritical = s.hours_since_sync > thresholdHours * 3;
+
+        alerts.push({
+          level: isCritical ? "critical" : "warning",
+          metric: `sync_stale_${s.source_system}`,
+          current: Math.round(s.hours_since_sync),
+          threshold: thresholdHours,
+          message: `${label} last synced ${daysSince} day${daysSince !== 1 ? "s" : ""} ago (threshold: ${thresholdHours}h). Data may be outdated.`,
+        });
+      }
     }
 
     const hasAlerts = alerts.length > 0;

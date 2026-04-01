@@ -135,7 +135,7 @@ export function useMapSearchV2({
       try {
         const results = await Promise.allSettled([
           fetchApi<{ suggestions?: AtlasSearchResult[] }>(
-            `/api/search?q=${encodeURIComponent(query)}&limit=8&suggestions=true`,
+            `/api/search?q=${encodeURIComponent(query)}&limit=15&suggestions=true`,
             { signal: controller.signal }
           ),
           fetchApi<{ predictions?: PlacePrediction[] }>(

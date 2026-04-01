@@ -80,6 +80,8 @@ export const POST = withErrorHandling(async (
     deposit_returned_at,
     // MIG_3023 fields
     client_stated_purpose,
+    // MIG_3029 fields
+    actor_person_id,
   } = body;
 
   if (!event_type) {
@@ -108,6 +110,7 @@ export const POST = withErrorHandling(async (
   }
 
   // Validate UUIDs if provided
+  if (actor_person_id) requireValidUUID(actor_person_id, "person");
   if (custodian_person_id) requireValidUUID(custodian_person_id, "person");
   if (place_id) requireValidUUID(place_id, "place");
   if (request_id) requireValidUUID(request_id, "request");
@@ -153,17 +156,17 @@ export const POST = withErrorHandling(async (
   // Insert event (trigger handles equipment table update)
   const result = await queryOne<{ event_id: string }>(
     `INSERT INTO ops.equipment_events (
-       equipment_id, event_type, custodian_person_id,
+       equipment_id, event_type, actor_person_id, custodian_person_id,
        place_id, request_id,
        condition_before, condition_after,
        due_date, notes, source_system,
        checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id,
        checkout_purpose, custodian_name_raw, resolution_status,
        photo_url, deposit_returned_at, client_stated_purpose
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'atlas_ui', $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'atlas_ui', $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
      RETURNING event_id`,
     [
-      id, event_type, custodian_person_id || null,
+      id, event_type, actor_person_id || null, custodian_person_id || null,
       place_id || null, request_id || null,
       equipment.condition_status, condition_after || null,
       due_date || null, notes || null,

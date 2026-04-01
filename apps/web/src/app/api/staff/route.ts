@@ -17,6 +17,7 @@ interface Staff {
   hired_date: string | null;
   source_record_id: string | null;
   ai_access_level: string | null;
+  show_in_kiosk: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +45,7 @@ export async function GET(request: NextRequest) {
         hired_date,
         source_record_id,
         ai_access_level,
+        COALESCE(show_in_kiosk, FALSE) AS show_in_kiosk,
         created_at,
         updated_at
       FROM ops.staff

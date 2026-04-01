@@ -38,7 +38,7 @@ export function MapContextMenu({ contextMenu, onMeasure, onDirections, onStreetV
   };
 
   return (
-    <div className="map-context-menu" style={{ position: "absolute", left: contextMenu.x, top: contextMenu.y, zIndex: MAP_Z_INDEX.controls + 10 }}>
+    <div className="map-context-menu" role="menu" style={{ position: "absolute", left: contextMenu.x, top: contextMenu.y, zIndex: MAP_Z_INDEX.controls + 10 }}>
       <div className="map-context-menu__coords">
         {address || coords}
       </div>
@@ -47,19 +47,19 @@ export function MapContextMenu({ contextMenu, onMeasure, onDirections, onStreetV
           {coords}
         </div>
       )}
-      <button className="map-context-menu__item" onClick={onMeasure}><RulerIcon /> Measure from here</button>
-      <button className="map-context-menu__item" onClick={onDirections}><DirIcon /> Directions to here</button>
-      <button className="map-context-menu__item" onClick={onStreetView}><SvIcon /> Street View</button>
+      <button className="map-context-menu__item" role="menuitem" onClick={onMeasure}><RulerIcon /> Measure from here</button>
+      <button className="map-context-menu__item" role="menuitem" onClick={onDirections}><DirIcon /> Directions to here</button>
+      <button className="map-context-menu__item" role="menuitem" onClick={onStreetView}><SvIcon /> Street View</button>
       <div className="map-context-menu__divider" />
-      <button className="map-context-menu__item" onClick={onAddPlace}><PinIcon /> Add place here</button>
-      <button className="map-context-menu__item" onClick={onAddNote}><NoteIcon /> Add note here</button>
+      <button className="map-context-menu__item" role="menuitem" onClick={onAddPlace}><PinIcon /> Add place here</button>
+      <button className="map-context-menu__item" role="menuitem" onClick={onAddNote}><NoteIcon /> Add note here</button>
       <div className="map-context-menu__divider" />
       {address && (
-        <button className="map-context-menu__item" onClick={() => handleCopy(address, "address")}>
+        <button className="map-context-menu__item" role="menuitem" onClick={() => handleCopy(address, "address")}>
           <CopyIcon /> {copied === "address" ? "Copied!" : "Copy address"}
         </button>
       )}
-      <button className="map-context-menu__item" onClick={() => handleCopy(coords, "coords")}>
+      <button className="map-context-menu__item" role="menuitem" onClick={() => handleCopy(coords, "coords")}>
         <CopyIcon /> {copied === "coords" ? "Copied!" : "Copy coordinates"}
       </button>
     </div>

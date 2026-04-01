@@ -428,7 +428,7 @@ async function processVisit(client, visit) {
                 p_relationship_type := 'resident',
                 p_evidence_type := 'appointment',
                 p_source_system := 'clinichq',
-                p_confidence := 'medium'
+                p_confidence := 0.7
               )
             `, [personId, placeId]);
           }

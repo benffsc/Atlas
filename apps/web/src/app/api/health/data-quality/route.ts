@@ -1,4 +1,4 @@
-import { queryOne } from "@/lib/db";
+import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 /**
@@ -95,6 +95,28 @@ export async function GET() {
           ? "warning"
           : "healthy";
 
+    // Entity quality scores (MIG_3033) — gold/silver/bronze tiers
+    let entityQuality: Array<{
+      entity_type: string;
+      total: number;
+      gold: number;
+      silver: number;
+      bronze: number;
+      gold_pct: number;
+    }> = [];
+    try {
+      entityQuality = await queryRows<{
+        entity_type: string;
+        total: number;
+        gold: number;
+        silver: number;
+        bronze: number;
+        gold_pct: number;
+      }>("SELECT entity_type, total::int, gold::int, silver::int, bronze::int, gold_pct::numeric FROM ops.v_entity_quality_summary");
+    } catch {
+      // MIG_3033 may not be applied yet
+    }
+
     return apiSuccess({
       status,
       metrics: {
@@ -112,6 +134,7 @@ export async function GET() {
         total_people: m.total_people,
         people_with_identifier: m.people_with_identifier,
       },
+      entity_quality: entityQuality,
       issues,
       response_time_ms: Date.now() - startTime,
     });

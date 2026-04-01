@@ -4,8 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { postApi, fetchApi } from "@/lib/api-client";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
+import { useKioskStaff } from "./KioskStaffContext";
+import { KioskStaffPicker } from "./KioskStaffPicker";
 
 const STORAGE_KEY = "kiosk_unlocked";
+const STAFF_STORAGE_KEY = "kiosk_active_staff";
 
 /**
  * KioskGate — PIN-based access gate for the equipment kiosk.
@@ -19,12 +22,13 @@ const STORAGE_KEY = "kiosk_unlocked";
  * This is a privacy gate, not security auth. Equipment data only.
  */
 export function KioskGate({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<"checking" | "locked" | "unlocked" | "not_configured">("checking");
+  const [state, setState] = useState<"checking" | "locked" | "staff_select" | "unlocked" | "not_configured">("checking");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [shake, setShake] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { activeStaff, setActiveStaff, clearStaff } = useKioskStaff();
 
   // Check localStorage on mount
   useEffect(() => {
@@ -32,7 +36,20 @@ export function KioskGate({ children }: { children: React.ReactNode }) {
 
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "true") {
-      setState("unlocked");
+      // PIN is unlocked — check if staff is selected
+      const storedStaff = localStorage.getItem(STAFF_STORAGE_KEY);
+      if (storedStaff) {
+        try {
+          const parsed = JSON.parse(storedStaff);
+          if (parsed?.staff_id && parsed?.person_id) {
+            setActiveStaff(parsed);
+            setState("unlocked");
+            return;
+          }
+        } catch { /* corrupted — show picker */ }
+      }
+      // No staff selected — show picker
+      setState("staff_select");
       return;
     }
 
@@ -65,7 +82,19 @@ export function KioskGate({ children }: { children: React.ReactNode }) {
     try {
       await postApi("/api/auth/kiosk", { pin: pin.trim() });
       localStorage.setItem(STORAGE_KEY, "true");
-      setState("unlocked");
+      // After PIN success, check if staff is already selected
+      const storedStaff = localStorage.getItem(STAFF_STORAGE_KEY);
+      if (storedStaff) {
+        try {
+          const parsed = JSON.parse(storedStaff);
+          if (parsed?.staff_id && parsed?.person_id) {
+            setActiveStaff(parsed);
+            setState("unlocked");
+            return;
+          }
+        } catch { /* corrupted — show picker */ }
+      }
+      setState("staff_select");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Incorrect PIN";
       setError(message);
@@ -88,6 +117,35 @@ export function KioskGate({ children }: { children: React.ReactNode }) {
     },
     [handleSubmit],
   );
+
+  // Staff selection after PIN
+  if (state === "staff_select") {
+    // Read previous staff from localStorage for "Continue as" button
+    let previousStaff = activeStaff;
+    if (!previousStaff) {
+      try {
+        const stored = localStorage.getItem(STAFF_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.staff_id && parsed?.person_id) previousStaff = parsed;
+        }
+      } catch { /* ignore */ }
+    }
+
+    return (
+      <KioskStaffPicker
+        previousStaff={previousStaff}
+        onSelect={(staff) => {
+          setActiveStaff(staff);
+          setState("unlocked");
+        }}
+        onSkip={() => {
+          clearStaff();
+          setState("unlocked");
+        }}
+      />
+    );
+  }
 
   // Transparent when unlocked
   if (state === "unlocked") {

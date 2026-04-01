@@ -8,6 +8,8 @@ interface BottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
+  /** Optional header content rendered in the drag handle area (e.g., search input) */
+  header?: ReactNode;
   /** Initial height as percentage of viewport (default 50) */
   initialHeight?: number;
   /** Maximum height as percentage of viewport (default 90) */
@@ -26,6 +28,7 @@ export function BottomSheet({
   isOpen,
   onClose,
   children,
+  header,
   initialHeight = 50,
   maxHeight = 90,
   closeThreshold = 80,
@@ -132,6 +135,9 @@ export function BottomSheet({
       {/* Sheet */}
       <div
         ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Place details"
         style={{
           position: "fixed",
           bottom: 0,
@@ -173,6 +179,13 @@ export function BottomSheet({
             }}
           />
         </div>
+
+        {/* Optional header */}
+        {header && (
+          <div style={{ flexShrink: 0, padding: "0 16px 8px", borderBottom: "1px solid var(--border, #e5e7eb)" }}>
+            {header}
+          </div>
+        )}
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>

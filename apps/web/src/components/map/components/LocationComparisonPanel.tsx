@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api-client";
+import { fetchApi, postApi } from "@/lib/api-client";
 import { MAP_Z_INDEX } from "@/lib/design-tokens";
 import { calculateDistance, formatDistance } from "@/types/map";
 import { decodePolyline } from "@/lib/polyline";
@@ -43,6 +43,8 @@ export function LocationComparisonPanel({ placeIds, onRemovePlace, onClear, onRo
   const [collapsed, setCollapsed] = useState(false);
   const [directions, setDirections] = useState<DirectionsData | null>(null);
   const [directionsLoading, setDirectionsLoading] = useState(false);
+  const [optimizedRoute, setOptimizedRoute] = useState<{ total_distance_mi: number; google_maps_url: string; ordered_places: Array<{ lat: number; lng: number }> } | null>(null);
+  const [optimizingRoute, setOptimizingRoute] = useState(false);
 
   useEffect(() => {
     if (placeIds.length === 0) {
@@ -119,8 +121,9 @@ export function LocationComparisonPanel({ placeIds, onRemovePlace, onClear, onRo
     };
 
     fetchPlaces();
-    // Clear directions when places change
+    // Clear directions/route when places change
     setDirections(null);
+    setOptimizedRoute(null);
     onRoutePolyline?.(null);
   }, [placeIds, onRoutePolyline]);
 
@@ -148,7 +151,28 @@ export function LocationComparisonPanel({ placeIds, onRemovePlace, onClear, onRo
 
   const handleClear = () => {
     onRoutePolyline?.(null);
+    setOptimizedRoute(null);
     onClear();
+  };
+
+  const handleOptimizeRoute = async () => {
+    setOptimizingRoute(true);
+    try {
+      const data = await postApi<{
+        ordered_places: Array<{ place_id: string; lat: number; lng: number }>;
+        total_distance_mi: number;
+        google_maps_url: string;
+      }>("/api/places/optimize-route", { place_ids: placeIds });
+      setOptimizedRoute(data);
+      // Draw polyline through ordered places
+      if (data.ordered_places?.length >= 2) {
+        onRoutePolyline?.(data.ordered_places.map(p => ({ lat: p.lat, lng: p.lng })));
+      }
+    } catch (err) {
+      console.error("Failed to optimize route:", err);
+    } finally {
+      setOptimizingRoute(false);
+    }
   };
 
   if (placeIds.length === 0) return null;
@@ -326,6 +350,45 @@ export function LocationComparisonPanel({ placeIds, onRemovePlace, onClear, onRo
                 <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
                   <a
                     href={`https://www.google.com/maps/dir/${places[0].lat},${places[0].lng}/${places[1].lat},${places[1].lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none" }}
+                  >
+                    Open in Google Maps &rarr;
+                  </a>
+                </div>
+              )}
+
+              {/* Optimize Route button (3+ places) */}
+              {places.length >= 3 && !optimizedRoute && (
+                <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 8 }}>
+                  <button
+                    onClick={handleOptimizeRoute}
+                    disabled={optimizingRoute}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 6,
+                      border: "1px solid var(--border)",
+                      background: optimizingRoute ? "var(--section-bg)" : "var(--primary)",
+                      color: optimizingRoute ? "var(--text-secondary)" : "white",
+                      fontSize: "0.8rem",
+                      fontWeight: 500,
+                      cursor: optimizingRoute ? "wait" : "pointer",
+                    }}
+                  >
+                    {optimizingRoute ? "Optimizing..." : "Optimize Route"}
+                  </button>
+                </div>
+              )}
+
+              {/* Optimized route result */}
+              {optimizedRoute && (
+                <div style={{ marginTop: 8, textAlign: "center" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 4 }}>
+                    Optimized: {optimizedRoute.total_distance_mi} mi total
+                  </div>
+                  <a
+                    href={optimizedRoute.google_maps_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none" }}

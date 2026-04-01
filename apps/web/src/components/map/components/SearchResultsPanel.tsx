@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MAP_COLORS } from "@/lib/map-colors";
 import type {
   Place,
@@ -82,7 +82,22 @@ const streetViewBtn: React.CSSProperties = {
 
 // Max visible items per section before truncation
 const MAX_ATLAS = 5;
+const MAX_ATLAS_EXPANDED = 15;
 const MAX_GOOGLE = 3; // Combined POI + autocomplete
+const MAX_GOOGLE_EXPANDED = 8;
+
+const showMoreBtn: React.CSSProperties = {
+  width: "100%",
+  padding: "8px 16px",
+  background: "none",
+  border: "none",
+  borderBottom: "1px solid var(--border-default)",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 500,
+  color: "var(--primary, #3b82f6)",
+  textAlign: "center",
+};
 
 export function SearchResultsPanel({
   searchResults,
@@ -101,6 +116,14 @@ export function SearchResultsPanel({
   onSelectedIndexChange,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
+  const [atlasExpanded, setAtlasExpanded] = useState(false);
+  const [googleExpanded, setGoogleExpanded] = useState(false);
+
+  // Reset expanded state when query changes
+  useEffect(() => {
+    setAtlasExpanded(false);
+    setGoogleExpanded(false);
+  }, [searchQuery]);
 
   // Scroll highlighted item into view
   useEffect(() => {
@@ -111,25 +134,29 @@ export function SearchResultsPanel({
 
   // ── Build flat item list (sequential indices for keyboard nav) ──────────
 
+  const atlasLimit = atlasExpanded ? MAX_ATLAS_EXPANDED : MAX_ATLAS;
+  const googleLimit = googleExpanded ? MAX_GOOGLE_EXPANDED : MAX_GOOGLE;
+
   // Deduplicated atlas results (exclude already-loaded local matches)
-  const dedupedAtlas = atlasSearchResults
+  const allDedupedAtlas = atlasSearchResults
     .filter(
       (r, i, arr) =>
         !searchResults.some((sr) => sr.label === r.display_name) &&
         arr.findIndex((a) => a.entity_id === r.entity_id) === i,
-    )
-    .slice(0, MAX_ATLAS);
+    );
+  const dedupedAtlas = allDedupedAtlas.slice(0, atlasLimit);
+  const hasMoreAtlas = allDedupedAtlas.length > MAX_ATLAS;
 
-  // Merge POI + Google autocomplete into one "Google Places" section, capped
-  const combinedGoogle: Array<{ kind: "poi"; data: TextSearchResult } | { kind: "autocomplete"; data: PlacePrediction }> = [];
+  // Merge POI + Google autocomplete into one "Google Places" section
+  const allCombinedGoogle: Array<{ kind: "poi"; data: TextSearchResult } | { kind: "autocomplete"; data: PlacePrediction }> = [];
   for (const r of poiResults) {
-    if (combinedGoogle.length >= MAX_GOOGLE) break;
-    combinedGoogle.push({ kind: "poi", data: r });
+    allCombinedGoogle.push({ kind: "poi", data: r });
   }
   for (const s of googleSuggestions) {
-    if (combinedGoogle.length >= MAX_GOOGLE) break;
-    combinedGoogle.push({ kind: "autocomplete", data: s });
+    allCombinedGoogle.push({ kind: "autocomplete", data: s });
   }
+  const combinedGoogle = allCombinedGoogle.slice(0, googleLimit);
+  const hasMoreGoogle = allCombinedGoogle.length > MAX_GOOGLE;
 
   // Sequential flat index counter
   let idx = 0;
@@ -155,6 +182,7 @@ export function SearchResultsPanel({
   return (
     <div
       ref={listRef}
+      id="map-search-listbox"
       role="listbox"
       aria-label="Search results"
       style={{
@@ -250,6 +278,15 @@ export function SearchResultsPanel({
               </div>
             );
           })}
+
+          {hasMoreAtlas && (
+            <button
+              onClick={() => setAtlasExpanded(!atlasExpanded)}
+              style={showMoreBtn}
+            >
+              {atlasExpanded ? `Show less` : `Show more (${allDedupedAtlas.length} total)`}
+            </button>
+          )}
         </>
       )}
 
@@ -310,6 +347,15 @@ export function SearchResultsPanel({
               </div>
             );
           })}
+
+          {hasMoreGoogle && (
+            <button
+              onClick={() => setGoogleExpanded(!googleExpanded)}
+              style={showMoreBtn}
+            >
+              {googleExpanded ? `Show less` : `Show more (${allCombinedGoogle.length} total)`}
+            </button>
+          )}
         </>
       )}
 

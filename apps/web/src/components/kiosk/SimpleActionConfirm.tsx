@@ -6,6 +6,7 @@ import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { useKioskStaff } from "./KioskStaffContext";
 import { KioskCard } from "./KioskCard";
 import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
 
@@ -68,6 +69,7 @@ export function SimpleActionConfirm({
   onCancel,
 }: SimpleActionConfirmProps) {
   const toast = useToast();
+  const { activeStaff } = useKioskStaff();
   const [conditionAfter, setConditionAfter] = useState(currentCondition);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -101,6 +103,7 @@ export function SimpleActionConfirm({
     try {
       await postApi(`/api/equipment/${equipmentId}/events`, {
         event_type: action,
+        actor_person_id: activeStaff?.person_id || undefined,
         condition_after: showCondition ? conditionAfter : undefined,
         custodian_person_id: showCustodian ? (personRef.person_id || undefined) : undefined,
         custodian_name: showCustodian ? (personRef.display_name.trim() || undefined) : undefined,

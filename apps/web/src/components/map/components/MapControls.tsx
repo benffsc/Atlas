@@ -134,6 +134,8 @@ interface MapControlsProps {
   onExportCsv?: () => void;
   onExportGeoJson?: () => void;
   exportPinCount?: number;
+  /** When true, hide non-essential buttons (Measure, Export, Basemap) — used when BottomSheet is expanded on mobile */
+  compact?: boolean;
 }
 
 export function MapControls({
@@ -157,6 +159,7 @@ export function MapControls({
   onExportCsv,
   onExportGeoJson,
   exportPinCount,
+  compact = false,
 }: MapControlsProps) {
   const [showBasemapMenu, setShowBasemapMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -251,18 +254,20 @@ export function MapControls({
         {!isMobile && (locatingUser ? "Locating..." : "My Location")}
       </button>
 
-      {/* Measure button */}
-      <button
-        onClick={onMeasureToggle}
-        title="Measure distance (D)"
-        className={`map-control-btn ${measureActive ? "map-control-btn--active" : ""}`}
-      >
-        <RulerIcon />
-        {!isMobile && (measureActive ? "Stop" : "Measure")}
-      </button>
+      {/* Measure button — hidden in compact mode */}
+      {!compact && (
+        <button
+          onClick={onMeasureToggle}
+          title="Measure distance (D)"
+          className={`map-control-btn ${measureActive ? "map-control-btn--active" : ""}`}
+        >
+          <RulerIcon />
+          {!isMobile && (measureActive ? "Stop" : "Measure")}
+        </button>
+      )}
 
-      {/* Export button */}
-      {onExportCsv && (
+      {/* Export button — hidden in compact mode */}
+      {!compact && onExportCsv && (
         <div style={{ position: "relative" }}>
           <button
             onClick={() => setShowExportMenu(!showExportMenu)}
@@ -299,33 +304,35 @@ export function MapControls({
         </div>
       )}
 
-      {/* Basemap selector */}
-      <div style={{ position: "relative" }}>
-        <button
-          onClick={() => setShowBasemapMenu(!showBasemapMenu)}
-          title="Change basemap"
-          className={`map-control-btn ${basemap !== "street" ? "map-control-btn--active" : ""}`}
-        >
-          {basemap === "satellite" ? <SatelliteIcon /> : basemap === "google" ? <GoogleIcon /> : <MapIcon />}
-          {!isMobile && (basemap === "street" ? "Basemap" : basemap === "google" ? "Google" : "Satellite")}
-        </button>
-        {showBasemapMenu && (
-          <div className="map-basemap-menu">
-            {basemapOptions.map(({ type, label, icon }) => (
-              <button
-                key={type}
-                onClick={() => {
-                  onBasemapChange(type);
-                  setShowBasemapMenu(false);
-                }}
-                className={`map-basemap-menu__item ${basemap === type ? "map-basemap-menu__item--active" : ""}`}
-              >
-                {icon} {label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Basemap selector — hidden in compact mode */}
+      {!compact && (
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowBasemapMenu(!showBasemapMenu)}
+            title="Change basemap"
+            className={`map-control-btn ${basemap !== "street" ? "map-control-btn--active" : ""}`}
+          >
+            {basemap === "satellite" ? <SatelliteIcon /> : basemap === "google" ? <GoogleIcon /> : <MapIcon />}
+            {!isMobile && (basemap === "street" ? "Basemap" : basemap === "google" ? "Google" : "Satellite")}
+          </button>
+          {showBasemapMenu && (
+            <div className="map-basemap-menu">
+              {basemapOptions.map(({ type, label, icon }) => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    onBasemapChange(type);
+                    setShowBasemapMenu(false);
+                  }}
+                  className={`map-basemap-menu__item ${basemap === type ? "map-basemap-menu__item--active" : ""}`}
+                >
+                  {icon} {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Fullscreen toggle */}
       <button

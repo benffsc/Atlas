@@ -18,9 +18,13 @@ interface BulkActionBarProps {
   onClear: () => void;
   /** Map from place_id → request_ids at that place */
   placeRequestMap: Map<string, string[]>;
+  /** Called when user clicks "Select all visible" — parent provides visible pin IDs */
+  onSelectAllVisible?: () => void;
+  /** Total number of visible (unclustered) pins for "Select all" label */
+  visiblePinCount?: number;
 }
 
-export function BulkActionBar({ selectedPlaceIds, onClear, placeRequestMap }: BulkActionBarProps) {
+export function BulkActionBar({ selectedPlaceIds, onClear, placeRequestMap, onSelectAllVisible, visiblePinCount }: BulkActionBarProps) {
   const { addToast } = useToast();
   const [showTrapperPicker, setShowTrapperPicker] = useState(false);
   const [trappers, setTrappers] = useState<Trapper[]>([]);
@@ -92,8 +96,25 @@ export function BulkActionBar({ selectedPlaceIds, onClear, placeRequestMap }: Bu
       }}
     >
       <span style={{ fontWeight: 600, fontSize: 14 }}>
-        {count} place{count !== 1 ? "s" : ""} selected
+        {count} place{count !== 1 ? "s" : ""}{requestIds.length > 0 ? ` (${requestIds.length} request${requestIds.length !== 1 ? "s" : ""})` : ""} selected
       </span>
+
+      {onSelectAllVisible && visiblePinCount != null && visiblePinCount > count && (
+        <button
+          onClick={onSelectAllVisible}
+          style={{
+            padding: "6px 12px",
+            background: "none",
+            border: "1px solid var(--border, #e5e7eb)",
+            borderRadius: 8,
+            fontSize: 13,
+            cursor: "pointer",
+            color: "var(--text-secondary)",
+          }}
+        >
+          Select all visible ({visiblePinCount})
+        </button>
+      )}
 
       {requestIds.length > 0 && (
         <button

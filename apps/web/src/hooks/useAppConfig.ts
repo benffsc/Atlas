@@ -49,6 +49,7 @@ const DEFAULTS: Record<string, unknown> = {
   "kiosk.cats_slideshow_interval": 8,
   "kiosk.success_message": "Thank you! We'll be in touch.",
   "kiosk.help_questions": null,
+  "kiosk.help_tree": null,
   "kiosk.staff_selection_required": false,
   // Checkout defaults (MIG_3031 / FFS-1057)
   "kiosk.deposit_presets": [0, 50, 75],

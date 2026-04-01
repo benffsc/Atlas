@@ -535,7 +535,7 @@ async function linkPersonToPlace(
       p_relationship_type := $3,
       p_evidence_type := 'appointment',
       p_source_system := 'clinichq',
-      p_confidence := 'medium'
+      p_confidence := 0.7
     )
   `, [personId, placeId, relationshipType]);
 }

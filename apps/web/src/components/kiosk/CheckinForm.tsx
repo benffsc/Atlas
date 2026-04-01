@@ -7,6 +7,7 @@ import { useFormAutoSave } from "@/hooks/useFormAutoSave";
 import { Button } from "@/components/ui/Button";
 import { KioskPhotoCapture } from "@/components/kiosk/KioskPhotoCapture";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
+import { useKioskStaff } from "./KioskStaffContext";
 import { KioskCard } from "./KioskCard";
 import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
 
@@ -32,6 +33,7 @@ export function CheckinForm({
   onCancel,
 }: CheckinFormProps) {
   const toast = useToast();
+  const { activeStaff } = useKioskStaff();
   const [submitting, setSubmitting] = useState(false);
   const [showResumed, setShowResumed] = useState(false);
 
@@ -98,6 +100,7 @@ export function CheckinForm({
 
       await postApi(`/api/equipment/${equipmentId}/events`, {
         event_type: "check_in",
+        actor_person_id: activeStaff?.person_id || undefined,
         condition_after: conditionAfter,
         photo_url: uploadedPhotoUrl,
         deposit_returned_at:

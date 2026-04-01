@@ -325,7 +325,7 @@ async function handleOwnershipTransfer(req: TransferRequest) {
           p_evidence_type := 'manual_transfer',
           p_source_system := 'atlas_ui',
           p_source_table := 'ownership_transfer',
-          p_confidence := 'high',
+          p_confidence := 0.9,
           p_context_notes := $4
         )
       `, [req.new_owner_id, req.cat_id, req.relationship_type || "owner",
