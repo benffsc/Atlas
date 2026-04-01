@@ -19,6 +19,8 @@ import { useEntityDetail } from "@/hooks/useEntityDetail";
 import type { RequestDetail } from "@/hooks/useEntityDetail";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { RequestPreviewContent } from "@/components/preview/RequestPreviewContent";
+import { Icon } from "@/components/ui/Icon";
+import { TnrProgressBar } from "@/components/ui/TnrProgressBar";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
 import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
@@ -293,7 +295,7 @@ function RequestMapPreview({ requestId, latitude, longitude, address, cachedMapU
           textAlign: "center",
         }}
       >
-        <span style={{ fontSize: "1.5rem", marginBottom: "4px" }}>📍</span>
+        <Icon name="map-pin" size={24} color="var(--text-muted)" />
         {address ? (
           <>
             <span style={{ fontWeight: 500, color: "var(--text-secondary)" }}>
@@ -445,6 +447,11 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
   onToggleMenu?: (id: string | null) => void;
   onCardClick?: (requestId: string) => void;
 }) {
+  // Age warning border for open requests
+  const createdDate = new Date(request.source_created_at || request.created_at);
+  const daysOpen = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+  const ageBorderColor = !['completed','cancelled','partial'].includes(request.status) && daysOpen > 60 ? COLORS.errorDark : !['completed','cancelled','partial'].includes(request.status) && daysOpen > 30 ? COLORS.warningDark : undefined;
+
   return (
     <div
       className="card"
@@ -475,6 +482,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
         overflow: "hidden",
         transition: "transform 0.15s, box-shadow 0.15s",
         cursor: "pointer",
+        borderLeft: ageBorderColor ? `4px solid ${ageBorderColor}` : undefined,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
@@ -577,7 +585,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
             <div
               style={{
                 fontSize: "0.75rem",
-                color: "#065f46",
+                color: COLORS.successDark,
                 marginTop: "4px",
               }}
             >
@@ -598,7 +606,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
           >
             {/* Requestor */}
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <span style={{ color: "#6366f1", fontWeight: 500 }}>Requestor:</span>
+              <span style={{ color: COLORS.primary, fontWeight: 500 }}>Requestor:</span>
               <span style={{ color: "var(--text-secondary)" }}>
                 {request.requester_name || "Unknown"}
               </span>
@@ -606,8 +614,8 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
                 <span style={{
                   fontSize: "0.6rem",
                   padding: "1px 4px",
-                  background: request.requester_role_at_submission.includes("trapper") ? "#fef3c7" : "#e0e7ff",
-                  color: request.requester_role_at_submission.includes("trapper") ? "#92400e" : "#3730a3",
+                  background: request.requester_role_at_submission.includes("trapper") ? COLORS.warningLight : COLORS.infoLight,
+                  color: request.requester_role_at_submission.includes("trapper") ? COLORS.warningDark : COLORS.primaryDark,
                   borderRadius: "3px",
                   fontWeight: 500,
                 }}>
@@ -618,7 +626,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
             {/* Site Contact - only if different from requester */}
             {request.site_contact_name && !request.requester_is_site_contact && (
               <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
-                <span style={{ color: "#10b981", fontWeight: 500 }}>Site:</span>
+                <span style={{ color: COLORS.success, fontWeight: 500 }}>Site:</span>
                 <span style={{ color: "var(--text-secondary)" }}>
                   {request.site_contact_name}
                 </span>
@@ -626,7 +634,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
             )}
             {/* Warning when trapper is requestor but no site contact */}
             {!request.site_contact_name && !request.requester_is_site_contact && request.requester_role_at_submission?.includes("trapper") && (
-              <div style={{ color: "#92400e", fontSize: "0.65rem", marginTop: "2px" }}>
+              <div style={{ color: COLORS.warningDark, fontSize: "0.65rem", marginTop: "2px" }}>
                 Site contact needed
               </div>
             )}
@@ -650,6 +658,13 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
               </span>
             )}
           </div>
+
+          {/* TNR Progress mini-bar */}
+          {request.estimated_cat_count != null && request.estimated_cat_count > 0 && (
+            <div style={{ marginTop: "6px" }}>
+              <TnrProgressBar fixed={0} estimated={request.estimated_cat_count} compact />
+            </div>
+          )}
         </div>
     </div>
   );
@@ -664,10 +679,10 @@ const SORT_MAP: Record<string, { by: string; order: string }> = {
 
 // Status grouping configuration for visual display
 const STATUS_GROUPS = [
-  { status: "new", label: "New", color: "#3b82f6", bgColor: "#eff6ff", description: "Awaiting initial review" },
-  { status: "working", label: "Working", color: "#f59e0b", bgColor: "#fffbeb", description: "Actively being handled" },
+  { status: "new", label: "New", color: COLORS.primary, bgColor: COLORS.primaryLight, description: "Awaiting initial review" },
+  { status: "working", label: "Working", color: COLORS.warning, bgColor: COLORS.warningLight, description: "Actively being handled" },
   { status: "paused", label: "Paused", color: "#ec4899", bgColor: "#fdf2f8", description: "On hold" },
-  { status: "completed", label: "Completed", color: "#10b981", bgColor: "#ecfdf5", description: "Finished" },
+  { status: "completed", label: "Completed", color: COLORS.success, bgColor: COLORS.successLight, description: "Finished" },
 ] as const;
 
 // Helper to normalize legacy statuses to primary statuses for grouping
@@ -760,7 +775,7 @@ function StatusGroupedCards({
               >
                 {groupRequests.length}
               </span>
-              <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+              <span style={{ fontSize: "0.8rem", color: COLORS.gray500 }}>
                 {group.description}
               </span>
             </div>
@@ -799,22 +814,22 @@ function StatusGroupedCards({
               gap: "0.75rem",
               width: "100%",
               padding: "0.5rem 0.75rem",
-              background: completedExpanded ? completedGroup.bgColor : "#f9fafb",
+              background: completedExpanded ? completedGroup.bgColor : COLORS.gray50,
               borderRadius: "8px",
-              borderLeft: `4px solid ${completedExpanded ? completedGroup.color : "#d1d5db"}`,
+              borderLeft: `4px solid ${completedExpanded ? completedGroup.color : COLORS.gray300}`,
               border: "none",
               cursor: "pointer",
               textAlign: "left",
             }}
           >
-            <span style={{ fontSize: "1rem", color: "#6b7280" }}>
+            <span style={{ fontSize: "1rem", color: COLORS.gray500 }}>
               {completedExpanded ? "▼" : "▶"}
             </span>
             <span
               style={{
                 fontSize: "1.1rem",
                 fontWeight: 600,
-                color: completedExpanded ? completedGroup.color : "#6b7280",
+                color: completedExpanded ? completedGroup.color : COLORS.gray500,
               }}
             >
               {completedGroup.label}
@@ -824,14 +839,14 @@ function StatusGroupedCards({
                 fontSize: "0.9rem",
                 fontWeight: 600,
                 padding: "0.15rem 0.5rem",
-                background: completedExpanded ? completedGroup.color : "#9ca3af",
+                background: completedExpanded ? completedGroup.color : COLORS.gray400,
                 color: "white",
                 borderRadius: "12px",
               }}
             >
               {completedRequests.length}
             </span>
-            <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+            <span style={{ fontSize: "0.8rem", color: COLORS.gray500 }}>
               {completedExpanded ? completedGroup.description : "Click to expand"}
             </span>
           </button>
@@ -1093,7 +1108,7 @@ function RequestsPageContent() {
             href="/intake/call-sheet"
             style={{
               padding: "0.5rem 1rem",
-              background: "#0d6efd",
+              background: COLORS.primary,
               color: "#fff",
               borderRadius: "6px",
               textDecoration: "none",
@@ -1106,7 +1121,7 @@ function RequestsPageContent() {
             href="/requests/print"
             style={{
               padding: "0.5rem 1rem",
-              background: "#27ae60",
+              background: COLORS.successDark,
               color: "#fff",
               borderRadius: "6px",
               textDecoration: "none",
@@ -1255,7 +1270,7 @@ function RequestsPageContent() {
         <div
           style={{
             padding: "0.75rem 1rem",
-            background: "#dbeafe",
+            background: COLORS.primaryLight,
             borderRadius: "8px",
             marginBottom: "1rem",
             display: "flex",
@@ -1265,7 +1280,7 @@ function RequestsPageContent() {
             gap: "0.5rem",
           }}
         >
-          <span style={{ fontWeight: 500, color: "#1e40af" }}>
+          <span style={{ fontWeight: 500, color: COLORS.primaryDark }}>
             {selectedIds.size} request{selectedIds.size !== 1 ? "s" : ""} selected
           </span>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -1288,7 +1303,7 @@ function RequestsPageContent() {
                 padding: "0.4rem 0.75rem",
                 border: "none",
                 borderRadius: "6px",
-                background: bulkStatusTarget ? "#2563eb" : "#94a3b8",
+                background: bulkStatusTarget ? COLORS.primaryHover : COLORS.gray400,
                 color: "white",
                 cursor: bulkStatusTarget && !bulkUpdating ? "pointer" : "not-allowed",
                 fontSize: "0.875rem",
@@ -1300,10 +1315,10 @@ function RequestsPageContent() {
               onClick={handleExportSelected}
               style={{
                 padding: "0.4rem 0.75rem",
-                border: "1px solid #2563eb",
+                border: `1px solid ${COLORS.primaryHover}`,
                 borderRadius: "6px",
                 background: "transparent",
-                color: "#2563eb",
+                color: COLORS.primaryHover,
                 cursor: "pointer",
                 fontSize: "0.875rem",
               }}
@@ -1314,10 +1329,10 @@ function RequestsPageContent() {
               onClick={() => setSelectedIds(new Set())}
               style={{
                 padding: "0.4rem 0.75rem",
-                border: "1px solid #64748b",
+                border: `1px solid ${COLORS.gray500}`,
                 borderRadius: "6px",
                 background: "transparent",
-                color: "#64748b",
+                color: COLORS.gray500,
                 cursor: "pointer",
                 fontSize: "0.875rem",
               }}
@@ -1422,7 +1437,7 @@ function RequestsPageContent() {
                 <tr
                   key={req.request_id}
                   style={{
-                    background: filters.selected === req.request_id ? "var(--section-bg, #f9fafb)" : selectedIds.has(req.request_id) ? "#dbeafe" : undefined,
+                    background: filters.selected === req.request_id ? "var(--section-bg, #f9fafb)" : selectedIds.has(req.request_id) ? COLORS.primaryLight : undefined,
                     cursor: "pointer",
                   }}
                   onClick={() => handleRowClick(req.request_id)}
@@ -1438,8 +1453,8 @@ function RequestsPageContent() {
                     <span
                       className="badge"
                       style={{
-                        background: req.is_legacy_request ? "#6c757d" : "#198754",
-                        color: "#fff",
+                        background: req.is_legacy_request ? COLORS.gray500 : COLORS.successDark,
+                        color: COLORS.white,
                         fontSize: "0.7rem",
                       }}
                     >
@@ -1488,7 +1503,7 @@ function RequestsPageContent() {
                   <td className="text-sm">
                     {req.estimated_cat_count ?? "?"}
                     {req.has_kittens && (
-                      <span style={{ marginLeft: "0.25rem", color: "#fd7e14" }}>+kittens</span>
+                      <span style={{ marginLeft: "0.25rem", color: COLORS.warning }}>+kittens</span>
                     )}
                   </td>
                   <td className="text-sm">
@@ -1500,7 +1515,7 @@ function RequestsPageContent() {
                         )}
                       </div>
                     ) : req.no_trapper_reason === "client_trapping" ? (
-                      <span style={{ color: "#065f46", fontSize: "0.75rem" }}>Client</span>
+                      <span style={{ color: COLORS.successDark, fontSize: "0.75rem" }}>Client</span>
                     ) : (
                       <span className="text-muted">--</span>
                     )}

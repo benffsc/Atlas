@@ -6,6 +6,9 @@ import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { formatPhone, formatDateLocal } from "@/lib/formatters";
 import { postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { Button } from "@/components/ui/Button";
+import { TnrProgressBar } from "@/components/ui/TnrProgressBar";
+import { COLORS } from "@/lib/design-tokens";
 import type { RequestStatus } from "@/lib/request-status";
 import { mapToPrimaryStatus } from "@/lib/request-status";
 import type { RequestDetail } from "@/hooks/useEntityDetail";
@@ -19,29 +22,6 @@ interface RequestPreviewContentProps {
   onClose: () => void;
   /** Called after a status change so the parent can refresh the list */
   onRequestUpdated?: () => void;
-}
-
-// --- TNR Progress Bar ---
-
-function TnrProgressBar({ fixed, estimated }: { fixed: number; estimated: number | null }) {
-  if (!estimated || estimated <= 0) return null;
-  const pct = Math.min(100, Math.round((fixed / estimated) * 100));
-  const color = pct >= 70 ? "#16a34a" : pct >= 30 ? "#d97706" : "#dc2626";
-  const bgColor = pct >= 70 ? "#dcfce7" : pct >= 30 ? "#fef3c7" : "#fef2f2";
-
-  return (
-    <div style={{ marginBottom: "1rem" }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${fixed} of ${estimated} cats fixed, ${pct}% complete`}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
-        <span style={{ fontSize: "0.75rem", fontWeight: 600, color }}>
-          {fixed} / {estimated} cats fixed
-        </span>
-        <span style={{ fontSize: "0.75rem", fontWeight: 700, color }}>{pct}%</span>
-      </div>
-      <div style={{ height: "8px", borderRadius: "4px", background: bgColor, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: "4px", transition: "width 0.3s ease" }} />
-      </div>
-    </div>
-  );
 }
 
 // --- Collapsible Section ---
@@ -92,40 +72,29 @@ function QuickActions({ request, onStatusChange, onOpenComplete, onOpenHold }: {
 
   if (isTerminal) return null;
 
-  const btnBase: React.CSSProperties = {
-    padding: "4px 10px", borderRadius: "6px",
-    fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
-  };
-  // Primary action = filled, strongest visual weight
-  const btnPrimary: React.CSSProperties = { ...btnBase, background: "#2563eb", color: "#fff", border: "none" };
-  // Secondary = outline
-  const btnSecondary: React.CSSProperties = { ...btnBase, background: "transparent", color: "#92400e", border: "1px solid #fbbf24" };
-  // Tertiary/complete = ghost outline (opens modal anyway)
-  const btnTertiary: React.CSSProperties = { ...btnBase, background: "transparent", color: "#166534", border: "1px solid #86efac" };
-
   return (
     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
       {/* Primary action: Start Working or Resume */}
       {primary === "new" && (
-        <button type="button" onClick={() => onStatusChange("working")} style={btnPrimary}>
+        <Button variant="primary" size="sm" onClick={() => onStatusChange("working")}>
           Start Working
-        </button>
+        </Button>
       )}
       {primary === "paused" && (
-        <button type="button" onClick={() => onStatusChange("working")} style={btnPrimary}>
+        <Button variant="primary" size="sm" onClick={() => onStatusChange("working")}>
           Resume
-        </button>
+        </Button>
       )}
       {/* Secondary: Pause (only when not already paused) */}
       {primary !== "paused" && (
-        <button type="button" onClick={onOpenHold} style={btnSecondary}>
+        <Button variant="outline" size="sm" onClick={onOpenHold} style={{ color: COLORS.warningDark, borderColor: COLORS.warning }}>
           Pause
-        </button>
+        </Button>
       )}
       {/* Tertiary: Complete (opens confirmation modal) */}
-      <button type="button" onClick={onOpenComplete} style={btnTertiary}>
+      <Button variant="outline" size="sm" onClick={onOpenComplete} style={{ color: COLORS.successDark, borderColor: COLORS.successLight }}>
         Complete
-      </button>
+      </Button>
     </div>
   );
 }
@@ -150,7 +119,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
   const altRate = r.colony_alteration_rate != null ? `${Math.round(r.colony_alteration_rate * 100)}%` : null;
 
   // Graduated aging color
-  const agingColor = r.resolved_at ? undefined : daysOpen > 60 ? "#dc2626" : daysOpen > 30 ? "#ea580c" : daysOpen > 14 ? "#d97706" : undefined;
+  const agingColor = r.resolved_at ? undefined : daysOpen > 60 ? COLORS.errorDark : daysOpen > 30 ? COLORS.error : daysOpen > 14 ? COLORS.warningDark : undefined;
 
   const stats = [
     { label: "Est. Cats", value: r.estimated_cat_count ?? "\u2014" },
@@ -163,9 +132,9 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
     <div style={{ display: "flex", gap: "0.25rem", alignItems: "center", flexWrap: "wrap" }}>
       <StatusBadge status={r.status} />
       {r.priority && <PriorityBadge priority={r.priority} />}
-      {r.is_emergency && <span className="badge" style={{ background: "#dc2626", color: "#fff", fontSize: "0.65rem" }}>EMERGENCY</span>}
-      {r.has_kittens && <span className="badge" style={{ background: "#f59e0b", color: "#000", fontSize: "0.65rem" }}>KITTENS</span>}
-      {r.has_medical_concerns && <span className="badge" style={{ background: "#dc2626", color: "#fff", fontSize: "0.65rem" }}>MEDICAL</span>}
+      {r.is_emergency && <span className="badge" style={{ background: COLORS.errorDark, color: COLORS.white, fontSize: "0.65rem" }}>EMERGENCY</span>}
+      {r.has_kittens && <span className="badge" style={{ background: COLORS.warning, color: COLORS.black, fontSize: "0.65rem" }}>KITTENS</span>}
+      {r.has_medical_concerns && <span className="badge" style={{ background: COLORS.errorDark, color: COLORS.white, fontSize: "0.65rem" }}>MEDICAL</span>}
     </div>
   );
 
@@ -242,11 +211,11 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ fontWeight: 600 }}>{r.requester_name}</span>
                 {r.requester_role_at_submission && r.requester_role_at_submission !== "unknown" && (
-                  <span className="badge" style={{ fontSize: "0.6rem", background: r.requester_role_at_submission.includes("trapper") ? "#fef3c7" : "#e0e7ff", color: r.requester_role_at_submission.includes("trapper") ? "#92400e" : "#3730a3" }}>
+                  <span className="badge" style={{ fontSize: "0.6rem", background: r.requester_role_at_submission.includes("trapper") ? COLORS.warningLight : COLORS.infoLight, color: r.requester_role_at_submission.includes("trapper") ? COLORS.warningDark : COLORS.primaryDark }}>
                     {r.requester_role_at_submission.replace(/_/g, " ").toUpperCase()}
                   </span>
                 )}
-                {r.requester_is_site_contact && <span className="badge" style={{ fontSize: "0.6rem", background: "#dcfce7", color: "#166534" }}>Site Contact</span>}
+                {r.requester_is_site_contact && <span className="badge" style={{ fontSize: "0.6rem", background: COLORS.successLight, color: COLORS.successDark }}>Site Contact</span>}
               </div>
               {r.requester_phone && <div><a href={`tel:${r.requester_phone}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{formatPhone(r.requester_phone)}</a></div>}
               {r.requester_email && <div style={{ wordBreak: "break-all", color: "var(--text-secondary)" }}>{r.requester_email}</div>}
@@ -256,14 +225,14 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ fontWeight: 600 }}>{r.site_contact_name}</span>
-                <span className="badge" style={{ fontSize: "0.6rem", background: "#dcfce7", color: "#166534" }}>Site Contact</span>
+                <span className="badge" style={{ fontSize: "0.6rem", background: COLORS.successLight, color: COLORS.successDark }}>Site Contact</span>
               </div>
               {r.site_contact_phone && <div><a href={`tel:${r.site_contact_phone}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{formatPhone(r.site_contact_phone)}</a></div>}
               {r.site_contact_email && <div style={{ wordBreak: "break-all", color: "var(--text-secondary)" }}>{r.site_contact_email}</div>}
             </div>
           )}
           {!r.site_contact_name && !r.requester_is_site_contact && r.requester_role_at_submission?.includes("trapper") && (
-            <div style={{ color: "#92400e", fontSize: "0.8rem", fontWeight: 500 }}>Site contact needed</div>
+            <div style={{ color: COLORS.warningDark, fontSize: "0.8rem", fontWeight: 500 }}>Site contact needed</div>
           )}
         </div>
       </CollapsibleSection>
@@ -275,7 +244,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
           {r.place_address && <div style={{ color: "var(--text-secondary)" }}>{r.place_address}</div>}
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             {r.place_kind && r.place_kind !== "unknown" && <span className="badge" style={{ fontSize: "0.65rem", background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>{r.place_kind.replace(/_/g, " ")}</span>}
-            {r.place_service_zone && <span className="badge" style={{ fontSize: "0.65rem", background: "#dbeafe", color: "#1d4ed8" }}>Zone: {r.place_service_zone}</span>}
+            {r.place_service_zone && <span className="badge" style={{ fontSize: "0.65rem", background: COLORS.primaryLight, color: COLORS.primaryDark }}>Zone: {r.place_service_zone}</span>}
             {r.place_city && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{r.place_city}</span>}
           </div>
           {r.place_coordinates && (
@@ -325,12 +294,12 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
             {r.urgency_reasons && r.urgency_reasons.length > 0 && (
               <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
                 {r.urgency_reasons.map((reason, i) => (
-                  <span key={i} className="badge" style={{ fontSize: "0.65rem", background: "#fef2f2", color: "#dc2626" }}>{reason.replace(/_/g, " ")}</span>
+                  <span key={i} className="badge" style={{ fontSize: "0.65rem", background: COLORS.errorLight, color: COLORS.errorDark }}>{reason.replace(/_/g, " ")}</span>
                 ))}
               </div>
             )}
             {r.urgency_notes && <p style={{ margin: 0, color: "var(--text-secondary)" }}>{r.urgency_notes}</p>}
-            {r.medical_description && <p style={{ margin: 0, color: "#dc2626" }}>{r.medical_description}</p>}
+            {r.medical_description && <p style={{ margin: 0, color: COLORS.errorDark }}>{r.medical_description}</p>}
           </div>
         </CollapsibleSection>
       )}
@@ -342,8 +311,8 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
             {r.current_trappers.map((t) => (
               <div key={t.trapper_person_id} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <a href={`/trappers/${t.trapper_person_id}`} style={{ fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>{t.trapper_name}</a>
-                {t.is_primary && <span className="badge" style={{ fontSize: "0.6rem", background: "#dbeafe", color: "#1d4ed8" }}>Primary</span>}
-                {t.is_ffsc_trapper && <span className="badge" style={{ fontSize: "0.6rem", background: "#dcfce7", color: "#166534" }}>FFSC</span>}
+                {t.is_primary && <span className="badge" style={{ fontSize: "0.6rem", background: COLORS.primaryLight, color: COLORS.primaryDark }}>Primary</span>}
+                {t.is_ffsc_trapper && <span className="badge" style={{ fontSize: "0.6rem", background: COLORS.successLight, color: COLORS.successDark }}>FFSC</span>}
               </div>
             ))}
           </div>
@@ -362,7 +331,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
               <div key={cat.cat_id} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <a href={`/cats/${cat.cat_id}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{cat.cat_name || "Unnamed"}</a>
                 {cat.altered_status && (
-                  <span className="badge" style={{ fontSize: "0.6rem", background: cat.altered_status.toLowerCase() === "yes" || cat.altered_status.toLowerCase() === "spayed" || cat.altered_status.toLowerCase() === "neutered" ? "#dcfce7" : "#fef2f2", color: cat.altered_status.toLowerCase() === "yes" || cat.altered_status.toLowerCase() === "spayed" || cat.altered_status.toLowerCase() === "neutered" ? "#166534" : "#dc2626" }}>
+                  <span className="badge" style={{ fontSize: "0.6rem", background: cat.altered_status.toLowerCase() === "yes" || cat.altered_status.toLowerCase() === "spayed" || cat.altered_status.toLowerCase() === "neutered" ? COLORS.successLight : COLORS.errorLight, color: cat.altered_status.toLowerCase() === "yes" || cat.altered_status.toLowerCase() === "spayed" || cat.altered_status.toLowerCase() === "neutered" ? COLORS.successDark : COLORS.errorDark }}>
                     {cat.altered_status}
                   </span>
                 )}
@@ -437,7 +406,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
 // --- Sub-components ---
 
 function FieldCell({ label, value, highlight, good }: { label: string; value: string; highlight?: boolean; good?: boolean }) {
-  const valueColor = good === true ? "#16a34a" : good === false ? "#dc2626" : highlight ? "#d97706" : undefined;
+  const valueColor = good === true ? COLORS.successDark : good === false ? COLORS.errorDark : highlight ? COLORS.warningDark : undefined;
   return (
     <div>
       <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>{label}</div>

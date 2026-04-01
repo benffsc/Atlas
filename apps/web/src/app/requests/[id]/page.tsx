@@ -19,6 +19,7 @@ import { ClassificationSuggestionBanner } from "@/components/admin";
 import { EntityPreviewModal } from "@/components/search";
 import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import { SmartField, TabBar, TabPanel } from "@/components/ui";
+import { Icon } from "@/components/ui/Icon";
 import { UpdateSituationDrawer } from "@/components/request/UpdateSituationDrawer";
 import { formatPhone, formatAddress } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
@@ -318,7 +319,7 @@ export default function RequestDetailPage() {
               ) : (
                 <>
                   <h1 style={{ margin: 0, fontSize: "1.5rem", lineHeight: 1.2 }}>{request.summary || request.place_name || "FFR Request"}</h1>
-                  <button onClick={startRename} title="Rename" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem", color: "var(--muted)", opacity: 0.7 }}>✏️</button>
+                  <button onClick={startRename} title="Rename" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem", color: "var(--muted)", opacity: 0.7 }}><Icon name="pencil" size={14} /></button>
                 </>
               )}
               {request.source_system?.startsWith("airtable") && <LegacyBadge />}
@@ -517,7 +518,7 @@ export default function RequestDetailPage() {
         <div style={{ marginTop: "1rem", background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", overflow: "hidden" }}>
           <div style={{ padding: "0.75rem 1rem", background: "linear-gradient(135deg, #166534 0%, #22c55e 100%)", color: "#fff" }}>
             <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ fontSize: "1rem" }}>📍</span>
+              <Icon name="map-pin" size={16} color="#fff" />
               Location
             </h3>
           </div>
@@ -531,7 +532,7 @@ export default function RequestDetailPage() {
                   {formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code })}
                 </div>
                 <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
-                  {request.place_service_zone && <span className="badge" style={{ background: "#6f42c1", color: "#fff", fontSize: "0.7rem" }}>Zone: {request.place_service_zone}</span>}
+                  {request.place_service_zone && <span className="badge" style={{ background: COLORS.primaryDark, color: "#fff", fontSize: "0.7rem" }}>Zone: {request.place_service_zone}</span>}
                 </div>
                 {request.location_description && (
                   <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
@@ -614,7 +615,7 @@ export default function RequestDetailPage() {
               INTAKE EXTENDED DATA (fields preserved from intake without dedicated columns)
               ───────────────────────────────────────────────────────────────────── */}
           {request.intake_extended_data && Object.keys(request.intake_extended_data).length > 0 && (
-            <CaseSection title="Intake Details" icon="📝" color="#8b5cf6">
+            <CaseSection title="Intake Details" icon="file-text" color="#8b5cf6">
               <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem", margin: 0 }}>
                 {Object.entries(request.intake_extended_data)
                   .filter(([, v]) => v != null && v !== "" && v !== false)
@@ -632,11 +633,11 @@ export default function RequestDetailPage() {
           {/* ─────────────────────────────────────────────────────────────────────
               ASSIGNED TRAPPERS
               ───────────────────────────────────────────────────────────────────── */}
-          <CaseSection title="Assigned Trappers" icon="👤" color="#ec4899">
+          <CaseSection title="Assigned Trappers" icon="user" color="#ec4899">
             <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={refreshRequest} />
             {request.scheduled_date && (
               <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", display: "flex", gap: "1rem", alignItems: "center" }}>
-                <span style={{ fontWeight: 600 }}>📅 Scheduled:</span>
+                <span style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Icon name="calendar" size={14} /> Scheduled:</span>
                 <span>{new Date(request.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
                 {request.scheduled_time_range && <span style={{ color: "var(--muted)" }}>({request.scheduled_time_range})</span>}
               </div>
@@ -649,11 +650,11 @@ export default function RequestDetailPage() {
           <div style={{ marginTop: "1.5rem" }}>
             <TabBar
               tabs={[
-                { id: "cats", label: "Linked Cats", icon: "😺", count: request.linked_cat_count || 0 },
-                { id: "trip-reports", label: "Trip Reports", icon: "📋", count: tripReports.length },
-                { id: "photos", label: "Photos", icon: "📷" },
-                { id: "activity", label: "Activity", icon: "📝", count: journalEntries.length },
-                { id: "admin", label: "Admin", icon: "⚙️" },
+                { id: "cats", label: "Linked Cats", icon: "cat", count: request.linked_cat_count || 0 },
+                { id: "trip-reports", label: "Trip Reports", icon: "clipboard-list", count: tripReports.length },
+                { id: "photos", label: "Photos", icon: "camera" },
+                { id: "activity", label: "Activity", icon: "pencil", count: journalEntries.length },
+                { id: "admin", label: "Admin", icon: "settings" },
               ]}
               activeTab={activeTab}
               onTabChange={setActiveTab}
@@ -790,22 +791,22 @@ export default function RequestDetailPage() {
         <div>
           {/* Colony Stats Card */}
           <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
-            <h4 style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", fontWeight: 700, color: "#166534" }}>Colony Summary</h4>
+            <h4 style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", fontWeight: 700, color: COLORS.successDark }}>Colony Summary</h4>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               <div style={{ textAlign: "center", padding: "0.5rem", background: "var(--muted-bg)", borderRadius: "6px" }}>
-                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#166534" }}>{request.colony_size_estimate ?? "?"}</div>
+                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: COLORS.successDark }}>{request.colony_size_estimate ?? "?"}</div>
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase" }}>Estimated</div>
               </div>
               <div style={{ textAlign: "center", padding: "0.5rem", background: "var(--muted-bg)", borderRadius: "6px" }}>
-                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#059669" }}>{request.colony_verified_altered ?? 0}</div>
+                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: COLORS.success }}>{request.colony_verified_altered ?? 0}</div>
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase" }}>Altered</div>
               </div>
               <div style={{ textAlign: "center", padding: "0.5rem", background: "var(--muted-bg)", borderRadius: "6px" }}>
-                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#f59e0b" }}>{request.colony_work_remaining ?? "?"}</div>
+                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: COLORS.warning }}>{request.colony_work_remaining ?? "?"}</div>
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase" }}>Remaining</div>
               </div>
               <div style={{ textAlign: "center", padding: "0.5rem", background: "var(--muted-bg)", borderRadius: "6px" }}>
-                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#6366f1" }}>
+                <div style={{ fontSize: "1.5rem", fontWeight: 700, color: COLORS.primary }}>
                   {request.colony_alteration_rate != null ? `${Math.round(request.colony_alteration_rate)}%` : "—"}
                 </div>
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase" }}>Coverage</div>

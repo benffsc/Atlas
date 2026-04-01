@@ -4,6 +4,7 @@ import type { RequestDetail } from "@/app/requests/[id]/types";
 import { mapToPrimaryStatus } from "@/lib/request-status";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 import { REQUEST_STATUS_COLORS } from "@/lib/design-tokens";
+import { Icon } from "@/components/ui/Icon";
 
 // ─── Style Constants ────────────────────────────────────────────────────────
 
@@ -57,10 +58,10 @@ function getStatusGuidance(request: RequestDetail): StatusGuidance {
     case "new":
       return {
         message: "Triage this request: Review colony details and set priority.",
-        bg: "#dbeafe",
-        color: "#1e40af",
-        border: "#93c5fd",
-        icon: "📥",
+        bg: COLORS.primaryLight,
+        color: COLORS.primaryDark,
+        border: COLORS.primary,
+        icon: "inbox",
         actions: [
           { label: "Start Working", status: "working", color: REQUEST_STATUS_COLORS.working.border, textColor: "#fff" },
           { label: "Pause", modal: "hold", color: REQUEST_STATUS_COLORS.paused.border, textColor: "#fff" },
@@ -70,13 +71,13 @@ function getStatusGuidance(request: RequestDetail): StatusGuidance {
     case "working":
       return {
         message: "In progress: Update cat counts and log trapping sessions.",
-        bg: "#fef3c7",
-        color: "#92400e",
-        border: "#fcd34d",
-        icon: "🔨",
+        bg: COLORS.warningLight,
+        color: COLORS.warningDark,
+        border: COLORS.warning,
+        icon: "wrench",
         actions: [
-          { label: "Log Visit", modal: "observation", color: "#166534", textColor: "#fff" },
-          { label: "Log Session", modal: "trip-report", color: "#166534", textColor: "#fff" },
+          { label: "Log Visit", modal: "observation", color: COLORS.successDark, textColor: "#fff" },
+          { label: "Log Session", modal: "trip-report", color: COLORS.successDark, textColor: "#fff" },
           { label: "Close Case", modal: "close", color: REQUEST_STATUS_COLORS.completed.border, textColor: "#fff" },
           { label: "Pause", modal: "hold", color: REQUEST_STATUS_COLORS.paused.border, textColor: "#fff" },
         ],
@@ -86,10 +87,10 @@ function getStatusGuidance(request: RequestDetail): StatusGuidance {
         message: request.hold_reason
           ? `On hold: ${request.hold_reason.replace(/_/g, " ")}. Review when ready to resume.`
           : "On hold. Review when ready to resume.",
-        bg: "#fce7f3",
-        color: "#9d174d",
-        border: "#f9a8d4",
-        icon: "⏸️",
+        bg: REQUEST_STATUS_COLORS.paused.bg,
+        color: REQUEST_STATUS_COLORS.paused.text,
+        border: REQUEST_STATUS_COLORS.paused.border,
+        icon: "clock",
         actions: [
           { label: "Resume", status: "working", color: REQUEST_STATUS_COLORS.working.border, textColor: "#fff" },
           { label: "Close Case", modal: "close", color: REQUEST_STATUS_COLORS.completed.border, textColor: "#fff" },
@@ -100,9 +101,9 @@ function getStatusGuidance(request: RequestDetail): StatusGuidance {
         message: request.resolution_outcome
           ? `Closed: ${request.resolution_outcome.replace(/_/g, " ")}`
           : "Closed.",
-        bg: "#d1fae5",
-        color: "#065f46",
-        border: "#6ee7b7",
+        bg: COLORS.successLight,
+        color: COLORS.successDark,
+        border: COLORS.success,
         icon: "✓",
         actions: [
           { label: "Reopen", status: "new", color: REQUEST_STATUS_COLORS.new.border, textColor: "#fff" },
@@ -111,9 +112,9 @@ function getStatusGuidance(request: RequestDetail): StatusGuidance {
     default:
       return {
         message: "",
-        bg: "#f3f4f6",
-        color: "#6b7280",
-        border: "#d1d5db",
+        bg: COLORS.gray100,
+        color: COLORS.gray500,
+        border: COLORS.gray300,
         icon: "●",
         actions: [],
       };
@@ -145,7 +146,7 @@ export function GuidedActionBar({
   return (
     <div style={{ ...BAR_STYLE, background: guidance.bg, border: `1px solid ${guidance.border}` }}>
       <div style={{ ...GUIDANCE_TEXT, color: guidance.color }}>
-        <span style={{ marginRight: "0.375rem" }}>{guidance.icon}</span>
+        <span style={{ marginRight: "0.375rem", display: "inline-flex", verticalAlign: "middle" }}><Icon name={guidance.icon} size={16} color={guidance.color} /></span>
         {guidance.message}
       </div>
       <div style={{ display: "flex", gap: SPACING.sm, flexWrap: "wrap" }}>

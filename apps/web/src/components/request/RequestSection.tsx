@@ -80,11 +80,11 @@ const BADGE_BASE: React.CSSProperties = {
 const GUIDANCE_CALLOUT: React.CSSProperties = {
   padding: "0.625rem 0.75rem",
   marginBottom: "1rem",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
+  background: COLORS.infoLight,
+  border: `1px solid ${COLORS.primary}`,
   borderRadius: "6px",
   fontSize: "0.8rem",
-  color: "#1e40af",
+  color: COLORS.primaryDark,
   lineHeight: 1.4,
 };
 
@@ -97,11 +97,11 @@ function CompletionBadge({ completion }: { completion: SectionCompletion }) {
   let color: string;
   let border: string;
   if (completion.filled === completion.total) {
-    bg = "#d1fae5"; color = "#065f46"; border = "#6ee7b7"; // green
+    bg = COLORS.successLight; color = COLORS.successDark; border = COLORS.success; // green
   } else if (completion.filled > 0) {
-    bg = "#fef3c7"; color = "#92400e"; border = "#fcd34d"; // yellow
+    bg = COLORS.warningLight; color = COLORS.warningDark; border = COLORS.warning; // yellow
   } else {
-    bg = "#f3f4f6"; color = "#6b7280"; border = "#d1d5db"; // gray
+    bg = COLORS.gray100; color = COLORS.gray500; border = COLORS.gray300; // gray
   }
 
   return (
@@ -130,7 +130,7 @@ function ViewFieldValue({ value, field }: { value: unknown; field: { type: strin
     return (
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
         {value.map((v: string) => (
-          <span key={v} style={{ ...BADGE_BASE, background: "#e0e7ff", color: "#3730a3", border: "1px solid #c7d2fe" }}>
+          <span key={v} style={{ ...BADGE_BASE, background: COLORS.infoLight, color: COLORS.primaryDark, border: `1px solid ${COLORS.primary}` }}>
             {field.options ? getLabel(field.options as { value: string; label: string }[], v) : v.replace(/_/g, " ")}
           </span>
         ))}
@@ -391,7 +391,7 @@ export function RequestSection({
       {!collapsed || isEditing ? (
         <div style={SECTION_BODY}>
           {error && (
-            <div style={{ padding: "0.5rem 0.75rem", marginBottom: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", fontSize: "0.85rem", color: "#991b1b" }}>
+            <div style={{ padding: "0.5rem 0.75rem", marginBottom: "0.75rem", background: COLORS.errorLight, border: `1px solid ${COLORS.error}`, borderRadius: "6px", fontSize: "0.85rem", color: COLORS.errorDark }}>
               {error}
             </div>
           )}
