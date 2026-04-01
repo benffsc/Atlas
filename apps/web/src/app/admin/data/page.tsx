@@ -176,7 +176,7 @@ function HealthBanner() {
     );
   }
 
-  if (!health) return null;
+  if (!health?.summary) return null;
 
   const isHealthy = health.status === "healthy";
   const s = health.summary;
@@ -194,10 +194,10 @@ function HealthBanner() {
     }}>
       <Icon name={isHealthy ? "check-circle" : "alert-triangle"} size={16} />
       <span style={{ fontWeight: 600 }}>
-        Data Engine {health.status}
+        Data Engine {health.status || "unknown"}
       </span>
       <span style={{ opacity: 0.8 }}>
-        — {s.decisions_24h} decisions in 24h, {s.pending_reviews} pending reviews, {health.households.total} households
+        — {s.decisions_24h ?? 0} decisions in 24h, {s.pending_reviews ?? 0} pending reviews, {health.households?.total ?? 0} households
       </span>
     </div>
   );
@@ -219,22 +219,22 @@ function NeedsAttentionSection() {
   }, []);
 
   if (loading) return <SkeletonStats count={6} />;
-  if (!data) return null;
+  if (!data?.identity) return null;
 
   const totalAttention =
-    data.identity.total +
-    data.places.total +
-    data.quality.total +
-    data.ai_parsed.total +
+    (data.identity?.total || 0) +
+    (data.places?.total || 0) +
+    (data.quality?.total || 0) +
+    (data.ai_parsed?.total || 0) +
     (data.owner_changes?.total || 0) +
-    (data.identity.data_engine_pending || 0);
+    (data.identity?.data_engine_pending || 0);
 
   const cards = [
-    { label: "Person Dedup", value: data.identity.total, href: "/admin/person-dedup", color: "var(--primary, #3b82f6)" },
-    { label: "Data Engine Review", value: data.identity.data_engine_pending, href: "/admin/data-engine/review", color: "#10b981" },
-    { label: "Place Dedup", value: data.places.total, href: "/admin/place-dedup", color: "#8b5cf6" },
-    { label: "Quality Issues", value: data.quality.total, href: "/admin/data-quality", color: "#ef4444" },
-    { label: "AI-Parsed", value: data.ai_parsed.total, href: "/admin/tippy-corrections", color: "#f59e0b" },
+    { label: "Person Dedup", value: data.identity?.total || 0, href: "/admin/person-dedup", color: "var(--primary, #3b82f6)" },
+    { label: "Data Engine Review", value: data.identity?.data_engine_pending || 0, href: "/admin/data-engine/review", color: "#10b981" },
+    { label: "Place Dedup", value: data.places?.total || 0, href: "/admin/place-dedup", color: "#8b5cf6" },
+    { label: "Quality Issues", value: data.quality?.total || 0, href: "/admin/data-quality", color: "#ef4444" },
+    { label: "AI-Parsed", value: data.ai_parsed?.total || 0, href: "/admin/tippy-corrections", color: "#f59e0b" },
     { label: "Owner Changes", value: data.owner_changes?.total || 0, href: "/admin/owner-changes", color: "#dc2626" },
   ];
 
@@ -433,7 +433,10 @@ function PipelineHealthSection() {
   };
 
   if (loading) return <SkeletonStats count={6} />;
-  if (!data) return null;
+  if (!data?.entity_linking) return null;
+
+  const el = data.entity_linking;
+  const jobs = data.jobs || { pending: 0, running: 0, completed_24h: 0, failed_24h: 0 };
 
   return (
     <section>
@@ -448,13 +451,13 @@ function PipelineHealthSection() {
             Entity Linking
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem" }}>
-            <StatCard label="Appts Linked" value={data.entity_linking.appointments_linked} accentColor="var(--primary, #3b82f6)" />
-            <StatCard label="Cats Linked" value={data.entity_linking.cats_linked} accentColor="#10b981" />
-            <StatCard label="Places Inferred" value={data.entity_linking.places_inferred} accentColor="#8b5cf6" />
+            <StatCard label="Appts Linked" value={el.appointments_linked || 0} accentColor="var(--primary, #3b82f6)" />
+            <StatCard label="Cats Linked" value={el.cats_linked || 0} accentColor="#10b981" />
+            <StatCard label="Places Inferred" value={el.places_inferred || 0} accentColor="#8b5cf6" />
           </div>
-          {data.entity_linking.last_run && (
+          {el.last_run && (
             <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.35rem" }}>
-              Last run: {timeAgo(data.entity_linking.last_run)}
+              Last run: {timeAgo(el.last_run)}
             </div>
           )}
         </div>
@@ -465,7 +468,7 @@ function PipelineHealthSection() {
             <h3 style={{ fontSize: "0.85rem", fontWeight: 600, margin: 0, color: "var(--muted)" }}>
               Background Jobs
             </h3>
-            {data.jobs.pending > 0 && (
+            {jobs.pending > 0 && (
               <Button
                 variant="outline"
                 size="sm"
@@ -473,7 +476,7 @@ function PipelineHealthSection() {
                 loading={runningJobs}
                 onClick={handleRunJobs}
               >
-                Run {data.jobs.pending} Pending
+                Run {jobs.pending} Pending
               </Button>
             )}
           </div>
@@ -491,10 +494,10 @@ function PipelineHealthSection() {
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.5rem" }}>
-            <StatCard label="Pending" value={data.jobs.pending} accentColor="#f59e0b" />
-            <StatCard label="Running" value={data.jobs.running} accentColor="var(--primary, #3b82f6)" />
-            <StatCard label="Completed 24h" value={data.jobs.completed_24h} accentColor="#10b981" />
-            <StatCard label="Failed 24h" value={data.jobs.failed_24h} accentColor={data.jobs.failed_24h > 0 ? "#ef4444" : undefined} />
+            <StatCard label="Pending" value={jobs.pending} accentColor="#f59e0b" />
+            <StatCard label="Running" value={jobs.running} accentColor="var(--primary, #3b82f6)" />
+            <StatCard label="Completed 24h" value={jobs.completed_24h} accentColor="#10b981" />
+            <StatCard label="Failed 24h" value={jobs.failed_24h} accentColor={jobs.failed_24h > 0 ? "#ef4444" : undefined} />
           </div>
         </div>
       </div>
