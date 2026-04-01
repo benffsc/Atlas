@@ -12,6 +12,7 @@ import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 //
 // Also runs:
 // - Auto-blacklist identifiers shared by 5+ people (FFS-898)
+// - Detect and flag proxy identifiers (FFS-1045)
 // - Mark stale relationships (2+ years, FFS-899)
 //
 // Uses sot.merge_person_into() (NOT sot.merge_people which doesn't exist).
@@ -90,6 +91,24 @@ export async function GET(request: NextRequest) {
       staleResults = staleRow?.mark_stale_relationships || {};
     } catch {
       // MIG_3002 may not be applied yet — non-fatal
+    }
+
+    // ====================================================================
+    // Step 0c: Detect proxy identifiers (FFS-1045)
+    // ====================================================================
+    let proxyResults: { detection_rule: string; person_id: string; id_type: string; id_value_norm: string }[] = [];
+    try {
+      proxyResults = await queryRows<{
+        detection_rule: string;
+        person_id: string;
+        id_type: string;
+        id_value_norm: string;
+      }>(
+        "SELECT detection_rule, person_id::TEXT, id_type, id_value_norm FROM ops.detect_proxy_identifiers($1)",
+        [dryRun]
+      );
+    } catch {
+      // MIG_3027 may not be applied yet — non-fatal
     }
 
     // ====================================================================
@@ -276,6 +295,8 @@ export async function GET(request: NextRequest) {
         pattern_merges_identified: patternMerges.length,
         // Auto-blacklist (FFS-898)
         identifiers_blacklisted: blacklistResults.length,
+        // Proxy detection (FFS-1045)
+        proxy_identifiers_flagged: proxyResults.length,
         // Stale relationships (FFS-899)
         stale_results: staleResults,
         // Execution
@@ -286,6 +307,7 @@ export async function GET(request: NextRequest) {
       safe_merges: dryRun ? safeMerges.slice(0, 20) : undefined,
       needs_review: needsReview.slice(0, 20),
       blacklist_actions: blacklistResults.length > 0 ? blacklistResults.slice(0, 20) : undefined,
+      proxy_detections: proxyResults.length > 0 ? proxyResults.slice(0, 20) : undefined,
       merge_results: mergeResults.length > 0 ? mergeResults.slice(0, 20) : undefined,
       duration_ms: Date.now() - startTime,
     });
