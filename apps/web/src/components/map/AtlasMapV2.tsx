@@ -1102,7 +1102,7 @@ function AtlasMapV2Inner() {
   return (
     <div className="map-container-v2" role="application" aria-roledescription="interactive map" style={{ position: "relative", height: "100dvh", width: "100%" }}>
       <Map
-        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || undefined}
+        mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "atlas-map-v2"}
         defaultCenter={{ lat: mapCenter[0], lng: mapCenter[1] }}
         defaultZoom={mapZoom}
         gestureHandling="greedy"
