@@ -145,6 +145,22 @@ test.describe('Consolidated Request Form', () => {
 
   test.beforeEach(async ({ page }) => {
     await authenticate(page);
+
+    // SAFETY NET: If mockWritesWithCapture somehow fails to register before a
+    // navigation, this catch-all ensures no real writes leak to the database.
+    // Logs a loud warning so we notice in CI output.
+    await page.route('**/api/requests', (route) => {
+      const method = route.request().method();
+      if (method === 'POST') {
+        console.error('[E2E SAFETY NET] Blocked real POST to /api/requests — mock should have caught this');
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: { request_id: 'safety-net-mock-id', status: 'new' } }),
+        });
+      }
+      return route.continue();
+    });
   });
 
   test.afterEach(async ({ request: apiContext }) => {

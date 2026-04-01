@@ -194,16 +194,29 @@ export interface WriteCapture {
 export async function mockWritesWithCapture(page: Page): Promise<WriteCapture> {
   const captured: CapturedWrite[] = [];
 
+  // Match both base endpoints (POST /api/requests) and sub-paths (/api/requests/123)
+  // CRITICAL: Without the base patterns, creating new entities bypasses the mock
+  // because glob `**/api/requests/**` requires a trailing path segment.
   const patterns = [
+    '**/api/requests',
     '**/api/requests/**',
+    '**/api/cats',
     '**/api/cats/**',
+    '**/api/places',
     '**/api/places/**',
+    '**/api/people',
     '**/api/people/**',
+    '**/api/journal',
     '**/api/journal/**',
+    '**/api/annotations',
     '**/api/annotations/**',
+    '**/api/intake',
     '**/api/intake/**',
+    '**/api/trappers',
     '**/api/trappers/**',
+    '**/api/fosters',
     '**/api/fosters/**',
+    '**/api/staff',
     '**/api/staff/**',
   ];
 
@@ -260,16 +273,16 @@ export async function mockWritesWithCapture(page: Page): Promise<WriteCapture> {
  */
 export async function mockAllWrites(page: Page) {
   // Mock writes for entity endpoints (not auth endpoints)
-  await mockWritesFor(page, '**/api/requests/**');
-  await mockWritesFor(page, '**/api/cats/**');
-  await mockWritesFor(page, '**/api/places/**');
-  await mockWritesFor(page, '**/api/people/**');
-  await mockWritesFor(page, '**/api/journal/**');
-  await mockWritesFor(page, '**/api/annotations/**');
-  await mockWritesFor(page, '**/api/intake/**');
-  await mockWritesFor(page, '**/api/trappers/**');
-  await mockWritesFor(page, '**/api/fosters/**');
-  await mockWritesFor(page, '**/api/staff/**');
+  // CRITICAL: Must include both base paths and sub-paths.
+  // `**/api/requests/**` does NOT match `POST /api/requests` (no trailing segment).
+  const endpoints = [
+    'requests', 'cats', 'places', 'people', 'journal',
+    'annotations', 'intake', 'trappers', 'fosters', 'staff',
+  ];
+  for (const ep of endpoints) {
+    await mockWritesFor(page, `**/api/${ep}`);
+    await mockWritesFor(page, `**/api/${ep}/**`);
+  }
   // Note: NOT mocking /api/auth/** to keep login working
 }
 
