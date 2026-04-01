@@ -373,7 +373,7 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
     clinichq: { color: "#2563eb", label: "ClinicHQ", syncLabel: "File Upload" },
     shelterluv: { color: "#10b981", label: "ShelterLuv", syncLabel: "API Cron" },
     airtable: { color: "#f59e0b", label: "Airtable", syncLabel: "Legacy" },
-    volunteerhub: { color: "#8b5cf6", label: "VolunteerHub", syncLabel: "API Cron" },
+    volunteerhub: { color: "#8b5cf6", label: "VolunteerHub", syncLabel: "API Cron + Manual Upload" },
     petlink: { color: "#ec4899", label: "PetLink", syncLabel: "File Upload" },
   };
 
@@ -429,7 +429,7 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
               )}
 
               {/* Action button for file uploads */}
-              {isFileUpload && key === "clinichq" && (
+              {(isFileUpload && key === "clinichq") && (
                 <Link
                   href="/admin/data?tab=processing"
                   style={{
@@ -447,6 +447,29 @@ function ProcessingTab({ data, onRefresh }: { data: ProcessingStats | null; onRe
                   }}
                 >
                   Upload Data →
+                </Link>
+              )}
+
+              {/* Manual upload for VolunteerHub (fallback when API is down) */}
+              {key === "volunteerhub" && (
+                <Link
+                  href="/admin/data?tab=processing&source=volunteerhub"
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    padding: "0.6rem 1rem",
+                    background: config.color,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    fontWeight: 500,
+                    textAlign: "center",
+                    textDecoration: "none",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  Upload Excel Export →
                 </Link>
               )}
 
