@@ -15,14 +15,13 @@ import ClinicHQUploadModal from "@/components/modals/ClinicHQUploadModal";
 
 interface HealthData {
   status: string;
-  health: {
-    total_decisions: number;
-    pending_reviews: number;
-    total_households: number;
-    active_rules: number;
-    avg_processing_ms: number;
+  summary: {
     decisions_24h: number;
-    status: string;
+    pending_reviews: number;
+    avg_processing_ms: number;
+  };
+  households: {
+    total: number;
   };
 }
 
@@ -179,8 +178,8 @@ function HealthBanner() {
 
   if (!health) return null;
 
-  const h = health.health;
-  const isHealthy = h.status === "healthy";
+  const isHealthy = health.status === "healthy";
+  const s = health.summary;
 
   return (
     <div style={{
@@ -195,10 +194,10 @@ function HealthBanner() {
     }}>
       <Icon name={isHealthy ? "check-circle" : "alert-triangle"} size={16} />
       <span style={{ fontWeight: 600 }}>
-        Data Engine {h.status}
+        Data Engine {health.status}
       </span>
       <span style={{ opacity: 0.8 }}>
-        — {h.decisions_24h} decisions in 24h, {h.pending_reviews} pending reviews, {h.total_households} households
+        — {s.decisions_24h} decisions in 24h, {s.pending_reviews} pending reviews, {health.households.total} households
       </span>
     </div>
   );
