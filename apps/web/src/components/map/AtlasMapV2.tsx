@@ -25,6 +25,7 @@ import { BulkActionBar } from "@/components/map/components/BulkActionBar";
 import { MapInfoWindowContent } from "@/components/map/components/MapInfoWindowContent";
 import { MapStatsBar } from "@/components/map/components/MapStatsBar";
 import { MapErrorBoundary } from "@/components/map/components/MapErrorBoundary";
+import { StreetViewPanel } from "@/components/map/components/StreetViewPanel";
 import { MapPinKey } from "@/components/map/components/MapPinKey";
 import { GroupedLayerControl, type PinKeyConfig } from "@/components/map/GroupedLayerControl";
 import {
@@ -155,8 +156,7 @@ function AtlasMapV2Inner() {
   const streetViewConeOnlyRef = useRef(false);
   const streetViewCoordsRef = useRef(streetViewCoords);
   const streetViewFullscreenRef = useRef(streetViewFullscreen);
-  const panoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
-  const panoramaContainerRef = useRef<HTMLDivElement>(null);
+  // panoramaRef / panoramaContainerRef removed — StreetViewPanel manages its own panorama
   const [streetViewHeading, setStreetViewHeading] = useState(0);
 
   // ── Bulk selection state (Step 10) ──
@@ -774,46 +774,7 @@ function AtlasMapV2Inner() {
     setContextMenu(null);
   }, [contextMenu, addToast]);
 
-  // ── Street View (Step 7) — native StreetViewPanorama ──
-  useEffect(() => {
-    if (!streetViewCoords || streetViewConeOnly) {
-      if (panoramaRef.current) {
-        panoramaRef.current.setVisible(false);
-        panoramaRef.current = null;
-      }
-      return;
-    }
-    if (!panoramaContainerRef.current) return;
-
-    const panorama = new google.maps.StreetViewPanorama(panoramaContainerRef.current, {
-      position: { lat: streetViewCoords.lat, lng: streetViewCoords.lng },
-      pov: { heading: 0, pitch: 0 },
-      zoom: 1,
-      addressControl: false,
-      showRoadLabels: false,
-    });
-    panoramaRef.current = panorama;
-
-    let svRaf: number | null = null;
-    panorama.addListener("pov_changed", () => {
-      if (svRaf) return; // throttle to animation frames
-      svRaf = requestAnimationFrame(() => {
-        svRaf = null;
-        setStreetViewHeading(panorama.getPov().heading);
-      });
-    });
-
-    panorama.addListener("position_changed", () => {
-      const pos = panorama.getPosition();
-      if (pos) {
-        streetViewCoordsRef.current = { lat: pos.lat(), lng: pos.lng() };
-      }
-    });
-
-    return () => {
-      google.maps.event.clearInstanceListeners(panorama);
-    };
-  }, [streetViewCoords, streetViewConeOnly]);
+  // Street View panorama is now managed by StreetViewPanel component
 
   // ── My Location handler ──
   const handleMyLocation = useCallback(() => {
@@ -1148,17 +1109,29 @@ function AtlasMapV2Inner() {
           </AdvancedMarker>
         ))}
 
-        {/* ── Navigated location marker (Step 13) ── */}
+        {/* ── Navigated location marker (Step 13) — clickable to pan back ── */}
         {search.navigatedLocation && (
-          <AdvancedMarker position={{ lat: search.navigatedLocation.lat, lng: search.navigatedLocation.lng }} collisionBehavior={CollisionBehavior.REQUIRED} zIndex={20}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <AdvancedMarker
+            position={{ lat: search.navigatedLocation.lat, lng: search.navigatedLocation.lng }}
+            collisionBehavior={CollisionBehavior.REQUIRED}
+            zIndex={20}
+            onClick={() => {
+              map?.panTo({ lat: search.navigatedLocation!.lat, lng: search.navigatedLocation!.lng });
+              map?.setZoom(Math.max(map.getZoom() || 16, 16));
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" }}>
               <div style={{
                 background: "var(--background, #fff)", borderRadius: 6,
                 padding: "4px 8px", fontSize: 11, fontWeight: 600,
                 boxShadow: "0 2px 6px rgba(0,0,0,0.2)", whiteSpace: "nowrap",
                 maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis",
                 marginBottom: 4, color: "var(--foreground, #111)",
+                display: "flex", alignItems: "center", gap: 4,
               }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
                 {search.navigatedLocation.address || "Searched location"}
               </div>
               <div style={{
@@ -1374,6 +1347,33 @@ function AtlasMapV2Inner() {
         exportPinCount={atlasPins.length}
       />
 
+      {/* ── "Return to search" chip — shows when navigated location exists and user clicked away ── */}
+      {search.navigatedLocation && (selectedPin || selectedPlaceId) && (
+        <button
+          onClick={() => {
+            map?.panTo({ lat: search.navigatedLocation!.lat, lng: search.navigatedLocation!.lng });
+            map?.setZoom(Math.max(map?.getZoom() || 16, 16));
+            setSelectedPin(null);
+            setSelectedPlaceId(null);
+          }}
+          style={{
+            position: "absolute", top: 70, left: "50%", transform: "translateX(-50%)",
+            zIndex: MAP_Z_INDEX.searchBox - 1,
+            background: "var(--background, #fff)", borderRadius: 20,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            padding: "6px 14px", border: "1px solid var(--border, #e5e7eb)",
+            cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+            fontSize: 12, fontWeight: 500, color: "var(--primary, #3b82f6)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Back to {search.navigatedLocation.address?.split(",")[0] || "search result"}
+        </button>
+      )}
+
       {/* ── Layer panel ── */}
       {showLayerPanel && (
         <div className={isMobile ? "map-layer-panel--mobile" : "map-layer-panel"}>
@@ -1470,38 +1470,14 @@ function AtlasMapV2Inner() {
         onRoutePolyline={handleRoutePolyline}
       />
 
-      {/* ── Street View panel (Step 7) ── */}
+      {/* ── Street View panel (Step 7) — redesigned split view ── */}
       {streetViewCoords && !streetViewConeOnly && (
-        <div
-          className={`street-view-panel${streetViewFullscreen ? " fullscreen" : ""}`}
-          style={!streetViewFullscreen ? {
-            position: "absolute", bottom: 0, left: 0, right: 0, height: 300,
-            zIndex: MAP_Z_INDEX.panel, background: "#000",
-          } : {
-            position: "fixed", inset: 0, zIndex: MAP_Z_INDEX.streetViewFullscreen, background: "#000",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(0,0,0,0.7)", color: "white", fontSize: 13 }}>
-            <span>{streetViewCoords.address || `${streetViewCoords.lat.toFixed(5)}, ${streetViewCoords.lng.toFixed(5)}`}</span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <a
-                href={`https://www.google.com/maps/@${streetViewCoords.lat},${streetViewCoords.lng},3a,75y,0h,90t/data=!3m4!1e1!3m2!1s!2e0`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#93c5fd", fontSize: 12, textDecoration: "none" }}
-              >
-                Open in Google Maps
-              </a>
-              <button onClick={() => setStreetViewFullscreen(prev => !prev)} style={{ background: "none", border: "none", color: "white", cursor: "pointer", fontSize: 14 }}>
-                {streetViewFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-              </button>
-              <button onClick={() => { setStreetViewCoords(null); setStreetViewFullscreen(false); }} style={{ background: "none", border: "none", color: "white", cursor: "pointer", fontSize: 16 }}>
-                &#x2715;
-              </button>
-            </div>
-          </div>
-          <div ref={panoramaContainerRef} style={{ flex: 1, width: "100%", height: "calc(100% - 40px)" }} />
-        </div>
+        <StreetViewPanel
+          coords={streetViewCoords}
+          onClose={() => { setStreetViewCoords(null); setStreetViewFullscreen(false); }}
+          onPositionChange={(lat, lng) => { streetViewCoordsRef.current = { lat, lng }; }}
+          onHeadingChange={setStreetViewHeading}
+        />
       )}
 
       {/* ── Annotation Detail Drawer (Step 2) ── */}
