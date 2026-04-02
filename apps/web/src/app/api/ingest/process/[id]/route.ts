@@ -258,13 +258,24 @@ export async function processUpload(uploadId: string, existingUpload?: FileUploa
           WHERE sr.source_system = $4 AND sr.source_table = $5
             AND i.row_hash NOT IN (SELECT row_hash FROM hash_matches)
         ),
+        -- Filter out updates that would create hash conflicts with other existing rows
+        safe_updates AS (
+          SELECT im.id, im.source_row_id
+          FROM id_matches im
+          JOIN incoming i ON i.source_row_id = im.source_row_id
+          WHERE NOT EXISTS (
+            SELECT 1 FROM ops.staged_records sr2
+            WHERE sr2.source_system = $4 AND sr2.source_table = $5
+              AND sr2.row_hash = i.row_hash AND sr2.id != im.id
+          )
+        ),
         updates AS (
           UPDATE ops.staged_records sr
           SET payload = i.payload_text::jsonb, row_hash = i.row_hash,
               file_upload_id = $6, updated_at = NOW()
           FROM incoming i
-          JOIN id_matches im ON im.source_row_id = i.source_row_id
-          WHERE sr.id = im.id
+          JOIN safe_updates su ON su.source_row_id = i.source_row_id
+          WHERE sr.id = su.id
           RETURNING sr.id
         ),
         inserts AS (
