@@ -132,7 +132,15 @@ export async function POST(request: NextRequest) {
         await query(`DELETE FROM ops.staged_records WHERE file_upload_id = $1`, [existing.upload_id]);
         await query(`DELETE FROM ops.file_uploads WHERE upload_id = $1`, [existing.upload_id]);
       } else if (existing.status === 'completed') {
-        return apiConflict(`This file has already been processed successfully (upload_id: ${existing.upload_id}). Upload a new export if you have new data.`);
+        // Allow re-upload if it's part of a new batch (user retrying after partial failure).
+        // Clean up old record so the new batch can include this file.
+        if (batchId) {
+          console.error(`[UPLOAD] Re-uploading completed file into new batch ${batchId}, replacing old record`);
+          await query(`DELETE FROM ops.staged_records WHERE file_upload_id = $1`, [existing.upload_id]);
+          await query(`DELETE FROM ops.file_uploads WHERE upload_id = $1`, [existing.upload_id]);
+        } else {
+          return apiConflict(`This file has already been processed successfully (upload_id: ${existing.upload_id}). Upload a new export if you have new data.`);
+        }
       } else {
         return apiConflict(`This file is currently being processed (upload_id: ${existing.upload_id}, status: ${existing.status}). Please wait.`);
       }
