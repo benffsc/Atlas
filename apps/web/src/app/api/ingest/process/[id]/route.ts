@@ -233,65 +233,30 @@ export async function processUpload(uploadId: string, existingUpload?: FileUploa
       const sourceRowIds = chunk.map(r => r.sourceRowId);
       const payloads = chunk.map(r => r.payload);
       const rowHashes = chunk.map(r => r.rowHash);
+      // Simple upsert: insert new rows, update existing ones (claim for this upload).
+      // ON CONFLICT on the unique hash index handles all dedup cases.
       const bulkResult = await queryOne<BulkStagingChunkResult>(`
         WITH incoming AS (
-          SELECT * FROM unnest($1::text[], $2::text[], $3::text[])
+          SELECT DISTINCT ON (row_hash) *
+          FROM unnest($1::text[], $2::text[], $3::text[])
             AS t(source_row_id, payload_text, row_hash)
         ),
-        hash_matches AS (
-          SELECT sr.id, sr.row_hash, sr.file_upload_id
-          FROM ops.staged_records sr
-          WHERE sr.source_system = $4 AND sr.source_table = $5
-            AND sr.row_hash = ANY($3::text[])
-        ),
-        claimed AS (
-          UPDATE ops.staged_records sr
-          SET file_upload_id = $6
-          FROM hash_matches hm
-          WHERE sr.id = hm.id AND hm.file_upload_id IS NULL
-          RETURNING sr.id
-        ),
-        id_matches AS (
-          SELECT sr.id, sr.source_row_id
-          FROM ops.staged_records sr
-          JOIN incoming i ON i.source_row_id = sr.source_row_id
-          WHERE sr.source_system = $4 AND sr.source_table = $5
-            AND i.row_hash NOT IN (SELECT row_hash FROM hash_matches)
-        ),
-        -- Filter out updates that would create hash conflicts with other existing rows
-        safe_updates AS (
-          SELECT im.id, im.source_row_id
-          FROM id_matches im
-          JOIN incoming i ON i.source_row_id = im.source_row_id
-          WHERE NOT EXISTS (
-            SELECT 1 FROM ops.staged_records sr2
-            WHERE sr2.source_system = $4 AND sr2.source_table = $5
-              AND sr2.row_hash = i.row_hash AND sr2.id != im.id
-          )
-        ),
-        updates AS (
-          UPDATE ops.staged_records sr
-          SET payload = i.payload_text::jsonb, row_hash = i.row_hash,
-              file_upload_id = $6, updated_at = NOW()
-          FROM incoming i
-          JOIN safe_updates su ON su.source_row_id = i.source_row_id
-          WHERE sr.id = su.id
-          RETURNING sr.id
-        ),
-        inserts AS (
+        upserted AS (
           INSERT INTO ops.staged_records
             (source_system, source_table, source_row_id, payload, row_hash, file_upload_id)
           SELECT $4, $5, i.source_row_id, i.payload_text::jsonb, i.row_hash, $6
           FROM incoming i
-          WHERE i.row_hash NOT IN (SELECT row_hash FROM hash_matches)
-            AND i.source_row_id NOT IN (SELECT source_row_id FROM id_matches)
-          ON CONFLICT (source_system, source_table, row_hash) DO NOTHING
-          RETURNING id
+          ON CONFLICT (source_system, source_table, row_hash)
+          DO UPDATE SET
+            file_upload_id = $6,
+            payload = EXCLUDED.payload,
+            updated_at = NOW()
+          RETURNING id, (xmax = 0) as is_new
         )
         SELECT
-          (SELECT COUNT(*) FROM inserts)::text as inserted,
-          (SELECT COUNT(*) FROM updates)::text as updated,
-          (SELECT COUNT(*) FROM hash_matches)::text as skipped
+          COUNT(*) FILTER (WHERE is_new)::text as inserted,
+          COUNT(*) FILTER (WHERE NOT is_new)::text as updated,
+          '0'::text as skipped
       `, [sourceRowIds, payloads, rowHashes, upload.source_system, upload.source_table, uploadId]);
       if (bulkResult) {
         inserted += parseInt(bulkResult.inserted || '0');
