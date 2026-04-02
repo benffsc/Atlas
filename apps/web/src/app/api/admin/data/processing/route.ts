@@ -101,7 +101,7 @@ export async function GET() {
         COALESCE(SUM(rows_total), 0)::int as total_records
       FROM ops.file_uploads
       WHERE source_system = 'clinichq' AND status = 'completed'
-    `);
+    `).catch(() => null);
 
     if (clinichqStatus) {
       sources.clinichq.last_sync = clinichqStatus.last_sync;
@@ -216,7 +216,7 @@ export async function GET() {
           FROM ops.processing_jobs
           WHERE source_table = 'entity_linking' AND status = 'completed'
         ) as last_linking_run
-    `);
+    `).catch(() => null);
 
     // Get job queue totals
     const jobStats = await queryOne<{
@@ -231,7 +231,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE status = 'completed' AND completed_at > NOW() - INTERVAL '24 hours')::int as completed_24h,
         COUNT(*) FILTER (WHERE status = 'failed' AND completed_at > NOW() - INTERVAL '24 hours')::int as failed_24h
       FROM ops.processing_jobs
-    `);
+    `).catch(() => null);
 
     // Get staged records backlog per source
     const stagedBacklog = await queryRows<{

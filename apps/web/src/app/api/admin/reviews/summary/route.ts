@@ -68,13 +68,13 @@ export async function GET() {
         COUNT(*) FILTER (WHERE match_tier = 4)::int as tier4,
         COUNT(*) FILTER (WHERE match_tier = 5)::int as tier5
       FROM sot.v_person_dedup_candidates
-    `, []);
+    `, []).catch(() => null);
 
     // Get Tier 4 prevention queue (from merge-review)
     const tier4Stats = await queryOne<{ total: number }>(`
       SELECT COUNT(*)::int as total
       FROM ops.v_tier4_pending_review
-    `, []);
+    `, []).catch(() => null);
 
     // Get data engine pending reviews
     const dataEngineStats = await queryOne<{ total: number }>(`
@@ -82,7 +82,7 @@ export async function GET() {
       FROM sot.data_engine_match_decisions
       WHERE decision_type = 'review_pending'
         AND reviewed_at IS NULL
-    `, []);
+    `, []).catch(() => null);
 
     // Get place dedup counts
     // Note: place_dedup_candidates is a TABLE (not a view) with a status column
@@ -97,7 +97,7 @@ export async function GET() {
         COUNT(*) FILTER (WHERE match_tier = 2)::int as close_different
       FROM sot.place_dedup_candidates
       WHERE status = 'pending'
-    `, []);
+    `, []).catch(() => null);
 
     // Get data quality review counts
     const qualityStats = await queryOne<{ total: number }>(`
@@ -105,7 +105,7 @@ export async function GET() {
       FROM sot.people
       WHERE data_quality = 'needs_review'
         AND merged_into_person_id IS NULL
-    `, []);
+    `, []).catch(() => null);
 
     // Get owner change review counts (MIG_2504)
     const ownerChangeStats = await queryOne<{
@@ -120,7 +120,7 @@ export async function GET() {
       FROM ops.review_queue
       WHERE status = 'pending'
         AND review_type IN ('owner_change', 'owner_transfer', 'owner_household')
-    `, []);
+    `, []).catch(() => null);
 
     // Get AI-parsed items needing verification
     // Note: These tables use verified_at (not reviewed_at) and source_type = 'ai_parsed' (not confidence)
@@ -155,7 +155,7 @@ export async function GET() {
           (SELECT COUNT(*) FROM sot.cat_mortality_events WHERE source_type = 'ai_parsed' AND verified_at IS NULL AND deleted_at IS NULL),
           0
         )::int as mortality
-    `, []);
+    `, []).catch(() => null);
 
     // Get priority items (top 10 oldest across all queues)
     const priorityItems = await queryRows<{
@@ -209,7 +209,7 @@ export async function GET() {
       FROM all_items
       ORDER BY age_hours DESC
       LIMIT 10
-    `, []);
+    `, []).catch(() => []);
 
     const summary: QueueSummary = {
       identity: {
