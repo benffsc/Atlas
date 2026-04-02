@@ -251,11 +251,11 @@ export async function processUpload(uploadId: string, existingUpload?: FileUploa
             file_upload_id = $6,
             payload = EXCLUDED.payload,
             updated_at = NOW()
-          RETURNING id, (xmax = 0) as is_new
+          RETURNING id, xmax
         )
         SELECT
-          COUNT(*) FILTER (WHERE is_new)::text as inserted,
-          COUNT(*) FILTER (WHERE NOT is_new)::text as updated,
+          COUNT(*) FILTER (WHERE xmax = 0)::text as inserted,
+          COUNT(*) FILTER (WHERE xmax != 0)::text as updated,
           '0'::text as skipped
       `, [sourceRowIds, payloads, rowHashes, upload.source_system, upload.source_table, uploadId]);
       if (bulkResult) {
