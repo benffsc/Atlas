@@ -2929,3 +2929,101 @@ Tippy's system prompt and showcase questions now emphasize:
 **Fix:** Replaced with `process.env.V1_DATABASE_URL` / `process.env.V2_DATABASE_URL`. FFS-333 (Urgent) tracks password rotation in Supabase dashboard (manual action).
 
 ---
+
+## DATA_GAP_058: Colony Site Detection — Site-Name Accounts Missing Places
+
+**Status:** FIX WRITTEN (FFS-1077, MIG_3036 diagnostic, MIG_3037 systemic fix)
+
+**Discovery:** Cats at Old Possum Brewing FFSC (357 Sutton Pl, Santa Rosa — trappers Linda Bodwin, Tina Piatt) invisible on Beacon map despite 4 cats fixed 1/15/2024 with microchips.
+
+**Root Cause:** `upsert_clinic_account_for_owner()` (MIG_2496, line 145) only extracts places for `account_type = 'address'`. Site-name accounts (`account_type = 'site_name'`) have valid `owner_address` fields but place extraction is guarded by `IF v_account_type = 'address'`.
+
+**Complete failure chain:**
+1. `classify_owner_name("Old Possum Brewing FFSC")` → `'site_name'` (matches `\mFFSC\M`)
+2. `should_be_person()` → FALSE → no person created (correct)
+3. `upsert_clinic_account_for_owner()` → `resolved_place_id = NULL` (bug: only `'address'` gets extraction)
+4. Appointment `inferred_place_id` = NULL (populated from `resolved_place_id`)
+5. `link_cats_to_appointment_places()` → SKIPS (requires `inferred_place_id IS NOT NULL`)
+6. `link_cats_to_places()` → SKIPS (requires person→place chain, no person exists)
+7. Cats exist in DB but invisible on map
+
+**Scope:** ALL `account_type = 'site_name'` ClinicHQ accounts. Includes FFSC trapping sites, ranches, farms, breweries — any ClinicHQ client name matching Ranch/Farm/Estate/Vineyard/Winery/FFSC/MHP patterns.
+
+**Industry Research (2026-04-01):**
+- Dynamics 365: "Functional Locations" as first-class entities separate from Accounts
+- ShelterLuv: Colony = Case (long-lived entity with location + caretaker roles)
+- RescueGroups: Location > Colony > Animals hierarchy
+- Cat Stats: Colony IS the primary entity
+- Atlas was treating colony sites as "person creation failures" — industry consensus is they should be managed locations
+
+**Fix (MIG_3037 — 3 layers):**
+1. **Plumbing:** Extend place extraction to `v_account_type IN ('address', 'site_name')`. Backfill existing accounts.
+2. **Semantics:** Add `is_colony_site BOOLEAN` to `sot.places`. Auto-set TRUE from site_name accounts.
+3. **Linking:** `link_cats_to_appointment_places()` (Step 2) already works for these places — no `place_kind` filter. Step 3 `business`/`outdoor_site` exclusion is correct for residential fallback.
+
+**Future:** Admin UI to manually designate colony sites. Extend Step 3 to include `is_colony_site = TRUE`. Colony site dashboard for Beacon.
+
+**Related:** DATA_GAP_065 (organization ghost people), DATA_GAP_066 (clinic notes context extraction)
+
+---
+
+## DATA_GAP_065: Organization-Classified People Still Visible on Map
+
+**Status:** IN PROGRESS (MIG_3039)
+
+**Discovery:** 1250 Cleveland Ave, Santa Rosa — map shows "Aamco Repair Santa Rosa" as a linked person with "Trapper At" relationship. 6 cats, all altered, last active 2y ago. Real residents Eileen Dabbs and Chris Dabbs are not linked.
+
+**Root Cause (2 layers):**
+
+1. **Legacy leak:** "Aamco Repair Santa Rosa" was created as a person record BEFORE MIG_2414 added "aamco" to `ref.business_keywords`. At the time, "repair" alone (weight 0.8) was below the 1.5 threshold. MIG_2414 reclassified it as `is_organization = true` in `sot.people`, but **person_place and person_cat links were not cleaned up**.
+
+2. **Map display gap:** Map queries and place detail views don't filter out `is_organization = true` people. The reclassification changed the flag but left the person visible in all downstream contexts (map drawer, place detail, entity linking).
+
+**Broader pattern:** MIG_2414 fixed ~12 org misclassifications, MIG_2821 found 51 more. Any pre-gate business name that was reclassified but not fully unlinked will ghost on the map. This includes:
+- Peterbilt Truck Stop, Flamingo Hotel, Brookhaven Middle School
+- Village Apartments, Speedy Creek Winery, Keller Estates Vineyards
+
+**Impact:** Staff see fake "people" on the map with no way to contact them. Real residents/caretakers are invisible. Cat-place links go through the ghost person instead of the real caretaker.
+
+**Fix (MIG_3039):**
+1. **View fix:** `v_place_detail_v2` now filters `is_organization = FALSE OR IS NULL` in `place_people` CTE
+2. **API fix:** `/api/places/[id]/route.ts` fallback query filters orgs + returns `is_organization` flag
+3. **Entity linking fix:** `link_cats_to_places()` excludes org people from person→place→cat chain
+4. **Link cleanup:** Org person_cat+person_place links converted to direct cat→place links, person_place marked `booked_under_org`
+
+---
+
+## DATA_GAP_066: Clinic Notes Contain Unused Identity & Relationship Context
+
+**Status:** IN PROGRESS (MIG_3039 table + extraction script)
+
+**Discovery:** At 1250 Cleveland Ave, Eileen Dabbs and Chris Dabbs are the real residents with ClinicHQ contact info (phone, email), but the system linked to "Aamco Repair Santa Rosa" instead. The actual people and their relationship to this address likely exist in `ops.clinic_accounts.quick_notes` or `long_notes` — data that's stored but never mined.
+
+**Current state of clinic notes in Atlas:**
+
+| Table | Column | Used For |
+|-------|--------|----------|
+| `ops.appointments.medical_notes` | Test result extraction ONLY (FeLV/FIV regex) |
+| `ops.clinic_accounts.quick_notes` | Stored, full-text indexed, used by Tippy |
+| `ops.clinic_accounts.long_notes` | Stored, full-text indexed, used by Tippy |
+| `source.clinichq_raw.payload` | Raw audit trail, not analyzed |
+
+**What's being missed:**
+- Caretaker/colony manager names in notes ("managed by Eileen Dabbs")
+- Trapper references ("brought by [name]")
+- Household member names not in the booking record
+- Colony context (size estimates, feeding schedules, seasonal patterns)
+- Address corrections or clarifications in notes
+
+**Why this matters:** The system has a binary gate (`should_be_person()`) — either you're a person or you're not. When a business name fails the gate, all context about REAL people at that location is lost. Notes are the only place that context survives, but nothing reads it.
+
+**Fix (MIG_3039 + script):**
+1. **Table:** `ops.extracted_note_entities` stores structured LLM extractions with staff review workflow
+2. **Script:** `scripts/pipeline/extract_notes_relationships.mjs` — Claude Batch API extraction
+   - Export accounts with notes → JSONL batch file
+   - Submit to Claude Batch API (Sonnet, ~$30-50 for full run)
+   - Parse structured JSON responses → INSERT into extraction table
+   - Supports `--dry-run`, `--export-only`, `--import`, `--limit` modes
+3. **Review queue:** Staff reviews extracted entities at `/admin/notes-review` (future Sub 4)
+
+---

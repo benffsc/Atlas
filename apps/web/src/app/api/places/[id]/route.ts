@@ -142,17 +142,19 @@ export const GET = withErrorHandling(async (
           SELECT json_agg(json_build_object(
             'person_id', per.person_id,
             'display_name', per.display_name,
-            'role', pp.relationship_type::text
+            'role', pp.relationship_type::text,
+            'is_organization', COALESCE(per.is_organization, false)
           ))
           FROM sot.person_place pp
           JOIN sot.people per ON per.person_id = pp.person_id
           WHERE pp.place_id = p.place_id
             AND per.merged_into_person_id IS NULL
             AND per.display_name IS NOT NULL
+            AND (per.is_organization = FALSE OR per.is_organization IS NULL)
         ), '[]'::json) AS people,
         '[]'::json AS place_relationships,
         COALESCE((SELECT COUNT(DISTINCT cp.cat_id) FROM sot.cat_place cp WHERE cp.place_id = p.place_id), 0) AS cat_count,
-        COALESCE((SELECT COUNT(DISTINCT pp.person_id) FROM sot.person_place pp JOIN sot.people per ON per.person_id = pp.person_id WHERE pp.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL), 0) AS person_count
+        COALESCE((SELECT COUNT(DISTINCT pp.person_id) FROM sot.person_place pp JOIN sot.people per ON per.person_id = pp.person_id WHERE pp.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL AND (per.is_organization = FALSE OR per.is_organization IS NULL)), 0) AS person_count
       FROM sot.places p
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
       WHERE p.place_id = $1
