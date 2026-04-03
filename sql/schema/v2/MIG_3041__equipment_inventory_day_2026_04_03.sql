@@ -197,6 +197,9 @@ END $$;
 -- Any non-retired equipment that is "available" but NOT in the shelf list
 -- and NOT one of the known checkouts = we can't account for it.
 
+-- Only flag large_trap_backdoor (the main trap type audited today).
+-- Other equipment types (cages, cameras, accessories, other trap types)
+-- were NOT part of this audit and should be left untouched.
 INSERT INTO ops.equipment_events (equipment_id, event_type, notes, source_system)
 SELECT equipment_id, 'reported_missing',
   'Inventory Day 2026-04-03: not found on shelf, not confirmed checked out — flagged for investigation',
@@ -204,6 +207,7 @@ SELECT equipment_id, 'reported_missing',
 FROM ops.equipment
 WHERE custody_status = 'available'
   AND retired_at IS NULL
+  AND equipment_type_key = 'large_trap_backdoor'
   AND barcode NOT IN ('0205','0218','0224','0178','0146','0157','0207','0200','0144','0221','0164','0155','0152')
   AND barcode NOT IN ('0176','0208','0203','0121','0216','0192');
 
@@ -211,12 +215,15 @@ WHERE custody_status = 'available'
 -- VERIFICATION
 -- ═══════════════════════════════════════════════════════════════════════════════
 
--- After this migration:
--- SELECT custody_status, count(*) FROM ops.equipment WHERE retired_at IS NULL GROUP BY 1;
+-- After this migration (large_trap_backdoor only):
+-- SELECT custody_status, count(*) FROM ops.equipment
+-- WHERE retired_at IS NULL AND equipment_type_key = 'large_trap_backdoor' GROUP BY 1;
 -- Expected:
 --   available    = 13 (shelf traps)
 --   checked_out  = 6  (Rebecca 0176, Deborah 0208, Anne 0203, Laura 0121+0216, Thea 0192)
---   missing      = anything unaccounted for
+--   missing      = any large_trap_backdoor unaccounted for
 --   maintenance  = any that were already in maintenance
+--
+-- Other equipment types (cages, small traps, cameras, accessories) are UNTOUCHED.
 
 COMMIT;
