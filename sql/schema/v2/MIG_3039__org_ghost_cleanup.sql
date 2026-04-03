@@ -286,16 +286,27 @@ ALTER TABLE sot.person_place
     'booked_under_org'
   ));
 
+-- Expand cat_place CHECK constraints to allow new values
+ALTER TABLE sot.cat_place DROP CONSTRAINT IF EXISTS cat_place_evidence_type_check;
+ALTER TABLE sot.cat_place ADD CONSTRAINT cat_place_evidence_type_check
+  CHECK (evidence_type IN ('manual', 'inferred', 'imported', 'appointment', 'owner_address',
+    'person_relationship', 'cross_system_match', 'org_ghost_cleanup', 'verified_person_relationship'));
+
+ALTER TABLE sot.cat_place DROP CONSTRAINT IF EXISTS cat_place_relationship_type_check;
+ALTER TABLE sot.cat_place ADD CONSTRAINT cat_place_relationship_type_check
+  CHECK (relationship_type IN ('home', 'residence', 'colony_member', 'seen_at',
+    'appointment_site', 'trapped_at', 'relocated_to', 'associated'));
+
 -- For each org person: if they have both person_cat and person_place links,
 -- create direct cat_place links to preserve the data without the ghost intermediary.
 WITH org_cat_place AS (
   SELECT DISTINCT
-    pc.cat_id,
+    pcat.cat_id,
     pp.place_id,
-    'associated' AS relationship_type,
-    'org_ghost_cleanup' AS evidence_type,
-    'entity_linking' AS source_system,
-    'low' AS confidence
+    'associated'::text AS relationship_type,
+    'org_ghost_cleanup'::text AS evidence_type,
+    'entity_linking'::text AS source_system,
+    0.5::numeric AS confidence
   FROM sot.people p
   JOIN sot.person_cat pcat ON pcat.person_id = p.person_id
   JOIN sot.person_place pp ON pp.person_id = p.person_id
