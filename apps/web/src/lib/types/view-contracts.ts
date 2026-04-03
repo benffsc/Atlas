@@ -713,6 +713,9 @@ export interface EquipmentReconcileResult extends VEquipmentInventoryRow {
   was_scanned: boolean;
   scan_status: string;
   suggested_action: string | null;
+  last_holder_name: string | null;
+  last_holder_date: string | null;
+  last_event_type: string | null;
 }
 
 /**
