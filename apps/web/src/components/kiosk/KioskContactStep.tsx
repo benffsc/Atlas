@@ -5,6 +5,7 @@ import { kioskInputStyle, kioskLabelStyle } from "./kiosk-styles";
 
 export interface KioskContactData {
   firstName: string;
+  lastName?: string;
   phone: string;
   email: string;
 }
@@ -12,6 +13,8 @@ export interface KioskContactData {
 interface KioskContactStepProps {
   data: KioskContactData;
   onChange: (data: KioskContactData) => void;
+  /** Show last name field (used in clinic mode for better person matching) */
+  showLastName?: boolean;
 }
 
 /**
@@ -19,7 +22,7 @@ interface KioskContactStepProps {
  * First name + phone required, email optional.
  * Uses tel inputMode for phone keyboard on mobile.
  */
-export function KioskContactStep({ data, onChange }: KioskContactStepProps) {
+export function KioskContactStep({ data, onChange, showLastName }: KioskContactStepProps) {
   const update = (field: keyof KioskContactData, value: string) => {
     onChange({ ...data, [field]: value });
   };
@@ -53,6 +56,20 @@ export function KioskContactStep({ data, onChange }: KioskContactStepProps) {
           style={kioskInputStyle}
         />
       </div>
+
+      {showLastName && (
+        <div>
+          <label style={kioskLabelStyle}>Last Name</label>
+          <input
+            type="text"
+            value={data.lastName || ""}
+            onChange={(e) => update("lastName", e.target.value)}
+            placeholder="Your last name"
+            autoComplete="family-name"
+            style={kioskInputStyle}
+          />
+        </div>
+      )}
 
       <div>
         <label style={kioskLabelStyle}>Phone *</label>

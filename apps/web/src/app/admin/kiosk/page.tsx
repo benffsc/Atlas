@@ -16,6 +16,10 @@ import {
   type TippyTree,
   type TippyNode,
 } from "@/lib/tippy-tree";
+import {
+  CLINIC_CAT_TREE,
+  CLINIC_SCORING_CONFIG,
+} from "@/lib/clinic-cat-tree";
 
 export default function AdminKioskPage() {
   return (
@@ -28,13 +32,17 @@ export default function AdminKioskPage() {
       </p>
       <LiveStatusSection />
       <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
-      <ModuleConfig />
+      <LobbyPathsConfig />
+      <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
+      <ClinicFlowSettings />
       <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
       <CheckoutDefaultsConfig />
       <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
       <StaffPickerConfig />
       <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
       <TippyTreePreview />
+      <hr style={{ border: "none", borderTop: "1px solid var(--card-border)", margin: "2rem 0" }} />
+      <ClinicTreePreview />
     </div>
   );
 }
@@ -238,25 +246,35 @@ function CheckoutDefaultsConfig() {
   );
 }
 
-// ── Module Config ─────────────────────────────────────────────────────────────
+// ── Lobby Paths Config ────────────────────────────────────────────────────────
 
-const MODULE_OPTIONS = [
-  { id: "equipment", label: "Equipment Check Out", icon: "box" },
-  { id: "help", label: "Help Request Form", icon: "heart-handshake" },
-  { id: "cats", label: "Adoptable Cats (Coming Soon)", icon: "cat" },
-  { id: "trapper", label: "Trapper Request (Coming Soon)", icon: "map-pin" },
+const LOBBY_MODULES = [
+  { id: "clinic", label: "Spay / Neuter Clinic", icon: "scissors", subtitle: "Free surgery for community cats", configKey: null, primary: true },
+  { id: "volunteer", label: "Volunteering", icon: "users", subtitle: "Join our volunteer team", configKey: "kiosk.volunteer_qr_url" },
+  { id: "barn_cat", label: "Barn Cat Program", icon: "warehouse", subtitle: "Adopt a working cat", configKey: "kiosk.barn_cat_qr_url" },
+  { id: "adopt", label: "Adopt a Cat", icon: "heart", subtitle: "Find your new friend", configKey: "kiosk.adopt_qr_url" },
+  { id: "rehome", label: "Rehome a Cat", icon: "home", subtitle: "Resources for rehoming", configKey: "kiosk.rehome_url" },
 ];
 
-function ModuleConfig() {
+function LobbyPathsConfig() {
   const { mutate } = useAllConfigs();
-  const { value: enabledModules } = useAppConfig<string[]>("kiosk.modules_enabled");
   const { value: splashTitle } = useAppConfig<string>("kiosk.splash_title");
   const { value: splashSubtitle } = useAppConfig<string>("kiosk.splash_subtitle");
   const { value: publicTimeout } = useAppConfig<number>("kiosk.session_timeout_public");
   const { value: equipmentTimeout } = useAppConfig<number>("kiosk.session_timeout_equipment");
-  const { value: successMsg } = useAppConfig<string>("kiosk.success_message");
+  const { value: volunteerUrl } = useAppConfig<string>("kiosk.volunteer_qr_url");
+  const { value: barnCatUrl } = useAppConfig<string>("kiosk.barn_cat_qr_url");
+  const { value: adoptUrl } = useAppConfig<string>("kiosk.adopt_qr_url");
+  const { value: rehomeUrl } = useAppConfig<string>("kiosk.rehome_url");
   const { success: showSuccess, error: showError } = useToast();
   const [saving, setSaving] = useState<string | null>(null);
+
+  const qrUrls: Record<string, string> = {
+    "kiosk.volunteer_qr_url": volunteerUrl || "",
+    "kiosk.barn_cat_qr_url": barnCatUrl || "",
+    "kiosk.adopt_qr_url": adoptUrl || "",
+    "kiosk.rehome_url": rehomeUrl || "",
+  };
 
   const saveKey = useCallback(
     async (key: string, value: unknown) => {
@@ -274,50 +292,64 @@ function ModuleConfig() {
     [mutate, showSuccess, showError],
   );
 
-  const toggleModule = useCallback(
-    (moduleId: string) => {
-      const current = enabledModules || [];
-      const next = current.includes(moduleId)
-        ? current.filter((m) => m !== moduleId)
-        : [...current, moduleId];
-      saveKey("kiosk.modules_enabled", next);
-    },
-    [enabledModules, saveKey],
-  );
-
   return (
     <div>
-      <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: "0 0 1rem" }}>Modules</h2>
+      <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
+        Lobby Paths
+      </h2>
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 1rem" }}>
+        The 5-card digital lobby shown on the kiosk splash screen.
+      </p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
-        {MODULE_OPTIONS.map((mod) => {
-          const isEnabled = enabledModules?.includes(mod.id);
-          return (
-            <label
-              key={mod.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                padding: "0.75rem 1rem",
-                background: "var(--card-bg)",
-                border: "1px solid var(--card-border)",
-                borderRadius: 10,
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={isEnabled || false}
-                onChange={() => toggleModule(mod.id)}
-                disabled={saving === "kiosk.modules_enabled"}
-                style={{ width: 18, height: 18, accentColor: "var(--primary)" }}
-              />
-              <Icon name={mod.icon} size={18} color={isEnabled ? "var(--primary)" : "var(--muted)"} />
-              <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>{mod.label}</span>
-            </label>
-          );
-        })}
+        {LOBBY_MODULES.map((mod) => (
+          <div
+            key={mod.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.75rem 1rem",
+              background: "var(--card-bg)",
+              border: mod.primary ? "2px solid var(--primary)" : "1px solid var(--card-border)",
+              borderRadius: 10,
+            }}
+          >
+            <Icon name={mod.icon} size={20} color={mod.primary ? "var(--primary)" : "var(--text-secondary)"} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                {mod.label}
+                {mod.primary && (
+                  <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "var(--primary)", marginLeft: "0.5rem", textTransform: "uppercase" }}>
+                    PRIMARY
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{mod.subtitle}</div>
+            </div>
+            {mod.configKey && (
+              <span style={{ fontSize: "0.7rem", color: "var(--muted)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {qrUrls[mod.configKey] || "No URL set"}
+              </span>
+            )}
+            {!mod.configKey && (
+              <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>→ /kiosk/clinic</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* QR/URL configuration */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.5rem" }}>
+        {LOBBY_MODULES.filter((m) => m.configKey).map((mod) => (
+          <InlineEditField
+            key={mod.id}
+            label={`${mod.label} URL`}
+            value={qrUrls[mod.configKey!] || ""}
+            onSave={(v) => saveKey(mod.configKey!, v)}
+            saving={saving === mod.configKey}
+          />
+        ))}
       </div>
 
       <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: "0 0 1rem" }}>Settings</h2>
@@ -352,11 +384,133 @@ function ModuleConfig() {
           onSave={(v) => saveKey("kiosk.splash_subtitle", v)}
           saving={saving === "kiosk.splash_subtitle"}
         />
+      </div>
+    </div>
+  );
+}
+
+// ── Clinic Flow Settings ──────────────────────────────────────────────────────
+
+function ClinicFlowSettings() {
+  const { mutate } = useAllConfigs();
+  const { value: clinicEnabled } = useAppConfig<boolean>("kiosk.clinic_enabled");
+  const { value: missionHeadline } = useAppConfig<string>("kiosk.mission_headline");
+  const { value: petRedirectMsg } = useAppConfig<string>("kiosk.pet_redirect_message");
+  const { value: clinicSuccessMsg } = useAppConfig<string>("kiosk.clinic_success_message");
+  const { value: trapperWaitMsg } = useAppConfig<string>("kiosk.trapper_wait_message");
+  const { value: welcomeBackEnabled } = useAppConfig<boolean>("kiosk.welcome_back_enabled");
+  const { success: showSuccess, error: showError } = useToast();
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const saveKey = useCallback(
+    async (key: string, value: unknown) => {
+      setSaving(key);
+      try {
+        await postApi("/api/admin/config", { key, value }, { method: "PUT" });
+        await mutate();
+        showSuccess(`Updated ${key}`);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Failed to save");
+      } finally {
+        setSaving(null);
+      }
+    },
+    [mutate, showSuccess, showError],
+  );
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
+        Clinic Flow Settings
+      </h2>
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 1rem" }}>
+        Configure messaging and behavior for the clinic lobby kiosk path.
+      </p>
+
+      {/* Toggles */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.25rem" }}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            padding: "0.75rem 1rem",
+            background: "var(--card-bg)",
+            border: "1px solid var(--card-border)",
+            borderRadius: 10,
+            cursor: "pointer",
+            opacity: saving === "kiosk.clinic_enabled" ? 0.6 : 1,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={clinicEnabled || false}
+            onChange={() => saveKey("kiosk.clinic_enabled", !clinicEnabled)}
+            disabled={saving === "kiosk.clinic_enabled"}
+            style={{ width: 18, height: 18, accentColor: "var(--primary)" }}
+          />
+          <div>
+            <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>Clinic path enabled</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+              Shows the &quot;Spay / Neuter Clinic&quot; card on the lobby screen
+            </div>
+          </div>
+        </label>
+
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            padding: "0.75rem 1rem",
+            background: "var(--card-bg)",
+            border: "1px solid var(--card-border)",
+            borderRadius: 10,
+            cursor: "pointer",
+            opacity: saving === "kiosk.welcome_back_enabled" ? 0.6 : 1,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={welcomeBackEnabled || false}
+            onChange={() => saveKey("kiosk.welcome_back_enabled", !welcomeBackEnabled)}
+            disabled={saving === "kiosk.welcome_back_enabled"}
+            style={{ width: 18, height: 18, accentColor: "var(--primary)" }}
+          />
+          <div>
+            <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>Welcome back screen</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+              Shows personalized greeting when a known contact checks in again
+            </div>
+          </div>
+        </label>
+      </div>
+
+      {/* Editable messages */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <InlineEditField
-          label="Success Message"
-          value={successMsg}
-          onSave={(v) => saveKey("kiosk.success_message", v)}
-          saving={saving === "kiosk.success_message"}
+          label="Mission Headline"
+          value={missionHeadline}
+          onSave={(v) => saveKey("kiosk.mission_headline", v)}
+          saving={saving === "kiosk.mission_headline"}
+        />
+        <InlineEditField
+          label="Pet Redirect Message"
+          value={petRedirectMsg}
+          onSave={(v) => saveKey("kiosk.pet_redirect_message", v)}
+          saving={saving === "kiosk.pet_redirect_message"}
+        />
+        <InlineEditField
+          label="Clinic Success Message"
+          value={clinicSuccessMsg}
+          onSave={(v) => saveKey("kiosk.clinic_success_message", v)}
+          saving={saving === "kiosk.clinic_success_message"}
+        />
+        <InlineEditField
+          label="Trapper Wait Message"
+          value={trapperWaitMsg}
+          onSave={(v) => saveKey("kiosk.trapper_wait_message", v)}
+          saving={saving === "kiosk.trapper_wait_message"}
         />
       </div>
     </div>
@@ -877,6 +1031,170 @@ function TreeNode({ node, tree, depth }: { node: TippyNode; tree: Record<string,
   );
 }
 
+// ── Clinic Tree Preview ───────────────────────────────────────────────────────
+
+const CLINIC_CLASSIFICATION_THRESHOLDS = [
+  { label: "Pet Redirect", range: "net_score >= 7", color: "var(--warning-text)" },
+  { label: "Ambiguous", range: "net_score >= 3", color: "var(--info-text, #2563eb)" },
+  { label: "Community Cat", range: "net_score >= 0", color: "var(--success-text)" },
+  { label: "Feral / Colony", range: "net_score < 0", color: "var(--danger-text)" },
+];
+
+function ClinicTreePreview() {
+  const { value: customTree } = useAppConfig<TippyTree | null>("kiosk.clinic_tree");
+  const tree = customTree && typeof customTree === "object"
+    ? customTree
+    : CLINIC_CAT_TREE;
+
+  const nodes = getNodes(tree);
+  const scoring = CLINIC_SCORING_CONFIG;
+  const nodeCount = Object.keys(nodes).length;
+  const outcomeNodes = Object.values(nodes).filter((n) => n.outcome);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+        <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0 }}>
+          Clinic Decision Tree ({nodeCount} nodes)
+        </h2>
+        <a
+          href="/kiosk/clinic"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            color: "var(--primary)",
+            textDecoration: "none",
+          }}
+        >
+          Preview as User →
+        </a>
+      </div>
+
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 1rem" }}>
+        The clinic lobby tree classifies cats as pet vs community via behavioral questions.
+        Two paths: behavioral (1-5 cats) and colony (6+ cats).
+      </p>
+
+      {/* Tree visualization */}
+      <div
+        style={{
+          background: "var(--card-bg)",
+          border: "1px solid var(--card-border)",
+          borderRadius: 12,
+          overflow: "hidden",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <TreeNode node={nodes["clinic_root"]} tree={nodes} depth={0} />
+      </div>
+
+      {/* Outcomes */}
+      <div
+        style={{
+          background: "var(--muted-bg, #f9fafb)",
+          border: "1px solid var(--card-border)",
+          borderRadius: 12,
+          padding: "1rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <div style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+          <Icon name="target" size={16} color="var(--primary)" /> Outcomes ({outcomeNodes.length})
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {outcomeNodes.map((node) => (
+            <div
+              key={node.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                padding: "0.5rem 0.75rem",
+                background: "var(--card-bg)",
+                border: "1px solid var(--card-border)",
+                borderRadius: 8,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  color: node.outcome?.creates_intake ? "var(--success-text)" : "var(--warning-text)",
+                  letterSpacing: "0.03em",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {node.outcome?.creates_intake ? "INTAKE" : "INFO ONLY"}
+              </span>
+              <span style={{ flex: 1, fontSize: "0.85rem", fontWeight: 500 }}>
+                {node.outcome?.headline}
+              </span>
+              <span style={{ fontSize: "0.75rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                {OUTCOME_TYPE_LABELS[node.outcome?.type || ""] || node.outcome?.type}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Classification thresholds */}
+      <div
+        style={{
+          background: "var(--muted-bg, #f9fafb)",
+          border: "1px solid var(--card-border)",
+          borderRadius: 12,
+          padding: "1rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <div style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+          <Icon name="sliders" size={16} color="var(--primary)" /> Classification Thresholds
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8rem" }}>
+          {CLINIC_CLASSIFICATION_THRESHOLDS.map((t) => (
+            <div key={t.label} style={{ display: "flex", gap: "0.5rem", color: "var(--text-secondary)" }}>
+              <span style={{ fontWeight: 600, color: t.color, minWidth: 120 }}>{t.label}</span>
+              <code style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{t.range}</code>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Scoring rules */}
+      <div
+        style={{
+          background: "var(--muted-bg, #f9fafb)",
+          border: "1px solid var(--card-border)",
+          borderRadius: 12,
+          padding: "1rem",
+        }}
+      >
+        <div style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+          <Icon name="calculator" size={16} color="var(--primary)" /> Scoring Rules ({scoring.scoring_rules.length})
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8rem" }}>
+          {scoring.scoring_rules.map((rule, i) => (
+            <div key={i} style={{ display: "flex", gap: "0.5rem", color: "var(--text-secondary)" }}>
+              <code style={{ fontWeight: 600, color: "var(--text-primary)", minWidth: 140 }}>{rule.tag}</code>
+              <span>{rule.op === "truthy" ? "is truthy" : rule.op === "numeric" ? `× ${rule.points}` : `= ${rule.match?.join(" | ")}`}</span>
+              <span style={{ marginLeft: "auto", fontWeight: 600, color: "var(--primary)" }}>+{rule.points}pts</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontWeight: 700, fontSize: "0.9rem", marginTop: "1rem", marginBottom: "0.5rem" }}>
+          Field Mappings ({scoring.field_mappings.length})
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.6 }}>
+          {scoring.field_mappings.map((m) => `${m.tag} → tippy_${m.field}`).join(" · ")}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
 const smallLabelStyle: React.CSSProperties = {
@@ -889,13 +1207,3 @@ const smallLabelStyle: React.CSSProperties = {
   marginBottom: "0.25rem",
 };
 
-const editorInputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.5rem 0.75rem",
-  border: "1px solid var(--card-border)",
-  borderRadius: 8,
-  fontSize: "0.85rem",
-  background: "var(--card-bg)",
-  outline: "none",
-  boxSizing: "border-box" as const,
-};

@@ -742,10 +742,13 @@ export const DEFAULT_TIPPY_TREE: TippyTree = {
 
 // ── Traversal Engine ───────────────────────────────────────────────────────────
 
-export function createInitialState(_tree: TippyTree): TippyState {
+export function createInitialState(tree: TippyTree): TippyState {
+  // Detect root node: prefer "root", then first key in the nodes map
+  const nodes = getNodes(tree);
+  const rootId = nodes["root"] ? "root" : Object.keys(nodes)[0] || "root";
   return {
     history: [],
-    current_node_id: "root",
+    current_node_id: rootId,
     outcome: null,
     tags: {},
   };
