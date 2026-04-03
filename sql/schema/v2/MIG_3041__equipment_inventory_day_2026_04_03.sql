@@ -63,14 +63,12 @@ DECLARE
   v_equip_id UUID;
 BEGIN
   -- Find or create person
-  SELECT person_id INTO v_person_id
-  FROM sot.find_or_create_person(
+  v_person_id := sot.find_or_create_person(
     p_email := 'rebeccasatthewell@gmail.com',
     p_phone := '7078923215',
     p_first_name := 'Rebecca',
     p_last_name := 'Sarino',
-    p_source_system := 'atlas_ui',
-    p_source_record_id := 'inventory_day_2026_04_03_rebecca_sarino'
+    p_source_system := 'atlas_ui'
   );
 
   SELECT equipment_id INTO v_equip_id FROM ops.equipment WHERE barcode = '0176' AND retired_at IS NULL;
@@ -95,14 +93,12 @@ DECLARE
   v_person_id UUID;
   v_equip_id UUID;
 BEGIN
-  SELECT person_id INTO v_person_id
-  FROM sot.find_or_create_person(
+  v_person_id := sot.find_or_create_person(
     p_email := 'magnolia59@outlook.com',
     p_phone := '7075694341',
     p_first_name := 'Deborah',
     p_last_name := 'Delew',
-    p_source_system := 'atlas_ui',
-    p_source_record_id := 'inventory_day_2026_04_03_deborah_delew'
+    p_source_system := 'atlas_ui'
   );
 
   SELECT equipment_id INTO v_equip_id FROM ops.equipment WHERE barcode = '0208' AND retired_at IS NULL;
@@ -127,14 +123,12 @@ DECLARE
   v_person_id UUID;
   v_equip_id UUID;
 BEGIN
-  SELECT person_id INTO v_person_id
-  FROM sot.find_or_create_person(
+  v_person_id := sot.find_or_create_person(
     p_email := 'amc22@sonic.net',
     p_phone := '7075089929',
     p_first_name := 'Anne',
     p_last_name := 'Condon',
-    p_source_system := 'atlas_ui',
-    p_source_record_id := 'inventory_day_2026_04_03_anne_condon'
+    p_source_system := 'atlas_ui'
   );
 
   SELECT equipment_id INTO v_equip_id FROM ops.equipment WHERE barcode = '0203' AND retired_at IS NULL;
