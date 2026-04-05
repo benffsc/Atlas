@@ -32,6 +32,11 @@ const SOURCE_CONFIGS: Record<string, { tables: string[]; label: string; accepts?
     tables: ["placemarks"],
     accepts: [".kmz", ".kml"],
   },
+  clinic_waiver: {
+    label: "Clinic Waiver",
+    tables: ["waiver_scan"],
+    accepts: [".pdf"],
+  },
 };
 
 export async function GET() {
