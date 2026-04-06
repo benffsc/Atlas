@@ -14,6 +14,19 @@ import {
 
 // ── Types ──────────────────────────────────────────────────────────────
 
+interface CDSMethodBreakdown {
+  sql_owner_name: number;
+  sql_cat_name: number;
+  sql_sex: number;
+  sql_cardinality: number;
+  waiver_bridge: number;
+  weight_disambiguation: number;
+  composite: number;
+  constraint_propagation: number;
+  cds_suggestion: number;
+  manual: number;
+}
+
 interface StatusData {
   date: string;
   clinic_day_id: string | null;
@@ -66,6 +79,20 @@ interface StatusData {
     discrepancy: number;
     likely_duplicates: boolean;
   };
+  cds?: {
+    latest_run: {
+      run_id: string;
+      triggered_by: string;
+      started_at: string;
+      completed_at: string | null;
+      matched_before: number;
+      matched_after: number;
+      has_waivers: boolean;
+      has_weights: boolean;
+    } | null;
+    pending_suggestions: number;
+    method_breakdown: CDSMethodBreakdown;
+  };
 }
 
 interface EntryRow {
@@ -82,7 +109,10 @@ interface EntryRow {
   matched_appointment_id: string | null;
   matched_cat_name: string | null;
   matched_microchip: string | null;
+  matched_cat_weight: number | null;
   is_recheck: boolean;
+  cds_method: string | null;
+  cds_llm_reasoning: string | null;
 }
 
 // ── Page ───────────────────────────────────────────────────────────────
@@ -104,6 +134,9 @@ export default function ClinicDayHubPage() {
 
   // Rematch state
   const [rematching, setRematching] = useState(false);
+
+  // CDS review state
+  const [reviewingEntry, setReviewingEntry] = useState<string | null>(null);
 
   // Photo upload state
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
@@ -179,13 +212,12 @@ export default function ClinicDayHubPage() {
     try {
       const data = await postApi<{
         before: { matched: number; unmatched: number };
-        after: { matched: number; unmatched: number };
-        sql_matched: number;
-        composite: { newly_matched: number };
+        after: { matched: number; unmatched: number; manual: number };
+        phases: Array<{ phase: string; matched: number }>;
       }>(`/api/admin/clinic-days/${date}/rematch`, {});
       addToast({
         type: "success",
-        message: `Rematch: ${data.before.matched} → ${data.after.matched} matched (${data.after.unmatched} remaining)`,
+        message: `CDS: ${data.before.matched} → ${data.after.matched} matched (${data.after.unmatched} remaining)`,
       });
       await Promise.all([loadStatus(), loadEntries()]);
     } catch (err) {
@@ -195,6 +227,28 @@ export default function ClinicDayHubPage() {
       });
     } finally {
       setRematching(false);
+    }
+  };
+
+  const handleCDSReview = async (entryId: string, action: "accept" | "reject") => {
+    setReviewingEntry(entryId);
+    try {
+      await postApi(`/api/admin/clinic-days/${date}/cds/review`, {
+        entry_id: entryId,
+        action,
+      });
+      addToast({
+        type: "success",
+        message: `Suggestion ${action}ed`,
+      });
+      await Promise.all([loadStatus(), loadEntries()]);
+    } catch (err) {
+      addToast({
+        type: "error",
+        message: err instanceof Error ? err.message : "Review failed",
+      });
+    } finally {
+      setReviewingEntry(null);
     }
   };
 
@@ -396,12 +450,14 @@ export default function ClinicDayHubPage() {
           }
         />
 
-        {/* Matching */}
+        {/* CDS / Matching */}
         <StatusLane
-          title="Matching"
+          title="CDS"
           status={
             !r?.has_master_list
               ? "pending"
+              : (status?.cds?.pending_suggestions ?? 0) > 0
+              ? "partial"
               : (status?.matching.coverage_pct ?? 0) >= 90
               ? "ready"
               : (status?.matching.coverage_pct ?? 0) >= 50
@@ -414,7 +470,9 @@ export default function ClinicDayHubPage() {
               : "Awaiting data"
           }
           secondary={
-            status?.matching.unmatched
+            (status?.cds?.pending_suggestions ?? 0) > 0
+              ? `${status!.cds!.pending_suggestions} suggestions pending`
+              : status?.matching.unmatched
               ? `${status.matching.unmatched} unmatched`
               : undefined
           }
@@ -616,6 +674,106 @@ export default function ClinicDayHubPage() {
               </div>
             )}
 
+            {/* CDS Suggestions (pending review) */}
+            {(status?.cds?.pending_suggestions ?? 0) > 0 && (
+              <div className="card" style={{ borderLeft: "3px solid var(--warning-text)" }}>
+                <h3 style={{ marginTop: 0, marginBottom: "12px", fontSize: "0.95rem" }}>
+                  CDS Suggestions ({status!.cds!.pending_suggestions} pending review)
+                </h3>
+                <p style={{ color: "var(--muted)", fontSize: "0.8rem", marginBottom: "12px" }}>
+                  The CDS pipeline found probable matches but needs staff confirmation (Manual &gt; AI).
+                </p>
+                {entries
+                  .filter((e) => e.cds_method === "cds_suggestion")
+                  .map((entry) => (
+                    <div
+                      key={entry.entry_id}
+                      style={{
+                        padding: "10px 12px",
+                        background: "var(--section-bg)",
+                        borderRadius: "6px",
+                        marginBottom: "8px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>
+                          #{entry.line_number} &ldquo;{entry.parsed_owner_name || "?"}&rdquo;{" "}
+                          {entry.female_count > 0 ? "F" : "M"}
+                        </div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                          → {entry.matched_cat_name || "Unknown"}
+                          {entry.matched_microchip && (
+                            <span style={{ fontFamily: "monospace" }}>
+                              {" "}(chip ...{entry.matched_microchip.slice(-4)})
+                            </span>
+                          )}
+                          {entry.matched_cat_weight != null && (
+                            <span>, {entry.matched_cat_weight} lbs</span>
+                          )}
+                        </div>
+                        {entry.cds_llm_reasoning && (
+                          <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "4px" }}>
+                            Reason: {entry.cds_llm_reasoning}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleCDSReview(entry.entry_id, "accept")}
+                          loading={reviewingEntry === entry.entry_id}
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCDSReview(entry.entry_id, "reject")}
+                          loading={reviewingEntry === entry.entry_id}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* CDS method breakdown */}
+            {status?.cds?.latest_run && (
+              <div className="card">
+                <h3 style={{ marginTop: 0, marginBottom: "12px", fontSize: "0.95rem" }}>
+                  CDS Pipeline Breakdown
+                </h3>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(5, 1fr)",
+                  gap: "8px",
+                  fontSize: "0.8rem",
+                }}>
+                  {([
+                    ["SQL", (status.cds.method_breakdown.sql_owner_name ?? 0) +
+                            (status.cds.method_breakdown.sql_cat_name ?? 0) +
+                            (status.cds.method_breakdown.sql_sex ?? 0) +
+                            (status.cds.method_breakdown.sql_cardinality ?? 0), "var(--success-text)"],
+                    ["Waiver", status.cds.method_breakdown.waiver_bridge ?? 0, "var(--info-text)"],
+                    ["Weight", status.cds.method_breakdown.weight_disambiguation ?? 0, "var(--info-text)"],
+                    ["Composite", status.cds.method_breakdown.composite ?? 0, "var(--warning-text)"],
+                    ["Constraint", status.cds.method_breakdown.constraint_propagation ?? 0, "var(--info-text)"],
+                  ] as [string, number, string][]).map(([label, count, color]) => (
+                    <div key={label} style={{ textAlign: "center" }}>
+                      <div style={{ fontWeight: 600, color }}>{count}</div>
+                      <div style={{ color: "var(--muted)", fontSize: "0.7rem" }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Waiver stats */}
             {(status?.waivers.count ?? 0) > 0 && (
               <div className="card">
@@ -656,6 +814,7 @@ export default function ClinicDayHubPage() {
                     <th style={{ ...thStyle, textAlign: "center" }}>Sex</th>
                     <th style={{ ...thStyle, textAlign: "center" }}>Wt</th>
                     <th style={thStyle}>Match</th>
+                    <th style={thStyle}>Method</th>
                     <th style={thStyle}>Matched Cat</th>
                   </tr>
                 </thead>
@@ -734,6 +893,11 @@ export default function ClinicDayHubPage() {
                             }}>
                               unmatched
                             </span>
+                          )}
+                        </td>
+                        <td style={tdStyle}>
+                          {entry.cds_method && (
+                            <CDSMethodBadge method={entry.cds_method} />
                           )}
                         </td>
                         <td style={tdStyle}>
@@ -841,6 +1005,37 @@ function StatusLane({
         </div>
       )}
     </div>
+  );
+}
+
+function CDSMethodBadge({ method }: { method: string }) {
+  const methodConfig: Record<string, { label: string; bg: string; color: string }> = {
+    sql_owner_name: { label: "SQL:name", bg: "var(--success-bg)", color: "var(--success-text)" },
+    sql_cat_name: { label: "SQL:cat", bg: "var(--success-bg)", color: "var(--success-text)" },
+    sql_sex: { label: "SQL:sex", bg: "var(--success-bg)", color: "var(--success-text)" },
+    sql_cardinality: { label: "SQL:card", bg: "var(--success-bg)", color: "var(--success-text)" },
+    manual: { label: "manual", bg: "var(--primary-bg)", color: "var(--primary)" },
+    waiver_bridge: { label: "waiver", bg: "var(--info-bg)", color: "var(--info-text)" },
+    constraint_propagation: { label: "constraint", bg: "var(--info-bg)", color: "var(--info-text)" },
+    weight_disambiguation: { label: "weight", bg: "var(--warning-bg)", color: "var(--warning-text)" },
+    composite: { label: "composite", bg: "var(--warning-bg)", color: "var(--warning-text)" },
+    cds_suggestion: { label: "suggestion", bg: "#fff3e0", color: "#e65100" },
+  };
+
+  const cfg = methodConfig[method] || { label: method, bg: "var(--section-bg)", color: "var(--muted)" };
+
+  return (
+    <span style={{
+      padding: "2px 5px",
+      borderRadius: "3px",
+      fontSize: "0.65rem",
+      fontWeight: 600,
+      background: cfg.bg,
+      color: cfg.color,
+      whiteSpace: "nowrap",
+    }}>
+      {cfg.label}
+    </span>
   );
 }
 

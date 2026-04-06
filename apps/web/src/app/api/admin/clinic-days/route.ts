@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN ops.clinic_days cd ON cd.clinic_date = a.appointment_date
       LEFT JOIN sot.places tp ON tp.place_id = cd.target_place_id
-      ${whereClause}
+      ${whereClause ? whereClause + " AND" : "WHERE"} a.merged_into_appointment_id IS NULL
       GROUP BY a.appointment_date, cd.clinic_day_id, cd.clinic_type, cd.target_place_id, tp.display_name, tp.formatted_address, cd.max_appointments, cd.notes
       ORDER BY a.appointment_date DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex}

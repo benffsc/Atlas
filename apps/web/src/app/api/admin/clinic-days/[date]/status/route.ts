@@ -7,6 +7,7 @@ import {
   apiUnauthorized,
   apiServerError,
 } from "@/lib/api-response";
+import { getLatestCDSRun } from "@/lib/cds";
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -178,6 +179,48 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       (matching?.matched_low ?? 0) +
       (matching?.matched_manual ?? 0);
 
+    // CDS run info + method breakdown + pending suggestions
+    const [cdsRun, cdsMethods, cdsSuggestions] = await Promise.all([
+      getLatestCDSRun(date),
+      queryOne<{
+        sql_owner_name: number;
+        sql_cat_name: number;
+        sql_sex: number;
+        sql_cardinality: number;
+        waiver_bridge: number;
+        weight_disambiguation: number;
+        composite: number;
+        constraint_propagation: number;
+        cds_suggestion: number;
+        manual: number;
+      }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE e.cds_method = 'sql_owner_name')::int AS sql_owner_name,
+           COUNT(*) FILTER (WHERE e.cds_method = 'sql_cat_name')::int AS sql_cat_name,
+           COUNT(*) FILTER (WHERE e.cds_method = 'sql_sex')::int AS sql_sex,
+           COUNT(*) FILTER (WHERE e.cds_method = 'sql_cardinality')::int AS sql_cardinality,
+           COUNT(*) FILTER (WHERE e.cds_method = 'waiver_bridge')::int AS waiver_bridge,
+           COUNT(*) FILTER (WHERE e.cds_method = 'weight_disambiguation')::int AS weight_disambiguation,
+           COUNT(*) FILTER (WHERE e.cds_method = 'composite')::int AS composite,
+           COUNT(*) FILTER (WHERE e.cds_method = 'constraint_propagation')::int AS constraint_propagation,
+           COUNT(*) FILTER (WHERE e.cds_method = 'cds_suggestion')::int AS cds_suggestion,
+           COUNT(*) FILTER (WHERE e.cds_method = 'manual')::int AS manual
+         FROM ops.clinic_day_entries e
+         JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+         WHERE cd.clinic_date = $1
+           AND e.matched_appointment_id IS NOT NULL`,
+        [date]
+      ),
+      queryOne<{ count: number }>(
+        `SELECT COUNT(*)::int AS count
+         FROM ops.clinic_day_entries e
+         JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+         WHERE cd.clinic_date = $1
+           AND e.cds_method = 'cds_suggestion'`,
+        [date]
+      ),
+    ]);
+
     return apiSuccess({
       date,
       clinic_day_id: masterList?.clinic_day_id ?? null,
@@ -233,6 +276,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         orphaned_appointments: groundTruth?.orphaned_appointments ?? 0,
         discrepancy: apptCount - entryCount,
         likely_duplicates: apptCount > entryCount && entryCount > 0,
+      },
+      // CDS (Cat Determining System) pipeline status
+      cds: {
+        latest_run: cdsRun
+          ? {
+              run_id: cdsRun.run_id,
+              triggered_by: cdsRun.triggered_by,
+              started_at: cdsRun.started_at,
+              completed_at: cdsRun.completed_at,
+              matched_before: cdsRun.matched_before,
+              matched_after: cdsRun.matched_after,
+              has_waivers: cdsRun.has_waivers,
+              has_weights: cdsRun.has_weights,
+            }
+          : null,
+        pending_suggestions: cdsSuggestions?.count ?? 0,
+        method_breakdown: cdsMethods ?? {},
       },
     });
   } catch (error) {

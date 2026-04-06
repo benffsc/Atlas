@@ -1,11 +1,43 @@
 # Atlas Issues Log — Completed Work Archive
 
-Generated: 2026-03-24 | Updated: 2026-03-28
-Total completed issues: 611 (500 previously archived + 111 new)
+Generated: 2026-03-24 | Updated: 2026-04-06
+Total completed issues: 746 (611 previously archived + 135 new)
 
 This file preserves all completed Linear issues so they can be safely archived
 in Linear to reduce project scope. All technical details, code references, and
 context from these issues are captured here.
+
+---
+
+## CDS: Cat Determining System (2026-04-06)
+
+### CDS-1: Infrastructure migration (MIG_3046)
+- **Priority:** High | **Labels:** Clinic Days, Schema
+- **Created:** 2026-04-06 | **Completed:** 2026-04-06
+- `ops.cds_runs` table, 3 new columns on `clinic_day_entries`, 5 `app_config` keys
+
+### CDS-2: Core pipeline + constraint propagation (Phases 0,1,5,7)
+- **Priority:** High | **Labels:** Clinic Days, Backend
+- **Created:** 2026-04-06 | **Completed:** 2026-04-06
+- `apps/web/src/lib/cds.ts` — 734-line 7-phase pipeline
+
+### CDS-3: Weight disambiguation (Phase 3)
+- **Priority:** Medium | **Labels:** Clinic Days, Matching
+- **Created:** 2026-04-06 | **Completed:** 2026-04-06
+
+### CDS-4: Waiver bridge matching (Phase 2)
+- **Priority:** Medium | **Labels:** Clinic Days, Matching
+- **Created:** 2026-04-06 | **Completed:** 2026-04-06
+
+### CDS-5: LLM tiebreaker (Phase 6)
+- **Priority:** Medium | **Labels:** Clinic Days, AI
+- **Created:** 2026-04-06 | **Completed:** 2026-04-06
+- Gated behind `cds.llm.enabled` config, never auto-accepted
+
+### CDS-6: Hub UI — status, review card, method badges
+- **Priority:** High | **Labels:** Clinic Days, Frontend
+- **Created:** 2026-04-06 | **Completed:** 2026-04-06
+- CDS status lane, pipeline breakdown card, method badges in Roster
 
 ---
 
@@ -1961,3 +1993,490 @@ Re-create in Linear as needed when workspace limit is resolved.
 
   - **FFS-956**: Delete stale demo-vs-real and content-comparison test files
     - Labels: Tippy, E2E Tests | Done: N/A
+
+## Batch Archived: 2026-04-02 (129 issues)
+
+### FFS-957: Extract shared kiosk form styles to kiosk-styles.ts
+- **Priority:** Medium | **Labels:** Equipment, Frontend, Improvement
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+
+### FFS-958: Create KioskCard wrapper component
+- **Priority:** Medium | **Labels:** Equipment, Frontend, Improvement
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+
+### FFS-959: Delete dead CheckoutWizard.tsx (690 lines, zero imports)
+- **Priority:** Low | **Labels:** Equipment, Frontend
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+
+### FFS-960: Standardize print page colors to CSS variables
+- **Priority:** Low | **Labels:** Equipment, Frontend
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+
+### FFS-753: Tippy V2 — Ambient Colleague
+- **Priority:** High | **Labels:** Tippy, Feature
+- **Created:** 2026-03-26 | **Completed:** 2026-03-28
+- **Children:** 1
+
+  - **FFS-909**: Tippy: "Coverage gaps" / data desert questions timeout on both demo and real paths
+    - Labels: Tippy, Data Quality, Feature | Done: 2026-03-28
+
+### FFS-969: Always show contact fields for requester — no search gate
+- **Priority:** High | **Labels:** UX Polish, Mar 2026, Requests, Frontend, Data Quality
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+
+### FFS-971: Request form UX Phase 2 — search performance, responsive enabling, person lookup polish
+- **Priority:** High | **Labels:** UX Polish, Mar 2026, Requests, Search, Performance, Frontend, Data Quality
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+- **Children:** 5
+
+  - **FFS-972**: PersonReferencePicker: skeleton loading, MRU list, AbortController, prefix cache
+    - Labels: UX Polish, Mar 2026, Requests, Performance, Frontend | Done: 2026-03-28
+  - **FFS-973**: Responsive enabling: mute contact fields until name entered
+    - Labels: UX Polish, Mar 2026, Requests, Frontend | Done: 2026-03-28
+  - **FFS-974**: Fuzzy person matching — show "Similar contacts" when exact results < 3
+    - Labels: Mar 2026, Requests, Search, Frontend, API, Infrastructure, Data Quality | Done: 2026-03-28
+  - **FFS-975**: Name splitting: handle particles (de la Cruz) and suffixes (Jr, Sr)
+    - Labels: Mar 2026, Requests, Frontend, Data Quality | Done: 2026-03-28
+  - **FFS-987**: Person search: activity-based ranking boost (appointments, cats, requests, recency)
+    - Labels: Mar 2026, Search, Performance, Infrastructure, Data Quality | Done: 2026-03-29
+
+### FFS-773: ConfirmDialog adoption — replace window.confirm() across 36 files
+- **Priority:** Medium | **Labels:** UX Polish
+- **Created:** 2026-03-26 | **Completed:** 2026-03-29
+
+### FFS-774: Migrate inline toast state to useToast hook (15+ files)
+- **Priority:** Medium | **Labels:** UX Polish
+- **Created:** 2026-03-26 | **Completed:** 2026-03-29
+
+### FFS-778: Breadcrumbs adoption for all entity detail pages
+- **Priority:** Low | **Labels:** UX Polish
+- **Created:** 2026-03-26 | **Completed:** 2026-03-29
+
+### FFS-776: Skeleton loading system-wide — 89 files with 'Loading...' text
+- **Priority:** Low | **Labels:** UX Polish
+- **Created:** 2026-03-26 | **Completed:** 2026-03-29
+
+### FFS-775: EmptyState adoption for list + admin pages
+- **Priority:** Medium | **Labels:** UX Polish
+- **Created:** 2026-03-26 | **Completed:** 2026-03-29
+
+### FFS-970: Add Knip to CI for dead code detection
+- **Priority:** Low | **Labels:** DX, Infrastructure
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-988: TNR Data Surfacing: Colony Health, Breeding Badges, Lifecycle Timeline
+- **Priority:** High | **Labels:** Beacon, Frontend, API, Infrastructure, Feature
+- **Created:** 2026-03-29 | **Completed:** 2026-03-29
+
+### FFS-989: Data Integrity Audit: Colony estimates, breeding flags, altered_status gaps
+- **Priority:** Urgent | **Labels:** Beacon, Infrastructure, Data Quality, Bug
+- **Created:** 2026-03-29 | **Completed:** 2026-03-29
+
+### FFS-994: Fix data limitations: colony trends, trapper resolution, ShelterLuv places
+- **Priority:** High | **Labels:** Mar 2026, Beacon, Entity Linking, API, Data Quality
+- **Created:** 2026-03-29 | **Completed:** 2026-03-29
+
+### FFS-995: Leaflet→V2 cleanup: DashboardMap on Google Maps + dead code removal
+- **Priority:** High | **Labels:** Frontend, Map, Infrastructure
+- **Created:** 2026-03-29 | **Completed:** 2026-03-29
+
+### FFS-996: Fully remove leaflet + @types/leaflet from package.json
+- **Priority:** Low | **Labels:** Map
+- **Created:** 2026-03-29 | **Completed:** 2026-03-30
+
+### FFS-997: DashboardMap V2: staff validation + clustering polish
+- **Priority:** Medium | **Labels:** Map
+- **Created:** 2026-03-29 | **Completed:** 2026-03-30
+
+### FFS-999: Fix foster role gap — 20 → 210 fosters visible
+- **Priority:** High | **Labels:** Mar 2026, Entity Linking, Data Quality
+- **Created:** 2026-03-30 | **Completed:** 2026-03-30
+
+### FFS-1000: Dashboard map search: polished combobox with Atlas + Google Places
+- **Priority:** Medium | **Labels:** Map
+- **Created:** 2026-03-30 | **Completed:** 2026-03-30
+
+### FFS-1008: Search UX polish — keyboard nav, ARIA, merged sections
+- **Priority:** Medium | **Labels:** Map
+- **Created:** 2026-03-30 | **Completed:** 2026-03-30
+
+### FFS-1009: Request form consolidation + E2E test filtering
+- **Priority:** High | **Labels:** Requests, Frontend, Feature
+- **Created:** 2026-03-30 | **Completed:** 2026-03-30
+- **Children:** 5
+
+  - **FFS-1010**: Filter E2E test requests from list + counts
+    - Labels: Requests, API, E2E Tests | Done: 2026-03-30
+  - **FFS-1011**: StaffTriagePanel component — Phase 2 staff-only fields
+    - Labels: Requests, Frontend, Feature | Done: 2026-03-30
+  - **FFS-1012**: Consolidate CatDetailsSection — remove 5 fields, add handleability + ownershipStatus
+    - Labels: Requests, Frontend | Done: 2026-03-30
+  - **FFS-1013**: Consolidate PropertyAccessSection — 5 fields → 2
+    - Labels: Requests, Frontend | Done: 2026-03-30
+  - **FFS-1014**: Wire two-phase layout — 5→4 sections, StaffTriagePanel, facade derivation
+    - Labels: Requests, Frontend, Feature | Done: 2026-03-30
+
+### FFS-1015: Map UX: reverse geocode, inline measurement labels
+- **Priority:** Medium | **Labels:** Map
+- **Created:** 2026-03-30 | **Completed:** 2026-03-30
+
+### FFS-1016: Fix drawer not swapping on pin click + copy address
+- **Priority:** High | **Labels:** Map, Bug
+- **Created:** 2026-03-30 | **Completed:** 2026-03-30
+
+### FFS-1025: Request enrichment pipeline — place editing, Tippy update, AI drawer
+- **Priority:** High | **Labels:** Tippy, Requests, Frontend, API, Feature
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1026: Foster role change tracking + entity linking fix
+- **Priority:** Medium | **Labels:** Mar 2026, Beacon, Entity Linking, Data Quality
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1027: Admin-editable foster & role config for white-labeling
+- **Priority:** Medium | **Labels:** White Label, Mar 2026, Beacon, Data Quality
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1017: Epic: Map Pin Redesign + Google MyMaps Live Sync
+- **Priority:** High | **Labels:** White Label, Frontend, Map, Infrastructure
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+- **Children:** 7
+
+  - **FFS-1018**: Pin colors: 6 → 4 (red/blue/amber/gray urgency palette)
+    - Labels: White Label, Frontend, Map | Done: 2026-03-31
+  - **FFS-1019**: Merge `has_history` + `minimal` → single `reference` pin style
+    - Labels: White Label, Map, Infrastructure | Done: 2026-03-31
+  - **FFS-1020**: Pin sizes: 4 tiers → 3 (large 32px, medium 22px, small 10px)
+    - Labels: White Label, Frontend, Map | Done: 2026-03-31
+  - **FFS-1021**: Replace static MapLegend with layer toggle panel
+    - Labels: Frontend, Map | Done: 2026-03-31
+  - **FFS-1022**: Google MyMaps live sync: daily cron + admin "Sync Now" button
+    - Labels: Map, Infrastructure | Done: 2026-03-31
+  - **FFS-1023**: Import fresh KML export (close ~125 entry gap)
+    - Labels: Map, Infrastructure | Done: 2026-03-31
+  - **FFS-1024**: Reference pin opacity + progressive disclosure by zoom
+    - Labels: Frontend, Map | Done: 2026-03-31
+
+### FFS-1030: Show adoption date + source on person-cat display
+- **Priority:** Medium | **Labels:** UX Polish, Mar 2026, Frontend, Data Quality
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1028: Request situation update: single flow for address, contact, and info changes
+- **Priority:** High | **Labels:** UX Polish, Requests, Feature
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1031: Kiosk hub: splash screen + help form + admin question editor
+- **Priority:** High | **Labels:** Equipment, Frontend, Infrastructure, Feature
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1032: Fix equipment data integrity: stale custodian, deposit, transfer, merge
+- **Priority:** Urgent | **Labels:** Equipment, Infrastructure, Data Quality, Bug
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1033: KioskPersonCollector: explicit name+phone fields for equipment checkout
+- **Priority:** High | **Labels:** Equipment, Frontend, Feature
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1036: Kiosk audit: bug fixes, error boundary, print form revamp
+- **Priority:** High | **Labels:** Equipment, UX Polish, Frontend, Bug
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1037: Checkout slips: half-sheet paper forms for paper-digital parallel workflow
+- **Priority:** High | **Labels:** Equipment, Frontend, Feature
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1038: Restructure equipment navigation: sidebar, print forms, kiosk config
+- **Priority:** High | **Labels:** Equipment, UX Polish, Frontend
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-998: Tippy: Bridge quality gap between curated demo answers and ad-hoc queries
+- **Priority:** High | **Labels:** Tippy, Infrastructure, Data Quality, E2E Tests
+- **Created:** 2026-03-29 | **Completed:** 2026-03-31
+
+### FFS-1041: Redesign checkout slips + update checkout types (Public/Trapper/Foster/Relo/Clinic)
+- **Priority:** Medium | **Labels:** Equipment, Frontend, Feature
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-1042: Dual-purpose tracking: client-stated + staff-classified checkout purpose
+- **Priority:** High | **Labels:** Equipment, Frontend, Infrastructure, Feature
+- **Created:** 2026-03-31 | **Completed:** 2026-03-31
+
+### FFS-880: Structured equipment checkout flow with smart defaults + freeform fallback
+- **Priority:** High | **Labels:** UX Polish, Frontend, Feature
+- **Created:** 2026-03-27 | **Completed:** 2026-04-01
+
+### FFS-828: Kiosk barcode scan: race conditions, no debounce between scans
+- **Priority:** High | **Labels:** UX Polish, Clinic, Bug
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-1043: Identity: last_confirmed_at + source_systems[] on person_identifiers
+- **Priority:** High | **Labels:** Infrastructure, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1044: Identity: Compute dynamic confidence from source authority + multi-source confirmation
+- **Priority:** High | **Labels:** Infrastructure, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1045: Identity: Detect and flag proxy identifiers (trapper phones, high-volume bookers)
+- **Priority:** Medium | **Labels:** Ingest, Infrastructure, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1046: Identity: Trapper-aware identity resolution (proxy guard + Phase 0.7)
+- **Priority:** Medium | **Labels:** Ingest, Infrastructure, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-834: KioskEquipmentCard missing fields: history, location, notes
+- **Priority:** Medium | **Labels:** UX Polish, Improvement
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-835: Camera scanner: no recovery path when permission denied
+- **Priority:** Low | **Labels:** UX Polish, Bug
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-1040: Merge duplicate Joana/Joanna Hurtado + upgrade to approved trapper
+- **Priority:** High | **Labels:** Volunteers, Data Quality
+- **Created:** 2026-03-31 | **Completed:** 2026-04-01
+
+### FFS-929: Equipment kiosk: track actor_person_id on events
+- **Priority:** Low | **Labels:** Equipment, Improvement
+- **Created:** 2026-03-27 | **Completed:** 2026-04-01
+
+### FFS-1047: E2E test suite full repair — 60 failures fixed, skip audit, map-markers restore
+- **Priority:** High | **Labels:** API, Infrastructure, E2E Tests
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1053: Identity write path consolidation + auto-blacklist
+- **Priority:** High | **Labels:** Infrastructure, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1048: E2E: Request detail page + lifecycle workflow tests
+- **Priority:** Urgent | **Labels:** Requests, E2E Tests
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1049: E2E: Entity detail pages — cat, person, place load + tab tests
+- **Priority:** Urgent | **Labels:** Frontend, E2E Tests
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1035: Fix enrich_person_from_request TEXT confidence → NUMERIC
+- **Priority:** Medium | **Labels:** Data Quality, Bug
+- **Created:** 2026-03-31 | **Completed:** 2026-04-01
+
+### FFS-991: Request UX Phase 3 — Preview actions, TNR progress, card density
+- **Priority:** High | **Labels:** UX Polish, Mar 2026, Requests, Frontend
+- **Created:** 2026-03-29 | **Completed:** 2026-04-01
+- **Children:** 1
+
+  - **FFS-992**: Preview panel: quick-action buttons (Complete, Hold, Assign) + TNR progress bar
+    - Labels: UX Polish, Mar 2026, Requests, Frontend | Done: 2026-03-29
+
+### FFS-769: Requests page UX improvements — progressive disclosure, status swimlanes, contextual actions
+- **Priority:** Medium | **Labels:** UX Polish, Mar 2026, Requests, Frontend, Feature
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-1054: Redesign Data Hub — consolidate data operations into clean, staff-friendly layout
+- **Priority:** High | **Labels:** UX Polish, Ingest, Frontend
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1055: Equipment activity feed at /equipment/activity
+- **Priority:** High | **Labels:** Equipment, Frontend, Feature
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1056: Live kiosk status dashboard on admin kiosk page
+- **Priority:** Medium | **Labels:** Equipment, Frontend, Improvement
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1057: Move deposit presets and due-date offsets to app_config
+- **Priority:** Medium | **Labels:** Equipment, Infrastructure, Improvement
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1058: Overdue equipment alert banner on inventory page
+- **Priority:** Low | **Labels:** Equipment, UX Polish, Frontend
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1060: Research — Vet triage & TNR priority frameworks for Tippy form design
+- **Priority:** High | **Labels:** Tippy, Documentation
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1050: E2E: Intake queue end-to-end workflow
+- **Priority:** High | **Labels:** Requests, E2E Tests
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1051: E2E: Dedup resolution UI workflows (person, place, cat)
+- **Priority:** Medium | **Labels:** Data Quality, E2E Tests
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1052: E2E: Map interactions — pin click, drawer, layer toggle
+- **Priority:** Medium | **Labels:** Map, E2E Tests
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-847: Map: Code quality — extract popups, reduce refs, add error boundary
+- **Priority:** Low | **Labels:** Frontend, Map, Improvement
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-846: Map: Accessibility — keyboard nav, ARIA labels, help modal
+- **Priority:** Medium | **Labels:** Frontend, Map, Improvement
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-839: Map: Bulk select + assign from map (multi-place actions)
+- **Priority:** High | **Labels:** Frontend, Map, Feature
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-845: Map: Mobile layout optimization (bottom sheet, collapsed controls)
+- **Priority:** Medium | **Labels:** UX Polish, Frontend, Map
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-849: Map: Route optimization for multi-place trapping visits
+- **Priority:** Low | **Labels:** API, Map, Feature
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-1034: Address timeline: last_confirmed_at + effective_to on person_place
+- **Priority:** High | **Labels:** Requests, Infrastructure, Data Quality
+- **Created:** 2026-03-31 | **Completed:** 2026-04-01
+
+### FFS-848: Map: Search result pagination + "Show more" + search history
+- **Priority:** Medium | **Labels:** UX Polish, Search, Frontend, Map
+- **Created:** 2026-03-26 | **Completed:** 2026-04-01
+
+### FFS-1059: Kiosk session logging table and admin history
+- **Priority:** Low | **Labels:** Equipment, Infrastructure, Feature
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1039: VolunteerHub sync stale since Jan 31 — API returning 401, investigate + fix
+- **Priority:** Urgent | **Labels:** Volunteers, Ingest, Infrastructure
+- **Created:** 2026-03-31 | **Completed:** 2026-04-01
+- **Children:** 2
+
+  - **FFS-1067**: VH sync: script calls ops.* but functions are in sot.* schema
+    - Labels: Volunteers, Ingest, Bug | Done: 2026-04-01
+  - **FFS-1068**: VH sync: cross_reference_vh_trappers_with_airtable() never ported to V2
+    - Labels: Volunteers, Ingest, Bug | Done: 2026-04-01
+
+### FFS-910: Epic: Long-Term Data Strategy Phase 1 — Automation Foundation
+- **Priority:** High | **Labels:** Infrastructure, Data Quality
+- **Created:** 2026-03-27 | **Completed:** 2026-04-01
+
+### FFS-1070: Sync staleness alerts on Data Hub
+- **Priority:** High | **Labels:** Infrastructure, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1071: Wire confirm_identifier() into SL/VH sync pipelines + backfill
+- **Priority:** High | **Labels:** Infrastructure, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1072: Colony population regression for Beacon blank spots
+- **Priority:** High | **Labels:** Beacon, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1073: Entity quality score (gold/silver/bronze badges)
+- **Priority:** Medium | **Labels:** Beacon, Infrastructure, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-1074: SAC reporting view + admin CSV export
+- **Priority:** Medium | **Labels:** Beacon, Data Quality
+- **Created:** 2026-04-01 | **Completed:** 2026-04-01
+
+### FFS-881: ClinicHQ Data Quality Audit Remediation
+- **Priority:** High | **Labels:** Data Quality
+- **Created:** 2026-03-27 | **Completed:** 2026-04-02
+- **Children:** 2
+
+  - **FFS-892**: Audit Round 2: SCAS phone blacklist + 5 person splits + stale cleanup
+    - Labels: Data Quality | Done: 2026-04-01
+  - **FFS-895**: Add cleanup_stale_person_cat_links() to entity linking pipeline
+    - Labels: Data Quality | Done: 2026-04-01
+
+### FFS-1001: Request Form Consolidation — Two-Phase Intake
+- **Priority:** High | **Labels:** UX Polish, Form System, Requests, Frontend
+- **Created:** 2026-03-30 | **Completed:** 2026-04-02
+- **Children:** 1
+
+  - **FFS-1007**: E2E coverage for consolidated request form
+    - Labels: Form System, Mar 2026, Requests, E2E Tests | Done: 2026-04-01
+
+### FFS-888: Google Maps V2: Smoke test all features before making default (child of FFS-868)
+- **Priority:** High | **Labels:** Frontend, Map, E2E Tests
+- **Created:** 2026-03-27 | **Completed:** 2026-04-01
+
+### FFS-869: Set up Google Maps cloud styling + Map ID (child of FFS-868)
+- **Priority:** High | **Labels:** Frontend, Map, Infrastructure
+- **Created:** 2026-03-27 | **Completed:** 2026-04-01
+
+### FFS-879: Remove Leaflet dependencies and dead code (child of FFS-868)
+- **Priority:** Low | **Labels:** Mar 2026, Map, Infrastructure
+- **Created:** 2026-03-27 | **Completed:** 2026-03-29
+
+### FFS-966: Map: Mobile bottom sheet 3-snap-point layout (peek / half / full) (child of FFS-868)
+- **Priority:** Medium | **Labels:** UX Polish, Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-965: Map: Show last alteration date + active vs total request count in stats (child of FFS-868)
+- **Priority:** Low | **Labels:** UX Polish, Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-963: Map: Drawer quick actions bar — sticky header with Create Request, Assign Trapper (child of FFS-868)
+- **Priority:** Medium | **Labels:** UX Polish, Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-962: Map: Keep person/cat navigation in-map (don't break to external pages) (child of FFS-868)
+- **Priority:** Medium | **Labels:** UX Polish, Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-889: Make Google Maps V2 the default map (remove Leaflet toggle) (child of FFS-868)
+- **Priority:** Medium | **Labels:** Mar 2026, Frontend, Map
+- **Created:** 2026-03-27 | **Completed:** 2026-03-29
+
+### FFS-964: Map: URL state for selected pin — enable deep-linking and back button (child of FFS-868)
+- **Priority:** Medium | **Labels:** UX Polish, Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-953: V2 Map: Render Service Zone boundary polygons (child of FFS-868)
+- **Priority:** Low | **Labels:** Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-952: V2 Map: Render Trapper Territory polygons (child of FFS-868)
+- **Priority:** Low | **Labels:** Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-951: V2 Map: Render Clinic Clients layer markers (child of FFS-868)
+- **Priority:** Low | **Labels:** Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-948: V2 Map: Render Volunteers layer markers (child of FFS-868)
+- **Priority:** Medium | **Labels:** Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-950: V2 Map: Render Google Pins layer markers (child of FFS-868)
+- **Priority:** Low | **Labels:** Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-949: V2 Map: Render Places (cat locations) layer markers (child of FFS-868)
+- **Priority:** Low | **Labels:** Mar 2026, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-990: Map data quality audit: Fix stale disease pins + active_request pin accuracy (child of FFS-868)
+- **Priority:** High | **Labels:** Map, Data Quality
+- **Created:** 2026-03-29 | **Completed:** 2026-03-29
+
+### FFS-961: Map: Fix dead InfoWindow — pin click skips popup, opens drawer immediately (child of FFS-868)
+- **Priority:** High | **Labels:** UX Polish, Frontend, Map
+- **Created:** 2026-03-28 | **Completed:** 2026-03-29
+
+### FFS-890: Google Maps V2: Performance test at 3K+ pins — evaluate deck.gl need (child of FFS-868)
+- **Priority:** Medium | **Labels:** Performance, Frontend, Map
+- **Created:** 2026-03-27 | **Completed:** 2026-03-29
+
+### FFS-891: Google Maps V2: Zone boundaries + trapper territory rendering (child of FFS-868)
+- **Priority:** Medium | **Labels:** Frontend, Map
+- **Created:** 2026-03-27 | **Completed:** 2026-03-28
+
+### FFS-968: Adoption context: UI badges, preview panel, timeline (child of FFS-976)
+- **Priority:** High | **Labels:** UX Polish, Frontend
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+
+### FFS-967: Adoption context: API enrichment + type propagation (child of FFS-976)
+- **Priority:** High | **Labels:** Frontend, API
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+
+### FFS-956: Delete stale demo-vs-real and content-comparison test files (child of FFS-955)
+- **Priority:** Medium | **Labels:** Tippy, E2E Tests
+- **Created:** 2026-03-28 | **Completed:** 2026-03-28
+

@@ -66,6 +66,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         FROM ops.appointments a
         LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
         WHERE a.appointment_date = $1
+          AND a.merged_into_appointment_id IS NULL
         GROUP BY a.appointment_date
       )
       SELECT

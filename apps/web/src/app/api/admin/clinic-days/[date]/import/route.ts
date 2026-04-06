@@ -3,6 +3,7 @@ import { queryOne, queryRows, execute } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { apiSuccess, apiBadRequest, apiUnauthorized, apiNotFound, apiConflict, apiServerError } from "@/lib/api-response";
 import * as xlsx from "xlsx";
+import { runCDS } from "@/lib/cds";
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -136,8 +137,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           parsed_cat_color,
           contact_phone,
           alt_contact_name,
-          alt_contact_phone
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)`,
+          alt_contact_phone,
+          -- MIG_3043: Weight and surgery end time
+          weight_lbs,
+          sx_end_time
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)`,
         [
           clinicDay.clinic_day_id,
           entry.line_number,
@@ -177,36 +181,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           entry.contact_phone,
           entry.alt_contact_name,
           entry.alt_contact_phone,
+          // MIG_3043
+          entry.weight_lbs,
+          entry.sx_end_time,
         ]
       );
       inserted++;
     }
 
-    // Run smart matching (MIG_900)
-    // Apply all strategies: owner_name → cat_name → sex → cardinality
-    const matchPasses = await queryRows<{
-      pass: string;
-      entries_matched: number;
-    }>(
-      `SELECT * FROM ops.apply_smart_master_list_matches($1)`,
-      [date]
-    );
-
-    // Sum up results from all passes
-    const matchResult = {
-      entries_matched: matchPasses.reduce((sum, p) => sum + (p.entries_matched || 0), 0),
-      by_pass: Object.fromEntries(matchPasses.map(p => [p.pass, p.entries_matched || 0])),
-    };
+    // Run CDS pipeline (replaces separate SQL + composite matching)
+    // CDS handles: SQL passes → waiver bridge → weight disambiguation →
+    // composite scoring → constraint propagation → LLM tiebreaker → propagation
+    const cdsResult = await runCDS(date, "import");
 
     // Create entity relationships from successful matches
     await queryRows(
       `SELECT * FROM ops.create_master_list_relationships($1)`,
-      [date]
-    );
-
-    // MIG_2812: Propagate confirmed matches to appointment_id and cat_id
-    const propagated = await queryOne<{ propagated: number; cat_ids_linked: number }>(
-      `SELECT * FROM ops.propagate_master_list_matches($1::date)`,
       [date]
     );
 
@@ -235,13 +225,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       imported: inserted,
       trappers_resolved: trappersResolved,
       trappers_total: summary.with_trapper,
-      matched: matchResult?.entries_matched || 0,
-      match_details: matchResult?.by_pass || {},
-      propagated: propagated?.propagated || 0,
-      cat_ids_linked: propagated?.cat_ids_linked || 0,
+      matched: cdsResult.matched_after,
+      // CDS phase breakdown replaces old match_details
+      cds: {
+        run_id: cdsResult.run_id,
+        phases: cdsResult.phases,
+        matched_after: cdsResult.matched_after,
+        unmatched_remaining: cdsResult.unmatched_remaining,
+      },
+      // Backward compat: composite_matching shape
+      composite_matching: {
+        already_matched: cdsResult.matched_before,
+        newly_matched: cdsResult.matched_after - cdsResult.matched_before,
+        unmatched: cdsResult.unmatched_remaining,
+      },
       summary: {
         ...summary,
         ...extendedSummary,
+        with_weight: entries.filter((e) => e.weight_lbs != null).length,
+        with_sx_end_time: entries.filter((e) => e.sx_end_time != null).length,
       },
       extracted_date: extractedDate,
     });
@@ -330,6 +332,9 @@ interface ParsedEntry {
   contact_phone: string | null;
   alt_contact_name: string | null;
   alt_contact_phone: string | null;
+  // MIG_3043: Weight + surgery end time
+  weight_lbs: number | null;
+  sx_end_time: string | null;
 }
 
 function parseMasterList(workbook: xlsx.WorkBook): {
@@ -423,6 +428,9 @@ function parseMasterList(workbook: xlsx.WorkBook): {
     else if (cellStr === "$") colIndex.fee = idx;
     else if (cellLower === "miscellaneous" || cellLower === "misc") colIndex.misc = idx;
     else if (cellLower === "status") colIndex.status = idx;
+    // MIG_3043: Weight and surgery end time columns
+    else if (cellLower === "weight" || cellLower === "wt" || cellLower === "weight (lbs)") colIndex.weight = idx;
+    else if (cellLower === "sx end time" || cellLower === "sx end" || cellLower === "end time") colIndex.sxEndTime = idx;
   });
 
   if (colIndex.clientName === undefined) {
@@ -465,6 +473,32 @@ function parseMasterList(workbook: xlsx.WorkBook): {
     // Parse extended signals from client name
     const extendedParsed = parseClientNameExtended(clientName);
 
+    // MIG_3043: Parse weight (validate 0.5-30.0 range for cats)
+    let weightLbs: number | null = null;
+    if (colIndex.weight !== undefined) {
+      const rawWeight = parseFloat(String(row[colIndex.weight] || ""));
+      if (!isNaN(rawWeight) && rawWeight >= 0.5 && rawWeight <= 30.0) {
+        weightLbs = rawWeight;
+      }
+    }
+
+    // MIG_3043: Parse surgery end time
+    let sxEndTime: string | null = null;
+    if (colIndex.sxEndTime !== undefined) {
+      const rawTime = String(row[colIndex.sxEndTime] || "").trim();
+      if (rawTime) {
+        // Handle HH:MM, H:MM, or Excel time serial numbers
+        if (typeof row[colIndex.sxEndTime] === "number") {
+          const totalMinutes = Math.round((row[colIndex.sxEndTime] as number) * 24 * 60);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+          sxEndTime = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+        } else if (rawTime.match(/^\d{1,2}:\d{2}/)) {
+          sxEndTime = rawTime;
+        }
+      }
+    }
+
     const entry: ParsedEntry = {
       line_number: parseInt(String(lineNum)),
       raw_client_name: clientName,
@@ -502,6 +536,9 @@ function parseMasterList(workbook: xlsx.WorkBook): {
       contact_phone: extendedParsed.contact_phone,
       alt_contact_name: extendedParsed.alt_contact_name,
       alt_contact_phone: extendedParsed.alt_phone,
+      // MIG_3043
+      weight_lbs: weightLbs,
+      sx_end_time: sxEndTime,
     };
 
     entries.push(entry);

@@ -34,6 +34,15 @@ interface ClinicDayEntry {
   matched_cat_name: string | null;
   matched_cat_sex: string | null;
   matched_microchip: string | null;
+  matched_cat_weight: number | null;
+  // MIG_3043: New matching columns
+  weight_lbs: number | null;
+  match_score: number | null;
+  match_signals: Record<string, number> | null;
+  is_recheck: boolean;
+  // CDS columns (MIG_3046)
+  cds_method: string | null;
+  cds_llm_reasoning: string | null;
 }
 
 /**
@@ -74,10 +83,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         e.match_confidence,
         e.match_reason,
         e.matched_at::TEXT,
+        -- MIG_3043: Weight, match score, recheck
+        e.weight_lbs,
+        e.match_score,
+        e.match_signals,
+        COALESCE(e.is_recheck, FALSE) AS is_recheck,
+        -- CDS columns (MIG_3046)
+        e.cds_method,
+        e.cds_llm_reasoning,
         -- Matched appointment details
         c.name AS matched_cat_name,
         c.sex AS matched_cat_sex,
-        c.microchip AS matched_microchip
+        ci.id_value AS matched_microchip,
+        cv.weight_lbs AS matched_cat_weight
       FROM ops.clinic_day_entries e
       JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
       LEFT JOIN sot.people trapper ON trapper.person_id = e.trapper_person_id
@@ -85,6 +103,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       LEFT JOIN ops.appointments a ON a.appointment_id = e.matched_appointment_id
       LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
         AND c.merged_into_cat_id IS NULL
+      LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = a.cat_id
+        AND ci.id_type = 'microchip'
+      LEFT JOIN LATERAL (
+        SELECT weight_lbs FROM ops.cat_vitals
+        WHERE cat_id = a.cat_id ORDER BY recorded_at DESC LIMIT 1
+      ) cv ON true
       WHERE cd.clinic_date = $1
       ORDER BY e.line_number NULLS LAST, e.created_at
       `,

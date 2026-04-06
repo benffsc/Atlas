@@ -161,6 +161,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id AND ca.merged_into_account_id IS NULL
         LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
         WHERE a.appointment_date = $1
+          AND a.merged_into_appointment_id IS NULL
         ORDER BY a.clinic_day_number NULLS LAST, a.appointment_number NULLS LAST, c.name NULLS LAST
         `,
         [date]
@@ -234,6 +235,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id AND ca.merged_into_account_id IS NULL
         LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id) AND pl.merged_into_place_id IS NULL
         WHERE a.appointment_date = $1
+          AND a.merged_into_appointment_id IS NULL
         ORDER BY a.clinic_day_number NULLS LAST, a.appointment_number NULLS LAST, c.name NULLS LAST
         `,
         [date]
