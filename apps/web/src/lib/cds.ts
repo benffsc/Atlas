@@ -165,6 +165,18 @@ export async function runCDS(
       });
     }
 
+    // ── Phase 0.5: Appointment Dedup ────────────────────────────────
+    // Detect duplicate appointments (same chip, same date) created by the
+    // ClinicHQ cancel/rebook ingest path (FFS-862). Ghost appointments lack
+    // appointment_number; they get merged into the canonical record. Stale
+    // clinic_day_number values on the loser are cleared.
+    const dedupResult = await dedupeAppointments(clinicDate);
+    phases.push({
+      phase: "0.5_appointment_dedup",
+      matched: dedupResult.merged,
+      details: dedupResult.details,
+    });
+
     // ── Phase 1: SQL Deterministic ──────────────────────────────────
     // Clear non-manual matches first (for rematch), then run SQL passes
 
@@ -315,6 +327,131 @@ export async function runCDS(
     );
     throw error;
   }
+}
+
+// ── Phase 0.5: Appointment Dedup ────────────────────────────────────
+
+interface DedupResult {
+  merged: number;
+  details: {
+    chips_deduped: number;
+    losers_with_clinic_day_number: number;
+    pairs?: Array<{ chip: string; winner: string; losers: string[] }>;
+  };
+}
+
+/**
+ * Detect and merge duplicate appointments on a clinic date.
+ *
+ * Duplicates are identified by shared microchip on the same date. The winner
+ * is selected by preferring (in order):
+ *   1. Has appointment_number (real ClinicHQ booking)
+ *   2. Has client_name
+ *   3. Most recently created
+ *
+ * Stale clinic_day_number values on the loser are cleared before the merge,
+ * since they were almost certainly assigned to the wrong appointment by a
+ * prior matching pass. Any clinic_day_entries that pointed at the loser have
+ * their appointment_id rewritten to the winner.
+ */
+async function dedupeAppointments(clinicDate: string): Promise<DedupResult> {
+  // Discover duplicate groups
+  const dupGroups = await queryRows<{
+    chip: string;
+    winner: string;
+    losers: string[];
+    losers_with_number: number;
+  }>(
+    `WITH dups AS (
+       SELECT
+         ci.id_value AS chip,
+         array_agg(a.appointment_id ORDER BY
+           (a.appointment_number IS NOT NULL) DESC,
+           (a.client_name IS NOT NULL) DESC,
+           a.appointment_number ASC NULLS LAST,
+           a.created_at ASC
+         ) AS apt_ids
+       FROM ops.appointments a
+       JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+       JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+       WHERE a.appointment_date = $1
+         AND a.merged_into_appointment_id IS NULL
+       GROUP BY ci.id_value
+       HAVING COUNT(*) > 1
+     )
+     SELECT
+       d.chip,
+       d.apt_ids[1] AS winner,
+       d.apt_ids[2:] AS losers,
+       (
+         SELECT COUNT(*)::int
+         FROM ops.appointments a
+         WHERE a.appointment_id = ANY(d.apt_ids[2:])
+           AND a.clinic_day_number IS NOT NULL
+       ) AS losers_with_number
+     FROM dups d`,
+    [clinicDate]
+  );
+
+  if (dupGroups.length === 0) {
+    return {
+      merged: 0,
+      details: { chips_deduped: 0, losers_with_clinic_day_number: 0 },
+    };
+  }
+
+  let totalMerged = 0;
+  let totalWithNumber = 0;
+  const pairs: Array<{ chip: string; winner: string; losers: string[] }> = [];
+
+  for (const group of dupGroups) {
+    // Re-point any clinic_day_entries that referenced the loser to the winner
+    await execute(
+      `UPDATE ops.clinic_day_entries
+         SET appointment_id = $1
+       WHERE appointment_id = ANY($2)`,
+      [group.winner, group.losers]
+    );
+    await execute(
+      `UPDATE ops.clinic_day_entries
+         SET matched_appointment_id = $1
+       WHERE matched_appointment_id = ANY($2)`,
+      [group.winner, group.losers]
+    );
+
+    // Clear stale clinic_day_number on losers (it was assigned to the wrong
+    // appointment by a prior matching pass) and set the merge pointer.
+    const merged = await queryOne<{ merged: number }>(
+      `WITH updated AS (
+         UPDATE ops.appointments
+           SET merged_into_appointment_id = $1,
+               merged_at = NOW(),
+               clinic_day_number = NULL
+         WHERE appointment_id = ANY($2)
+           AND merged_into_appointment_id IS NULL
+         RETURNING 1
+       )
+       SELECT COUNT(*)::int AS merged FROM updated`,
+      [group.winner, group.losers]
+    );
+
+    totalMerged += merged?.merged ?? 0;
+    totalWithNumber += group.losers_with_number;
+    pairs.push({
+      chip: group.chip,
+      winner: group.winner,
+      losers: group.losers,
+    });
+  }
+
+  return {
+    merged: totalMerged,
+    details: {
+      chips_deduped: dupGroups.length,
+      losers_with_clinic_day_number: totalWithNumber,
+      pairs,
+    },
+  };
 }
 
 // ── Phase 2: Waiver Bridge ──────────────────────────────────────────
