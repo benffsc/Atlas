@@ -207,6 +207,14 @@ export async function runCDS(
       ),
     });
 
+    // ── Phase 1.5: Shelter ID Bridge ─────────────────────────────────
+    // Master list lines often reference cats by their previous shelter ID
+    // (e.g., "SCAS A439019 (updates)"). Look up the cat via
+    // sot.cat_identifiers (id_type='previous_shelter_id') and bridge to
+    // its appointment for that date.
+    const shelterMatched = await runShelterIdBridge(clinicDate, runId);
+    phases.push({ phase: "1.5_shelter_id_bridge", matched: shelterMatched });
+
     // ── Phase 2: Waiver Bridge ──────────────────────────────────────
     const waiverMatched = await runWaiverBridge(
       clinicDate,
@@ -419,8 +427,28 @@ async function dedupeAppointments(clinicDate: string): Promise<DedupResult> {
       [group.winner, group.losers]
     );
 
-    // Clear stale clinic_day_number on losers (it was assigned to the wrong
-    // appointment by a prior matching pass) and set the merge pointer.
+    // Transfer clinic_day_number from loser → winner if winner has none.
+    // Manual assignments are sacred — we never lose them in a merge.
+    await execute(
+      `UPDATE ops.appointments AS w
+         SET clinic_day_number = (
+           SELECT l.clinic_day_number
+           FROM ops.appointments l
+           WHERE l.appointment_id = ANY($2)
+             AND l.clinic_day_number IS NOT NULL
+           LIMIT 1
+         )
+       WHERE w.appointment_id = $1
+         AND w.clinic_day_number IS NULL
+         AND EXISTS (
+           SELECT 1 FROM ops.appointments l
+           WHERE l.appointment_id = ANY($2)
+             AND l.clinic_day_number IS NOT NULL
+         )`,
+      [group.winner, group.losers]
+    );
+
+    // Soft-merge losers (clear their clinic_day_number after the transfer).
     const merged = await queryOne<{ merged: number }>(
       `WITH updated AS (
          UPDATE ops.appointments
@@ -452,6 +480,94 @@ async function dedupeAppointments(clinicDate: string): Promise<DedupResult> {
       pairs,
     },
   };
+}
+
+// ── Phase 1.5: Shelter ID Bridge ────────────────────────────────────
+
+/**
+ * Bridge master list lines that reference a previous shelter ID to existing
+ * cats via sot.cat_identifiers (id_type='previous_shelter_id').
+ *
+ * Pattern recognition (in raw_client_name):
+ *   - "SCAS A123456 (updates)" → A123456
+ *   - "Marin Humane #M789" → M789
+ *   - any "[A-Z]\d{4,8}" token preceded or followed by a shelter keyword
+ *
+ * Strategy:
+ *   1. Extract candidate shelter IDs from unmatched entries
+ *   2. Look up cats by previous_shelter_id
+ *   3. Find an active appointment for that cat on the clinic date
+ *   4. If exactly one match → bind entry to appointment
+ */
+async function runShelterIdBridge(
+  clinicDate: string,
+  runId: string
+): Promise<number> {
+  // Extract entries containing shelter ID patterns
+  const candidates = await queryRows<{
+    entry_id: string;
+    raw_client_name: string;
+    extracted_id: string;
+  }>(
+    `SELECT
+       e.entry_id,
+       e.raw_client_name,
+       (regexp_match(e.raw_client_name, '\\b([A-Z]\\d{4,8})\\b'))[1] AS extracted_id
+     FROM ops.clinic_day_entries e
+     JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+     WHERE cd.clinic_date = $1
+       AND e.matched_appointment_id IS NULL
+       AND e.match_confidence IS DISTINCT FROM 'manual'
+       AND e.raw_client_name ~ '\\b[A-Z]\\d{4,8}\\b'`,
+    [clinicDate]
+  );
+
+  if (candidates.length === 0) return 0;
+
+  let matched = 0;
+
+  for (const candidate of candidates) {
+    if (!candidate.extracted_id) continue;
+
+    // Find a cat with this previous shelter ID and an active appointment for the date
+    const match = await queryOne<{
+      appointment_id: string;
+      cat_id: string;
+    }>(
+      `SELECT a.appointment_id, a.cat_id
+       FROM sot.cat_identifiers ci
+       JOIN ops.appointments a
+         ON a.cat_id = ci.cat_id
+        AND a.appointment_date = $1
+        AND a.merged_into_appointment_id IS NULL
+        AND a.clinic_day_number IS NULL
+       WHERE ci.id_type = 'previous_shelter_id'
+         AND ci.id_value = $2
+       LIMIT 2`,
+      [clinicDate, candidate.extracted_id]
+    );
+
+    if (!match) continue;
+
+    // Bind entry → appointment as a high-confidence match
+    await execute(
+      `UPDATE ops.clinic_day_entries
+       SET matched_appointment_id = $1,
+           appointment_id = $1,
+           cat_id = $2,
+           match_confidence = 'high',
+           match_reason = 'shelter_id_bridge',
+           matched_at = NOW(),
+           cds_run_id = $3,
+           cds_method = 'shelter_id_bridge'
+       WHERE entry_id = $4`,
+      [match.appointment_id, match.cat_id, runId, candidate.entry_id]
+    );
+
+    matched++;
+  }
+
+  return matched;
 }
 
 // ── Phase 2: Waiver Bridge ──────────────────────────────────────────
