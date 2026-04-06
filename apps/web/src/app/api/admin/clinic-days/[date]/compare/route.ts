@@ -120,6 +120,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       LEFT JOIN sot.places p ON p.place_id = COALESCE(a.inferred_place_id, a.place_id) AND p.merged_into_place_id IS NULL
       LEFT JOIN sot.people per ON per.person_id = a.person_id AND per.merged_into_person_id IS NULL
       WHERE a.appointment_date = $1
+        AND a.merged_into_appointment_id IS NULL
       ORDER BY c.name NULLS LAST
       `,
       [date]
@@ -164,12 +165,44 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       is_match: (comparison?.logged_total || 0) === clinichqAppointments.length,
     };
 
+    // Ground truth: master list is the physical record of every cat seen
+    // Partition ClinicHQ appointments into matched vs orphaned
+    const matchedAppointmentIds = new Set(
+      loggedEntries
+        .filter((e) => e.matched_appointment_id != null)
+        .map((e) => e.matched_appointment_id as string)
+    );
+
+    const matchedAppointments = clinichqAppointments.filter((a) =>
+      matchedAppointmentIds.has(a.appointment_id)
+    );
+    const orphanedAppointments = clinichqAppointments.filter(
+      (a) => !matchedAppointmentIds.has(a.appointment_id)
+    );
+
+    const loggedTotal = comparison?.logged_total || 0;
+    const discrepancy = clinichqAppointments.length - loggedTotal;
+
     return apiSuccess({
       date,
       summary,
       logged_entries: loggedEntries,
       clinichq_appointments: clinichqAppointments,
       clinichq_by_trapper: Object.values(clinichqByTrapper),
+      ground_truth: {
+        authoritative_count: loggedTotal,
+        matched_appointments: matchedAppointments,
+        orphaned_appointments: orphanedAppointments,
+        discrepancy_direction:
+          discrepancy > 0
+            ? ("clinichq_excess" as const)
+            : discrepancy < 0
+            ? ("master_list_excess" as const)
+            : ("balanced" as const),
+        discrepancy_count: Math.abs(discrepancy),
+        likely_duplicates:
+          clinichqAppointments.length > loggedTotal && loggedTotal > 0,
+      },
     });
   } catch (error) {
     console.error("Clinic day compare error:", error);
