@@ -1,0 +1,108 @@
+-- MIG_XXXX: Extract <PAYLOAD_KEY> from <SOURCE_TABLE> → <TARGET>
+--
+-- Template for promoting a JSONB payload key to a typed column.
+-- Part of the FFS-1154 (Initiative 5) workflow.
+--
+-- Replace placeholders:
+--   MIG_XXXX            — next available migration number
+--   SOURCE_TABLE        — e.g., source.shelterluv_raw
+--   PAYLOAD_KEY         — JSONB key, e.g., 'PreviousIds'
+--   TARGET_TABLE        — e.g., sot.cat_identifiers
+--   TARGET_COLUMN       — e.g., id_value_norm
+--   FFS_NUMBER          — Linear issue this extraction implements
+--
+-- The four steps below are the canonical pattern. They:
+--   1. Add the typed column (or row) if missing
+--   2. Backfill from existing payload data
+--   3. Wire ongoing extraction (trigger or pipeline call)
+--   4. Register in ops.source_extraction_registry so this key drops out
+--      of ops.v_unextracted_payload_keys
+--
+-- Created: <DATE>
+
+\echo ''
+\echo '=============================================='
+\echo '  MIG_XXXX: Extract PAYLOAD_KEY'
+\echo '=============================================='
+\echo ''
+
+BEGIN;
+
+-- ============================================================================
+-- 1. Schema change (add column or new table)
+-- ============================================================================
+
+-- Example: ALTER TABLE TARGET_TABLE ADD COLUMN IF NOT EXISTS new_col TEXT;
+
+-- ============================================================================
+-- 2. Backfill from existing payload
+-- ============================================================================
+
+-- Example:
+-- INSERT INTO TARGET_TABLE (...)
+-- SELECT
+--   <key extraction here>,
+--   <other fields>
+-- FROM SOURCE_TABLE
+-- WHERE payload ? 'PAYLOAD_KEY'
+--   AND payload->>'PAYLOAD_KEY' IS NOT NULL
+-- ON CONFLICT (...) DO NOTHING;
+
+-- ============================================================================
+-- 3. Ongoing extraction
+-- ============================================================================
+-- Pick one:
+--   (a) Update the relevant SQL ingest function (preferred — atomic)
+--   (b) Create a trigger on the source table
+--   (c) Update the TS ingest pipeline (apps/web/src/app/api/ingest/...)
+
+-- ============================================================================
+-- 4. Register in source_extraction_registry
+-- ============================================================================
+
+INSERT INTO ops.source_extraction_registry (
+  source_table, payload_key,
+  extracted_to_table, extracted_to_column,
+  extraction_method, extraction_migration,
+  status, sample_value, notes
+) VALUES (
+  'SOURCE_TABLE',
+  'PAYLOAD_KEY',
+  'TARGET_TABLE',
+  'TARGET_COLUMN',
+  'migration',                 -- or 'trigger', 'ingest_pipeline'
+  'MIG_XXXX',
+  'extracted',
+  '<sample value here>',
+  'FFS-NUMBER: <one-line reason>'
+)
+ON CONFLICT (source_table, payload_key) DO UPDATE
+  SET extracted_to_table = EXCLUDED.extracted_to_table,
+      extracted_to_column = EXCLUDED.extracted_to_column,
+      extraction_method = EXCLUDED.extraction_method,
+      extraction_migration = EXCLUDED.extraction_migration,
+      status = 'extracted',
+      reviewed_at = NOW();
+
+-- ============================================================================
+-- 5. Verification
+-- ============================================================================
+
+-- Confirm registry updated
+SELECT * FROM ops.source_extraction_registry
+WHERE source_table = 'SOURCE_TABLE'
+  AND payload_key = 'PAYLOAD_KEY';
+
+-- Confirm key no longer appears in unextracted view
+-- (should return zero rows)
+SELECT * FROM ops.v_unextracted_payload_keys
+WHERE source_table = 'SOURCE_TABLE'
+  AND payload_key = 'PAYLOAD_KEY';
+
+COMMIT;
+
+\echo ''
+\echo '=============================================='
+\echo '  MIG_XXXX Complete'
+\echo '=============================================='
+\echo ''
