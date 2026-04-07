@@ -73,8 +73,11 @@ import {
   ExternalLink,
   Tablet,
   ArrowRight,
+  ArrowLeft,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  ChevronUp,
   Zap,
   Gauge,
   HelpCircle,
@@ -205,10 +208,13 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   "external-link": ExternalLink,
   tablet: Tablet,
   "arrow-right": ArrowRight,
+  "arrow-left": ArrowLeft,
 
   // Sidebar collapse
   "chevron-down": ChevronDown,
   "chevron-right": ChevronRight,
+  "chevron-left": ChevronLeft,
+  "chevron-up": ChevronUp,
 
   // Hub pages & dashboard
   zap: Zap,
