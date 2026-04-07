@@ -41,52 +41,83 @@ export interface UpsertAppointmentParams {
 
 /**
  * Upsert appointment to ops.appointments
- * Preserves messy owner data for ClinicHQ lookup
+ *
+ * MIG_3049 / FFS-862 / FFS-1150 Initiative 2:
+ * Routes through ops.find_or_create_appointment() — the canonical idempotent
+ * upsert keyed by (source_system, source_record_id). Refuses ghost signatures
+ * (no number AND no client_name AND no cat) and logs them to ops.ingest_skipped.
+ *
+ * Owner-specific fields (first/last/email/phone/address) are updated via a
+ * follow-up UPDATE since the SQL function only handles the canonical identity
+ * fields. This keeps the legacy CLI path interface stable while routing
+ * through the centralized create function.
  */
 export async function upsertAppointment(params: UpsertAppointmentParams): Promise<string> {
-  const result = await queryOne<{ appointment_id: string }>(`
-    INSERT INTO ops.appointments (
-      clinichq_appointment_id,
-      appointment_date,
-      owner_first_name,
-      owner_last_name,
-      owner_email,
-      owner_phone,
-      owner_address,
-      owner_raw_payload,
-      source_raw_id,
-      cat_id,
-      resolution_status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
-    ON CONFLICT (clinichq_appointment_id) DO UPDATE SET
-      owner_first_name = COALESCE(EXCLUDED.owner_first_name, ops.appointments.owner_first_name),
-      owner_last_name = COALESCE(EXCLUDED.owner_last_name, ops.appointments.owner_last_name),
-      owner_email = COALESCE(EXCLUDED.owner_email, ops.appointments.owner_email),
-      owner_phone = COALESCE(EXCLUDED.owner_phone, ops.appointments.owner_phone),
-      owner_address = COALESCE(EXCLUDED.owner_address, ops.appointments.owner_address),
-      owner_raw_payload = COALESCE(EXCLUDED.owner_raw_payload, ops.appointments.owner_raw_payload),
-      source_raw_id = COALESCE(EXCLUDED.source_raw_id, ops.appointments.source_raw_id),
-      cat_id = COALESCE(EXCLUDED.cat_id, ops.appointments.cat_id),
-      updated_at = NOW()
-    RETURNING appointment_id
+  // Build a synthetic client_name so the ghost-signature guard doesn't refuse
+  // legitimate rows that lack a cat_id but have owner info.
+  const clientName = [params.ownerFirstName, params.ownerLastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || null;
+
+  // Step 1: canonical create-or-find via ops.find_or_create_appointment
+  const created = await queryOne<{ appointment_id: string | null }>(`
+    SELECT ops.find_or_create_appointment(
+      'clinichq'::TEXT,                          -- p_source_system
+      $1::TEXT,                                  -- p_source_record_id (clinichq_appointment_id)
+      $2::DATE,                                  -- p_appointment_date
+      NULL::TEXT,                                -- p_appointment_number (legacy script doesn't surface this)
+      $3::UUID,                                  -- p_cat_id
+      $4::TEXT,                                  -- p_client_name (synthesized from first/last)
+      NULL::UUID,                                -- p_person_id (set later by resolution layer)
+      NULL::UUID,                                -- p_owner_account_id
+      NULL::TIMESTAMPTZ,                         -- p_source_created_at
+      $5::JSONB,                                 -- p_raw_payload
+      NULL::UUID,                                -- p_file_upload_id
+      NULL::UUID                                 -- p_batch_id
+    ) AS appointment_id
   `, [
     params.clinichqAppointmentId,
     params.appointmentDate,
+    params.catId || null,
+    clientName,
+    params.ownerRawPayload ? JSON.stringify(params.ownerRawPayload) : null,
+  ]);
+
+  if (!created?.appointment_id) {
+    throw new Error(
+      `find_or_create_appointment refused ${params.clinichqAppointmentId} ` +
+      `(date=${params.appointmentDate}, client=${clientName ?? "<none>"}, cat=${params.catId ?? "<none>"}). ` +
+      `Check ops.ingest_skipped for the reason.`
+    );
+  }
+
+  const appointmentId = created.appointment_id;
+
+  // Step 2: write the legacy owner_* convenience fields (not in find_or_create signature)
+  await execute(`
+    UPDATE ops.appointments
+    SET
+      owner_first_name = COALESCE($2, owner_first_name),
+      owner_last_name  = COALESCE($3, owner_last_name),
+      owner_email      = COALESCE($4, owner_email),
+      owner_phone      = COALESCE($5, owner_phone),
+      owner_address    = COALESCE($6, owner_address),
+      source_raw_id    = COALESCE($7::UUID, source_raw_id),
+      resolution_status = COALESCE(resolution_status, 'pending'),
+      updated_at       = NOW()
+    WHERE appointment_id = $1
+  `, [
+    appointmentId,
     params.ownerFirstName || null,
     params.ownerLastName || null,
     params.ownerEmail || null,
     params.ownerPhone || null,
     params.ownerAddress || null,
-    params.ownerRawPayload ? JSON.stringify(params.ownerRawPayload) : null,
     params.sourceRawId || null,
-    params.catId || null,
   ]);
 
-  if (!result) {
-    throw new Error(`Failed to upsert appointment: ${params.clinichqAppointmentId}`);
-  }
-
-  return result.appointment_id;
+  return appointmentId;
 }
 
 /**

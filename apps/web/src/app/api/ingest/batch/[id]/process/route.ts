@@ -3,6 +3,7 @@ import { query, queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 import { isValidUUID } from "@/lib/validation";
 import { processUpload } from "@/app/api/ingest/process/[id]/route";
+import { runClinicDayMatching, hasClinicDayEntries } from "@/lib/clinic-day-matching";
 
 interface BatchStatus {
   batch_id: string;
@@ -148,6 +149,68 @@ export async function POST(
       [batchId]
     );
 
+    // MIG_3049 / FFS-862: Detect cat_info rows that reference a (Number, Date)
+    // not present in appointment_info for this batch. These are cancel/rebook
+    // orphans that would otherwise be silently dropped. Log them to
+    // ops.ingest_skipped for staff review at /admin/ingest/skipped.
+    let orphansLogged = 0;
+    try {
+      const catInfoFile = files.find((f) => f.source_table === "cat_info");
+      if (catInfoFile && anySuccess) {
+        const sweepResult = await queryOne<{ logged: number }>(
+          `SELECT ops.detect_orphan_clinichq_cat_info_rows($1, $2) AS logged`,
+          [catInfoFile.upload_id, batchId]
+        );
+        orphansLogged = sweepResult?.logged ?? 0;
+        if (orphansLogged > 0) {
+          console.error(
+            `[BATCH] Detected ${orphansLogged} orphan cat_info rows (FFS-862 signature). See /admin/ingest/skipped.`
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[BATCH] Orphan detection error (non-fatal):", err);
+    }
+
+    // MIG_3043: Auto-reconcile clinic day matching when ClinicHQ data arrives
+    // If master list was imported before ClinicHQ, re-run matching now
+    let reconciliation: { date: string; newly_matched: number } | null = null;
+    if (allSuccess || anySuccess) {
+      try {
+        // Find appointment dates from this batch
+        const batchDates = await queryRows<{ appointment_date: string }>(
+          `SELECT DISTINCT appointment_date::text as appointment_date
+           FROM ops.appointments a
+           JOIN ops.file_uploads fu ON fu.upload_id = a.file_upload_id
+           WHERE fu.batch_id = $1
+             AND a.appointment_date IS NOT NULL`,
+          [batchId]
+        );
+
+        for (const { appointment_date } of batchDates) {
+          const hasEntries = await hasClinicDayEntries(appointment_date);
+          if (hasEntries) {
+            console.error(`[BATCH] Clinic day entries found for ${appointment_date}, running reconciliation...`);
+            const matchResult = await runClinicDayMatching(appointment_date);
+            if (matchResult.newly_matched > 0) {
+              // Re-propagate after new matches
+              await queryOne(
+                `SELECT * FROM ops.propagate_master_list_matches($1::date)`,
+                [appointment_date]
+              );
+            }
+            reconciliation = {
+              date: appointment_date,
+              newly_matched: matchResult.newly_matched,
+            };
+          }
+        }
+      } catch (err) {
+        // Don't fail the batch if reconciliation fails
+        console.error("[BATCH] Reconciliation error (non-fatal):", err);
+      }
+    }
+
     return apiSuccess({
       batch_id: batchId,
       success: allSuccess,
@@ -155,6 +218,8 @@ export async function POST(
       files_processed: results.filter((r) => r.success).length,
       files_failed: results.filter((r) => !r.success).length,
       results,
+      reconciliation,
+      orphans_logged: orphansLogged,
       message: allSuccess
         ? "All 3 files processed successfully"
         : anySuccess
