@@ -213,7 +213,7 @@ export async function GET(request: NextRequest) {
               const upload = await queryOne<{ upload_id: string }>(
                 `INSERT INTO ops.file_uploads (
                    source_system, source_table, original_filename,
-                   file_size, file_hash, status, row_count
+                   file_size_bytes, file_hash, status, rows_total
                  ) VALUES ('clinic_waiver', 'waiver_scan', $1, $2, $3, 'pending', 1)
                  RETURNING upload_id`,
                 [pdfFile.name, content.length, fileHash]
