@@ -1,0 +1,59 @@
+CONTENT-SCOPE ANNOTATION (retroactive, 2026-04-07)
+
+This commit's message is "test(FFS-1179): Map E2E coverage" but the commit
+actually contains THREE independent work streams that got bundled together
+because two parallel Claude Code sessions each ran `git commit` without
+first verifying the index with `git status`. The pre-staged files from a
+prior session were scooped into whichever session committed first.
+
+ACTUAL CONTENTS:
+
+1. FFS-1179 — Map E2E coverage (the commit title)
+   - apps/web/e2e/map-interactions.spec.ts (extended, +192)
+   Tracking: Linear FFS-1179 (Done)
+
+2. FFS-1156 — Tippy reasoning hardening PR 1–6 (my work)
+   - apps/web/src/app/api/tippy/tools.ts (+1065)
+   - apps/web/src/app/api/tippy/data-quality.ts (+57)
+   - apps/web/src/app/api/tippy/chat/route.ts (+96)
+   - apps/web/src/lib/tippy-routing.ts (+44)
+   - apps/web/src/__tests__/lib/tippy-routing.test.ts (+92)
+   - apps/web/src/__tests__/lib/tippy-data-quality.test.ts (NEW, 12 tests)
+   - apps/web/e2e/fixtures/tippy-accuracy-queries.ts (+189)
+   - apps/web/e2e/tippy-accuracy-verification.spec.ts (+87)
+   Tracking: Linear FFS-1156 epic — sub-issues FFS-1157, 1158, 1160, 1161,
+   1162, 1163, 1164, 1165, 1171. Covers 6 PRs:
+     PR 1: Foundation — NULL accounting + auto-apply data quality
+     PR 2: Lookup tool — get_place_recent_context
+     PR 3: Narrative synthesis
+     PR 4: Eval lock-in + toolsUsed in API response
+     PR 5: Strategic intent + find_intact_cat_clusters + humility
+     PR 6: Humility default in system prompt
+
+3. Out-of-service-area email pipeline (unrelated work stream)
+   - apps/web/src/app/admin/email-settings/** (new page + 4 API routes)
+   - apps/web/src/app/api/emails/** (2 new routes)
+   - apps/web/src/components/intake/OutOfServiceArea*.tsx (2 new components)
+   - apps/web/src/lib/email*.ts (3 new files + email.ts/outlook.ts changes)
+   - sql/schema/v2/MIG_3057..MIG_3062 (6 new migrations)
+   - docs/runbooks/** (new runbook dir)
+   Tracking: (separate Linear issues — not FFS-1179 or FFS-1156)
+
+ROOT CAUSE: two parallel Claude Code sessions both ran `git commit` without
+first calling `git status` to verify the index. Pre-staged files from prior
+sessions got scooped. The parallel session noted this in its Linear comment
+on FFS-1179 and recommended "leave it". I (the Tippy session) concurred
+when I found out, because 924bff16 had already been pushed to origin/main
+by the time I tried to recover — force-push on pushed main is a protocol
+violation and too risky.
+
+FIX FOR FUTURE: Claude Code sessions should ALWAYS run `git status` +
+`git diff --cached --stat` immediately before `git commit` and unstage any
+unexpected files with `git restore --staged <file>`. Stored as a feedback
+memory entry so this doesn't recur.
+
+Verification at commit time:
+- Typecheck: 0 errors
+- Unit tests: 799/799 passing across all three work streams
+- Dev server boots cleanly
+- Playwright narrative fixtures + map-interactions fixtures all discoverable
