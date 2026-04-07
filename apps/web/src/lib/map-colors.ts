@@ -35,6 +35,7 @@ export const MAP_COLORS = {
     trapper_coverage: '#0ea5e9',   // Sky blue — trapper territory layer
     heatmap_density: '#f03b20',    // Orange-red — density heatmap
     heatmap_disease: '#e31a1c',    // Red — disease heatmap
+    heatmap_intact: '#7c2d12',     // Dark red-brown — intact cat density heatmap
   },
 
   // AI Classification colors (for Google Map entries)

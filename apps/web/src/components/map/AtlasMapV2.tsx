@@ -632,32 +632,67 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     const data = atlasPins
       .filter(p => p.lat && p.lng)
       .map(p => {
-        const intensity = heatmapMode === "disease" ? (p.disease_count || 0) : Math.max(p.cat_count, 1);
+        let intensity: number;
+        if (heatmapMode === "disease") {
+          intensity = p.disease_count || 0;
+        } else if (heatmapMode === "intact") {
+          // Intact = cat_count - total_altered. Pin has no intact signal if all known.
+          intensity = Math.max(p.cat_count - (p.total_altered || 0), 0);
+        } else {
+          intensity = Math.max(p.cat_count, 1);
+        }
         return intensity > 0 ? { location: new google.maps.LatLng(p.lat, p.lng), weight: intensity } : null;
       })
       .filter(Boolean) as google.maps.visualization.WeightedLocation[];
 
-    if (heatmapLayerRef.current) {
-      heatmapLayerRef.current.setData(data);
-    } else {
-      const gradient = heatmapMode === "disease"
+    // Always rebuild the layer when mode changes so gradient/maxIntensity take effect.
+    // HeatmapLayer doesn't support setOptions for gradient, so setData alone isn't enough.
+    heatmapLayerRef.current?.setMap(null);
+
+    const gradient =
+      heatmapMode === "disease"
         ? ["rgba(0,0,0,0)", "#fed976", "#fd8d3c", "#e31a1c", "#800026"]
+        : heatmapMode === "intact"
+        ? ["rgba(0,0,0,0)", "#fde68a", "#f59e0b", "#dc2626", "#7c2d12"]
         : ["rgba(0,0,0,0)", "#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"];
 
-      heatmapLayerRef.current = new google.maps.visualization.HeatmapLayer({
-        data,
-        radius: 25,
-        maxIntensity: heatmapMode === "disease" ? 5 : 20,
-        gradient,
-        map,
-      });
-    }
+    const maxIntensity =
+      heatmapMode === "disease" ? 5 : heatmapMode === "intact" ? 10 : 20;
+
+    heatmapLayerRef.current = new google.maps.visualization.HeatmapLayer({
+      data,
+      radius: 25,
+      maxIntensity,
+      gradient,
+      map,
+    });
 
     return () => {
       heatmapLayerRef.current?.setMap(null);
       heatmapLayerRef.current = null;
     };
   }, [map, atlasPins, heatmapEnabled, heatmapMode]);
+
+  // Fade atlas pins when a heatmap layer is active so the heat colors read clearly.
+  // Toggles a body class that a one-time injected style rule targets.
+  useEffect(() => {
+    const STYLE_ID = "atlas-map-heatmap-fade";
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent =
+        "body.map-heatmap-active .atlas-pin-active, " +
+        "body.map-heatmap-active .atlas-pin-ref { opacity: 0.3; transition: opacity 150ms ease-out; } " +
+        ".atlas-pin-active, .atlas-pin-ref { transition: opacity 150ms ease-out; }";
+      document.head.appendChild(style);
+    }
+    if (heatmapEnabled) {
+      document.body.classList.add("map-heatmap-active");
+    } else {
+      document.body.classList.remove("map-heatmap-active");
+    }
+    return () => { document.body.classList.remove("map-heatmap-active"); };
+  }, [heatmapEnabled]);
 
   // ── Route polyline (Step 9) ──
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);

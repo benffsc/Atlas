@@ -7,7 +7,7 @@ import type { LayerGroup } from "@/components/map/GroupedLayerControl";
 
 export const ATLAS_SUB_LAYER_IDS = ["atlas_all", "atlas_disease", "atlas_watch", "atlas_needs_tnr", "atlas_needs_trapper"] as const;
 export const DISEASE_FILTER_IDS = ["dis_felv", "dis_fiv", "dis_ringworm", "dis_heartworm", "dis_panleuk"] as const;
-export const HEATMAP_LAYER_IDS = ["heatmap_density", "heatmap_disease"] as const;
+export const HEATMAP_LAYER_IDS = ["heatmap_density", "heatmap_intact", "heatmap_disease"] as const;
 
 export const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
   { id: "atlas_data", label: "Atlas Data", icon: "\u{1F4CD}", color: MAP_COLORS.layers.places, defaultExpanded: true, exclusive: true, children: [
@@ -26,6 +26,7 @@ export const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
   ]},
   { id: "analytics", label: "Analytics", icon: "\u{1F525}", color: MAP_COLORS.priority.high, defaultExpanded: false, exclusive: true, children: [
     { id: "heatmap_density", label: "Cat Density Heatmap", color: MAP_COLORS.layers.heatmap_density, defaultEnabled: false },
+    { id: "heatmap_intact", label: "Intact Cat Heatmap", color: MAP_COLORS.layers.heatmap_intact, defaultEnabled: false },
     { id: "heatmap_disease", label: "Disease Heatmap", color: MAP_COLORS.layers.heatmap_disease, defaultEnabled: false },
   ]},
   { id: "operational", label: "Operational", icon: "\u{1F4CA}", color: MAP_COLORS.layers.zones, defaultExpanded: false, children: [
@@ -137,8 +138,11 @@ export function useMapLayers({ atlasPins }: { atlasPins: AtlasPin[] }) {
     }
     return Array.from(s);
   }, [enabledLayers]);
-  const heatmapEnabled = !!(enabledLayers.heatmap_density || enabledLayers.heatmap_disease);
-  const heatmapMode = enabledLayers.heatmap_disease ? "disease" as const : "density" as const;
+  const heatmapEnabled = !!(enabledLayers.heatmap_density || enabledLayers.heatmap_intact || enabledLayers.heatmap_disease);
+  const heatmapMode: "density" | "intact" | "disease" =
+    enabledLayers.heatmap_disease ? "disease"
+    : enabledLayers.heatmap_intact ? "intact"
+    : "density";
 
   return { enabledLayers, setEnabledLayers, toggleLayer, atlasLayerEnabled, riskFilter, diseaseFilter, dataFilter, atlasMapLayerGroups, atlasSubLayerCounts, apiLayers, heatmapEnabled, heatmapMode };
 }
