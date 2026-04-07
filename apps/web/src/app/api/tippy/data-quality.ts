@@ -247,6 +247,62 @@ export function getGapCaveat(gapId: string): string | null {
 }
 
 /**
+ * Map place data to KNOWN_GAPS that the data triggers.
+ *
+ * This auto-applies KNOWN_GAPS to a tool result so Tippy surfaces them
+ * without having to detect the gap conditions itself. PR 1 (FFS-1158).
+ *
+ * Each KNOWN_GAPS entry that has detection logic gets a trigger function
+ * here. New gaps should add their detection in this function.
+ */
+export interface GapMatch {
+  id: string;
+  name: string;
+  caveat: string;
+  status: DataGap["status"];
+}
+
+export function matchesGapTrigger(data: {
+  total_cats: number;
+  altered_cats: number;
+  null_status_count?: number;
+  intact_confirmed?: number;
+  rate_overall?: number;
+}): GapMatch[] {
+  const matches: GapMatch[] = [];
+
+  // DATA_GAP_059 — NULL altered_status creating misleading low rates
+  // Trigger: either explicit NULL count > 50% of cats, OR low rate + many cats
+  // (which historically correlates with the NULL legacy import problem)
+  const gap059 = KNOWN_GAPS.DATA_GAP_059;
+  if (data.null_status_count !== undefined && data.total_cats > 0) {
+    const nullPct = (data.null_status_count / data.total_cats) * 100;
+    if (nullPct > 50 || (data.null_status_count > 10 && (data.rate_overall ?? 0) < 50)) {
+      matches.push({
+        id: gap059.id,
+        name: gap059.name,
+        caveat: gap059.caveat,
+        status: gap059.status,
+      });
+    }
+  } else if (
+    data.total_cats > 50 &&
+    data.rate_overall !== undefined &&
+    data.rate_overall < 20
+  ) {
+    // No NULL count but rate looks suspicious — likely DATA_GAP_059
+    matches.push({
+      id: gap059.id,
+      name: gap059.name,
+      caveat: gap059.caveat,
+      status: gap059.status,
+    });
+  }
+
+  return matches;
+}
+
+/**
  * Check if a response should include data quality warnings.
  */
 export function shouldWarnAboutDataQuality(context: {
@@ -320,6 +376,7 @@ export const DATA_QUALITY = {
     getPlaceDataCaveats,
     getGapCaveat,
     shouldWarnAboutDataQuality,
+    matchesGapTrigger,
   },
 } as const;
 

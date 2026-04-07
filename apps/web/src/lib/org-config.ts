@@ -24,6 +24,10 @@ const DEFAULTS = {
     "FFSC is a spay/neuter clinic, NOT a 24hr hospital.",
   "org.consent_text":
     "By submitting, you agree to be contacted by Forgotten Felines regarding this request.",
+  // FFS-1185 — fields used by the out-of-service-area email template
+  "org.address": "1814 Empire Industrial Ct, Santa Rosa, CA 95404",
+  "org.logo_url": "https://www.forgottenfelines.com/logo.png",
+  "org.anniversary_badge_url": "",
 } as const;
 
 type OrgKey = keyof typeof DEFAULTS;
@@ -42,3 +46,9 @@ export const getOrgWebsite = () => getOrgConfig("org.website");
 export const getOrgSupportEmail = () => getOrgConfig("org.support_email");
 export const getOrgEmailFrom = () => getOrgConfig("org.email_from");
 export const getOrgTagline = () => getOrgConfig("org.tagline");
+
+// FFS-1185 — fields needed by the out-of-service-area email template
+export const getOrgAddress = () => getOrgConfig("org.address");
+export const getOrgLogoUrl = () => getOrgConfig("org.logo_url");
+export const getOrgAnniversaryBadgeUrl = () =>
+  getOrgConfig("org.anniversary_badge_url");

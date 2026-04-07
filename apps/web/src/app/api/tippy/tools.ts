@@ -3,7 +3,12 @@ import { logFieldEdits } from "@/lib/audit";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
 // Domain knowledge & data quality modules (Part 2)
 import { interpretPlaceSituation, expandRegion } from "./domain-knowledge";
-import { getPlaceDataCaveats, checkSuspiciousPatterns } from "./data-quality";
+import {
+  getPlaceDataCaveats,
+  checkSuspiciousPatterns,
+  matchesGapTrigger,
+  type GapMatch,
+} from "./data-quality";
 
 /**
  * Tippy Database Query Tools
@@ -14,10 +19,68 @@ import { getPlaceDataCaveats, checkSuspiciousPatterns } from "./data-quality";
  * All queries are READ-ONLY for security.
  */
 
+/**
+ * Suspicious-pattern entry surfaced alongside a tool result.
+ * PR 1 (FFS-1158): auto-applied to place-returning tools so Tippy can
+ * always see them — they used to only fire inside analyzePlaceSituation.
+ */
+export interface ToolResultPattern {
+  pattern: string;
+  likely_cause: string;
+  recommendation: string;
+  severity: "info" | "warning" | "critical";
+}
+
+/**
+ * Distinguish what we *know* about cat alteration status from what we
+ * *don't*. NULL altered_status is "unknown", not "intact" — collapsing
+ * the two produces misleading low rates (DATA_GAP_059).
+ */
+export interface ToolResultCatMeta {
+  total_count?: number;
+  altered_count?: number;
+  intact_confirmed?: number;
+  null_status_count?: number;
+  /** Rate computed only over (altered + intact_confirmed) — not NULL */
+  rate_among_known?: number;
+  /** Naive rate over total — only useful for comparison with rate_among_known */
+  rate_overall?: number;
+}
+
+/**
+ * Pre-processed narrative hints for the model. PR 3 (FFS-1171).
+ *
+ * Tools can populate this with plain-language signals extracted from
+ * raw data. The model is instructed (in the system prompt) to use these
+ * to synthesize a story rather than dumping rows. Optional — tools that
+ * don't have meaningful narrative cues should omit it.
+ */
+export interface ToolResultNarrativeSeed {
+  /** One-line headline written for a non-engineer staff member */
+  headline?: string;
+  /** People named in unstructured notes (Donna, Karen the tenant, etc) */
+  key_people?: string[];
+  /** Conflicts between data sources the model should resolve in prose */
+  data_conflicts?: string[];
+  /** Concrete next steps the model should consider recommending */
+  recommended_actions?: string[];
+  /** Follow-up offers (e.g., "want me to draft an outreach message?") */
+  suggested_followups?: string[];
+}
+
 export interface ToolResult {
   success: boolean;
   data?: unknown;
   error?: string;
+  // PR 1 (FFS-1157/1158): auto-applied data quality signals.
+  // The chat route serializes the entire ToolResult to the model, so any
+  // field added here flows directly into Tippy's context.
+  caveats?: string[];
+  suspicious_patterns?: ToolResultPattern[];
+  known_gaps?: GapMatch[];
+  meta?: ToolResultCatMeta;
+  // PR 3 (FFS-1171): pre-processed narrative hints. Optional.
+  narrative_seed?: ToolResultNarrativeSeed;
 }
 
 /**
@@ -29,6 +92,221 @@ export interface ToolContext {
   aiAccessLevel: string;
   conversationId?: string;
   recentToolResults?: ToolResult[];  // For save_lookup to reference prior queries
+}
+
+/**
+ * Wrap a raw place-shaped tool result with auto-applied data quality
+ * signals. PR 1 (FFS-1157/1158).
+ *
+ * Input: the raw `data` payload + a normalized cat-status breakdown.
+ * Output: a ToolResult with caveats/suspicious_patterns/known_gaps/meta
+ *         populated from the data-quality module — so Tippy sees them
+ *         every time, not just when analyzePlaceSituation is called.
+ *
+ * Place-returning tools (queryCatsAtPlace, queryPlaceColonyStatus,
+ * queryRegionStats, etc.) should use this instead of building a bare
+ * `{ success: true, data }` object directly.
+ */
+function wrapPlaceResult(
+  rawData: Record<string, unknown>,
+  options: {
+    total_cats: number;
+    altered_cats: number;
+    intact_confirmed?: number;
+    null_status_count?: number;
+    has_active_request?: boolean;
+    reported_cats?: number;
+    source_systems?: string[];
+  }
+): ToolResult {
+  const total = options.total_cats || 0;
+  const altered = options.altered_cats || 0;
+  const intactConfirmed = options.intact_confirmed;
+  const nullCount = options.null_status_count;
+
+  // Rate among "known" — only altered + confirmed intact (excludes NULL).
+  // This is the honest number when reporting alteration progress.
+  const knownDenom = intactConfirmed !== undefined ? altered + intactConfirmed : undefined;
+  const rateAmongKnown =
+    knownDenom !== undefined && knownDenom > 0
+      ? Math.round((altered / knownDenom) * 100)
+      : undefined;
+
+  // Naive overall rate — only useful as a comparison point against rate_among_known.
+  const rateOverall = total > 0 ? Math.round((altered / total) * 100) : 0;
+
+  const caveats = getPlaceDataCaveats({
+    total_cats: total,
+    altered_cats: altered,
+    null_status_count: nullCount,
+    reported_cats: options.reported_cats,
+    has_active_request: options.has_active_request,
+    source_systems: options.source_systems,
+  });
+
+  // Pass overall rate to suspicious-pattern detector (it expects naive rate).
+  const patterns = checkSuspiciousPatterns({
+    alteration_rate: rateOverall,
+    total_cats: total,
+    has_active_request: options.has_active_request ?? false,
+  });
+
+  const knownGaps = matchesGapTrigger({
+    total_cats: total,
+    altered_cats: altered,
+    null_status_count: nullCount,
+    intact_confirmed: intactConfirmed,
+    rate_overall: rateOverall,
+  });
+
+  const result: ToolResult = {
+    success: true,
+    data: rawData,
+  };
+
+  if (caveats.length > 0) result.caveats = caveats;
+  if (patterns.length > 0) {
+    result.suspicious_patterns = patterns.map((p) => ({
+      pattern: p.pattern,
+      likely_cause: p.likely_cause,
+      recommendation: p.recommendation,
+      severity: p.severity,
+    }));
+  }
+  if (knownGaps.length > 0) result.known_gaps = knownGaps;
+
+  result.meta = {
+    total_count: total,
+    altered_count: altered,
+    intact_confirmed: intactConfirmed,
+    null_status_count: nullCount,
+    rate_among_known: rateAmongKnown,
+    rate_overall: rateOverall,
+  };
+
+  return result;
+}
+
+/**
+ * Build a narrative seed for a place from its institutional notes.
+ * PR 3 (FFS-1171).
+ *
+ * Scans Google Maps notes / clinic account notes / journal text for
+ * patterns we already know how to interpret (Donna colonies, tenant
+ * feeders, mass-trapping callouts, paused requests, intact-vs-euthanasia
+ * conflicts) and surfaces them as plain-language hints. The model uses
+ * these to synthesize a story rather than dumping rows.
+ *
+ * Pattern detection is intentionally conservative — false positives
+ * would mislead the model. New patterns should land here when we
+ * discover them in real failure cases, not preemptively.
+ */
+function buildNarrativeSeed(input: {
+  place_name?: string | null;
+  google_maps_notes?: Array<{ original_content: string | null; ai_summary: string | null; ai_meaning: string | null }>;
+  clinic_account_notes?: Array<{ display_name: string | null; quick_notes: string | null; long_notes: string | null }>;
+  recent_requests?: Array<{ status: string; resolution: string | null; hold_reason: string | null; notes: string | null }>;
+  meta?: ToolResultCatMeta;
+}): ToolResultNarrativeSeed | undefined {
+  const keyPeople = new Set<string>();
+  const dataConflicts: string[] = [];
+  const recommendedActions: string[] = [];
+  const suggestedFollowups: string[] = [];
+  let headline: string | undefined;
+
+  const allTextParts: string[] = [];
+  for (const n of input.google_maps_notes ?? []) {
+    if (n.original_content) allTextParts.push(n.original_content);
+    if (n.ai_summary) allTextParts.push(n.ai_summary);
+  }
+  for (const n of input.clinic_account_notes ?? []) {
+    if (n.quick_notes) allTextParts.push(n.quick_notes);
+    if (n.long_notes) allTextParts.push(n.long_notes);
+    if (n.display_name) allTextParts.push(n.display_name);
+  }
+  for (const r of input.recent_requests ?? []) {
+    if (r.notes) allTextParts.push(r.notes);
+    if (r.resolution) allTextParts.push(r.resolution);
+    if (r.hold_reason) allTextParts.push(r.hold_reason);
+  }
+  const haystack = allTextParts.join(" \n ").toLowerCase();
+
+  // Pattern: Donna Best (FFSC founder) referenced — flag for institutional context.
+  // See ffsc-institutional-knowledge.md. The 717 Cherry St note literally says
+  // "This is a Donna colony".
+  if (/\bdonna\b/.test(haystack)) {
+    keyPeople.add("Donna Best (FFSC founder) — referenced in notes");
+    suggestedFollowups.push(
+      "Want me to surface every place referencing Donna so you can see her legacy network?",
+    );
+  }
+
+  // Pattern: tenant / caretaker named in notes.
+  // The shape is usually "<Name> the tenant feeds" or "tenant <name>".
+  const tenantMatch = haystack.match(/([a-z][a-z']{2,15})\s+the\s+(?:tenant|feeder|caretaker)/i);
+  if (tenantMatch) {
+    const name = tenantMatch[1].charAt(0).toUpperCase() + tenantMatch[1].slice(1);
+    keyPeople.add(`${name} (tenant/caretaker, named in notes)`);
+  }
+  const tenantInline = haystack.match(/tenant[^\n]{0,40}?(?:named\s+|is\s+)?([A-Z][a-z]+)/);
+  if (tenantInline && !tenantMatch) {
+    keyPeople.add(`${tenantInline[1]} (tenant, named in notes)`);
+  }
+
+  // Pattern: paused / on hold / waiting — note for the model.
+  const pausedRequest = (input.recent_requests ?? []).find(
+    (r) => r.status !== "completed" && r.status !== "cancelled" && r.hold_reason,
+  );
+  if (pausedRequest) {
+    recommendedActions.push(
+      `There's a paused request here. Hold reason: "${pausedRequest.hold_reason}". Surface this before suggesting new TNR work.`,
+    );
+  }
+
+  // Pattern: intact-vs-euthanasia conflict.
+  // If the data shows confirmed intact AND notes mention euthanasia,
+  // flag the conflict so the model resolves it in prose.
+  const intactConfirmed = input.meta?.intact_confirmed ?? 0;
+  if (intactConfirmed > 0 && /euthani[sz]/.test(haystack)) {
+    dataConflicts.push(
+      `Records show ${intactConfirmed} confirmed-intact cat(s), but notes also reference euthanasia. Resolve in prose: which cats are still here vs which were lost.`,
+    );
+  }
+
+  // Pattern: managed colony — surface that prominently.
+  if (/(managed|stable|under control|donna colony|long.?standing)/.test(haystack)) {
+    headline =
+      input.place_name
+        ? `${input.place_name} reads as a managed colony with FFSC institutional context, not a fresh intake.`
+        : `This place reads as a managed colony with FFSC institutional context, not a fresh intake.`;
+  }
+
+  // Pattern: data scarcity headline — high NULL rate is its own story.
+  if (!headline && input.meta?.null_status_count !== undefined && input.meta.total_count !== undefined && input.meta.total_count > 0) {
+    const nullPct = (input.meta.null_status_count / input.meta.total_count) * 100;
+    if (nullPct > 60) {
+      headline =
+        `Most cats here have unknown status from legacy imports — the alteration rate looks low but the truth is "we don't know", not "they're intact".`;
+    }
+  }
+
+  if (
+    !headline &&
+    keyPeople.size === 0 &&
+    dataConflicts.length === 0 &&
+    recommendedActions.length === 0 &&
+    suggestedFollowups.length === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    headline,
+    key_people: keyPeople.size > 0 ? Array.from(keyPeople) : undefined,
+    data_conflicts: dataConflicts.length > 0 ? dataConflicts : undefined,
+    recommended_actions: recommendedActions.length > 0 ? recommendedActions : undefined,
+    suggested_followups: suggestedFollowups.length > 0 ? suggestedFollowups : undefined,
+  };
 }
 
 /**
@@ -604,6 +882,30 @@ Example queries:
       required: ["address"],
     },
   },
+  // === RECENT CONTEXT / INSTITUTIONAL KNOWLEDGE LOOKUP (FFS-1162, PR 2) ===
+  {
+    name: "get_place_recent_context",
+    description:
+      "Pull together recent notes and institutional knowledge for a place that DON'T live in structured columns: Google Maps notes (often FFSC-only context like 'Donna colony', 'Karen the tenant feeds'), recent request notes, ClinicHQ account quick_notes/long_notes, journal entries, and trapper attribution from clinic scrape. CALL THIS when the user asks 'what do we know about [place]?', 'what's the history of [place]?', 'is there any context on [place]?', or before recommending action on a place. analyze_place_situation gives you structured data; this gives you the staff knowledge written in plain English. Use it BEFORE recommending TNR work so you don't ignore Donna's note that this is a managed colony.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        place_id: {
+          type: "string",
+          description: "UUID of the place. If you don't have it yet, call comprehensive_place_lookup or analyze_place_situation first to get the place_id.",
+        },
+        days: {
+          type: "number",
+          description: "Optional. How far back to look for requests/journal entries. Default: 730 (2 years). Google Maps notes are returned regardless of date because they don't have a date.",
+        },
+        include_google_maps_notes: {
+          type: "boolean",
+          description: "Default true. If false, skip the Google Maps notes layer.",
+        },
+      },
+      required: ["place_id"],
+    },
+  },
   // === SPATIAL ANALYSIS (MIG_2528) ===
   {
     name: "analyze_spatial_context",
@@ -626,6 +928,30 @@ Example queries:
         },
       },
       required: ["address"],
+    },
+  },
+  // === STRATEGIC PRIORITY (FFS-1160/1161, PR 5) ===
+  {
+    name: "find_intact_cat_clusters",
+    description:
+      "Find PLACES with CONFIRMED-INTACT cats (not NULL status) that are NOT already being worked on. This is the POSITIVE-SIGNAL strategic tool — use it when the user asks 'which places need TNR?', 'where should we focus?', 'priority areas for trapping', 'where are the intact cats?'. Unlike strategic_city_analysis (which returns city-level rollups that can be polluted by NULL-status data), this returns specific places where we KNOW there are unaltered cats and there's no active request underway. Excludes blacklisted places (clinic, shelters) automatically. If it returns zero results, that's a real answer — say so, don't confabulate a priority list from rate-sorted data.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        area: {
+          type: "string",
+          description: "Optional city or region name (e.g., 'Santa Rosa', 'west county'). Uses the same regional expansion as query_region_stats.",
+        },
+        min_intact: {
+          type: "number",
+          description: "Minimum count of confirmed-intact cats (altered_status IN ('intact','No')). Default 3. Raise to filter for larger priority targets.",
+        },
+        limit: {
+          type: "number",
+          description: "Max places to return. Default 15.",
+        },
+      },
+      required: [],
     },
   },
   // === STRATEGIC ANALYSIS (MIG_2529) ===
@@ -1353,6 +1679,13 @@ export async function executeToolCall(
       case "analyze_place_situation":
         return await analyzePlaceSituation(toolInput.address as string);
 
+      case "get_place_recent_context":
+        return await getPlaceRecentContext(
+          toolInput.place_id as string,
+          toolInput.days as number | undefined,
+          toolInput.include_google_maps_notes as boolean | undefined
+        );
+
       case "analyze_spatial_context":
         return await analyzeSpatialContext(
           toolInput.address as string,
@@ -1362,6 +1695,13 @@ export async function executeToolCall(
 
       case "strategic_city_analysis":
         return await strategicCityAnalysis(toolInput.question as string | undefined);
+
+      case "find_intact_cat_clusters":
+        return await findIntactCatClusters(
+          toolInput.area as string | undefined,
+          toolInput.min_intact as number | undefined,
+          toolInput.limit as number | undefined,
+        );
 
       case "compare_places":
         return await comparePlaces(
@@ -1618,22 +1958,42 @@ async function runReadOnlySql(
 }
 
 /**
- * Query cats at a specific place/address
+ * Query cats at a specific place/address.
+ *
+ * PR 1 (FFS-1158): exposes intact_confirmed (status IN intact/No) and
+ * null_status_count separately so callers don't conflate "unknown" with
+ * "intact". Wraps via wrapPlaceResult so caveats/known_gaps auto-apply.
  */
 async function queryCatsAtPlace(addressSearch: string): Promise<ToolResult> {
-  const results = await queryRows(
+  const results = await queryRows<{
+    place_id: string;
+    place_name: string | null;
+    address: string | null;
+    total_cats: number;
+    altered_cats: number;
+    intact_confirmed: number;
+    null_status_count: number;
+  }>(
     `
     SELECT
       p.place_id,
       p.display_name as place_name,
       p.formatted_address as address,
-      COUNT(DISTINCT c.cat_id) as total_cats,
-      COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status IN ('spayed', 'neutered', 'Yes')) as altered_cats,
-      COUNT(DISTINCT c.cat_id) FILTER (WHERE c.altered_status = 'intact' OR c.altered_status = 'No') as unaltered_cats
+      COUNT(DISTINCT c.cat_id)::INT as total_cats,
+      COUNT(DISTINCT c.cat_id) FILTER (
+        WHERE c.altered_status IN ('spayed', 'neutered', 'altered', 'Yes')
+      )::INT as altered_cats,
+      COUNT(DISTINCT c.cat_id) FILTER (
+        WHERE c.altered_status IN ('intact', 'No')
+      )::INT as intact_confirmed,
+      COUNT(DISTINCT c.cat_id) FILTER (
+        WHERE c.altered_status IS NULL
+           OR c.altered_status NOT IN ('spayed', 'neutered', 'altered', 'Yes', 'intact', 'No')
+      )::INT as null_status_count
     FROM sot.places p
     -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
     LEFT JOIN sot.cat_place cpr ON cpr.place_id = p.place_id
-    LEFT JOIN sot.cats c ON c.cat_id = cpr.cat_id
+    LEFT JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
     WHERE (p.display_name ILIKE $1 OR p.formatted_address ILIKE $1)
       AND p.merged_into_place_id IS NULL
     GROUP BY p.place_id, p.display_name, p.formatted_address
@@ -1653,20 +2013,48 @@ async function queryCatsAtPlace(addressSearch: string): Promise<ToolResult> {
     };
   }
 
-  return {
-    success: true,
-    data: {
+  // Rate-among-known per row + summed totals for the wrapper.
+  const enrichedPlaces = results.map((r) => {
+    const known = r.altered_cats + r.intact_confirmed;
+    const rateAmongKnown =
+      known > 0 ? Math.round((r.altered_cats / known) * 100) : null;
+    return {
+      ...r,
+      rate_among_known: rateAmongKnown,
+    };
+  });
+
+  const top = results[0];
+  const totalAcrossPlaces = results.reduce((s, r) => s + (r.total_cats || 0), 0);
+  const alteredAcrossPlaces = results.reduce((s, r) => s + (r.altered_cats || 0), 0);
+  const intactAcrossPlaces = results.reduce((s, r) => s + (r.intact_confirmed || 0), 0);
+  const nullAcrossPlaces = results.reduce((s, r) => s + (r.null_status_count || 0), 0);
+
+  return wrapPlaceResult(
+    {
       found: true,
-      places: results,
-      summary: results.length === 1
-        ? `Found ${results[0].total_cats} cats at ${results[0].place_name || results[0].address}`
-        : `Found ${results.length} places matching "${addressSearch}"`,
+      places: enrichedPlaces,
+      summary:
+        results.length === 1
+          ? `Found ${top.total_cats} cats at ${top.place_name || top.address} (${top.altered_cats} altered, ${top.intact_confirmed} confirmed intact, ${top.null_status_count} unknown status)`
+          : `Found ${results.length} places matching "${addressSearch}"`,
     },
-  };
+    {
+      total_cats: totalAcrossPlaces,
+      altered_cats: alteredAcrossPlaces,
+      intact_confirmed: intactAcrossPlaces,
+      null_status_count: nullAcrossPlaces,
+    }
+  );
 }
 
 /**
- * Query colony status for a place
+ * Query colony status for a place.
+ *
+ * PR 1 (FFS-1158): exposes intact_confirmed vs null_status_count and
+ * rate_among_known so Tippy doesn't conflate "unknown" with "intact".
+ * The old query used `IN ('spayed','neutered','Yes')` which silently
+ * dropped 'altered' (legitimate value) — fixed below.
  */
 async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult> {
   const result = await queryOne<{
@@ -1676,6 +2064,8 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
     colony_estimate: number;
     verified_altered: number;
     verified_cats: number;
+    intact_confirmed: number;
+    null_status_count: number;
     completed_requests: number;
     active_requests: number;
     alteration_rate_pct: number | null;
@@ -1692,26 +2082,44 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
         display_name
       LIMIT 1
     ),
+    cat_breakdown AS (
+      SELECT
+        pm.place_id,
+        COUNT(*) FILTER (
+          WHERE c.altered_status IN ('spayed', 'neutered', 'altered', 'Yes')
+        )::INT as verified_altered,
+        COUNT(*) FILTER (
+          WHERE c.altered_status IN ('intact', 'No')
+        )::INT as intact_confirmed,
+        COUNT(*) FILTER (
+          WHERE c.altered_status IS NULL
+             OR c.altered_status NOT IN ('spayed', 'neutered', 'altered', 'Yes', 'intact', 'No')
+        )::INT as null_status_count,
+        COUNT(*)::INT as verified_cats
+      FROM place_match pm
+      JOIN sot.cat_place cpr ON cpr.place_id = pm.place_id
+      JOIN sot.cats c ON c.cat_id = cpr.cat_id AND c.merged_into_cat_id IS NULL
+      GROUP BY pm.place_id
+    ),
     ecology AS (
       SELECT
         pm.place_id,
         pm.display_name,
         pm.formatted_address,
-        -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
         COALESCE(
           (SELECT total_cats FROM sot.place_colony_estimates pce
            WHERE pce.place_id = pm.place_id
            ORDER BY observation_date DESC NULLS LAST LIMIT 1),
-          (SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = pm.place_id)
+          COALESCE(cb.verified_cats, 0)
         ) as colony_estimate,
-        (SELECT COUNT(*) FROM sot.cat_place cpr
-         JOIN sot.cats c ON c.cat_id = cpr.cat_id
-         WHERE cpr.place_id = pm.place_id
-         AND c.altered_status IN ('spayed', 'neutered', 'Yes')) as verified_altered,
-        (SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = pm.place_id) as verified_cats,
+        COALESCE(cb.verified_altered, 0) as verified_altered,
+        COALESCE(cb.intact_confirmed, 0) as intact_confirmed,
+        COALESCE(cb.null_status_count, 0) as null_status_count,
+        COALESCE(cb.verified_cats, 0) as verified_cats,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.merged_into_request_id IS NULL AND r.status = 'completed') as completed_requests,
         (SELECT COUNT(*) FROM ops.requests r WHERE r.place_id = pm.place_id AND r.merged_into_request_id IS NULL AND r.status NOT IN ${TERMINAL_PAIR_SQL}) as active_requests
       FROM place_match pm
+      LEFT JOIN cat_breakdown cb ON cb.place_id = pm.place_id
     )
     SELECT
       place_id,
@@ -1720,6 +2128,8 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
       colony_estimate,
       verified_altered,
       verified_cats,
+      intact_confirmed,
+      null_status_count,
       completed_requests,
       active_requests,
       CASE WHEN colony_estimate > 0
@@ -1742,14 +2152,28 @@ async function queryPlaceColonyStatus(addressSearch: string): Promise<ToolResult
     };
   }
 
-  return {
-    success: true,
-    data: {
+  // Rate among known: altered ÷ (altered + confirmed intact). Excludes NULL.
+  const known = result.verified_altered + result.intact_confirmed;
+  const rateAmongKnown = known > 0 ? Math.round((result.verified_altered / known) * 100) : null;
+
+  return wrapPlaceResult(
+    {
       found: true,
-      place: result,
-      summary: `${result.display_name || result.formatted_address}: ~${result.colony_estimate} cats, ${result.verified_altered} altered (${result.alteration_rate_pct || 0}%), ${result.estimated_work_remaining} remaining`,
+      place: {
+        ...result,
+        rate_among_known: rateAmongKnown,
+      },
+      summary: `${result.display_name || result.formatted_address}: ~${result.colony_estimate} cats, ${result.verified_altered} altered, ${result.intact_confirmed} confirmed intact, ${result.null_status_count} unknown. Rate among known: ${rateAmongKnown ?? 0}% (overall ${result.alteration_rate_pct ?? 0}%).`,
     },
-  };
+    {
+      total_cats: result.verified_cats,
+      altered_cats: result.verified_altered,
+      intact_confirmed: result.intact_confirmed,
+      null_status_count: result.null_status_count,
+      reported_cats: result.colony_estimate,
+      has_active_request: result.active_requests > 0,
+    }
+  );
 }
 
 /**
@@ -2273,7 +2697,8 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
     total_places: number;
     total_cats: number;
     cats_altered: number;
-    cats_unaltered: number;
+    cats_intact_confirmed: number;
+    cats_null_status: number;
     total_requests: number;
     completed_requests: number;
     active_requests: number;
@@ -2301,7 +2726,12 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
       COALESCE(SUM(m.total_places), 0)::INT as total_places,
       COALESCE(SUM(m.total_cats), 0)::INT as total_cats,
       COALESCE(SUM(m.altered_cats), 0)::INT as cats_altered,
-      COALESCE(SUM(m.intact_cats + m.unknown_status_cats), 0)::INT as cats_unaltered,
+      -- PR 1 (FFS-1158): keep intact and unknown SEPARATE.
+      -- Old code summed these together as "cats_unaltered" which conflated
+      -- "confirmed unaltered" with "we have no record of status" — produced
+      -- misleading priority signals (DATA_GAP_059).
+      COALESCE(SUM(m.intact_cats), 0)::INT as cats_intact_confirmed,
+      COALESCE(SUM(m.unknown_status_cats), 0)::INT as cats_null_status,
       COALESCE(SUM(m.total_requests), 0)::INT as total_requests,
       COALESCE(SUM(m.completed_requests), 0)::INT as completed_requests,
       COALESCE(SUM(m.active_requests), 0)::INT as active_requests,
@@ -2329,15 +2759,19 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
     };
   }
 
-  // Calculate alteration rate
-  const totalTracked = (result.cats_altered || 0) + (result.cats_unaltered || 0);
-  const alterationRate = totalTracked > 0
-    ? Math.round((result.cats_altered / totalTracked) * 100)
+  // PR 1 (FFS-1158): two distinct rates.
+  // - rate_among_known: altered / (altered + confirmed intact). Honest progress signal.
+  // - rate_overall: altered / total_cats. Will look low when most cats have NULL status.
+  const known = (result.cats_altered || 0) + (result.cats_intact_confirmed || 0);
+  const rateAmongKnown = known > 0
+    ? Math.round((result.cats_altered / known) * 100)
+    : 0;
+  const rateOverall = result.total_cats > 0
+    ? Math.round((result.cats_altered / result.total_cats) * 100)
     : 0;
 
-  return {
-    success: true,
-    data: {
+  return wrapPlaceResult(
+    {
       found: true,
       region: region,
       is_regional_search: isRegionalSearch,
@@ -2346,8 +2780,13 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
         places_tracked: result.total_places,
         cats_in_database: result.total_cats,
         cats_altered: result.cats_altered,
-        cats_unaltered: result.cats_unaltered,
-        alteration_rate_pct: alterationRate,
+        cats_intact_confirmed: result.cats_intact_confirmed,
+        cats_null_status: result.cats_null_status,
+        rate_among_known_pct: rateAmongKnown,
+        rate_overall_pct: rateOverall,
+        // Legacy field — kept for backward compat with consumers that
+        // read `alteration_rate_pct`. Prefer rate_among_known_pct.
+        alteration_rate_pct: rateAmongKnown,
         total_requests: result.total_requests,
         completed_requests: result.completed_requests,
         active_requests: result.active_requests,
@@ -2356,18 +2795,21 @@ async function queryRegionStats(region: string): Promise<ToolResult> {
         largest_colony: result.largest_colony,
         cities_with_activity: result.cities_with_activity,
       },
-      // Part 2: Check for suspicious patterns in region data
-      suspicious_patterns: checkSuspiciousPatterns({
-        alteration_rate: alterationRate,
-        total_cats: result.total_cats,
-      }).map(p => ({ pattern: p.pattern, likely_cause: p.likely_cause, recommendation: p.recommendation })),
       summary: `**${region}** (${isRegionalSearch ? searchPatterns.slice(0, 3).join(", ") + (searchPatterns.length > 3 ? ", ..." : "") : region}):
 • ${result.total_places} places tracked with ${result.total_cats} cats in database
-• ${result.cats_altered} cats altered (${alterationRate}% alteration rate)
+• ${result.cats_altered} altered, ${result.cats_intact_confirmed} confirmed intact, ${result.cats_null_status} unknown status
+• ${rateAmongKnown}% rate among cats with known status (${rateOverall}% if you include unknowns)
 • ${result.total_requests} total requests (${result.completed_requests} completed, ${result.active_requests} active)
 • ${result.total_colony_estimates} colony estimates, avg size ~${result.avg_colony_size} cats`,
     },
-  };
+    {
+      total_cats: result.total_cats,
+      altered_cats: result.cats_altered,
+      intact_confirmed: result.cats_intact_confirmed,
+      null_status_count: result.cats_null_status,
+      has_active_request: result.active_requests > 0,
+    }
+  );
 }
 
 /**
@@ -4509,6 +4951,367 @@ async function comprehensivePlaceLookup(address: string): Promise<ToolResult> {
 }
 
 /**
+ * Recent context lookup for a place (FFS-1162, PR 2).
+ *
+ * Pulls together institutional knowledge that lives in unstructured notes,
+ * not in summary columns or matviews. Specifically:
+ *
+ *   1. source.google_map_entries — KML notes Donna and friends wrote
+ *      ("This is a Donna colony", "Karen the tenant feeds them", etc).
+ *      These are how 717 Cherry St shows up — and are never queried by
+ *      any other Tippy tool today.
+ *   2. ops.requests recent rows — notes, internal_notes, important_notes,
+ *      resolution, hold_reason. The note text on closed requests is often
+ *      the only record of why a colony was paused.
+ *   3. ops.clinic_accounts — quick_notes / long_notes / tags. Booking-time
+ *      notes from ClinicHQ. Often mentions trappers, caretakers, or quirks.
+ *   4. ops.journal_entries — staff activity log scoped to the place.
+ *   5. ops.extracted_note_entities — LLM-extracted entities from clinic
+ *      account notes (DATA_GAP_066). Joined through clinic_accounts.
+ *
+ * The output is wrapped via wrapPlaceResult so PR 1's caveat/known_gaps
+ * machinery still applies. The narrative_seed (PR 3 will add more) gives
+ * Tippy a head-start on synthesis.
+ */
+async function getPlaceRecentContext(
+  placeId: string,
+  days: number | undefined,
+  includeGoogleMapsNotes: boolean | undefined,
+): Promise<ToolResult> {
+  if (!placeId || typeof placeId !== "string") {
+    return {
+      success: false,
+      error: "place_id is required (UUID). Call comprehensive_place_lookup or analyze_place_situation first to obtain it.",
+    };
+  }
+
+  const lookbackDays = days && days > 0 ? days : 730;
+  const wantGoogleMapsNotes = includeGoogleMapsNotes !== false;
+
+  // Resolve place name first so callers don't need a separate lookup.
+  const place = await queryOne<{
+    place_id: string;
+    display_name: string | null;
+    formatted_address: string | null;
+  }>(
+    `SELECT place_id, display_name, formatted_address
+     FROM sot.places
+     WHERE place_id = $1 AND merged_into_place_id IS NULL`,
+    [placeId],
+  );
+
+  if (!place) {
+    return {
+      success: true,
+      data: {
+        found: false,
+        place_id: placeId,
+        message: `No place found with ID ${placeId}. It may have been merged — try comprehensive_place_lookup with the address.`,
+      },
+    };
+  }
+
+  // 1. Google Maps notes — both directly linked AND nearby (within 50m).
+  //    Direct hit on linked_place_id is the primary signal (proven by 717
+  //    Cherry St case in ffsc-institutional-knowledge.md).
+  //    nearest_place_id within 50m catches near-miss links from auto-linking.
+  let googleMapsNotes: Array<{
+    entry_id: string;
+    kml_name: string | null;
+    original_content: string | null;
+    ai_summary: string | null;
+    ai_meaning: string | null;
+    parsed_date: string | null;
+    link_type: "direct" | "nearby";
+    distance_m: number | null;
+    source_file: string | null;
+  }> = [];
+
+  if (wantGoogleMapsNotes) {
+    googleMapsNotes = await queryRows<{
+      entry_id: string;
+      kml_name: string | null;
+      original_content: string | null;
+      ai_summary: string | null;
+      ai_meaning: string | null;
+      parsed_date: string | null;
+      link_type: "direct" | "nearby";
+      distance_m: number | null;
+      source_file: string | null;
+    }>(
+      `
+      SELECT
+        entry_id,
+        kml_name,
+        original_content,
+        ai_summary,
+        ai_meaning,
+        parsed_date::TEXT as parsed_date,
+        'direct'::text as link_type,
+        NULL::double precision as distance_m,
+        source_file
+      FROM source.google_map_entries
+      WHERE linked_place_id = $1
+
+      UNION ALL
+
+      SELECT
+        entry_id,
+        kml_name,
+        original_content,
+        ai_summary,
+        ai_meaning,
+        parsed_date::TEXT as parsed_date,
+        'nearby'::text as link_type,
+        nearest_place_distance_m as distance_m,
+        source_file
+      FROM source.google_map_entries
+      WHERE nearest_place_id = $1
+        AND linked_place_id IS NULL
+        AND nearest_place_distance_m IS NOT NULL
+        AND nearest_place_distance_m < 50
+
+      ORDER BY link_type, parsed_date DESC NULLS LAST
+      LIMIT 20
+      `,
+      [placeId],
+    ).catch((err) => {
+      console.warn(`[get_place_recent_context] google_map_entries query failed:`, err);
+      return [];
+    });
+  }
+
+  // 2. Recent requests — pull all the free-text fields. Filter by lookback
+  //    on either source_created_at (legacy data) or created_at.
+  const recentRequests = await queryRows<{
+    request_id: string;
+    status: string;
+    summary: string | null;
+    notes: string | null;
+    internal_notes: string | null;
+    important_notes: string[] | null;
+    hold_reason: string | null;
+    resolution: string | null;
+    created_at: string;
+    resolved_at: string | null;
+  }>(
+    `
+    SELECT
+      request_id,
+      status::text,
+      summary,
+      notes,
+      internal_notes,
+      important_notes,
+      hold_reason,
+      resolution,
+      created_at::TEXT as created_at,
+      resolved_at::TEXT as resolved_at
+    FROM ops.requests
+    WHERE place_id = $1
+      AND merged_into_request_id IS NULL
+      AND COALESCE(source_created_at, created_at) > NOW() - ($2::int * INTERVAL '1 day')
+    ORDER BY COALESCE(source_created_at, created_at) DESC
+    LIMIT 10
+    `,
+    [placeId, lookbackDays],
+  ).catch((err) => {
+    console.warn(`[get_place_recent_context] requests query failed:`, err);
+    return [];
+  });
+
+  // 3. Clinic accounts — booking-time notes (MIG_2550 added these columns).
+  //    Joined via resolved_place_id, which the site_name extraction backfills.
+  const clinicAccountNotes = await queryRows<{
+    account_id: string;
+    display_name: string | null;
+    account_type: string;
+    quick_notes: string | null;
+    long_notes: string | null;
+    tags: string | null;
+    notes_updated_at: string | null;
+    appointment_count: number;
+    last_appointment_date: string | null;
+  }>(
+    `
+    SELECT
+      account_id,
+      display_name,
+      account_type,
+      quick_notes,
+      long_notes,
+      tags,
+      notes_updated_at::TEXT as notes_updated_at,
+      appointment_count,
+      last_appointment_date::TEXT as last_appointment_date
+    FROM ops.clinic_accounts
+    WHERE resolved_place_id = $1
+      AND (
+        quick_notes IS NOT NULL
+        OR long_notes IS NOT NULL
+        OR (tags IS NOT NULL AND tags != '')
+      )
+    ORDER BY notes_updated_at DESC NULLS LAST, last_appointment_date DESC NULLS LAST
+    LIMIT 10
+    `,
+    [placeId],
+  ).catch((err) => {
+    console.warn(`[get_place_recent_context] clinic_accounts query failed:`, err);
+    return [];
+  });
+
+  // 4. Journal entries scoped to the place. body/content + entry_kind.
+  const journalEntries = await queryRows<{
+    entry_id: string;
+    entry_kind: string | null;
+    body: string | null;
+    created_at: string;
+    is_pinned: boolean;
+  }>(
+    `
+    SELECT
+      entry_id,
+      entry_kind,
+      COALESCE(body, content) as body,
+      created_at::TEXT as created_at,
+      COALESCE(is_pinned, FALSE) as is_pinned
+    FROM ops.journal_entries
+    WHERE primary_place_id = $1
+      AND COALESCE(is_archived, FALSE) = FALSE
+      AND created_at > NOW() - ($2::int * INTERVAL '1 day')
+    ORDER BY is_pinned DESC, created_at DESC
+    LIMIT 15
+    `,
+    [placeId, lookbackDays],
+  ).catch((err) => {
+    console.warn(`[get_place_recent_context] journal_entries query failed:`, err);
+    return [];
+  });
+
+  // 5. LLM-extracted entities from notes (DATA_GAP_066). Optional / may
+  //    be empty if nothing has been processed yet.
+  const extractedEntities = await queryRows<{
+    id: string;
+    extracted_people: unknown;
+    extracted_relationships: unknown;
+    extracted_colony_info: unknown;
+    extracted_flags: unknown;
+    staff_approved: boolean | null;
+    extracted_at: string;
+  }>(
+    `
+    SELECT
+      ene.id,
+      ene.extracted_people,
+      ene.extracted_relationships,
+      ene.extracted_colony_info,
+      ene.extracted_flags,
+      ene.staff_approved,
+      ene.extracted_at::TEXT as extracted_at
+    FROM ops.extracted_note_entities ene
+    JOIN ops.clinic_accounts ca ON ca.account_id = ene.clinic_account_id
+    WHERE ca.resolved_place_id = $1
+    ORDER BY ene.extracted_at DESC
+    LIMIT 10
+    `,
+    [placeId],
+  ).catch(() => []);
+
+  // 6. Aggregate cat-status breakdown for wrapPlaceResult (so caveats apply).
+  const catBreakdown = await queryOne<{
+    total_cats: number;
+    altered_cats: number;
+    intact_confirmed: number;
+    null_status_count: number;
+  }>(
+    `
+    SELECT
+      COUNT(*)::INT as total_cats,
+      COUNT(*) FILTER (
+        WHERE c.altered_status IN ('spayed', 'neutered', 'altered', 'Yes')
+      )::INT as altered_cats,
+      COUNT(*) FILTER (
+        WHERE c.altered_status IN ('intact', 'No')
+      )::INT as intact_confirmed,
+      COUNT(*) FILTER (
+        WHERE c.altered_status IS NULL
+           OR c.altered_status NOT IN ('spayed', 'neutered', 'altered', 'Yes', 'intact', 'No')
+      )::INT as null_status_count
+    FROM sot.cat_place cp
+    JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+    WHERE cp.place_id = $1
+    `,
+    [placeId],
+  );
+
+  // Quick signal: did we find ANY institutional context?
+  const hasContext =
+    googleMapsNotes.length > 0 ||
+    recentRequests.length > 0 ||
+    clinicAccountNotes.length > 0 ||
+    journalEntries.length > 0 ||
+    extractedEntities.length > 0;
+
+  const summaryParts: string[] = [];
+  if (googleMapsNotes.length > 0) {
+    summaryParts.push(`${googleMapsNotes.length} Google Maps note(s)`);
+  }
+  if (recentRequests.length > 0) {
+    summaryParts.push(`${recentRequests.length} recent request(s)`);
+  }
+  if (clinicAccountNotes.length > 0) {
+    summaryParts.push(`${clinicAccountNotes.length} ClinicHQ account note(s)`);
+  }
+  if (journalEntries.length > 0) {
+    summaryParts.push(`${journalEntries.length} journal entr${journalEntries.length === 1 ? "y" : "ies"}`);
+  }
+  if (extractedEntities.length > 0) {
+    summaryParts.push(`${extractedEntities.length} extracted note entity record(s)`);
+  }
+
+  const wrapped = wrapPlaceResult(
+    {
+      found: true,
+      place: {
+        place_id: place.place_id,
+        display_name: place.display_name,
+        formatted_address: place.formatted_address,
+      },
+      lookback_days: lookbackDays,
+      has_context: hasContext,
+      // The institutional layer Tippy was missing.
+      google_maps_notes: googleMapsNotes,
+      recent_requests: recentRequests,
+      clinic_account_notes: clinicAccountNotes,
+      journal_entries: journalEntries,
+      extracted_note_entities: extractedEntities,
+      summary: hasContext
+        ? `Found context for ${place.display_name || place.formatted_address}: ${summaryParts.join(", ")}.`
+        : `No notes, requests, journal entries, or Google Maps context on file for ${place.display_name || place.formatted_address} in the last ${lookbackDays} days.`,
+    },
+    {
+      total_cats: catBreakdown?.total_cats ?? 0,
+      altered_cats: catBreakdown?.altered_cats ?? 0,
+      intact_confirmed: catBreakdown?.intact_confirmed,
+      null_status_count: catBreakdown?.null_status_count,
+      has_active_request: recentRequests.some((r) => r.status !== "completed" && r.status !== "cancelled"),
+    },
+  );
+
+  // PR 3 (FFS-1171): pre-process notes into narrative hints.
+  const seed = buildNarrativeSeed({
+    place_name: place.display_name || place.formatted_address,
+    google_maps_notes: googleMapsNotes,
+    clinic_account_notes: clinicAccountNotes,
+    recent_requests: recentRequests,
+    meta: wrapped.meta,
+  });
+  if (seed) wrapped.narrative_seed = seed;
+
+  return wrapped;
+}
+
+/**
  * Intelligent Place Analysis (MIG_2527)
  * Returns comprehensive data WITH interpretation guidance
  * so Tippy can reason about what the data means and explain it naturally
@@ -4868,6 +5671,174 @@ async function analyzeSpatialContext(
 // STRATEGIC ANALYSIS TOOLS (MIG_2529)
 // City-level analysis, resource allocation, and place comparison
 // ============================================================================
+
+/**
+ * Find places with confirmed-intact cats that are not already being worked.
+ * PR 5 (FFS-1160 + FFS-1161).
+ *
+ * The strategic failure case this is designed to fix:
+ *   User: "Which areas of Santa Rosa need targeted TNR right now?"
+ *   Old behavior: query mv_city_stats sorted by alteration_rate ascending,
+ *     report the bottom-N as priorities. Most of those "priorities" are
+ *     places where the rate looks low only because most cats have NULL
+ *     status from legacy imports — they're data gaps, not real targets.
+ *     Worse, the recommended places often already have an active request.
+ *   New behavior: this tool. Returns specific places where there are
+ *     CONFIRMED intact cats (not NULL), there's NO active request, and
+ *     the place isn't on the soft blacklist. If the result is empty,
+ *     that's a real answer — say "I don't have enough confirmed-intact
+ *     records to recommend specific priorities" rather than confabulating.
+ *
+ * Returns places with intact_confirmed >= min_intact, ordered by
+ * intact_confirmed DESC. Wraps via wrapPlaceResult so the standard
+ * caveat machinery still applies.
+ */
+async function findIntactCatClusters(
+  area: string | undefined,
+  minIntact: number | undefined,
+  limit: number | undefined,
+): Promise<ToolResult> {
+  const minIntactN = minIntact && minIntact > 0 ? minIntact : 3;
+  const limitN = limit && limit > 0 && limit < 100 ? limit : 15;
+
+  // Area filter — use the same regional expansion as queryRegionStats so
+  // "west county" / "north bay" / etc work the way the model expects.
+  const cityPatterns = area ? getAreaSearchPatterns(area) : null;
+  const cityPlaceholders = cityPatterns
+    ? cityPatterns.map((_, i) => `$${i + 1}`).join(", ")
+    : null;
+
+  // Param order: city patterns (if any), then min_intact, then limit
+  const paramsList: (string | number)[] = [];
+  if (cityPatterns) paramsList.push(...cityPatterns);
+  paramsList.push(minIntactN);
+  paramsList.push(limitN);
+
+  const minIntactParam = `$${paramsList.length - 1}`;
+  const limitParam = `$${paramsList.length}`;
+
+  const cityFilter = cityPatterns
+    ? `AND a.city = ANY(ARRAY[${cityPlaceholders}])`
+    : "";
+
+  const results = await queryRows<{
+    place_id: string;
+    display_name: string | null;
+    formatted_address: string | null;
+    city: string | null;
+    intact_confirmed: number;
+    altered_count: number;
+    null_status_count: number;
+    total_cats: number;
+  }>(
+    `
+    WITH candidate_places AS (
+      SELECT
+        p.place_id,
+        p.display_name,
+        p.formatted_address,
+        a.city,
+        COUNT(*) FILTER (
+          WHERE c.altered_status IN ('intact', 'No')
+        )::INT as intact_confirmed,
+        COUNT(*) FILTER (
+          WHERE c.altered_status IN ('spayed', 'neutered', 'altered', 'Yes')
+        )::INT as altered_count,
+        COUNT(*) FILTER (
+          WHERE c.altered_status IS NULL
+             OR c.altered_status NOT IN ('spayed', 'neutered', 'altered', 'Yes', 'intact', 'No')
+        )::INT as null_status_count,
+        COUNT(*)::INT as total_cats
+      FROM sot.places p
+      JOIN sot.addresses a ON a.address_id = p.sot_address_id
+      JOIN sot.cat_place cp ON cp.place_id = p.place_id
+      JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
+      WHERE p.merged_into_place_id IS NULL
+        ${cityFilter}
+        -- Exclude blacklisted places (clinic addresses, shelters, etc.)
+        AND NOT EXISTS (
+          SELECT 1 FROM sot.place_soft_blacklist sb
+          WHERE sb.place_id = p.place_id
+            AND sb.is_active = TRUE
+            AND sb.blacklist_type IN ('all', 'cat_linking')
+        )
+      GROUP BY p.place_id, p.display_name, p.formatted_address, a.city
+      HAVING COUNT(*) FILTER (
+        WHERE c.altered_status IN ('intact', 'No')
+      ) >= ${minIntactParam}
+    ),
+    no_active_request AS (
+      -- FFS-1160: exclude places that already have an active request.
+      -- "Already being worked on" should not appear as a NEW priority.
+      SELECT cp.*
+      FROM candidate_places cp
+      WHERE NOT EXISTS (
+        SELECT 1 FROM ops.requests r
+        WHERE r.place_id = cp.place_id
+          AND r.merged_into_request_id IS NULL
+          AND r.status NOT IN ('completed', 'cancelled')
+      )
+    )
+    SELECT *
+    FROM no_active_request
+    ORDER BY intact_confirmed DESC, total_cats DESC
+    LIMIT ${limitParam}
+    `,
+    paramsList,
+  );
+
+  if (!results || results.length === 0) {
+    // FFS-1164 (humility default): empty result is a real answer.
+    return {
+      success: true,
+      data: {
+        found: false,
+        area: area || "all",
+        min_intact: minIntactN,
+        message: area
+          ? `No places in ${area} match the criteria: at least ${minIntactN} confirmed-intact cats AND no active request AND not blacklisted. This is a real answer — most low-rate places in ${area} are either already being worked, blacklisted, or have unknown status (NULL) rather than confirmed intact. Be honest with the user that you can't recommend confidently from this data.`
+          : `No places match the criteria: at least ${minIntactN} confirmed-intact cats AND no active request AND not blacklisted. Don't confabulate a priority list — say so.`,
+      },
+      caveats: [
+        "Empty result is the answer. Most low-alteration-rate places in our data are either NULL status (unknown) or already being worked. Lowering min_intact may reveal smaller targets, but a 'no clear priorities' answer is more useful than a fabricated list.",
+      ],
+    };
+  }
+
+  // Aggregate metrics across the returned places for wrapPlaceResult.
+  const totalIntact = results.reduce((s, r) => s + r.intact_confirmed, 0);
+  const totalAltered = results.reduce((s, r) => s + r.altered_count, 0);
+  const totalNull = results.reduce((s, r) => s + r.null_status_count, 0);
+  const totalCats = results.reduce((s, r) => s + r.total_cats, 0);
+
+  // Enrich each row with rate_among_known so the model can sort/judge.
+  const enrichedPlaces = results.map((r) => {
+    const known = r.altered_count + r.intact_confirmed;
+    const rateAmongKnown = known > 0 ? Math.round((r.altered_count / known) * 100) : null;
+    return {
+      ...r,
+      rate_among_known: rateAmongKnown,
+    };
+  });
+
+  return wrapPlaceResult(
+    {
+      found: true,
+      area: area || "all",
+      min_intact: minIntactN,
+      result_count: results.length,
+      places: enrichedPlaces,
+      summary: `Found ${results.length} place(s)${area ? ` in ${area}` : ""} with at least ${minIntactN} confirmed-intact cats and no active request. Top: ${enrichedPlaces[0].display_name || enrichedPlaces[0].formatted_address} (${enrichedPlaces[0].intact_confirmed} confirmed intact). These are real priorities — places with unknown-status cats are NOT included here.`,
+    },
+    {
+      total_cats: totalCats,
+      altered_cats: totalAltered,
+      intact_confirmed: totalIntact,
+      null_status_count: totalNull,
+      has_active_request: false, // by construction
+    },
+  );
+}
 
 /**
  * Strategic city-level analysis with data caveats

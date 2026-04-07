@@ -20,6 +20,9 @@ const DEFAULTS = {
   "geo.service_counties": ["Sonoma", "Marin", "Napa", "Mendocino", "Lake"],
   "geo.default_county": "Sonoma",
   "geo.service_area_name": "Sonoma County",
+  // FFS-1183 — soft buffer (meters) around the service area boundary edge
+  "geo.service_area_boundary_buffer_m": 2000,
+  "geo.service_area_boundary_org_slug": "ffsc",
 } as const;
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -59,3 +62,16 @@ export const getDefaultCounty = () =>
 
 export const getServiceAreaName = () =>
   getServerConfig<string>("geo.service_area_name", DEFAULTS["geo.service_area_name"]);
+
+// FFS-1183 — service area boundary buffer (meters)
+export const getServiceAreaBoundaryBufferM = () =>
+  getServerConfig<number>(
+    "geo.service_area_boundary_buffer_m",
+    DEFAULTS["geo.service_area_boundary_buffer_m"]
+  );
+
+export const getServiceAreaBoundaryOrgSlug = () =>
+  getServerConfig<string>(
+    "geo.service_area_boundary_org_slug",
+    DEFAULTS["geo.service_area_boundary_org_slug"]
+  );

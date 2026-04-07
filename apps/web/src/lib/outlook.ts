@@ -3,9 +3,16 @@
  *
  * Handles OAuth2 flow and email sending through connected Outlook accounts.
  * Supports multiple connected accounts (info@, ben@, tippy@, etc.)
+ *
+ * FFS-1188 (Phase 5): The templated send path through this module
+ * (sendTemplatedOutlookEmail) honors the same three-layer dry-run +
+ * test-recipient-override defenses as lib/email.ts. This is critical:
+ * forgetting to gate this would create a backdoor around the safety
+ * net since several internal staff flows use Outlook instead of Resend.
  */
 
 import { queryOne, queryRows, query } from "./db";
+import { isDryRunEnabled, getTestRecipientOverride } from "./email-config";
 
 // Microsoft OAuth endpoints
 const MICROSOFT_AUTH_URL = "https://login.microsoftonline.com";
@@ -467,23 +474,53 @@ export async function sendTemplatedOutlookEmail(params: {
     }
   }
 
-  // Send via Outlook
+  // ─── FFS-1188 Phase 5: Three-layer safety gate ─────────────────────
+  // Layer 3a — DRY RUN: render + log but never call Graph API
+  if (await isDryRunEnabled()) {
+    const dryRunEmailId = await logSentEmail({
+      templateKey,
+      to,
+      toName,
+      subject: `[DRY RUN] ${subject}`,
+      bodyHtml,
+      bodyText,
+      success: true,
+      error: "Dry-run mode (email.global.dry_run) — not sent",
+      outlookAccountId: accountId,
+      submissionId,
+      personId,
+      sentBy,
+      dryRun: true,
+    });
+    return { success: true, emailId: dryRunEmailId };
+  }
+
+  // Layer 3b — TEST OVERRIDE
+  const override = await getTestRecipientOverride();
+  let actualRecipient = to;
+  let actualSubject = subject;
+  if (override) {
+    actualRecipient = override;
+    actualSubject = `[TEST → ${to}] ${subject}`;
+  }
+
+  // Layer 3c — LIVE send
   const result = await sendOutlookEmail({
     accountId,
-    to,
+    to: actualRecipient,
     toName,
-    subject,
+    subject: actualSubject,
     bodyHtml,
     bodyText: bodyText || undefined,
   });
 
-  // Log the email
+  // Log the email — preserve the original recipient for auditability
   const account = await getAccountById(accountId);
   const emailId = await logSentEmail({
     templateKey,
     to,
     toName,
-    subject,
+    subject: actualSubject,
     bodyHtml,
     bodyText,
     success: result.success,
@@ -504,6 +541,8 @@ export async function sendTemplatedOutlookEmail(params: {
 
 /**
  * Log sent email to database
+ *
+ * FFS-1188: Added dryRun flag → status='dry_run' (MIG_3062)
  */
 async function logSentEmail(params: {
   templateKey: string;
@@ -519,8 +558,14 @@ async function logSentEmail(params: {
   submissionId?: string;
   personId?: string;
   sentBy?: string;
+  dryRun?: boolean;
 }): Promise<string | undefined> {
   try {
+    const status = params.dryRun
+      ? "dry_run"
+      : params.success
+        ? "sent"
+        : "failed";
     const result = await queryOne<{ email_id: string }>(`
       INSERT INTO ops.sent_emails (
         template_key,
@@ -549,7 +594,7 @@ async function logSentEmail(params: {
       params.subject,
       params.bodyHtml,
       params.bodyText || null,
-      params.success ? "sent" : "failed",
+      status,
       params.error || null,
       params.outlookAccountId || null,
       params.submissionId || null,

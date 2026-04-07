@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
-import { getPendingOutOfCountyEmails, sendOutOfCountyEmail } from "@/lib/email";
+import {
+  getPendingOutOfServiceAreaEmails,
+  sendOutOfServiceAreaEmail,
+} from "@/lib/email";
 import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
+import {
+  assertOutOfAreaLive,
+  OutOfAreaPipelineDisabledError,
+} from "@/lib/email-safety";
 
 // Email Sending Cron Job
 //
@@ -8,6 +15,10 @@ import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 //
 // Vercel Cron: Add to vercel.json:
 //   "crons": [{ "path": "/api/cron/send-emails", "schedule": "0 8 * * *" }]
+//
+// FFS-1182: This cron is GATED by assertOutOfAreaLive(). Until both
+// EMAIL_OUT_OF_AREA_LIVE=true (env) and email.out_of_area.live=true (DB)
+// are set, every invocation returns 503. See lib/email-safety.ts.
 
 export const maxDuration = 60;
 
@@ -22,6 +33,16 @@ export async function GET(request: NextRequest) {
     return apiError("Unauthorized", 401);
   }
 
+  // FFS-1182 Phase 0: hard-fail until Go Live
+  try {
+    await assertOutOfAreaLive();
+  } catch (err) {
+    if (err instanceof OutOfAreaPipelineDisabledError) {
+      return apiError(err.message, 503, { reason: err.reason });
+    }
+    throw err;
+  }
+
   // Check if email is configured
   if (!process.env.RESEND_API_KEY) {
     return apiServerError("RESEND_API_KEY not configured");
@@ -30,8 +51,8 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // Get pending out-of-county emails
-    const pending = await getPendingOutOfCountyEmails();
+    // Get pending out-of-service-area emails (FFS-1186)
+    const pending = await getPendingOutOfServiceAreaEmails();
 
     if (pending.length === 0) {
       return apiSuccess({
@@ -46,9 +67,14 @@ export async function GET(request: NextRequest) {
     let failedCount = 0;
     const errors: string[] = [];
 
-    // Send each email
+    // Send each email. The view only returns rows already approved by staff;
+    // sendOutOfServiceAreaEmail's second arg is `sentBy` (recorded on
+    // ops.sent_emails.created_by), so we record this batch as the cron.
     for (const submission of pending) {
-      const result = await sendOutOfCountyEmail(submission.submission_id);
+      const result = await sendOutOfServiceAreaEmail(
+        submission.submission_id,
+        "out_of_service_area_cron"
+      );
 
       if (result.success) {
         sentCount++;

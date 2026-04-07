@@ -78,6 +78,32 @@ export function KittenPriorityBadge({ score, hasKittens }: { score: number | nul
   );
 }
 
+/**
+ * FFS-1187 — Service area status badge.
+ * Hidden when status is 'in', 'unknown', or null.
+ */
+export function ServiceAreaBadge({
+  status,
+}: {
+  status: "in" | "ambiguous" | "out" | "unknown" | null | undefined;
+}) {
+  if (!status || status === "in" || status === "unknown") return null;
+
+  const colors: Record<
+    "ambiguous" | "out",
+    { bg: string; color: string; label: string }
+  > = {
+    out: { bg: COLORS.error, color: COLORS.white, label: "Out of Area" },
+    ambiguous: { bg: COLORS.warning, color: COLORS.black, label: "Ambiguous" },
+  };
+  const style = colors[status];
+  return (
+    <span style={{ ...badgeBase, background: style.bg, color: style.color }}>
+      {style.label}
+    </span>
+  );
+}
+
 export function SubmissionStatusBadge({ status }: { status: string | null }) {
   const colors: Record<string, { bg: string; color: string; label: string }> = {
     "new": { bg: COLORS.primary, color: COLORS.white, label: "New" },

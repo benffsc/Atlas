@@ -22,6 +22,10 @@ interface AdminResource {
   scrape_status?: string;
   last_verified_at?: string;
   verify_by?: string;
+  // FFS-1184
+  county_served?: string | null;
+  region?: string | null;
+  priority?: number | null;
 }
 
 const CATEGORIES = [
@@ -29,6 +33,18 @@ const CATEGORIES = [
   { key: "pet_spay", label: "Pet Spay/Neuter" },
   { key: "emergency_vet", label: "Emergency Vets" },
   { key: "general", label: "General" },
+];
+
+// FFS-1184 — county filter chips
+const COUNTY_FILTERS: { value: string | null; label: string }[] = [
+  { value: null, label: "All counties" },
+  { value: "Sonoma", label: "Sonoma" },
+  { value: "Marin", label: "Marin" },
+  { value: "Napa", label: "Napa" },
+  { value: "Mendocino", label: "Mendocino" },
+  { value: "Lake", label: "Lake" },
+  { value: "Solano", label: "Solano" },
+  { value: "statewide", label: "Statewide" },
 ];
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
@@ -41,6 +57,8 @@ export default function AdminResourcesPage() {
     changed: number;
     errors: number;
   } | null>(null);
+  // FFS-1184 — county filter
+  const [countyFilter, setCountyFilter] = useState<string | null>(null);
 
   const handleVerify = useCallback(async () => {
     setVerifying(true);
@@ -83,8 +101,47 @@ export default function AdminResourcesPage() {
         )}
       </p>
 
+      {/* FFS-1184 — county filter chips */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          flexWrap: "wrap",
+          marginBottom: "1.25rem",
+        }}
+      >
+        {COUNTY_FILTERS.map((opt) => {
+          const active = countyFilter === opt.value;
+          return (
+            <button
+              key={opt.label}
+              onClick={() => setCountyFilter(opt.value)}
+              style={{
+                padding: "0.35rem 0.75rem",
+                borderRadius: 999,
+                border: active
+                  ? "1px solid var(--primary)"
+                  : "1px solid var(--card-border)",
+                background: active ? "var(--primary)" : "var(--card-bg)",
+                color: active ? "#fff" : "var(--text-primary)",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
       {CATEGORIES.map((cat) => (
-        <CategorySection key={cat.key} categoryKey={cat.key} label={cat.label} />
+        <CategorySection
+          key={cat.key}
+          categoryKey={cat.key}
+          label={cat.label}
+          county={countyFilter}
+        />
       ))}
     </div>
   );
@@ -92,10 +149,23 @@ export default function AdminResourcesPage() {
 
 // ── Category Section ──────────────────────────────────────────────────────────
 
-function CategorySection({ categoryKey, label }: { categoryKey: string; label: string }) {
+function CategorySection({
+  categoryKey,
+  label,
+  county,
+}: {
+  categoryKey: string;
+  label: string;
+  county?: string | null;
+}) {
+  // FFS-1184 — append &county= when filter active. The API also includes
+  // statewide rows when county is set.
+  const url = county
+    ? `/api/resources?category=${categoryKey}&county=${encodeURIComponent(county)}&include_verification=true`
+    : `/api/resources?category=${categoryKey}&include_verification=true`;
   const { data, mutate, isLoading } = useSWR<AdminResource[]>(
-    `/api/resources?category=${categoryKey}&include_verification=true`,
-    (url: string) => fetchApi<AdminResource[]>(url),
+    url,
+    (u: string) => fetchApi<AdminResource[]>(u),
     { dedupingInterval: 60_000, revalidateOnFocus: false },
   );
 

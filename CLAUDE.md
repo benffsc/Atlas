@@ -605,3 +605,4 @@ SQL: `norm_phone_us()` for identity matching/storage.
 | `docs/CLINIC_DATA_STRUCTURE.md` | ClinicHQ data flow rules |
 | `docs/DATA_GAP_RISKS.md` | Edge cases & unusual scenarios |
 | `docs/CORE_FUNCTIONS.md` | Quick reference for centralized DB functions |
+| `docs/RUNBOOKS/out_of_service_area_email_golive.md` | **Go-Live checklist for out-of-service-area email pipeline (FFS-1181 / FFS-1190)** — manual verification before flipping production |

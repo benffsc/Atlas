@@ -1,6 +1,53 @@
+/**
+ * Email sending — FFSC / Atlas
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ * SAFETY GATE — Out-of-Service-Area pipeline (FFS-1181 / FFS-1182)
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ * The legacy out_of_county pipeline in this file (sendOutOfCountyEmail
+ * + getPendingOutOfCountyEmails) is silently broken: the view
+ * ops.v_pending_out_of_county_emails references columns that no longer
+ * exist on ops.intake_submissions, and the out_of_county flag the view
+ * needs is never set. As of FFS-1182, every entry point into this code
+ * path is guarded by lib/email-safety.ts assertOutOfAreaLive(), which
+ * requires BOTH:
+ *
+ *   1. ENV var EMAIL_OUT_OF_AREA_LIVE=true   (redeploy to flip)
+ *   2. DB config email.out_of_area.live=true (admin toggle)
+ *
+ * The replacement pipeline (FFS-1186 / Phase 3) lives in
+ * sendOutOfServiceAreaEmail() and uses the new
+ * v_pending_out_of_service_area_emails view. The old function below
+ * is kept ONLY to preserve audit log compatibility — it hard-fails on
+ * call until Go Live.
+ *
+ * See:
+ *   - lib/email-safety.ts
+ *   - docs/RUNBOOKS/out_of_service_area_email_golive.md
+ *   - Linear FFS-1181 (epic), FFS-1182 (Phase 0)
+ */
+
 import { Resend } from "resend";
 import { queryOne, queryRows } from "./db";
-import { getOrgEmailFrom } from "./org-config";
+import {
+  getOrgEmailFrom,
+  getOrgName,
+  getOrgNameShort,
+  getOrgPhone,
+  getOrgWebsite,
+  getOrgSupportEmail,
+  getOrgAddress,
+  getOrgLogoUrl,
+  getOrgAnniversaryBadgeUrl,
+} from "./org-config";
+import { getServiceAreaName } from "./geo-config";
+import {
+  assertOutOfAreaLive,
+  OutOfAreaPipelineDisabledError,
+} from "./email-safety";
+import { renderCountyResources } from "./email-resource-renderer";
+import { isDryRunEnabled, getTestRecipientOverride } from "./email-config";
 
 // Initialize Resend client
 const resend = process.env.RESEND_API_KEY
@@ -38,6 +85,10 @@ export interface SendEmailResult {
   emailId?: string;
   externalId?: string;
   error?: string;
+  // FFS-1188 — set when send was intercepted by dry-run mode
+  dryRun?: boolean;
+  // FFS-1188 — set when send was redirected to test recipient override
+  testOverride?: { originalRecipient: string; overrideRecipient: string };
 }
 
 /**
@@ -101,23 +152,60 @@ export async function sendTemplateEmail(
       ? replacePlaceholders(template.body_text, placeholders)
       : undefined;
 
-    // Send via Resend
+    // ─── FFS-1188 Phase 5: Three-layer safety gate ─────────────────────
+    // Layer 3a — DRY RUN: render + log but never call Resend
+    if (await isDryRunEnabled()) {
+      const dryRunEmailId = await logSentEmail({
+        templateKey,
+        recipientEmail: to,
+        recipientName: toName,
+        subjectRendered: `[DRY RUN] ${subject}`,
+        bodyHtmlRendered: bodyHtml,
+        bodyTextRendered: bodyText,
+        status: "dry_run",
+        errorMessage: "Dry-run mode (email.global.dry_run) — not sent",
+        submissionId,
+        personId,
+        createdBy: sentBy,
+      });
+      return {
+        success: true,
+        emailId: dryRunEmailId,
+        dryRun: true,
+      };
+    }
+
+    // Layer 3b — TEST OVERRIDE: substitute recipient + tag subject
+    const override = await getTestRecipientOverride();
+    let actualRecipient = to;
+    let actualSubject = subject;
+    let testOverride: SendEmailResult["testOverride"] = undefined;
+    if (override) {
+      actualRecipient = override;
+      actualSubject = `[TEST → ${to}] ${subject}`;
+      testOverride = {
+        originalRecipient: to,
+        overrideRecipient: override,
+      };
+    }
+
+    // Layer 3c — LIVE send (only reached when both above are bypassed)
     const fromAddress = await getDefaultFrom();
     const { data, error } = await resend.emails.send({
       from: fromAddress,
-      to: toName ? `${toName} <${to}>` : to,
-      subject,
+      to: toName ? `${toName} <${actualRecipient}>` : actualRecipient,
+      subject: actualSubject,
       html: bodyHtml,
       text: bodyText,
     });
 
     if (error) {
-      // Log failure
+      // Log failure — preserve original recipient on the audit log
       await logSentEmail({
         templateKey,
         recipientEmail: to,
         recipientName: toName,
-        subjectRendered: subject,
+        subjectRendered: actualSubject,
         bodyHtmlRendered: bodyHtml,
         bodyTextRendered: bodyText,
         status: "failed",
@@ -138,7 +226,7 @@ export async function sendTemplateEmail(
       templateKey,
       recipientEmail: to,
       recipientName: toName,
-      subjectRendered: subject,
+      subjectRendered: actualSubject,
       bodyHtmlRendered: bodyHtml,
       bodyTextRendered: bodyText,
       status: "sent",
@@ -152,6 +240,7 @@ export async function sendTemplateEmail(
       success: true,
       emailId,
       externalId: data?.id,
+      ...(testOverride && { testOverride }),
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
@@ -171,7 +260,8 @@ interface LogEmailParams {
   subjectRendered: string;
   bodyHtmlRendered?: string;
   bodyTextRendered?: string;
-  status: "pending" | "sent" | "delivered" | "bounced" | "failed";
+  // FFS-1188 — added 'dry_run' status (MIG_3062)
+  status: "pending" | "sent" | "delivered" | "bounced" | "failed" | "dry_run";
   errorMessage?: string;
   externalId?: string;
   submissionId?: string;
@@ -229,10 +319,27 @@ async function logSentEmail(params: LogEmailParams): Promise<string | undefined>
 
 /**
  * Send out-of-county email for a submission
+ *
+ * @deprecated Use sendOutOfServiceAreaEmail() (FFS-1186 / Phase 3).
+ *
+ * FFS-1182: hard-fails until BOTH EMAIL_OUT_OF_AREA_LIVE env var and
+ * email.out_of_area.live DB config are explicitly enabled. This guards
+ * against accidental schema fixes silently re-activating the broken
+ * out_of_county pipeline.
  */
 export async function sendOutOfCountyEmail(
   submissionId: string
 ): Promise<SendEmailResult> {
+  // FFS-1182 Phase 0: hard-fail before any DB query
+  try {
+    await assertOutOfAreaLive();
+  } catch (err) {
+    if (err instanceof OutOfAreaPipelineDisabledError) {
+      return { success: false, error: err.message };
+    }
+    throw err;
+  }
+
   // Get submission details
   const submission = await queryOne<{
     submission_id: string;
@@ -283,6 +390,11 @@ export async function sendOutOfCountyEmail(
 
 /**
  * Get all pending out-of-county emails
+ *
+ * @deprecated Use getPendingOutOfServiceAreaEmails() (FFS-1186 / Phase 3).
+ *             The legacy view ops.v_pending_out_of_county_emails was
+ *             dropped in MIG_3061 and this function is retained only
+ *             to satisfy callers that the safety gate hard-fails before.
  */
 export async function getPendingOutOfCountyEmails(): Promise<Array<{
   submission_id: string;
@@ -292,7 +404,185 @@ export async function getPendingOutOfCountyEmails(): Promise<Array<{
 }>> {
   return queryRows(`
     SELECT submission_id, first_name, email, detected_county
-    FROM ops.v_pending_out_of_county_emails
+    FROM ops.v_pending_out_of_service_area_emails
     LIMIT 50
   `);
+}
+
+/**
+ * Get all pending out-of-service-area emails (FFS-1186).
+ *
+ * Returns submissions that are:
+ *   - Classified service_area_status = 'out'
+ *   - Manually approved by staff
+ *   - Not already sent
+ *   - Not within the 90-day suppression window
+ */
+export async function getPendingOutOfServiceAreaEmails(): Promise<Array<{
+  submission_id: string;
+  first_name: string;
+  email: string;
+  detected_county: string;
+}>> {
+  return queryRows(`
+    SELECT submission_id, first_name, email, detected_county
+    FROM ops.v_pending_out_of_service_area_emails
+    LIMIT 50
+  `);
+}
+
+// ============================================================================
+// FFS-1186 — Out-of-Service-Area email send
+// ============================================================================
+
+interface OutOfServiceAreaSubmissionRow {
+  submission_id: string;
+  first_name: string | null;
+  email: string | null;
+  county: string | null;
+  service_area_status: string | null;
+  out_of_service_area_approved_at: string | null;
+  out_of_service_area_email_sent_at: string | null;
+}
+
+/**
+ * Send the out-of-service-area resource referral email for a submission.
+ *
+ * Validation chain:
+ *   1. Hard-fail until Go Live (assertOutOfAreaLive) — env + DB flags
+ *   2. Submission exists
+ *   3. service_area_status = 'out'
+ *   4. Manual staff approval recorded (approve_out_of_service_area_email)
+ *   5. Not already sent
+ *   6. Has a non-null email
+ *   7. Not in 90-day suppression window
+ *
+ * On success (or dry-run), the new template is rendered with the
+ * org placeholders + dynamically-rendered resource cards from
+ * lib/email-resource-renderer.ts.
+ *
+ * The actual Resend / Outlook send is delegated to sendTemplateEmail()
+ * which honors the Phase 5 dry-run + test recipient override layers.
+ *
+ * Only writes to ops.intake_submissions (mark_sent + transition to
+ * 'redirected') when the send was a real send, not a dry-run.
+ */
+export async function sendOutOfServiceAreaEmail(
+  submissionId: string,
+  approvedBy: string
+): Promise<SendEmailResult> {
+  // Layer 1 — hard-fail until Go Live
+  try {
+    await assertOutOfAreaLive();
+  } catch (err) {
+    if (err instanceof OutOfAreaPipelineDisabledError) {
+      return { success: false, error: err.message };
+    }
+    throw err;
+  }
+
+  // Load submission
+  const submission = await queryOne<OutOfServiceAreaSubmissionRow>(
+    `SELECT submission_id, first_name, email, county,
+            service_area_status,
+            out_of_service_area_approved_at,
+            out_of_service_area_email_sent_at
+       FROM ops.intake_submissions
+      WHERE submission_id = $1`,
+    [submissionId]
+  );
+
+  if (!submission) return { success: false, error: "Submission not found" };
+  if (submission.service_area_status !== "out") {
+    return {
+      success: false,
+      error: `Submission is not classified out-of-service-area (got ${submission.service_area_status ?? "null"})`,
+    };
+  }
+  if (!submission.out_of_service_area_approved_at) {
+    return { success: false, error: "Submission has not been approved by staff" };
+  }
+  if (submission.out_of_service_area_email_sent_at) {
+    return { success: false, error: "Email has already been sent for this submission" };
+  }
+  if (!submission.email) {
+    return { success: false, error: "No email address on submission" };
+  }
+
+  // Suppression check
+  const suppressionRow = await queryOne<{ is_suppressed: boolean }>(
+    `SELECT ops.is_suppressed_for_out_of_service_area($1) AS is_suppressed`,
+    [submission.email]
+  );
+  if (suppressionRow?.is_suppressed) {
+    return {
+      success: false,
+      error: `Email ${submission.email} is suppressed (already received an out-of-area email within the suppression window)`,
+    };
+  }
+
+  // Render dynamic resource cards
+  const resources = await renderCountyResources(submission.county);
+
+  // Pull all org placeholders in parallel
+  const [
+    brandFullName,
+    brandName,
+    orgPhone,
+    orgEmail,
+    orgWebsite,
+    orgAddress,
+    orgLogoUrl,
+    orgAnniversaryBadgeUrl,
+    serviceAreaName,
+  ] = await Promise.all([
+    getOrgName(),
+    getOrgNameShort(),
+    getOrgPhone(),
+    getOrgSupportEmail(),
+    getOrgWebsite(),
+    getOrgAddress(),
+    getOrgLogoUrl(),
+    getOrgAnniversaryBadgeUrl(),
+    getServiceAreaName(),
+  ]);
+
+  const placeholders: Record<string, string> = {
+    first_name: submission.first_name || "there",
+    detected_county: submission.county || "your area",
+    service_area_name: serviceAreaName,
+    brand_name: brandName,
+    brand_full_name: brandFullName,
+    org_phone: orgPhone,
+    org_email: orgEmail,
+    org_address: orgAddress,
+    org_website: orgWebsite,
+    org_logo_url: orgLogoUrl,
+    org_anniversary_badge_url: orgAnniversaryBadgeUrl,
+    nearest_county_resources_html: resources.countyHtml,
+    statewide_resources_html: resources.statewideHtml,
+    nearest_county_resources_text: resources.countyText,
+    statewide_resources_text: resources.statewideText,
+  };
+
+  const result = await sendTemplateEmail({
+    templateKey: "out_of_service_area",
+    to: submission.email,
+    toName: submission.first_name || undefined,
+    placeholders,
+    submissionId,
+    sentBy: approvedBy || "out_of_service_area_pipeline",
+  });
+
+  // Only mark as sent (and transition to redirected) on a real send.
+  // Dry-run rows are logged in ops.sent_emails but should not change
+  // submission state.
+  if (result.success && !result.dryRun && result.emailId) {
+    await queryOne(
+      `SELECT ops.mark_out_of_service_area_email_sent($1, $2) AS marked`,
+      [submissionId, result.emailId]
+    );
+  }
+
+  return result;
 }

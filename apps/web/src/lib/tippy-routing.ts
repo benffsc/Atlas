@@ -131,3 +131,47 @@ export function detectIntentAndForceToolChoice(
 
   return undefined; // Let Claude decide
 }
+
+/**
+ * Detect "strategic" intent — questions about resource allocation,
+ * priority, where to focus, etc. PR 5 (FFS-1163).
+ *
+ * This is NOT a tool-forcing classifier — strategic queries need
+ * multiple tools and reasoning. Instead, it's a signal the chat route
+ * uses to inject extra system-prompt guidance: "be humble when data
+ * is sparse, prefer find_intact_cat_clusters, exclude in-progress
+ * requests, never recommend a place from a NULL-dominated rate".
+ *
+ * Returns true if the question is about strategy/priority/where-to-focus.
+ * False otherwise. Conservative — false positives would over-restrict
+ * the model on questions that don't need humility framing.
+ */
+export function detectStrategicIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+
+  const strategicPatterns: RegExp[] = [
+    // "where should we focus / target"
+    /\bwhere\s+(?:should|do)\s+(?:we|i)\s+(?:focus|target|prioriti[sz]e|put|spend)/,
+    // "which areas need [more] / most"
+    /\bwhich\s+(?:areas?|cities|places?|colonies)\s+(?:need|should|are)/,
+    // "what should we do / target / focus on"
+    /\bwhat\s+should\s+we\s+(?:do|target|focus|priorit)/,
+    // "priority area" / "priorities"
+    /\bpriorit(?:y|ies)\s+(?:area|target|place|location|colony|cit)/,
+    /\b(?:highest|top|most)\s+priorit/,
+    // "needs the most help / attention / TNR / intervention"
+    // Allow an optional adjective between "most/more" and the target noun:
+    //   "needs more help" / "needs more targeted intervention"
+    /\bneeds?\s+(?:the\s+)?(?:most|more|urgent|immediate|targeted)\s+(?:\w+\s+)?(?:help|attention|tnr|ffr|trapping|intervention|work)/,
+    // "worst cat problem / area"
+    /\bworst\s+(?:cat\s+)?(?:problem|area|cit|colony)/,
+    // "where are the [intact|unfixed|unaltered] cats"
+    /\bwhere\s+are\s+(?:the|all)\s+(?:intact|unfixed|unaltered)/,
+    // "underserved" / "under-served"
+    /\bunder.?served/,
+    // "resource allocation"
+    /\bresource\s+allocation/,
+  ];
+
+  return strategicPatterns.some((p) => p.test(lower));
+}

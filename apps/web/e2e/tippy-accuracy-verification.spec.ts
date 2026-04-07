@@ -14,8 +14,11 @@ import {
   ENTITY_COUNT_TESTS,
   ALTERATION_TESTS,
   COLONY_TESTS,
+  NARRATIVE_TESTS,
   compareWithTolerance,
+  evaluateNarrativeTest,
   type AccuracyTest,
+  type NarrativeTest,
 } from "./fixtures/tippy-accuracy-queries";
 
 // ============================================================================
@@ -27,6 +30,13 @@ interface TippyResponse {
   response?: string;
   content?: string;
   error?: string;
+  toolsUsed?: string[];
+  // apiSuccess wrapper
+  data?: {
+    message?: string;
+    toolsUsed?: string[];
+    conversationId?: string;
+  };
 }
 
 async function askTippy(
@@ -37,7 +47,7 @@ async function askTippy(
     ) => Promise<{ ok: () => boolean; json: () => Promise<TippyResponse> }>;
   },
   question: string
-): Promise<{ ok: boolean; responseText: string }> {
+): Promise<{ ok: boolean; responseText: string; toolsUsed: string[] }> {
   const response = await request.post("/api/tippy/chat", {
     data: {
       message: question,
@@ -47,12 +57,17 @@ async function askTippy(
   const ok = response.ok();
   const data = await response.json();
 
+  // Handle both raw and apiSuccess-wrapped shapes
+  const inner = data.data ?? data;
+
   const responseText =
     typeof data === "string"
       ? data
-      : data.message || data.response || data.content || JSON.stringify(data);
+      : inner.message || data.response || data.content || JSON.stringify(data);
 
-  return { ok, responseText };
+  const toolsUsed = Array.isArray(inner.toolsUsed) ? inner.toolsUsed : [];
+
+  return { ok, responseText, toolsUsed };
 }
 
 /**
@@ -167,6 +182,72 @@ async function runAccuracyTest(
   // At minimum, verify Tippy gave a reasonable response
   expect(responseText).not.toMatch(/error|exception|failed/i);
 }
+
+// ============================================================================
+// NARRATIVE TEST RUNNER (PR 4 / FFS-1165)
+//
+// Catches "right number, wrong story" failures — the failure mode that
+// prompted FFS-1156. The two seed fixtures (717 Cherry St + Santa Rosa
+// strategic priority) lock in the work from PRs 1–3.
+// ============================================================================
+
+async function runNarrativeTest(
+  request: Parameters<typeof askTippy>[0],
+  testCase: NarrativeTest,
+): Promise<void> {
+  const { ok, responseText, toolsUsed } = await askTippy(
+    request,
+    testCase.tippyQuestion,
+  );
+
+  expect(ok).toBeTruthy();
+  expect(responseText.length).toBeGreaterThan(10);
+
+  console.log(`Test: ${testCase.id}`);
+  console.log(`  Question: ${testCase.tippyQuestion}`);
+  console.log(`  Tools used: [${toolsUsed.join(", ") || "none"}]`);
+  console.log(`  Response length: ${responseText.length}`);
+  console.log(`  Response preview: ${responseText.substring(0, 300)}...`);
+
+  const failures = evaluateNarrativeTest(testCase, responseText, toolsUsed);
+
+  if (failures.length > 0) {
+    console.log(`  FAILURES (${failures.length}):`);
+    for (const f of failures) console.log(`    - ${f}`);
+  }
+
+  expect(failures, failures.join("\n")).toEqual([]);
+}
+
+test.describe("Tippy Narrative: Institutional Knowledge @nightly @real-api", () => {
+  test.setTimeout(120000);
+
+  for (const testCase of NARRATIVE_TESTS.filter((t) => t.category === "institutional_lookup")) {
+    test(`${testCase.id}: ${testCase.description}`, async ({ request }) => {
+      await runNarrativeTest(request, testCase);
+    });
+  }
+});
+
+test.describe("Tippy Narrative: Strategic Priority @nightly @real-api", () => {
+  test.setTimeout(120000);
+
+  for (const testCase of NARRATIVE_TESTS.filter((t) => t.category === "strategic_priority")) {
+    test(`${testCase.id}: ${testCase.description}`, async ({ request }) => {
+      await runNarrativeTest(request, testCase);
+    });
+  }
+});
+
+test.describe("Tippy Narrative: Humility Default @nightly @real-api", () => {
+  test.setTimeout(120000);
+
+  for (const testCase of NARRATIVE_TESTS.filter((t) => t.category === "narrative")) {
+    test(`${testCase.id}: ${testCase.description}`, async ({ request }) => {
+      await runNarrativeTest(request, testCase);
+    });
+  }
+});
 
 // ============================================================================
 // ENTITY COUNT ACCURACY TESTS

@@ -81,6 +81,15 @@ export interface IntakeSubmission {
   kitten_assessment_outcome: string | null;
   kitten_assessed_at: string | null;
   kitten_redirect_destination: string | null;
+  // FFS-1183 — service area boundary classification
+  service_area_status?: 'in' | 'ambiguous' | 'out' | 'unknown' | null;
+  service_area_status_source?: 'auto' | 'staff_override' | null;
+  service_area_status_set_at?: string | null;
+  // FFS-1186 — out-of-service-area email pipeline state
+  out_of_service_area_approved_at?: string | null;
+  out_of_service_area_approved_by?: string | null;
+  out_of_service_area_email_sent_at?: string | null;
+  out_of_service_area_email_id?: string | null;
 }
 
 export interface CommunicationLog {

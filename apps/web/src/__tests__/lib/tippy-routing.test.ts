@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   detectIntentAndForceToolChoice,
+  detectStrategicIntent,
   getToolsForAccessLevel,
   WRITE_TOOLS,
   ADMIN_TOOLS,
@@ -629,5 +630,96 @@ describe("constants", () => {
 
   it("ADMIN_TOOLS is currently empty (temp demo mode)", () => {
     expect(ADMIN_TOOLS).toEqual([]);
+  });
+});
+
+// =============================================================================
+// detectStrategicIntent — PR 5 (FFS-1163)
+// =============================================================================
+
+describe("detectStrategicIntent", () => {
+  describe("positive cases — strategic queries", () => {
+    it("which areas of Santa Rosa need TNR", () => {
+      expect(
+        detectStrategicIntent("Which areas of Santa Rosa need targeted TNR right now?"),
+      ).toBe(true);
+    });
+
+    it("where should we focus", () => {
+      expect(detectStrategicIntent("Where should we focus our trapping resources?")).toBe(true);
+    });
+
+    it("what should we prioritize", () => {
+      expect(detectStrategicIntent("What should we prioritize this week?")).toBe(true);
+    });
+
+    it("highest priority area", () => {
+      expect(detectStrategicIntent("What's the highest priority area for trapping?")).toBe(true);
+    });
+
+    it("worst cat problem", () => {
+      expect(detectStrategicIntent("Which city has the worst cat problem?")).toBe(true);
+    });
+
+    it("needs the most attention", () => {
+      expect(detectStrategicIntent("Which colonies need the most attention?")).toBe(true);
+    });
+
+    it("underserved areas", () => {
+      expect(detectStrategicIntent("What underserved areas should we look at?")).toBe(true);
+    });
+
+    it("where are the intact cats", () => {
+      expect(detectStrategicIntent("Where are the intact cats?")).toBe(true);
+    });
+
+    it("needs more targeted intervention", () => {
+      expect(detectStrategicIntent("Which colony needs more targeted intervention?")).toBe(true);
+    });
+  });
+
+  describe("negative cases — not strategic", () => {
+    it("simple lookup", () => {
+      expect(detectStrategicIntent("What do we know about 717 Cherry St?")).toBe(false);
+    });
+
+    it("specific person", () => {
+      expect(detectStrategicIntent("Who is Donna Best?")).toBe(false);
+    });
+
+    it("count question", () => {
+      expect(detectStrategicIntent("How many cats are in the system?")).toBe(false);
+    });
+
+    it("greeting", () => {
+      expect(detectStrategicIntent("Hi Tippy")).toBe(false);
+    });
+
+    it("address-only query", () => {
+      expect(detectStrategicIntent("123 Main St")).toBe(false);
+    });
+
+    it("empty string", () => {
+      expect(detectStrategicIntent("")).toBe(false);
+    });
+
+    it("staff question", () => {
+      expect(detectStrategicIntent("How many staff do we have?")).toBe(false);
+    });
+  });
+
+  describe("edge cases", () => {
+    it("mixed case still matches", () => {
+      expect(detectStrategicIntent("WHERE SHOULD WE FOCUS?")).toBe(true);
+    });
+
+    it("'priority' alone is not enough — needs noun context", () => {
+      // "priority" without "area/target/place/etc" or "highest" should not trigger
+      expect(detectStrategicIntent("Is this a priority?")).toBe(false);
+    });
+
+    it("'priority area' triggers", () => {
+      expect(detectStrategicIntent("Find me a priority area")).toBe(true);
+    });
   });
 });

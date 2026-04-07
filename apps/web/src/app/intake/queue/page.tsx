@@ -62,6 +62,7 @@ function IntakeQueueContent() {
     group: "",
     legacy: "",
     test: "",
+    outofarea: "",
     view: defaultView,
   });
 
@@ -85,6 +86,8 @@ function IntakeQueueContent() {
   const groupBy = filters.group as "" | "category" | "type" | "status";
   const showLegacy = filters.legacy === "1";
   const showTest = filters.test === "1";
+  // FFS-1187 — out-of-service-area / ambiguous filter chip
+  const showOutOfArea = filters.outofarea === "1";
   const [selectedSubmission, setSelectedSubmission] = useState<IntakeSubmission | null>(null);
   const [saving, setSaving] = useState(false);
   const [initialOpenHandled, setInitialOpenHandled] = useState(false);
@@ -553,6 +556,22 @@ function IntakeQueueContent() {
         >
           Test {showTest ? "On" : "Off"}
         </button>
+        {/* FFS-1187 — Out-of-service / ambiguous filter (client-side) */}
+        <button
+          onClick={() => setFilter("outofarea", showOutOfArea ? "" : "1")}
+          style={{
+            padding: "0.25rem 0.75rem",
+            fontSize: "0.8rem",
+            border: `1px solid ${showOutOfArea ? "#dc3545" : "var(--border)"}`,
+            borderRadius: "16px",
+            background: showOutOfArea ? "#dc3545" : "transparent",
+            color: showOutOfArea ? "#fff" : "var(--muted)",
+            cursor: "pointer",
+          }}
+          title="Filter to submissions classified out-of-service or ambiguous"
+        >
+          Out of Area {showOutOfArea ? "On" : "Off"}
+        </button>
 
         {/* View Toggle (FFS-166) */}
         <div style={{ display: "flex", gap: "2px", marginLeft: "auto", flexShrink: 0 }}>
@@ -737,8 +756,16 @@ function IntakeQueueContent() {
           )}
         </div>
       ) : (() => {
+        // FFS-1187 — client-side filter for out-of-area / ambiguous
+        const baseSubmissions = showOutOfArea
+          ? submissions.filter(
+              (s) =>
+                s.service_area_status === "out" ||
+                s.service_area_status === "ambiguous"
+            )
+          : submissions;
         // Sort submissions
-        const sortedSubmissions = [...submissions].sort((a, b) => {
+        const sortedSubmissions = [...baseSubmissions].sort((a, b) => {
           let comparison = 0;
           if (sortBy === "date") {
             comparison = new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();

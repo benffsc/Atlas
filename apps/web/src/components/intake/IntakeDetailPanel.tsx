@@ -25,6 +25,9 @@ import {
 import { KITTEN_ASSESSMENT_OUTCOME_OPTIONS } from "@/lib/form-options";
 import { getKittenPriorityTier, KITTEN_PRIORITY_LABELS } from "@/lib/display-labels";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
+import { OutOfServiceAreaBanner } from "@/components/intake/OutOfServiceAreaBanner";
+import { SendOutOfServiceConfirmModal } from "@/components/intake/SendOutOfServiceConfirmModal";
+import { ActionDrawer } from "@/components/shared/ActionDrawer";
 
 export interface IntakeDetailPanelProps {
   submission: IntakeSubmission;
@@ -119,6 +122,15 @@ export function IntakeDetailPanel({
   const [kittenOutcome, setKittenOutcome] = useState(submission.kitten_assessment_outcome || "");
   const [kittenRedirectDest, setKittenRedirectDest] = useState(submission.kitten_redirect_destination || "");
   const [savingKittenAssessment, setSavingKittenAssessment] = useState(false);
+
+  // FFS-1187 — out-of-service-area UI state
+  const [showOoaConfirm, setShowOoaConfirm] = useState(false);
+  const [showOoaPreview, setShowOoaPreview] = useState(false);
+  const [ooaPreviewHtml, setOoaPreviewHtml] = useState<string | null>(null);
+  const [ooaPreviewSubject, setOoaPreviewSubject] = useState<string | null>(null);
+  const [ooaPreviewLoading, setOoaPreviewLoading] = useState(false);
+  const [ooaSending, setOoaSending] = useState(false);
+  const [ooaSuppressed, setOoaSuppressed] = useState(false);
 
   // Inline contact form state
   const [showInlineContactForm, setShowInlineContactForm] = useState<"note" | "call" | null>(null);
@@ -267,6 +279,76 @@ export function IntakeDetailPanel({
       console.error("Failed to remove urgent flag:", err);
     } finally {
       setSavingUrgentDowngrade(false);
+    }
+  };
+
+  // ── FFS-1187 — Out-of-service-area handlers ─────────────────────────────
+  const handleOoaPreview = async () => {
+    setOoaPreviewLoading(true);
+    setShowOoaPreview(true);
+    try {
+      const data = await fetchApi<{
+        subject: string;
+        body_html: string;
+      }>(`/api/emails/preview-out-of-service-area?submission_id=${submission.submission_id}`);
+      setOoaPreviewSubject(data.subject);
+      setOoaPreviewHtml(data.body_html);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to load preview");
+      setShowOoaPreview(false);
+    } finally {
+      setOoaPreviewLoading(false);
+    }
+  };
+
+  const handleOoaApprove = async () => {
+    // Open confirm modal — actual send happens in handleOoaSendConfirmed
+    setShowOoaConfirm(true);
+  };
+
+  const handleOoaSendConfirmed = async () => {
+    setOoaSending(true);
+    try {
+      // The send route handles approval + send + (in dry-run) logging in one
+      // atomic flow. The Phase 5 dry-run / test-override layers are honored
+      // inside sendTemplateEmail — we just check the response.
+      const result = await postApi<{
+        success: boolean;
+        message: string;
+        dry_run: boolean;
+      }>("/api/emails/send-out-of-service-area", {
+        submission_id: submission.submission_id,
+      });
+
+      toastSuccess(
+        result.dry_run
+          ? "Dry-run complete — email logged but not sent"
+          : "Email sent successfully"
+      );
+
+      setShowOoaConfirm(false);
+      onRefresh();
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to send email");
+    } finally {
+      setOoaSending(false);
+    }
+  };
+
+  const handleOoaOverride = async (newStatus: "in" | "out") => {
+    try {
+      await postApi(
+        `/api/intake/${submission.submission_id}/service-area-override`,
+        { status: newStatus }
+      );
+      toastSuccess(
+        newStatus === "in"
+          ? "Marked as in-service"
+          : "Marked as out-of-service"
+      );
+      onRefresh();
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to override");
     }
   };
 
@@ -532,6 +614,15 @@ export function IntakeDetailPanel({
             <SubmissionStatusBadge status={submission.submission_status} />
           </div>
         </div>
+
+        {/* FFS-1187 — Out-of-Service-Area banner */}
+        <OutOfServiceAreaBanner
+          submission={submission}
+          onPreviewEmail={handleOoaPreview}
+          onApproveAndSend={handleOoaApprove}
+          onOverride={handleOoaOverride}
+          isSuppressed={ooaSuppressed}
+        />
 
         {submission.is_emergency ? (
           <div style={{ background: "rgba(220, 53, 69, 0.15)", padding: "0.75rem", borderRadius: "8px", marginBottom: "1rem", border: "1px solid rgba(220, 53, 69, 0.3)" }}>
@@ -1872,6 +1963,48 @@ export function IntakeDetailPanel({
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
       />
+
+      {/* FFS-1187 — Out-of-Service-Area send confirm modal */}
+      <SendOutOfServiceConfirmModal
+        open={showOoaConfirm}
+        recipientEmail={submission.email || ""}
+        recipientName={submission.first_name || null}
+        detectedCounty={submission.county || null}
+        loading={ooaSending}
+        onConfirm={handleOoaSendConfirmed}
+        onCancel={() => setShowOoaConfirm(false)}
+      />
+
+      {/* FFS-1187 — Out-of-Service-Area preview drawer */}
+      <ActionDrawer
+        isOpen={showOoaPreview}
+        onClose={() => setShowOoaPreview(false)}
+        title={ooaPreviewSubject || "Email Preview"}
+        width="lg"
+      >
+        {ooaPreviewLoading ? (
+          <div style={{ padding: "1rem", color: "var(--text-secondary)" }}>
+            Rendering preview…
+          </div>
+        ) : ooaPreviewHtml ? (
+          <iframe
+            sandbox=""
+            srcDoc={ooaPreviewHtml}
+            style={{
+              width: "100%",
+              height: "calc(100vh - 200px)",
+              border: "1px solid var(--card-border)",
+              borderRadius: 6,
+              background: "#fff",
+            }}
+            title="Out-of-service-area email preview"
+          />
+        ) : (
+          <div style={{ padding: "1rem", color: "var(--text-secondary)" }}>
+            No preview available.
+          </div>
+        )}
+      </ActionDrawer>
     </div>
   );
 }

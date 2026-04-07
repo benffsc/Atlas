@@ -132,6 +132,10 @@ export async function PATCH(
       'final_category',
       // Triage overrides
       'is_emergency',
+      // FFS-1187 — service area status (staff overrides go via dedicated route,
+      // but allow PATCH for the source field)
+      'service_area_status',
+      'service_area_status_source',
     ];
 
     // Form answer fields (audit changes for these)

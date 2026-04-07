@@ -179,6 +179,9 @@ function EmailSettingsContent() {
         </div>
       )}
 
+      {/* FFS-1188 — Email Pipeline Mode (dry-run / test override / live) */}
+      <PipelineModeCard onAction={(text, type) => setMessage({ type, text })} />
+
       {/* Connected Accounts */}
       <div className="card" style={{ overflow: "hidden" }}>
         <div
@@ -404,5 +407,391 @@ export default function EmailSettingsPage() {
     <Suspense fallback={<div style={{ padding: "2rem" }}><SkeletonTable rows={5} columns={3} /></div>}>
       <EmailSettingsContent />
     </Suspense>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// FFS-1188 — Email Pipeline Mode card (dry-run / test override / Go Live)
+// ────────────────────────────────────────────────────────────────────────────
+
+interface PipelineState {
+  mode: "dry_run" | "test_override" | "live" | "unknown";
+  global_dry_run: boolean;
+  test_recipient_override: string | null;
+  out_of_area_live: boolean;
+  env_dry_run: boolean | null;
+  env_out_of_area_live: boolean;
+  gate_env_live: boolean;
+  gate_db_live: boolean;
+  gate_combined_live: boolean;
+  go_live_prerequisite: {
+    required_recipient: string;
+    test_sends: number;
+    latest_test_send_at: string | null;
+    ready_for_go_live: boolean;
+  };
+}
+
+function PipelineModeCard({
+  onAction,
+}: {
+  onAction: (text: string, type: "success" | "error") => void;
+}) {
+  const [state, setState] = useState<PipelineState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchApi<PipelineState>(
+        "/api/admin/email-settings/state"
+      );
+      setState(data);
+    } catch (err) {
+      console.error("Failed to load pipeline state:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reload();
+  }, []);
+
+  const toggleDryRun = async () => {
+    if (!state) return;
+    setBusy(true);
+    try {
+      await postApi("/api/admin/email-settings/dry-run", {
+        enabled: !state.global_dry_run,
+      });
+      onAction(
+        `Dry-run ${!state.global_dry_run ? "enabled" : "disabled"}`,
+        "success"
+      );
+      reload();
+    } catch (err) {
+      onAction(
+        err instanceof Error ? err.message : "Failed to toggle dry-run",
+        "error"
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleGoLive = async () => {
+    if (!state) return;
+    setBusy(true);
+    try {
+      await postApi("/api/admin/email-settings/go-live", {
+        enabled: !state.out_of_area_live,
+      });
+      onAction(
+        `Out-of-area pipeline ${!state.out_of_area_live ? "enabled (DB)" : "disabled (DB)"}`,
+        "success"
+      );
+      reload();
+    } catch (err) {
+      onAction(
+        err instanceof Error ? err.message : "Failed to flip Go Live",
+        "error"
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendTest = async () => {
+    setBusy(true);
+    try {
+      const result = await postApi<{ recipient: string }>(
+        "/api/admin/email-settings/test-send",
+        { template_key: "out_of_service_area" }
+      );
+      onAction(`Test email sent to ${result.recipient}`, "success");
+      reload();
+    } catch (err) {
+      onAction(
+        err instanceof Error ? err.message : "Failed to send test email",
+        "error"
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading || !state) {
+    return (
+      <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>
+          Email Pipeline Mode
+        </h2>
+        <p style={{ color: "var(--text-muted)", marginTop: "0.5rem" }}>
+          Loading…
+        </p>
+      </div>
+    );
+  }
+
+  const modeColor: Record<PipelineState["mode"], string> = {
+    dry_run: "#856404",
+    test_override: "#856404",
+    live: "#198754",
+    unknown: "#6c757d",
+  };
+  const modeLabel: Record<PipelineState["mode"], string> = {
+    dry_run: "DRY RUN",
+    test_override: "TEST OVERRIDE",
+    live: "LIVE",
+    unknown: "UNKNOWN",
+  };
+
+  return (
+    <div
+      className="card"
+      style={{
+        padding: "1.5rem",
+        marginBottom: "1.5rem",
+        background:
+          state.mode === "live" ? "rgba(25,135,84,0.05)" : "rgba(255,193,7,0.06)",
+        border:
+          "1px solid " +
+          (state.mode === "live"
+            ? "rgba(25,135,84,0.35)"
+            : "rgba(255,193,7,0.5)"),
+      }}
+    >
+      <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.5rem" }}>
+        Email Pipeline Mode
+      </h2>
+
+      {/* Current mode */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          marginBottom: "1.25rem",
+        }}
+      >
+        <span
+          style={{
+            background: modeColor[state.mode],
+            color: "#fff",
+            padding: "0.25rem 0.75rem",
+            borderRadius: 999,
+            fontSize: "0.8rem",
+            fontWeight: 700,
+            letterSpacing: "0.03em",
+          }}
+        >
+          {modeLabel[state.mode]}
+        </span>
+        <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+          {state.mode === "dry_run"
+            ? "All template emails are rendered + logged but NOT sent."
+            : state.mode === "test_override"
+              ? `All sends route to ${state.test_recipient_override}.`
+              : state.mode === "live"
+                ? "Real sends are enabled."
+                : "Pipeline state unknown."}
+        </span>
+      </div>
+
+      {/* Dry-run toggle row */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "1rem",
+          padding: "0.75rem 0",
+          borderTop: "1px solid rgba(0,0,0,0.06)",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+            Dry-run mode
+          </div>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+            Currently: {state.global_dry_run ? "ON (safe)" : "OFF (real sends possible)"}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={toggleDryRun}
+          disabled={busy}
+          style={{
+            padding: "0.4rem 0.85rem",
+            background: state.global_dry_run ? "#dc3545" : "#198754",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            cursor: busy ? "not-allowed" : "pointer",
+            fontSize: "0.8rem",
+            fontWeight: 600,
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
+          {state.global_dry_run ? "Turn OFF" : "Turn ON"}
+        </button>
+      </div>
+
+      {/* Test recipient override */}
+      <div
+        style={{
+          padding: "0.75rem 0",
+          borderTop: "1px solid rgba(0,0,0,0.06)",
+        }}
+      >
+        <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+          Test recipient override
+        </div>
+        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+          {state.test_recipient_override ? (
+            <>
+              All real sends are rerouted to{" "}
+              <code>{state.test_recipient_override}</code>.
+            </>
+          ) : (
+            <>No override — sends go to actual recipients.</>
+          )}
+        </div>
+      </div>
+
+      {/* Out-of-area Go Live row */}
+      <div
+        style={{
+          padding: "0.75rem 0",
+          borderTop: "1px solid rgba(0,0,0,0.06)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "1rem",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+              Out-of-Service-Area Pipeline
+            </div>
+            <div
+              style={{
+                fontSize: "0.8rem",
+                color: "var(--text-muted)",
+                marginTop: "0.25rem",
+              }}
+            >
+              Status:{" "}
+              <strong>
+                {state.gate_combined_live
+                  ? "🟢 Live"
+                  : state.gate_env_live && !state.gate_db_live
+                    ? "🟡 Env on, DB off"
+                    : "🔴 Disabled"}
+              </strong>
+            </div>
+            <div
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--text-muted)",
+                marginTop: "0.25rem",
+              }}
+            >
+              Test sends to {state.go_live_prerequisite.required_recipient}:{" "}
+              <strong>{state.go_live_prerequisite.test_sends}</strong>
+              {state.go_live_prerequisite.test_sends < 1 && (
+                <span style={{ color: "#dc3545", marginLeft: "0.5rem" }}>
+                  ⚠ Send a test first
+                </span>
+              )}
+              {state.go_live_prerequisite.latest_test_send_at && (
+                <span style={{ marginLeft: "0.5rem" }}>
+                  (last:{" "}
+                  {formatDate(state.go_live_prerequisite.latest_test_send_at)})
+                </span>
+              )}
+            </div>
+            {!state.env_out_of_area_live && (
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#856404",
+                  marginTop: "0.25rem",
+                }}
+              >
+                ⚠ Env var <code>EMAIL_OUT_OF_AREA_LIVE</code> must also be set
+                to <code>true</code> in Vercel for the pipeline to actually run.
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexDirection: "column" }}>
+            <button
+              type="button"
+              onClick={sendTest}
+              disabled={busy}
+              style={{
+                padding: "0.4rem 0.85rem",
+                background: "#0d6efd",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                cursor: busy ? "not-allowed" : "pointer",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                opacity: busy ? 0.6 : 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Send Test Email
+            </button>
+            <button
+              type="button"
+              onClick={toggleGoLive}
+              disabled={
+                busy ||
+                (!state.out_of_area_live &&
+                  !state.go_live_prerequisite.ready_for_go_live)
+              }
+              style={{
+                padding: "0.4rem 0.85rem",
+                background: state.out_of_area_live ? "#dc3545" : "#198754",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                cursor:
+                  busy ||
+                  (!state.out_of_area_live &&
+                    !state.go_live_prerequisite.ready_for_go_live)
+                    ? "not-allowed"
+                    : "pointer",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                opacity:
+                  busy ||
+                  (!state.out_of_area_live &&
+                    !state.go_live_prerequisite.ready_for_go_live)
+                    ? 0.4
+                    : 1,
+                whiteSpace: "nowrap",
+              }}
+              title={
+                !state.go_live_prerequisite.ready_for_go_live &&
+                !state.out_of_area_live
+                  ? "Send at least one test email first"
+                  : ""
+              }
+            >
+              {state.out_of_area_live ? "Disable Go Live" : "Enable Go Live"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

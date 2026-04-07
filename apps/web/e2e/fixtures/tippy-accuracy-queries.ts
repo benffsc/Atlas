@@ -25,6 +25,195 @@ export interface AccuracyTest {
 }
 
 // ============================================================================
+// NARRATIVE ASSERTIONS (PR 4 / FFS-1165)
+//
+// Value-extraction tests catch "wrong number" failures. Narrative tests
+// catch "right number, wrong story" failures — the ones that motivated
+// FFS-1156. Each test asserts on the raw response text + the tools Tippy
+// called to produce it.
+// ============================================================================
+
+export interface NarrativeTest {
+  id: string;
+  description: string;
+  /** Question to ask Tippy */
+  tippyQuestion: string;
+  /**
+   * Regexes the response MUST match. Each one is checked independently;
+   * all must pass. Keep the regex specific to the failure mode you're
+   * guarding against, not the exact phrasing — we're locking in intent,
+   * not prose.
+   */
+  mustInclude?: RegExp[];
+  /**
+   * Regexes the response must NOT match. Used to prevent regressions
+   * on anti-patterns (UUIDs leaking into responses, collapsing intact
+   * with unknown, etc).
+   */
+  mustNotInclude?: RegExp[];
+  /**
+   * Tool names that MUST appear in the response's toolsUsed array.
+   * Covers "did Tippy even look?" — e.g., we expect
+   * `get_place_recent_context` to be called for institutional-knowledge
+   * lookups, not just `analyze_place_situation`.
+   */
+  toolMustBeCalled?: string[];
+  /**
+   * Minimum length of a valid response. Guards against "I don't know"
+   * / single-sentence dodges.
+   */
+  minLength?: number;
+  /** Category for grouping */
+  category: "institutional_lookup" | "strategic_priority" | "narrative";
+}
+
+export const NARRATIVE_TESTS: NarrativeTest[] = [
+  // -------------------------------------------------------------------------
+  // 717 Cherry St — the institutional-knowledge lookup failure case.
+  // See memory/ffsc-institutional-knowledge.md. The Google Maps note
+  // ("This is a Donna colony ... Karen the tenant feeds them") is
+  // real data. No existing tool queried source.google_map_entries,
+  // so Tippy had to say "no info" on something staff cared about.
+  // PR 2 (get_place_recent_context) fixes the data access; PR 3
+  // (narrative_seed) ensures it reaches Jami in plain language.
+  // -------------------------------------------------------------------------
+  {
+    id: "narrative-717-cherry-institutional-lookup",
+    description: "717 Cherry St lookup surfaces Donna colony + tenant context",
+    tippyQuestion: "What do we know about 717 Cherry St in Santa Rosa?",
+    toolMustBeCalled: ["get_place_recent_context"],
+    mustInclude: [
+      // Must reference Donna (the key person from the KML note)
+      /donna/i,
+      // Must reference the tenant (the secondary key person)
+      /tenant|karen/i,
+    ],
+    mustNotInclude: [
+      // No raw UUIDs in the response
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+      // No column name literals
+      /linked_place_id|resolved_place_id|source_record_id/,
+      // No "site_name" enum literal (should be translated to English)
+      /\baccount_type\b|\bsite_name\b/,
+    ],
+    minLength: 120,
+    category: "institutional_lookup",
+  },
+
+  // -------------------------------------------------------------------------
+  // Santa Rosa strategic priority — the NULL-status-misleads-priority case.
+  // Old tools conflated NULL altered_status with confirmed intact. A
+  // query like "which areas need targeted TNR in Santa Rosa?" would
+  // recommend places like 535 Mark West Springs based on a ~6% rate
+  // that was really 95% NULL. PR 1 fixes this by auto-applying
+  // caveats and DATA_GAP_059 to the tool result.
+  // -------------------------------------------------------------------------
+  {
+    id: "narrative-santa-rosa-null-status-caveat",
+    description: "Strategic Santa Rosa query acknowledges NULL vs intact",
+    tippyQuestion: "Which areas of Santa Rosa most need targeted TNR right now?",
+    mustInclude: [
+      // Must distinguish unknown/null from confirmed intact
+      /unknown|null status|no (?:recorded |known )?status|don't (?:yet )?know/i,
+    ],
+    mustNotInclude: [
+      // Must not report "X% altered" without qualification when the
+      // underlying data is mostly NULL. We guard against the worst
+      // anti-pattern: calling a low-rate place a "priority" with no
+      // caveat about the NULL denominator.
+      /highest\s+priority.*\d+%\s+altered\b(?!.*unknown)/is,
+    ],
+    minLength: 200,
+    category: "strategic_priority",
+  },
+  // -------------------------------------------------------------------------
+  // PR 5 (FFS-1160/1161/1163): the same Santa Rosa question must trigger
+  // the strategic-mode prompt + find_intact_cat_clusters tool. This is
+  // the tool-routing assertion that locks in the routing classifier.
+  // -------------------------------------------------------------------------
+  {
+    id: "narrative-santa-rosa-uses-find-intact-tool",
+    description: "Strategic Santa Rosa query calls find_intact_cat_clusters",
+    tippyQuestion: "Where should we focus trapping resources in Santa Rosa?",
+    toolMustBeCalled: ["find_intact_cat_clusters"],
+    mustNotInclude: [
+      // Should not recommend a place in plain prose without showing
+      // it ran the right tool. The tool guarantees no-active-request
+      // filtering — bypassing it means the model fabricated.
+      /already\s+(?:in\s+progress|being\s+worked|assigned)/i,
+    ],
+    minLength: 150,
+    category: "strategic_priority",
+  },
+  // -------------------------------------------------------------------------
+  // PR 6 (FFS-1164): humility default for "we have no data on this"
+  // cases. Uses a deliberately nonsense address. The response MUST
+  // acknowledge the miss before offering any adjacent data, and must
+  // NOT fabricate specifics about a place we have no record of.
+  // -------------------------------------------------------------------------
+  {
+    id: "narrative-unknown-place-humility",
+    description: "Unknown place query acknowledges the miss before offering alternatives",
+    tippyQuestion: "What do we know about 99999 Nonexistent Imaginary Boulevard in Santa Rosa?",
+    mustInclude: [
+      // Must explicitly acknowledge we don't have data
+      /(?:no\s+(?:records?|data|activity|information|results)|not\s+(?:in\s+our\s+records|on\s+file|found|in\s+atlas)|don't\s+(?:have|show|see)|couldn't\s+find)/i,
+    ],
+    mustNotInclude: [
+      // Must not invent a cat count, resident, or status for a place
+      // we have no record of
+      /\b\d+\s+cats?\s+(?:at|live|on file|recorded)/i,
+      // Must not claim an active request exists
+      /active\s+request.*(?:at|on|for)\s+(?:this|99999)/i,
+      // No raw UUIDs
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+    ],
+    minLength: 80,
+    category: "narrative",
+  },
+];
+
+/**
+ * Run a narrative assertion against a response. Returns the list of
+ * failure messages (empty array = pass).
+ */
+export function evaluateNarrativeTest(
+  test: NarrativeTest,
+  responseText: string,
+  toolsUsed: string[],
+): string[] {
+  const failures: string[] = [];
+
+  if (test.minLength && responseText.length < test.minLength) {
+    failures.push(
+      `Response too short: ${responseText.length} < ${test.minLength} (likely a dodge or "I don't know")`,
+    );
+  }
+
+  for (const rx of test.mustInclude ?? []) {
+    if (!rx.test(responseText)) {
+      failures.push(`Missing required pattern: ${rx}`);
+    }
+  }
+
+  for (const rx of test.mustNotInclude ?? []) {
+    if (rx.test(responseText)) {
+      failures.push(`Response contains forbidden pattern: ${rx}`);
+    }
+  }
+
+  for (const toolName of test.toolMustBeCalled ?? []) {
+    if (!toolsUsed.includes(toolName)) {
+      failures.push(
+        `Required tool not called: ${toolName} (got: [${toolsUsed.join(", ") || "none"}])`,
+      );
+    }
+  }
+
+  return failures;
+}
+
+// ============================================================================
 // ENTITY COUNT ACCURACY TESTS
 // Verify Tippy reports correct counts
 // ============================================================================

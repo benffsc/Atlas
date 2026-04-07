@@ -126,13 +126,21 @@ const FALLBACKS: Record<string, TippyResourceCard[]> = {
 
 const fetcher = (url: string) => fetchApi<TippyResourceCard[]>(url);
 
-export function useCommunityResources(category: string): {
+export function useCommunityResources(
+  category: string,
+  options?: { county?: string },
+): {
   resources: TippyResourceCard[];
   isLoading: boolean;
   error: Error | undefined;
 } {
+  // FFS-1184 — optional county filter; statewide rows are always included
+  const url = options?.county
+    ? `/api/resources?category=${encodeURIComponent(category)}&county=${encodeURIComponent(options.county)}`
+    : `/api/resources?category=${encodeURIComponent(category)}`;
+
   const { data, error, isLoading } = useSWR<TippyResourceCard[]>(
-    `/api/resources?category=${encodeURIComponent(category)}`,
+    url,
     fetcher,
     {
       dedupingInterval: 600_000, // 10 min
