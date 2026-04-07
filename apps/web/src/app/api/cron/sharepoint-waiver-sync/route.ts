@@ -210,13 +210,22 @@ export async function GET(request: NextRequest) {
             if (existingUpload) {
               uploadId = existingUpload.upload_id;
             } else {
+              // Build stored_filename following the convention used by other
+              // ingest paths: {source_system}_{source_table}_{iso_ts}_{hash8}.ext
+              // ops.file_uploads.stored_filename is NOT NULL.
+              const nameExt = pdfFile.name.includes(".")
+                ? pdfFile.name.split(".").pop()!
+                : "pdf";
+              const ts = new Date().toISOString().replace(/[:.]/g, "-");
+              const storedFilename = `clinic_waiver_waiver_scan_${ts}_${fileHash.slice(0, 8)}.${nameExt}`;
+
               const upload = await queryOne<{ upload_id: string }>(
                 `INSERT INTO ops.file_uploads (
-                   source_system, source_table, original_filename,
-                   file_size_bytes, file_hash, status, rows_total
-                 ) VALUES ('clinic_waiver', 'waiver_scan', $1, $2, $3, 'pending', 1)
+                   source_system, source_table, original_filename, stored_filename,
+                   file_content, file_size_bytes, file_hash, status, rows_total
+                 ) VALUES ('clinic_waiver', 'waiver_scan', $1, $2, $3, $4, $5, 'pending', 1)
                  RETURNING upload_id`,
-                [pdfFile.name, content.length, fileHash]
+                [pdfFile.name, storedFilename, content, content.length, fileHash]
               );
               uploadId = upload!.upload_id;
             }
