@@ -32,9 +32,11 @@ interface SidebarLayoutProps {
   sidebarKey?: string;
   /** Section titles to collapse by default */
   defaultCollapsed?: string[];
+  /** Strip the default padding around <main> — used by full-bleed pages like the map */
+  noMainPadding?: boolean;
 }
 
-export function SidebarLayout({ children, sections, title, backLink, collapsible = true, collapsibleSections = false, sidebarKey, defaultCollapsed = [] }: SidebarLayoutProps) {
+export function SidebarLayout({ children, sections, title, backLink, collapsible = true, collapsibleSections = false, sidebarKey, defaultCollapsed = [], noMainPadding = false }: SidebarLayoutProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -336,7 +338,7 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
       <main
         style={{
           flex: 1,
-          padding: isMobile ? "1rem" : "1rem 1.25rem",
+          padding: noMainPadding ? 0 : (isMobile ? "1rem" : "1rem 1.25rem"),
           minWidth: 0,
           marginLeft: isMobile ? 0 : undefined,
         }}
@@ -483,6 +485,7 @@ export const beaconSidebarSections: NavSection[] = [
     title: "Beacon",
     items: [
       { label: "Dashboard", href: "/beacon", icon: "radio" },
+      { label: "Map", href: "/beacon/map", icon: "map" },
       { label: "Compare Locations", href: "/beacon/compare", icon: "bar-chart" },
       { label: "Scenarios", href: "/beacon/scenarios", icon: "sparkles" },
     ],
@@ -506,9 +509,17 @@ export const beaconSidebarSections: NavSection[] = [
 // Pre-configured sidebar for Beacon pages
 export function BeaconSidebar({ children }: { children: React.ReactNode }) {
   const { sections } = useNavItems("beacon", beaconSidebarSections);
+  const pathname = usePathname();
+  // Full-bleed pages strip the <main> padding so the map can fill the viewport.
+  const noMainPadding = pathname === "/beacon/map";
 
   return (
-    <SidebarLayout sections={sections} title="Beacon" backLink={{ label: "Home", href: "/" }}>
+    <SidebarLayout
+      sections={sections}
+      title="Beacon"
+      backLink={{ label: "Home", href: "/" }}
+      noMainPadding={noMainPadding}
+    >
       {children}
     </SidebarLayout>
   );

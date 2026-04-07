@@ -94,7 +94,17 @@ function quantizeZoom(zoom: number): number {
 // Inner map component (inside APIProvider)
 // ---------------------------------------------------------------------------
 
-function AtlasMapV2Inner() {
+/**
+ * Props that customize the map's behavior. All optional — defaults match
+ * the staff-ops Atlas experience used at /map. Beacon and other product
+ * surfaces pass `analystMode` and friends to opt into analyst-first defaults.
+ */
+export interface AtlasMapV2Props {
+  /** When true, applies analyst-friendly defaults (Beacon framing). */
+  analystMode?: boolean;
+}
+
+function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   const { addToast } = useToast();
   const isMobile = useIsMobile();
   const map = useMap();
@@ -1587,7 +1597,7 @@ function AtlasMapV2Inner() {
 // Root component with APIProvider
 // ---------------------------------------------------------------------------
 
-export default function AtlasMapV2() {
+export default function AtlasMapV2({ analystMode = false }: AtlasMapV2Props = {}) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   // CSS fallback to hide any auth error UI Google manages to create.
@@ -1619,7 +1629,7 @@ export default function AtlasMapV2() {
   return (
     <MapErrorBoundary>
       <APIProvider apiKey={apiKey} libraries={["visualization", "marker"]} version="quarterly">
-        <AtlasMapV2Inner />
+        <AtlasMapV2Inner analystMode={analystMode} />
       </APIProvider>
     </MapErrorBoundary>
   );
