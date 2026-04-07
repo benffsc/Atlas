@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
+import { useFormAutoSave } from "@/hooks/useFormAutoSave";
 import { BarcodeInput } from "@/components/equipment/BarcodeInput";
 import { StatCard } from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/Button";
@@ -60,31 +61,150 @@ interface EquipmentTypeOption {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
+interface WizardSavedState {
+  phase: Phase;
+  returns: ScannedReturn[];
+  registered: RegisteredItem[];
+  shelfBarcodes: string[];
+  checkoutItems: CheckoutItem[];
+  checkoutsLoaded: boolean;
+  actionOverridesEntries: Array<[string, ActionOverride["action"]]>;
+}
+
+const INITIAL_WIZARD_STATE: WizardSavedState = {
+  phase: "returns",
+  returns: [],
+  registered: [],
+  shelfBarcodes: [],
+  checkoutItems: [],
+  checkoutsLoaded: false,
+  actionOverridesEntries: [],
+};
+
 export default function InventoryDayPage() {
   const { success: toastSuccess, error: toastError } = useToast();
-  const [phase, setPhase] = useState<Phase>("returns");
 
-  // Phase 1: Returns
-  const [returns, setReturns] = useState<ScannedReturn[]>([]);
+  // Auto-saved wizard state — persists across back-navigation, tab close, page reload
+  const [saved, setSaved, clearSaved, wasRestored] = useFormAutoSave<WizardSavedState>(
+    "inventory_day_wizard",
+    INITIAL_WIZARD_STATE,
+  );
+  const [showResumed, setShowResumed] = useState(false);
 
-  // Phase 2: Register
-  const [registered, setRegistered] = useState<RegisteredItem[]>([]);
+  // If user reloads mid-reconcile, bump them back to "checkouts" — reconcileResults/summary
+  // aren't persisted (they're API-derived). "complete" gets storage cleared on entry, so
+  // a reload there falls through to a fresh start automatically.
+  useEffect(() => {
+    if (wasRestored && saved.phase === "reconcile") {
+      setSaved((p) => ({ ...p, phase: "checkouts" }));
+    }
+    if (wasRestored) {
+      setShowResumed(true);
+      const t = setTimeout(() => setShowResumed(false), 3500);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wasRestored]);
 
-  // Phase 3: Shelf audit
-  const [shelfBarcodes, setShelfBarcodes] = useState<string[]>([]);
+  // When the wizard reaches "complete", drop the persisted state so a future visit
+  // starts fresh. Delay > 500ms so the auto-save's debounced flush of phase=complete
+  // happens BEFORE we clear.
+  useEffect(() => {
+    if (saved.phase === "complete") {
+      const t = setTimeout(() => clearSaved(), 600);
+      return () => clearTimeout(t);
+    }
+  }, [saved.phase, clearSaved]);
 
-  // Phase 4: Checkout review
-  const [checkoutItems, setCheckoutItems] = useState<CheckoutItem[]>([]);
-  const [checkoutsLoaded, setCheckoutsLoaded] = useState(false);
+  // Derived getters
+  const phase = saved.phase;
+  const returns = saved.returns;
+  const registered = saved.registered;
+  const shelfBarcodes = saved.shelfBarcodes;
+  const checkoutItems = saved.checkoutItems;
+  const checkoutsLoaded = saved.checkoutsLoaded;
 
-  // Phase 5: Reconcile
+  // Wrappers matching React.Dispatch<SetStateAction<T>> so child phases don't need to change
+  const setPhase = useCallback(
+    (next: Phase) => setSaved((p) => ({ ...p, phase: next })),
+    [setSaved],
+  );
+  const setReturns: React.Dispatch<React.SetStateAction<ScannedReturn[]>> = useCallback(
+    (action) =>
+      setSaved((p) => ({
+        ...p,
+        returns: typeof action === "function" ? action(p.returns) : action,
+      })),
+    [setSaved],
+  );
+  const setRegistered: React.Dispatch<React.SetStateAction<RegisteredItem[]>> = useCallback(
+    (action) =>
+      setSaved((p) => ({
+        ...p,
+        registered: typeof action === "function" ? action(p.registered) : action,
+      })),
+    [setSaved],
+  );
+  const setShelfBarcodes: React.Dispatch<React.SetStateAction<string[]>> = useCallback(
+    (action) =>
+      setSaved((p) => ({
+        ...p,
+        shelfBarcodes: typeof action === "function" ? action(p.shelfBarcodes) : action,
+      })),
+    [setSaved],
+  );
+  const setCheckoutItems: React.Dispatch<React.SetStateAction<CheckoutItem[]>> = useCallback(
+    (action) =>
+      setSaved((p) => ({
+        ...p,
+        checkoutItems: typeof action === "function" ? action(p.checkoutItems) : action,
+      })),
+    [setSaved],
+  );
+  const setCheckoutsLoaded: React.Dispatch<React.SetStateAction<boolean>> = useCallback(
+    (action) =>
+      setSaved((p) => ({
+        ...p,
+        checkoutsLoaded: typeof action === "function" ? action(p.checkoutsLoaded) : action,
+      })),
+    [setSaved],
+  );
+
+  // Phase 5: Reconcile — derive Map from persisted entries
   const [reconcileResults, setReconcileResults] = useState<EquipmentReconcileResult[]>([]);
   const [reconcileSummary, setReconcileSummary] = useState<EquipmentReconcileSummary | null>(null);
-  const [actionOverrides, setActionOverrides] = useState<Map<string, ActionOverride["action"]>>(new Map());
   const [reconcileLoading, setReconcileLoading] = useState(false);
+
+  const actionOverrides = useMemo(
+    () => new Map<string, ActionOverride["action"]>(saved.actionOverridesEntries),
+    [saved.actionOverridesEntries],
+  );
+  const setActionOverrides: React.Dispatch<
+    React.SetStateAction<Map<string, ActionOverride["action"]>>
+  > = useCallback(
+    (action) => {
+      setSaved((p) => {
+        const prevMap = new Map<string, ActionOverride["action"]>(p.actionOverridesEntries);
+        const nextMap = typeof action === "function" ? action(prevMap) : action;
+        return { ...p, actionOverridesEntries: Array.from(nextMap.entries()) };
+      });
+    },
+    [setSaved],
+  );
 
   // Complete
   const [applyResult, setApplyResult] = useState<{ applied: number; skipped: number } | null>(null);
+
+  // Reset everything back to step 1 — used by "Start Over" buttons
+  const handleRestart = useCallback(() => {
+    setSaved({ ...INITIAL_WIZARD_STATE });
+    setReconcileResults([]);
+    setReconcileSummary(null);
+    setReconcileLoading(false);
+    setApplyResult(null);
+    // Clear sessionStorage after the pending save has had a chance to flush
+    setTimeout(() => clearSaved(), 600);
+  }, [setSaved, clearSaved]);
 
   // All confirmed-present barcodes (from returns + registered + shelf)
   const allConfirmedBarcodes = useMemo(() => {
@@ -101,12 +221,60 @@ export default function InventoryDayPage() {
     <div style={{ maxWidth: 900, padding: "1.5rem" }}>
       {/* Header */}
       <div style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
-          <Icon name="clipboard-check" size={22} color="var(--primary)" /> Inventory Day
-        </h1>
-        <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: "0.25rem" }}>
-          Ground-truth your equipment. Returns → Register new → Shelf audit → Review checkouts → Reconcile.
-        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "1rem",
+          }}
+        >
+          <div>
+            <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
+              <Icon name="clipboard-check" size={22} color="var(--primary)" /> Inventory Day
+            </h1>
+            <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+              Ground-truth your equipment. Returns → Register new → Shelf audit → Review checkouts → Reconcile.
+            </p>
+          </div>
+          {phase !== "returns" && phase !== "complete" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="rotate-ccw"
+              onClick={() => {
+                if (
+                  confirm(
+                    "Start over? All scanned items and decisions will be discarded.",
+                  )
+                ) {
+                  handleRestart();
+                }
+              }}
+            >
+              Start Over
+            </Button>
+          )}
+        </div>
+        {showResumed && (
+          <div
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.625rem 0.875rem",
+              background: "var(--info-bg)",
+              border: "1px solid var(--info-border)",
+              borderRadius: 8,
+              fontSize: "0.85rem",
+              color: "var(--info-text)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <Icon name="rotate-ccw" size={14} color="var(--info-text)" />
+            Resumed previous session — your scans and progress have been restored.
+          </div>
+        )}
       </div>
 
       {/* Phase nav */}
@@ -271,6 +439,7 @@ export default function InventoryDayPage() {
           returnsCount={returns.filter((r) => r.checked_in).length}
           registeredCount={registered.length}
           shelfCount={shelfBarcodes.length}
+          onRestart={handleRestart}
         />
       )}
     </div>
@@ -992,12 +1161,14 @@ function CompletePhase({
   returnsCount,
   registeredCount,
   shelfCount,
+  onRestart,
 }: {
   applyResult: { applied: number; skipped: number } | null;
   summary: EquipmentReconcileSummary | null;
   returnsCount: number;
   registeredCount: number;
   shelfCount: number;
+  onRestart: () => void;
 }) {
   return (
     <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
@@ -1043,24 +1214,9 @@ function CompletePhase({
         >
           View Inventory
         </a>
-        <a
-          href="/equipment/restock"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.375rem",
-            padding: "0.5rem 1.25rem",
-            fontSize: "0.9rem",
-            fontWeight: 600,
-            background: "var(--primary)",
-            color: "#fff",
-            textDecoration: "none",
-            border: "none",
-            borderRadius: 8,
-          }}
-        >
+        <Button variant="primary" onClick={onRestart}>
           New Inventory Day
-        </a>
+        </Button>
       </div>
     </div>
   );
