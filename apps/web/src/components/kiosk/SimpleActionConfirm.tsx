@@ -28,6 +28,22 @@ const DANGER_ACTIONS = new Set(["reported_missing", "retired"]);
 /** Actions that need a custodian (who is receiving the item) */
 const CUSTODIAN_ACTIONS = new Set(["transfer"]);
 
+/**
+ * Inverse actions for undo support.
+ *
+ * Intentionally excluded:
+ * - `retired` — destructive, should not silent-revert
+ * - `transfer` — inverse would need the previous custodian; manual reverse
+ * - `condition_change` — inverse is whatever the previous condition was
+ * - `note` — non-destructive, nothing to undo
+ */
+const INVERSE_ACTION: Record<string, string | null> = {
+  maintenance_start: "maintenance_end",
+  maintenance_end: "maintenance_start",
+  reported_missing: "found",
+  found: "reported_missing",
+};
+
 /** Icon per action type */
 function actionIcon(action: string): string {
   switch (action) {
@@ -111,7 +127,24 @@ export function SimpleActionConfirm({
         resolution_status: showCustodian ? resolutionStatus : undefined,
         notes: notes.trim() || undefined,
       });
-      toast.success(`${actionLabel} recorded`);
+      const inverse = INVERSE_ACTION[action];
+      if (inverse) {
+        toast.success(`${actionLabel} recorded`, {
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              await postApi(`/api/equipment/${equipmentId}/events`, {
+                event_type: inverse,
+                actor_person_id: activeStaff?.person_id || undefined,
+                notes: `Undo ${actionLabel}`,
+              });
+            },
+          },
+          duration: 5000,
+        });
+      } else {
+        toast.success(`${actionLabel} recorded`);
+      }
       onComplete();
     } catch (err) {
       toast.error(

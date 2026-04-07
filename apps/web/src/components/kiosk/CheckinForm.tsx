@@ -16,6 +16,8 @@ interface CheckinFormProps {
   equipmentName: string;
   currentCondition: string;
   hasDeposit?: boolean;
+  /** Previous custodian person ID — used to support undo by re-issuing a check_out */
+  previousCustodianId?: string | null;
   onComplete: () => void;
   onCancel: () => void;
 }
@@ -29,6 +31,7 @@ export function CheckinForm({
   equipmentName,
   currentCondition,
   hasDeposit = false,
+  previousCustodianId = null,
   onComplete,
   onCancel,
 }: CheckinFormProps) {
@@ -117,7 +120,23 @@ export function CheckinForm({
           .join(" ") || undefined,
       });
       clearSaved();
-      toast.success(`Checked in ${equipmentName}`);
+      if (previousCustodianId) {
+        toast.success(`Checked in ${equipmentName}`, {
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              await postApi(`/api/equipment/${equipmentId}/events`, {
+                event_type: "check_out",
+                custodian_person_id: previousCustodianId,
+                notes: "Undo check-in",
+              });
+            },
+          },
+          duration: 5000,
+        });
+      } else {
+        toast.success(`Checked in ${equipmentName}`);
+      }
       onComplete();
     } catch (err) {
       toast.error(
