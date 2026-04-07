@@ -93,6 +93,13 @@ export async function GET(request: NextRequest) {
     return apiError("Missing SHAREPOINT_DRIVE_ID env var", 500);
   }
 
+  // Per-invocation budget to avoid hitting Vercel's 300s function timeout.
+  // SharePoint downloads + DB inserts are ~0.5-1s each; 200 files ≈ 150-200s,
+  // leaving headroom for folder listing + retries. Remaining files get picked
+  // up on the next cron tick (every 4h) — eventually catching up.
+  const MAX_FILES_PER_RUN = 200;
+  let filesProcessedThisRun = 0;
+
   const log: string[] = [];
   const stats = {
     foldersScanned: 0,
@@ -104,11 +111,12 @@ export async function GET(request: NextRequest) {
     filesParsed: 0,
     filesMatched: 0,
     errors: 0,
+    budgetReached: false,
   };
 
   try {
     const monthFolders = getMonthFoldersToScan();
-    log.push(`Scanning ${monthFolders.length} month folders`);
+    log.push(`Scanning ${monthFolders.length} month folders (budget: ${MAX_FILES_PER_RUN} files)`);
 
     for (const monthFolder of monthFolders) {
       const monthPath = `${SHAREPOINT_WAIVER_PATH}/${monthFolder}`;
@@ -171,8 +179,21 @@ export async function GET(request: NextRequest) {
         let folderSynced = 0;
         let folderSkipped = 0;
         let folderFailed = 0;
+        let folderFullyProcessed = true;
 
         for (const pdfFile of pdfFiles) {
+          // Per-run budget check — stop gracefully. Mark the folder as
+          // not fully processed so the sync state does NOT get written
+          // with last_synced_at = now() — otherwise the next cron tick
+          // would skip this folder entirely and leave half the files
+          // unsynced forever.
+          if (filesProcessedThisRun >= MAX_FILES_PER_RUN) {
+            stats.budgetReached = true;
+            folderFullyProcessed = false;
+            log.push(`    Budget reached (${MAX_FILES_PER_RUN} files this run). Folder left partial; will resume next tick.`);
+            break;
+          }
+
           // Skip non-waiver files
           if (shouldSkipFile(pdfFile.name)) {
             stats.filesSkipped++;
@@ -194,6 +215,7 @@ export async function GET(request: NextRequest) {
 
           // Download and process
           try {
+            filesProcessedThisRun++;
             const content = await downloadFile(SHAREPOINT_DRIVE_ID, pdfFile.id);
             stats.filesDownloaded++;
 
@@ -334,30 +356,40 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Update sync state
-        await execute(
-          `INSERT INTO ops.sharepoint_sync_state (
-             drive_id, folder_path, folder_item_id,
-             last_synced_at, items_synced, items_skipped, items_failed
-           ) VALUES ($1, $2, $3, now(), $4, $5, $6)
-           ON CONFLICT (drive_id, folder_path) DO UPDATE SET
-             last_synced_at = now(),
-             items_synced = ops.sharepoint_sync_state.items_synced + $4,
-             items_skipped = $5,
-             items_failed = $6,
-             updated_at = now()`,
-          [
-            SHAREPOINT_DRIVE_ID,
-            folderPath,
-            dayFolder.id,
-            folderSynced,
-            folderSkipped,
-            folderFailed,
-          ]
-        );
+        // Only update sync state if the folder was fully processed. If the
+        // per-run budget interrupted mid-folder, leave the sync state alone
+        // so the next cron tick re-lists the folder and picks up unsynced
+        // files via the sharepoint_synced_files dedup check.
+        if (folderFullyProcessed) {
+          await execute(
+            `INSERT INTO ops.sharepoint_sync_state (
+               drive_id, folder_path, folder_item_id,
+               last_synced_at, items_synced, items_skipped, items_failed
+             ) VALUES ($1, $2, $3, now(), $4, $5, $6)
+             ON CONFLICT (drive_id, folder_path) DO UPDATE SET
+               last_synced_at = now(),
+               items_synced = ops.sharepoint_sync_state.items_synced + $4,
+               items_skipped = $5,
+               items_failed = $6,
+               updated_at = now()`,
+            [
+              SHAREPOINT_DRIVE_ID,
+              folderPath,
+              dayFolder.id,
+              folderSynced,
+              folderSkipped,
+              folderFailed,
+            ]
+          );
+          log.push(`    Done: ${folderSynced} synced, ${folderSkipped} skipped, ${folderFailed} failed`);
+        } else {
+          log.push(`    Partial: ${folderSynced} synced, ${folderSkipped} skipped, ${folderFailed} failed — sync state NOT updated`);
+        }
 
-        log.push(`    Done: ${folderSynced} synced, ${folderSkipped} skipped, ${folderFailed} failed`);
+        // If budget reached, stop scanning further folders
+        if (stats.budgetReached) break;
       }
+      if (stats.budgetReached) break;
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
