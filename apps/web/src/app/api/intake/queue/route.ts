@@ -207,7 +207,11 @@ export async function GET(request: NextRequest) {
         kitten_priority_score,
         kitten_assessment_outcome,
         kitten_assessed_at,
-        kitten_redirect_destination
+        kitten_redirect_destination,
+        -- FFS-1192 — kiosk self-service appointment tags (from custom_fields)
+        intake_assigned_to,
+        intake_followup_needed,
+        trapping_assistance_requested
       FROM ops.v_intake_triage_queue
       ${whereClause}
       ORDER BY

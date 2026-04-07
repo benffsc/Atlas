@@ -144,9 +144,11 @@ export function getIntakeColumns(cb: IntakeColumnCallbacks): ColumnDef<IntakeSub
       header: "Status",
       cell: ({ row }) => {
         const sub = row.original;
+        const isSelfService = sub.intake_followup_needed === "self_service_appointment";
+        const needsTrapper = sub.trapping_assistance_requested === "true";
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
               <SubmissionStatusBadge status={sub.submission_status} />
               {sub.overdue && (
                 <span
@@ -154,6 +156,38 @@ export function getIntakeColumns(cb: IntakeColumnCallbacks): ColumnDef<IntakeSub
                   title="No activity for 48+ hours"
                 >
                   STALE
+                </span>
+              )}
+              {isSelfService && (
+                <span
+                  style={{
+                    fontSize: "0.6rem",
+                    background: COLORS.info,
+                    color: COLORS.white,
+                    padding: "1px 6px",
+                    borderRadius: "3px",
+                    fontWeight: 600,
+                    cursor: "help",
+                  }}
+                  title="Self-service appointment — caller will trap on their own. Call back to schedule."
+                >
+                  SELF-SERVICE
+                </span>
+              )}
+              {needsTrapper && (
+                <span
+                  style={{
+                    fontSize: "0.6rem",
+                    background: COLORS.warning,
+                    color: COLORS.black,
+                    padding: "1px 6px",
+                    borderRadius: "3px",
+                    fontWeight: 600,
+                    cursor: "help",
+                  }}
+                  title="Explicitly requested trapping assistance"
+                >
+                  NEEDS TRAPPER
                 </span>
               )}
             </div>

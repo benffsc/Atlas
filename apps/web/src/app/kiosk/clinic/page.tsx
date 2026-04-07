@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useMemo, Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { postApi, fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
@@ -14,6 +14,8 @@ import { KioskContactStep, type KioskContactData } from "@/components/kiosk/Kios
 import { KioskWelcomeBack, type PersonLookupResult } from "@/components/kiosk/KioskWelcomeBack";
 import { KioskMissionFrame } from "@/components/kiosk/KioskMissionFrame";
 import { KioskClinicReview } from "@/components/kiosk/KioskClinicReview";
+import { useKioskStaff } from "@/components/kiosk/KioskStaffContext";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   CLINIC_CAT_TREE,
   classifyCatFromTags,
@@ -39,6 +41,8 @@ type ClinicPhase =
   | "contact"
   | "lookup"
   | "mission"
+  | "trapping_fork"
+  | "trapping_wait"
   | "questions"
   | "pet_redirect"
   | "location"
@@ -47,20 +51,70 @@ type ClinicPhase =
   | "success";
 
 /**
- * Clinic kiosk path — 8-phase wizard for the spay/neuter clinic lobby.
+ * Clinic kiosk path — wizard for the spay/neuter clinic lobby.
  *
  * Flow:
  *   contact → lookup → mission
  *     ├── "My own pet" → pet_redirect (resources, no intake)
- *     └── "Community cats" → questions (tree)
- *         ├── pet_score >= 7 → pet_redirect (soft redirect)
- *         └── pet_score < 7 → location → review → submit → success
+ *     └── "Community cats" → trapping_fork
+ *         ├── "Yes, I need a trapper" → trapping_wait → questions
+ *         └── "No, I'll trap myself"  →                  questions
+ *                                       ├── pet_score >= 7 → pet_redirect
+ *                                       └── pet_score < 7  → location → review → submit → success
  *
- * FFS-1102
+ * The trapping_fork question is the explicit user-facing equivalent of the
+ * `needs_trapper` tag (which is otherwise inferred from cat-tree handleability).
+ * "No" routes through the intake queue tagged for self-service appointment
+ * scheduling — the main way submissions reach Jami.
+ *
+ * **Phone intake mode (FFS-1107):** When opened with `?mode=phone`, this page
+ * runs as a staff-driven phone call intake. It shares the same Tippy tree,
+ * mission framing, person lookup, pet redirect, and classification as the
+ * public lobby flow — guaranteeing both channels ask identical questions and
+ * produce comparable `ops.intake_submissions` rows.
+ *
+ * Phone-mode attribution prefers the kiosk-badge staff (if set), falling back
+ * to the admin-authenticated user. The `kiosk.allow_phone_intake` config key
+ * (default `true`) can disable the entry point entirely.
+ *
+ * FFS-1102 / FFS-1107
  */
 export default function KioskClinicPage() {
+  return (
+    <Suspense fallback={null}>
+      <KioskClinicContent />
+    </Suspense>
+  );
+}
+
+function KioskClinicContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { activeStaff } = useKioskStaff();
+  const { user: adminUser } = useCurrentUser();
   const { success: toastSuccess } = useToast();
+
+  // FFS-1107 — phone-intake mode
+  const { value: allowPhoneIntake } = useAppConfig<boolean>("kiosk.allow_phone_intake");
+  const isPhoneMode = searchParams.get("mode") === "phone";
+
+  // Phone-mode attribution: prefer the kiosk-badge staff, fall back to the
+  // admin-authenticated user (so clicking the CTA from /admin/intake/call
+  // works even without a PIN-selected badge).
+  const phoneIntakeStaffId = isPhoneMode
+    ? activeStaff?.staff_id || adminUser?.staff_id || null
+    : null;
+  const phoneIntakeStaffName = isPhoneMode
+    ? activeStaff?.display_name || adminUser?.display_name || null
+    : null;
+
+  // If phone intake is explicitly disabled via config, fall back to legacy form.
+  useEffect(() => {
+    if (isPhoneMode && allowPhoneIntake === false) {
+      router.replace("/admin/intake/call");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPhoneMode, allowPhoneIntake]);
 
   const { resources: petSpayResources } = useCommunityResources("pet_spay");
   const { value: customTree } = useAppConfig<TippyTree | null>("kiosk.clinic_tree");
@@ -95,23 +149,58 @@ export default function KioskClinicPage() {
     context: null,
   });
   const [classification, setClassification] = useState<ClinicClassification | null>(null);
+  // Explicit answer to "Do you need trapping assistance?" (FFS-1107 outline)
+  // null = not yet asked, true = yes (route through trapper queue), false = self-service
+  const [trappingAssistance, setTrappingAssistance] = useState<boolean | null>(null);
 
   const currentNode = getCurrentNode(treeState, tree);
 
-  // Progress: contact(0) + lookup(1) + mission(2) + questions(3..N) + location + review
+  // FFS-1107 — banner shown on every wizard step while in phone mode
+  const phoneBanner = isPhoneMode ? (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.625rem",
+        padding: "0.625rem 0.875rem",
+        background: "var(--info-bg, rgba(59,130,246,0.08))",
+        border: "1px solid var(--info-border, #93c5fd)",
+        borderRadius: 10,
+        fontSize: "0.85rem",
+        color: "var(--info-text, #1d4ed8)",
+      }}
+    >
+      <Icon name="phone" size={16} color="var(--info-text, #1d4ed8)" />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, lineHeight: 1.2 }}>
+          Phone intake
+          {phoneIntakeStaffName
+            ? ` — ${phoneIntakeStaffName} entering on behalf of caller`
+            : " — staff entering on behalf of caller"}
+        </div>
+        <div style={{ fontSize: "0.72rem", opacity: 0.85, marginTop: 2 }}>
+          Same questions as the lobby kiosk · source: phone
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  // Progress: contact(0) + lookup(1) + mission(2) + trapping_fork(3) + questions(4..N) + location + review
   const questionProgress = useMemo(
     () => getProgress(treeState, tree, true),
     [treeState, tree],
   );
 
-  const totalSteps = 3 + questionProgress.total; // 3 = contact + lookup + mission
+  const totalSteps = 4 + questionProgress.total; // 4 = contact + lookup + mission + trapping_fork
   const currentStep = useMemo(() => {
     switch (phase) {
       case "contact": return 0;
       case "lookup": return 1;
       case "mission": return 2;
-      case "questions": return 2 + questionProgress.current;
-      case "pet_redirect": return 2 + questionProgress.current;
+      case "trapping_fork": return 3;
+      case "trapping_wait": return 3; // overlay between fork and questions
+      case "questions": return 3 + questionProgress.current;
+      case "pet_redirect": return 3 + questionProgress.current;
       case "location": return totalSteps - 2;
       case "review": return totalSteps - 1;
       default: return 0;
@@ -180,6 +269,9 @@ export default function KioskClinicPage() {
       const scoring = getScoring(tree);
       const tags = treeState.tags;
       const cls = classification || classifyCatFromTags(tags);
+      // Explicit trapping-fork answer overrides cat-tree inference for `needs_trapper`
+      const effectiveNeedsTrapper =
+        trappingAssistance == null ? cls.needs_trapper : trappingAssistance;
       const priorityScore = computePriorityScore(tags, scoring.scoring_rules);
 
       // Derive cat count from tags
@@ -202,10 +294,10 @@ export default function KioskClinicPage() {
       };
 
       const payload = {
-        source: "in_person" as const,
-        source_system: "kiosk_clinic",
+        source: isPhoneMode ? ("phone" as const) : ("in_person" as const),
+        source_system: isPhoneMode ? "kiosk_clinic_phone" : "kiosk_clinic",
         first_name: contact.firstName.trim(),
-        last_name: contact.lastName?.trim() || "(Walk-in)",
+        last_name: contact.lastName?.trim() || (isPhoneMode ? "(Phone call)" : "(Walk-in)"),
         phone: contact.phone.replace(/\D/g, ""),
         email: contact.email.trim() || undefined,
         existing_person_id: lookupResult.person_id || undefined,
@@ -232,7 +324,7 @@ export default function KioskClinicPage() {
           tippy_classification: cls.classification,
           tippy_net_score: String(cls.net_score),
           tippy_hoarding_flag: cls.hoarding_flag ? "true" : undefined,
-          tippy_needs_trapper: cls.needs_trapper ? "true" : undefined,
+          tippy_needs_trapper: effectiveNeedsTrapper ? "true" : undefined,
           // Map key behavioral fields for staff review
           tippy_sleeping_location: tags.sleeping_location ? String(tags.sleeping_location) : undefined,
           tippy_feeding_location: tags.feeding_location_raw ? String(tags.feeding_location_raw) : undefined,
@@ -243,6 +335,17 @@ export default function KioskClinicPage() {
           tippy_growth: tags.growth ? String(tags.growth) : undefined,
           tippy_cats_inside: tags.cats_inside ? String(tags.cats_inside) : undefined,
           tippy_caller_role: tags.caller_role ? String(tags.caller_role) : undefined,
+          // FFS-1107 — phone intake attribution
+          intake_method: isPhoneMode ? "phone_call" : "in_person_kiosk",
+          phone_intake_staff_id: phoneIntakeStaffId || undefined,
+          phone_intake_staff_name: phoneIntakeStaffName || undefined,
+          // Trapping fork (explicit user answer, overrides cat-tree inference)
+          trapping_assistance_requested:
+            trappingAssistance == null ? undefined : String(trappingAssistance),
+          // Self-service path → flag for the intake queue (Jami's main interface)
+          intake_assigned_to: trappingAssistance === false ? "jami" : undefined,
+          intake_followup_needed:
+            trappingAssistance === false ? "self_service_appointment" : undefined,
         },
       };
 
@@ -255,7 +358,7 @@ export default function KioskClinicPage() {
       setSubmitError("Something went wrong. Please try again or ask staff for help.");
       setPhase("review");
     }
-  }, [contact, place, freeformAddress, treeState, tree, classification, lookupResult, toastSuccess]);
+  }, [contact, place, freeformAddress, treeState, tree, classification, lookupResult, toastSuccess, isPhoneMode, phoneIntakeStaffId, phoneIntakeStaffName, trappingAssistance]);
 
   // Navigation
   const goNext = useCallback(() => {
@@ -270,16 +373,22 @@ export default function KioskClinicPage() {
 
   const goBack = useCallback(() => {
     if (phase === "contact") {
-      router.push("/kiosk");
+      router.push(isPhoneMode ? "/admin/intake/call" : "/kiosk");
     } else if (phase === "lookup") {
       setPhase("contact");
     } else if (phase === "mission") {
       setPhase("contact");
+    } else if (phase === "trapping_fork") {
+      setTrappingAssistance(null);
+      setPhase("mission");
+    } else if (phase === "trapping_wait") {
+      setPhase("trapping_fork");
     } else if (phase === "questions") {
       if (treeState.history.length > 0) {
         setTreeState(goBackTree(treeState));
       } else {
-        setPhase("mission");
+        // Back from first question lands on the wait warning (if shown) or fork
+        setPhase(trappingAssistance === true ? "trapping_wait" : "trapping_fork");
       }
     } else if (phase === "pet_redirect") {
       // Go back to questions (undo last answer if outcome was reached)
@@ -300,7 +409,26 @@ export default function KioskClinicPage() {
     } else if (phase === "review") {
       setPhase("location");
     }
-  }, [phase, treeState, router]);
+  }, [phase, treeState, router, isPhoneMode, trappingAssistance]);
+
+  // FFS-1107 — reset wizard for logging another phone call without a full page reload
+  const handleLogAnotherCall = () => {
+    setContact({ firstName: "", lastName: "", phone: "", email: "" });
+    setLookupResult({
+      found: false,
+      person_id: null,
+      display_name: null,
+      first_name: null,
+      context: null,
+    });
+    setTreeState(createInitialState(tree));
+    setPlace(null);
+    setFreeformAddress("");
+    setClassification(null);
+    setTrappingAssistance(null);
+    setSubmitError(null);
+    setPhase("contact");
+  };
 
   // ── Success screen ──────────────────────────────────────────────────────────
   if (phase === "success") {
@@ -340,21 +468,45 @@ export default function KioskClinicPage() {
             margin: 0,
           }}
         >
-          {successMessage}
+          {isPhoneMode ? "Call logged" : successMessage}
         </h1>
         <p style={{ fontSize: "1rem", color: "var(--text-secondary)", margin: 0, maxWidth: 400 }}>
-          {cls.needs_trapper
-            ? trapperWaitMessage
-            : "Someone from our team will reach out to you about your cat situation."}
+          {isPhoneMode
+            ? `Intake submitted. Classification: ${cls.classification.replace(/_/g, " ")}.`
+            : (trappingAssistance ?? cls.needs_trapper)
+              ? trapperWaitMessage
+              : "Someone from our team will reach out to you about scheduling your appointment."}
         </p>
-        <Button
-          variant="primary"
-          size="lg"
-          onClick={() => router.push("/kiosk")}
-          style={{ minHeight: 56, borderRadius: 14, minWidth: 200, marginTop: "1rem" }}
-        >
-          Done
-        </Button>
+        {isPhoneMode ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", maxWidth: 320, marginTop: "0.5rem" }}>
+            <Button
+              variant="primary"
+              size="lg"
+              icon="phone"
+              onClick={handleLogAnotherCall}
+              style={{ minHeight: 56, borderRadius: 14 }}
+            >
+              Log Another Call
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => router.push("/admin/intake/call")}
+              style={{ minHeight: 56, borderRadius: 14 }}
+            >
+              Back to Admin
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => router.push("/kiosk")}
+            style={{ minHeight: 56, borderRadius: 14, minWidth: 200, marginTop: "1rem" }}
+          >
+            Done
+          </Button>
+        )}
       </div>
     );
   }
@@ -400,6 +552,7 @@ export default function KioskClinicPage() {
         onBack={goBack}
         onNext={() => {}}
         canGoNext={false}
+        headerBanner={phoneBanner}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
           <div style={{ textAlign: "center", paddingTop: "0.5rem" }}>
@@ -475,6 +628,7 @@ export default function KioskClinicPage() {
         onBack={goBack}
         onNext={() => {}}
         canGoNext={false}
+        headerBanner={phoneBanner}
       >
         <KioskWelcomeBack
           lookupResult={lookupResult}
@@ -493,16 +647,62 @@ export default function KioskClinicPage() {
         onBack={goBack}
         onNext={() => {}}
         canGoNext={false}
+        headerBanner={phoneBanner}
       >
         <KioskMissionFrame
           hasPreviousPetSpay={lookupResult.context?.has_previous_pet_spay ?? false}
           onCommunity={() => {
             setTreeState(createInitialState(tree));
             setClassification(null);
-            setPhase("questions");
+            setTrappingAssistance(null);
+            setPhase("trapping_fork");
           }}
           onPet={() => setPhase("pet_redirect")}
         />
+      </KioskWizardShell>
+    );
+  }
+
+  // ── Trapping assistance fork ────────────────────────────────────────────────
+  // Explicit user-facing question matching the original sketch:
+  // "Do you need our help trapping the cats?"
+  if (phase === "trapping_fork") {
+    return (
+      <KioskWizardShell
+        currentStep={currentStep}
+        totalSteps={totalSteps}
+        onBack={goBack}
+        onNext={() => {}}
+        canGoNext={false}
+        headerBanner={phoneBanner}
+      >
+        <TrappingForkCard
+          onYes={() => {
+            setTrappingAssistance(true);
+            setPhase("trapping_wait");
+          }}
+          onNo={() => {
+            setTrappingAssistance(false);
+            setPhase("questions");
+          }}
+        />
+      </KioskWizardShell>
+    );
+  }
+
+  // ── Trapping wait-time warning (only after Yes) ─────────────────────────────
+  if (phase === "trapping_wait") {
+    return (
+      <KioskWizardShell
+        currentStep={currentStep}
+        totalSteps={totalSteps}
+        onBack={goBack}
+        onNext={() => setPhase("questions")}
+        canGoNext
+        nextLabel="Continue"
+        headerBanner={phoneBanner}
+      >
+        <TrappingWaitWarning message={trapperWaitMessage} />
       </KioskWizardShell>
     );
   }
@@ -519,6 +719,7 @@ export default function KioskClinicPage() {
         onBack={goBack}
         onNext={() => {}}
         canGoNext={false}
+        headerBanner={phoneBanner}
       >
         <TippyQuestionCard
           node={currentNode}
@@ -539,6 +740,7 @@ export default function KioskClinicPage() {
         onNext={goNext}
         canGoNext={canGoNext}
         nextLabel="Next"
+        headerBanner={phoneBanner}
       >
         <KioskContactStep
           data={contact}
@@ -558,6 +760,7 @@ export default function KioskClinicPage() {
         onBack={goBack}
         onNext={goNext}
         canGoNext={canGoNext}
+        headerBanner={phoneBanner}
       >
         <KioskLocationStep
           place={place}
@@ -591,7 +794,8 @@ export default function KioskClinicPage() {
       onBack={goBack}
       onNext={goNext}
       canGoNext
-      nextLabel="Submit Request"
+      nextLabel={isPhoneMode ? "Submit Call" : "Submit Request"}
+      headerBanner={phoneBanner}
     >
       <KioskClinicReview
         contact={contact}
@@ -669,6 +873,158 @@ function PetResourceCard({ resource }: { resource: TippyResourceCard }) {
             {resource.phone}
           </a>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Trapping fork — explicit "Do you need our help trapping?" question.
+ * Matches the original kiosk outline. Yes routes through the trapper-assistance
+ * queue with a wait-time warning; No routes through the self-service intake
+ * queue (the main path that reaches Jami for appointment scheduling).
+ */
+function TrappingForkCard({
+  onYes,
+  onNo,
+}: {
+  onYes: () => void;
+  onNo: () => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div style={{ textAlign: "center" }}>
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: "50%",
+            background: "var(--primary-bg, rgba(59,130,246,0.08))",
+            border: "2px solid var(--primary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 1rem",
+          }}
+        >
+          <Icon name="paw-print" size={32} color="var(--primary)" />
+        </div>
+        <h2
+          style={{
+            fontSize: "1.5rem",
+            fontWeight: 800,
+            color: "var(--text-primary)",
+            margin: "0 0 0.5rem",
+            lineHeight: 1.2,
+          }}
+        >
+          Do you need our help trapping the cats?
+        </h2>
+        <p
+          style={{
+            fontSize: "0.95rem",
+            color: "var(--text-secondary)",
+            margin: 0,
+            maxWidth: 380,
+            marginInline: "auto",
+            lineHeight: 1.5,
+          }}
+        >
+          We can send a volunteer trapper, or you can borrow our equipment and
+          trap the cats yourself.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <Button
+          variant="outline"
+          size="lg"
+          icon="users"
+          fullWidth
+          onClick={onYes}
+          style={{
+            minHeight: 72,
+            borderRadius: 14,
+            fontSize: "1.05rem",
+            fontWeight: 600,
+            justifyContent: "flex-start",
+            paddingInline: "1.25rem",
+          }}
+        >
+          Yes — I need a trapper
+        </Button>
+        <Button
+          variant="outline"
+          size="lg"
+          icon="tool"
+          fullWidth
+          onClick={onNo}
+          style={{
+            minHeight: 72,
+            borderRadius: 14,
+            fontSize: "1.05rem",
+            fontWeight: 600,
+            justifyContent: "flex-start",
+            paddingInline: "1.25rem",
+          }}
+        >
+          No — I&apos;ll trap them myself
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Wait-time warning shown after the user picks "Yes, I need a trapper".
+ * Uses the admin-configurable `kiosk.trapper_wait_message` so the warning
+ * stays current as trapper availability changes.
+ */
+function TrappingWaitWarning({ message }: { message: string }) {
+  const fallback =
+    "Right now our volunteer trappers have a wait. We'll still help — please continue answering a few questions so we can prepare for your situation.";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div style={{ textAlign: "center" }}>
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: "50%",
+            background: "var(--warning-bg, #fffbeb)",
+            border: "2px solid var(--warning-border, #fcd34d)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 1rem",
+          }}
+        >
+          <Icon name="clock" size={32} color="var(--warning-text, #92400e)" />
+        </div>
+        <h2
+          style={{
+            fontSize: "1.5rem",
+            fontWeight: 800,
+            color: "var(--text-primary)",
+            margin: "0 0 0.5rem",
+            lineHeight: 1.2,
+          }}
+        >
+          Heads up about the trapper wait
+        </h2>
+      </div>
+      <div
+        style={{
+          padding: "1rem 1.25rem",
+          background: "var(--warning-bg, #fffbeb)",
+          border: "1px solid var(--warning-border, #fcd34d)",
+          borderRadius: 14,
+          fontSize: "1rem",
+          color: "var(--warning-text, #92400e)",
+          lineHeight: 1.5,
+        }}
+      >
+        {message || fallback}
       </div>
     </div>
   );

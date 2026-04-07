@@ -470,6 +470,64 @@ export default function PhoneIntakePage() {
         </p>
       </div>
 
+      {/* FFS-1107 — unified intake CTA */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          padding: "14px 18px",
+          background: "var(--info-bg, rgba(59,130,246,0.08))",
+          border: "1px solid var(--info-border, #93c5fd)",
+          borderRadius: 12,
+          marginBottom: 20,
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: "var(--info-text, #1d4ed8)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 20,
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
+        >
+          ★
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, color: "var(--info-text, #1d4ed8)", fontSize: 14, lineHeight: 1.3 }}>
+            Try the new unified phone intake
+          </div>
+          <div style={{ color: "var(--info-text, #1d4ed8)", fontSize: 12, marginTop: 2, opacity: 0.85 }}>
+            Uses the same branching question tree as the lobby kiosk — pet-vs-community detection,
+            automatic pet redirect, and identical intake shape as walk-ins.
+          </div>
+        </div>
+        <button
+          onClick={() => router.push("/kiosk/clinic?mode=phone")}
+          style={{
+            padding: "8px 16px",
+            background: "var(--info-text, #1d4ed8)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          Open →
+        </button>
+      </div>
+
       {/* Progress Steps */}
       <div style={{
         display: "flex",

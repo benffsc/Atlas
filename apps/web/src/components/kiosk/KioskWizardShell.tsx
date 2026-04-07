@@ -11,6 +11,8 @@ interface KioskWizardShellProps {
   canGoNext: boolean;
   nextLabel?: string;
   showBack?: boolean;
+  /** Optional header banner rendered above the progress dots (e.g. phone-intake staff banner). */
+  headerBanner?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -27,6 +29,7 @@ export function KioskWizardShell({
   canGoNext,
   nextLabel = "Next",
   showBack = true,
+  headerBanner,
   children,
 }: KioskWizardShellProps) {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -50,6 +53,9 @@ export function KioskWizardShell({
         gap: "1.5rem",
       }}
     >
+      {/* Optional banner (e.g. phone-intake staff mode) */}
+      {headerBanner}
+
       {/* Progress dots */}
       <div
         style={{

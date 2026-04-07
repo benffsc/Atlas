@@ -90,6 +90,10 @@ export interface IntakeSubmission {
   out_of_service_area_approved_by?: string | null;
   out_of_service_area_email_sent_at?: string | null;
   out_of_service_area_email_id?: string | null;
+  // FFS-1192 — kiosk self-service appointment tags (from custom_fields)
+  intake_assigned_to?: string | null;
+  intake_followup_needed?: string | null;
+  trapping_assistance_requested?: string | null; // "true" | "false" | null
 }
 
 export interface CommunicationLog {
