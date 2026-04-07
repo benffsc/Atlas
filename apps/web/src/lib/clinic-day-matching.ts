@@ -589,6 +589,11 @@ async function writeMatch(pair: ScoredPair): Promise<void> {
 // ── Clear auto-matches (for rematch) ───────────────────────────────────
 
 export async function clearAutoMatches(clinicDate: string): Promise<number> {
+  // MIG_3048: extends the "manual is sacred" guard. An entry is preserved if:
+  //   (a) its own match_confidence = 'manual' (existing behavior), OR
+  //   (b) the currently linked appointment has clinic_day_number or cat_id
+  //       flagged in manually_overridden_fields (new — prevents rematch from
+  //       stranding a human-assigned number/cat on an orphan appointment).
   const result = await queryOne<{ cleared: number }>(
     `WITH cleared AS (
        UPDATE ops.clinic_day_entries e
@@ -604,9 +609,16 @@ export async function clearAutoMatches(clinicDate: string): Promise<number> {
            cds_method = NULL,
            cds_llm_reasoning = NULL
        FROM ops.clinic_days cd
+       LEFT JOIN ops.appointments a ON a.appointment_id = e.appointment_id
        WHERE cd.clinic_day_id = e.clinic_day_id
          AND cd.clinic_date = $1
          AND e.match_confidence != 'manual'
+         AND NOT (
+           a.manually_overridden_fields IS NOT NULL AND (
+             ops.is_field_manually_set(a.manually_overridden_fields, 'clinic_day_number')
+             OR ops.is_field_manually_set(a.manually_overridden_fields, 'cat_id')
+           )
+         )
        RETURNING 1
      )
      SELECT COUNT(*)::int as cleared FROM cleared`,
