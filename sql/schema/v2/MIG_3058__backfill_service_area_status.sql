@@ -22,7 +22,7 @@ BEGIN;
 \echo '1. Backfilling rows with geocoded coords...'
 
 UPDATE ops.intake_submissions
-   SET service_area_status     = sot.service_area_membership(geo_latitude, geo_longitude),
+   SET service_area_status     = sot.service_area_membership(geo_latitude::numeric, geo_longitude::numeric),
        service_area_status_set_at = NOW(),
        service_area_status_source = 'auto'
  WHERE service_area_status IS NULL

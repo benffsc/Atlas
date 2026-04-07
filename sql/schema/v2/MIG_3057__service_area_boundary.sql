@@ -191,9 +191,13 @@ BEGIN
   END IF;
 
   IF NEW.geo_latitude IS NOT NULL AND NEW.geo_longitude IS NOT NULL THEN
+    -- Cast to NUMERIC — geo_latitude/longitude are double precision,
+    -- sot.service_area_membership() takes NUMERIC. Explicit cast avoids
+    -- "No function matches" errors on fresh installs (verified 2026-04-07
+    -- during prod apply).
     NEW.service_area_status := sot.service_area_membership(
-      NEW.geo_latitude,
-      NEW.geo_longitude
+      NEW.geo_latitude::numeric,
+      NEW.geo_longitude::numeric
     );
     NEW.service_area_status_set_at := NOW();
     NEW.service_area_status_source := 'auto';
