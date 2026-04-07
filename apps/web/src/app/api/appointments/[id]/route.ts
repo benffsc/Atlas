@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { requireValidUUID } from "@/lib/api-validation";
 import { apiSuccess, apiNotFound, apiServerError, apiBadRequest, apiError } from "@/lib/api-response";
+import { getSession } from "@/lib/auth";
 
 interface ProcedureRow {
   procedure_id: string;
@@ -305,12 +306,27 @@ export async function PATCH(
       }
     }
 
+    // MIG_3052: Route manual edits through ops.set_clinic_day_number() so
+    // the value is tagged source='manual' and marked as manually overridden
+    // (MIG_3048). This prevents subsequent auto-propagation runs from
+    // silently clobbering the staff assignment.
+    const session = await getSession(request);
+    const changedBy = session?.staff_id || null;
+
+    const success = await queryOne<{ ok: boolean }>(
+      `SELECT ops.set_clinic_day_number($1, $2, 'manual'::ops.clinic_day_number_source, $3) AS ok`,
+      [id, clinicDayNumber, changedBy]
+    );
+
+    if (!success?.ok) {
+      return apiNotFound("Appointment", id);
+    }
+
     const result = await queryOne<{ appointment_id: string; clinic_day_number: number | null }>(
-      `UPDATE ops.appointments
-       SET clinic_day_number = $1, updated_at = NOW()
-       WHERE appointment_id = $2
-       RETURNING appointment_id, clinic_day_number`,
-      [clinicDayNumber, id]
+      `SELECT appointment_id, clinic_day_number
+       FROM ops.appointments
+       WHERE appointment_id = $1`,
+      [id]
     );
 
     if (!result) {

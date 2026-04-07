@@ -427,24 +427,67 @@ async function dedupeAppointments(clinicDate: string): Promise<DedupResult> {
       [group.winner, group.losers]
     );
 
-    // Transfer clinic_day_number from loser → winner if winner has none.
+    // Transfer clinic_day_number from loser → winner.
     // Manual assignments are sacred — we never lose them in a merge.
+    // MIG_3048 / MIG_3052:
+    //  - Pick the loser's best clinic_day_number (prefer manual over auto).
+    //  - Route the write through ops.set_clinic_day_number() so the source
+    //    is properly tagged. If the picked value was manually overridden,
+    //    we use source='manual' so the winner inherits the protection.
+    //    Otherwise source='cds_propagation'.
+    await execute(
+      `SELECT ops.set_clinic_day_number(
+         $1::UUID,
+         picked.clinic_day_number,
+         CASE WHEN picked.is_manual THEN 'manual'::ops.clinic_day_number_source
+              ELSE 'cds_propagation'::ops.clinic_day_number_source
+         END,
+         NULL
+       )
+       FROM (
+         SELECT l.clinic_day_number,
+                ops.is_field_manually_set(l.manually_overridden_fields, 'clinic_day_number') AS is_manual
+         FROM ops.appointments l
+         WHERE l.appointment_id = ANY($2)
+           AND l.clinic_day_number IS NOT NULL
+         ORDER BY
+           ops.is_field_manually_set(l.manually_overridden_fields, 'clinic_day_number') DESC,
+           l.created_at DESC
+         LIMIT 1
+       ) picked
+       WHERE EXISTS (
+         SELECT 1 FROM ops.appointments w
+         WHERE w.appointment_id = $1
+           AND (
+             w.clinic_day_number IS NULL
+             OR (
+               picked.is_manual
+               AND NOT ops.is_field_manually_set(w.manually_overridden_fields, 'clinic_day_number')
+             )
+           )
+       )`,
+      [group.winner, group.losers]
+    );
+
+    // MIG_3048: Transfer manually_overridden_fields from losers → winner.
+    // Any field a human marked on a loser must remain protected on the winner.
     await execute(
       `UPDATE ops.appointments AS w
-         SET clinic_day_number = (
-           SELECT l.clinic_day_number
-           FROM ops.appointments l
-           WHERE l.appointment_id = ANY($2)
-             AND l.clinic_day_number IS NOT NULL
-           LIMIT 1
+         SET manually_overridden_fields = (
+           SELECT ARRAY(
+             SELECT DISTINCT unnest(
+               w.manually_overridden_fields ||
+               COALESCE(
+                 (SELECT array_agg(DISTINCT f)
+                  FROM ops.appointments l,
+                       unnest(l.manually_overridden_fields) f
+                  WHERE l.appointment_id = ANY($2)),
+                 ARRAY[]::TEXT[]
+               )
+             )
+           )
          )
-       WHERE w.appointment_id = $1
-         AND w.clinic_day_number IS NULL
-         AND EXISTS (
-           SELECT 1 FROM ops.appointments l
-           WHERE l.appointment_id = ANY($2)
-             AND l.clinic_day_number IS NOT NULL
-         )`,
+       WHERE w.appointment_id = $1`,
       [group.winner, group.losers]
     );
 
