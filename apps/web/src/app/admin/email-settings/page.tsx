@@ -353,10 +353,10 @@ function EmailSettingsContent() {
           <ol style={{ margin: 0, paddingLeft: "1.25rem" }}>
             <li style={{ marginBottom: "0.5rem" }}>
               <strong>Connect an Outlook account</strong> using the button above. You&apos;ll be redirected to
-              Microsoft to sign in and authorize Atlas.
+              Microsoft to sign in and authorize Beacon.
             </li>
             <li style={{ marginBottom: "0.5rem" }}>
-              <strong>Emails appear from that account</strong>. When Atlas sends an email, it uses the connected
+              <strong>Emails appear from that account</strong>. When Beacon sends an email, it uses the connected
               account so replies go to that inbox.
             </li>
             <li style={{ marginBottom: "0.5rem" }}>
@@ -364,7 +364,7 @@ function EmailSettingsContent() {
               account to use when sending.
             </li>
             <li>
-              <strong>Tokens refresh automatically</strong>. Atlas will keep the connection alive. If something
+              <strong>Tokens refresh automatically</strong>. Beacon will keep the connection alive. If something
               breaks, reconnect the account.
             </li>
           </ol>

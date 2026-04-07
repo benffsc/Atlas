@@ -559,7 +559,7 @@ function SearchContent() {
       {!loading && !error && !data && (
         <EmptyState
           variant="search"
-          title="Search Atlas"
+          title="Search Beacon"
           description="Enter a search term to find cats, people, and places"
         />
       )}

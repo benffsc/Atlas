@@ -102,7 +102,7 @@ describe("formatSourceSystem", () => {
     expect(formatSourceSystem("web_intake")).toBe("Web Intake");
     expect(formatSourceSystem("petlink")).toBe("PetLink");
     expect(formatSourceSystem("google_maps")).toBe("Google Maps");
-    expect(formatSourceSystem("atlas_ui")).toBe("Atlas");
+    expect(formatSourceSystem("atlas_ui")).toBe("Beacon");
   });
 
   it("returns empty string for null", () => {

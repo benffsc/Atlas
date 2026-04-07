@@ -6,10 +6,10 @@ import { TippyChat } from "@/components/TippyChat";
 
 export const metadata: Metadata = {
   title: {
-    default: "Atlas",
-    template: "%s | Atlas",
+    default: "Beacon",
+    template: "%s | Beacon",
   },
-  description: "Cat tracking and FFR management system",
+  description: "A guiding light for humane cat population management — data-driven TNR tracking, predictive modeling, and colony insights.",
 };
 
 export default function RootLayout({

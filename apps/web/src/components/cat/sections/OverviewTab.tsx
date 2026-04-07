@@ -226,7 +226,7 @@ export function OverviewTab({ data, preview }: OverviewTabProps) {
           {cat.total_appointments > 0 && (
             <div className="detail-item"><span className="detail-label">Total Appointments</span><span className="detail-value">{cat.total_appointments}</span></div>
           )}
-          <div className="detail-item"><span className="detail-label">Atlas Created</span><span className="detail-value">{formatDateLocal(cat.created_at)}</span></div>
+          <div className="detail-item"><span className="detail-label">Record Created</span><span className="detail-value">{formatDateLocal(cat.created_at)}</span></div>
           <div className="detail-item"><span className="detail-label">Last Updated</span><span className="detail-value">{formatDateLocal(cat.updated_at)}</span></div>
           <div className="detail-item">
             <span className="detail-label">Verification</span>

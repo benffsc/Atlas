@@ -35,11 +35,16 @@ interface ProductConfig {
   isAtlas: boolean;
 }
 
+// NOTE: Atlas is now the internal DB / backend name only. The user-facing
+// product is Beacon across the whole app. Both product IDs resolve to the
+// "Beacon" brand name — the distinction between `atlas` and `beacon` product
+// IDs is kept for routing/theme purposes (e.g. /beacon/* analytics pages have
+// their own theme), but all user-visible chrome says "Beacon".
 const PRODUCT_CONFIGS: Record<ProductId, ProductConfig> = {
   atlas: {
     product: "atlas",
-    brandName: "Atlas",
-    brandNameShort: "Atlas",
+    brandName: "Beacon",
+    brandNameShort: "Beacon",
     themeClass: "theme-atlas",
     isBeacon: false,
     isAtlas: true,

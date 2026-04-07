@@ -136,7 +136,7 @@ export default function ChangePasswordPage() {
           <div style={{ marginBottom: "12px" }}>
             <img
               src="/logo.png"
-              alt="Atlas"
+              alt="Beacon"
               className="nav-logo"
               style={{ width: "60px", height: "auto" }}
             />

@@ -544,7 +544,7 @@ function SourceConflictsTab({ rows }: { rows: SourceConflict[] }) {
         <tr>
           <th style={thStyle}>Name</th>
           <th style={thStyle}>Role</th>
-          <th style={thStyle}>Atlas Status</th>
+          <th style={thStyle}>Beacon Status</th>
           <th style={thStyle}>Source Status</th>
         </tr>
       </thead>

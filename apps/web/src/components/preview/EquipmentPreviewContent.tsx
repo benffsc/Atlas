@@ -108,7 +108,7 @@ export function EquipmentPreviewContent({ equipment, onClose }: EquipmentPreview
               {equipment.source_system === "airtable"
                 ? "Airtable (synced)"
                 : equipment.source_system === "atlas_ui"
-                  ? "Atlas (kiosk)"
+                  ? "Beacon (kiosk)"
                   : equipment.source_system}
             </div>
           </div>

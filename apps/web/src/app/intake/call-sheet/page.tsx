@@ -557,7 +557,7 @@ export default function CallSheetEntryPage() {
       <div style={{ marginBottom: "1.5rem" }}>
         <BackButton fallbackHref="/intake/queue" />
         <h1 style={{ margin: "0.5rem 0 0 0" }}>Enter Call Sheet</h1>
-        <p className="text-muted">Transcribe a completed paper call sheet into Atlas</p>
+        <p className="text-muted">Transcribe a completed paper call sheet into Beacon</p>
       </div>
 
       {error && (

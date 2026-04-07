@@ -105,7 +105,7 @@ const SOURCE_LABELS: Record<string, string> = {
   volunteerhub: "VolunteerHub",
   airtable: "Airtable",
   web_intake: "Web Intake",
-  atlas_ui: "Atlas",
+  atlas_ui: "Beacon",
   shelterluv: "ShelterLuv",
 };
 

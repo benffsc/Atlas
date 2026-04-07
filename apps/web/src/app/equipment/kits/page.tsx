@@ -163,7 +163,7 @@ export default function EquipmentKitsPage() {
               className="card"
               style={{
                 padding: "1rem",
-                borderLeft: `3px solid ${kit.returned_at ? "#d1d5db" : "#3b82f6"}`,
+                borderLeft: `3px solid ${kit.returned_at ? "var(--border)" : "var(--primary)"}`,
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -174,7 +174,7 @@ export default function EquipmentKitsPage() {
                       marginLeft: "0.5rem",
                       fontSize: "0.75rem",
                       fontWeight: 500,
-                      color: kit.returned_at ? "#6b7280" : "#166534",
+                      color: kit.returned_at ? "var(--muted)" : "var(--success-text)",
                     }}>
                       {kit.returned_at ? "Returned" : "Active"}
                     </span>
@@ -196,7 +196,7 @@ export default function EquipmentKitsPage() {
                       padding: "0.3rem 0.75rem",
                       fontSize: "0.8rem",
                       fontWeight: 500,
-                      background: "#166534",
+                      background: "var(--success-text)",
                       color: "#fff",
                       border: "none",
                       borderRadius: "6px",
@@ -256,7 +256,7 @@ export default function EquipmentKitsPage() {
                 padding: "0.5rem 1rem",
                 fontSize: "0.85rem",
                 fontWeight: 600,
-                background: person.person_id && selectedItems.size > 0 ? "var(--primary, #3b82f6)" : "#ccc",
+                background: person.person_id && selectedItems.size > 0 ? "var(--primary)" : "var(--border)",
                 color: "#fff",
                 border: "none",
                 borderRadius: "6px",

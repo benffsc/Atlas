@@ -107,7 +107,7 @@ export const DASHBOARD_LAYER_GROUPS: LayerGroup[] = [
   },
   {
     id: "atlas",
-    label: "Atlas Data",
+    label: "Beacon Data",
     icon: "\u{1F4CD}",
     color: "#22c55e",
     defaultExpanded: false,
@@ -630,10 +630,10 @@ function DashboardMapSearch({
             </>
           )}
 
-          {/* Atlas results */}
+          {/* Beacon (internal) results */}
           {atlasItems.length > 0 && (
             <>
-              <div className="dms-section-header">In Atlas</div>
+              <div className="dms-section-header">In Beacon</div>
               {atlasItems.map((item) => {
                 const globalIdx = items.indexOf(item);
                 return (

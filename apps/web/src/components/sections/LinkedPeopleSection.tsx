@@ -49,7 +49,7 @@ function SourceBadge({ source }: { source: string }) {
     volunteerhub: { label: "VolunteerHub", bg: "#0891b2", color: "#fff" },
     airtable: { label: "Airtable", bg: "#fcb400", color: "#000" },
     web_intake: { label: "Web", bg: "#0d6efd", color: "#fff" },
-    atlas_ui: { label: "Atlas", bg: "#6366f1", color: "#fff" },
+    atlas_ui: { label: "Beacon", bg: "#6366f1", color: "#fff" },
   };
 
   const info = sourceLabels[source] || {

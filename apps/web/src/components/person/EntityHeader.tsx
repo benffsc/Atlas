@@ -68,7 +68,7 @@ function DataSourceBadge({ dataSource }: { dataSource: string | null }) {
     volunteerhub: { label: "VolunteerHub", bg: "#6f42c1", color: "#fff" },
     airtable: { label: "Airtable", bg: "#ff6f00", color: "#fff" },
     web_intake: { label: "Web Intake", bg: "#3b82f6", color: "#fff" },
-    atlas_ui: { label: "Atlas", bg: "#374151", color: "#fff" },
+    atlas_ui: { label: "Beacon", bg: "#374151", color: "#fff" },
     shelterluv: { label: "ShelterLuv", bg: "#e91e63", color: "#fff" },
   };
 

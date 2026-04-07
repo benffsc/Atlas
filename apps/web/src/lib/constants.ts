@@ -58,7 +58,7 @@ export const SOURCE_SYSTEM_LABELS: Record<SourceSystem, string> = {
   web_intake: 'Web Intake',
   petlink: 'PetLink',
   google_maps: 'Google Maps',
-  atlas_ui: 'Atlas',
+  atlas_ui: 'Beacon',
 };
 
 export const SOURCE_SYSTEM_COLORS: Record<SourceSystem, string> = {

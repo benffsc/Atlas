@@ -725,7 +725,7 @@ export default function RequestDetailPage() {
                             )}
                           </div>
                           <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>
-                            {report.submitted_from === "airtable" ? "Airtable" : "Atlas"}
+                            {report.submitted_from === "airtable" ? "Airtable" : "Beacon"}
                           </span>
                         </div>
 
@@ -826,7 +826,7 @@ export default function RequestDetailPage() {
               <img src={mapUrl} alt="Map" style={{ width: "100%", height: "150px", objectFit: "cover", borderRadius: "6px" }} />
               <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
                 <a href={`https://www.google.com/maps/search/?api=1&query=${request.place_coordinates?.lat},${request.place_coordinates?.lng}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm" style={{ flex: 1, fontSize: "0.75rem" }}>Google Maps</a>
-                <a href={`/map?lat=${request.place_coordinates?.lat}&lng=${request.place_coordinates?.lng}&zoom=17`} className="btn btn-sm btn-secondary" style={{ flex: 1, fontSize: "0.75rem" }}>Atlas Map</a>
+                <a href={`/map?lat=${request.place_coordinates?.lat}&lng=${request.place_coordinates?.lng}&zoom=17`} className="btn btn-sm btn-secondary" style={{ flex: 1, fontSize: "0.75rem" }}>Beacon Map</a>
               </div>
             </div>
           )}

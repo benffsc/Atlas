@@ -29,7 +29,7 @@ const AtlasMap = dynamic(() => import("@/components/map/AtlasMapV2"), {
             margin: "0 auto 12px",
           }}
         />
-        <div style={{ color: "#6b7280", fontSize: 14 }}>Loading Atlas Map...</div>
+        <div style={{ color: "#6b7280", fontSize: 14 }}>Loading Beacon Map...</div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     </div>

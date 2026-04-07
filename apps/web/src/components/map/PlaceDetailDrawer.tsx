@@ -1282,11 +1282,11 @@ function formatSourceName(source: string): string {
     clinichq: "ClinicHQ",
     airtable: "Airtable",
     airtable_sync: "Airtable",
-    atlas_ui: "Atlas",
+    atlas_ui: "Beacon",
     web_intake: "Web Intake",
-    web_app: "Atlas",
+    web_app: "Beacon",
     file_upload: "Import",
-    app: "Atlas",
+    app: "Beacon",
     legacy_import: "Legacy",
   };
   return labels[source] || source;

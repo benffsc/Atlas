@@ -20,7 +20,10 @@ interface Staff {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { nameShort } = useOrgConfig();
-  const appName = nameShort || "Atlas";
+  // Product-level brand name (Beacon). Org nameShort is used as the in-app
+  // header label when an org-specific short name is configured; otherwise fall
+  // back to the Beacon product brand. Atlas is the internal backend name only.
+  const appName = nameShort || "Beacon";
   const [staff, setStaff] = useState<Staff | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -292,7 +295,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <a href="/" style={{ display: "flex", alignItems: "center", gap: "8px", textDecoration: "none", color: "var(--foreground)", fontWeight: 700, fontSize: "1.1rem" }}>
             <img src="/logo.png" alt="" style={{ height: "28px" }} />
-            Atlas
+            {appName}
           </a>
           <button
             onClick={() => setDrawerOpen(false)}

@@ -280,7 +280,7 @@ export default function LinearIssuesPage() {
           }}
         >
           <option value="">All Issues</option>
-          <option value="true">Linked to Atlas</option>
+          <option value="true">Linked to Beacon</option>
           <option value="false">Not Linked</option>
         </select>
       </div>

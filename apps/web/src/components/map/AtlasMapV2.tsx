@@ -1293,10 +1293,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           boxShadow: "0 2px 6px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)",
           display: "flex", alignItems: "center", padding: "8px 16px",
         }}>
-          <a href="/" title="Back to Atlas" style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 8, textDecoration: "none", color: "var(--text-secondary)", fontWeight: 700, fontSize: 14, flexShrink: 0, padding: "4px 8px 4px 4px", borderRadius: 6 }}>
+          <a href="/" title="Back to Beacon" style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 8, textDecoration: "none", color: "var(--text-secondary)", fontWeight: 700, fontSize: 14, flexShrink: 0, padding: "4px 8px 4px 4px", borderRadius: 6 }}>
             <span style={{ fontSize: 16, lineHeight: 1 }}>&#x2190;</span>
             <img src="/logo.png" alt="" style={{ height: 22, width: "auto" }} />
-            {!isMobile && <span>Atlas</span>}
+            {!isMobile && <span>Beacon</span>}
           </a>
           <span style={{ width: 1, height: 20, background: "var(--bg-secondary)", marginRight: 10, flexShrink: 0 }} />
           <input

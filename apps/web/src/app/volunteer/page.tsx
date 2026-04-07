@@ -98,7 +98,7 @@ export default function VolunteerDashboard() {
         <QuickAction
           icon="❓"
           label="Ask Tippy"
-          description="Get help navigating Atlas"
+          description="Get help navigating Beacon"
           onClick={() => {
             // Tippy chat is available via the floating button
             const tippy = document.querySelector(

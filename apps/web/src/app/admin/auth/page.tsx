@@ -370,7 +370,7 @@ export default function AdminAuthPage() {
           <li>The default password is configured via STAFF_DEFAULT_PASSWORD environment variable</li>
           <li>Staff will be required to change their password on first login</li>
           <li>Use the "Reset" button to restore a staff member's password to default</li>
-          <li>Communicate passwords securely (in person or via secure channel, never in Atlas)</li>
+          <li>Communicate passwords securely (in person or via secure channel, never in Beacon)</li>
         </ul>
       </div>
 

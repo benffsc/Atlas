@@ -12,7 +12,7 @@ const SOURCE_LABELS: Record<string, string> = {
   petlink: "PetLink",
   airtable: "Airtable",
   web_intake: "Web Intake",
-  atlas_ui: "Atlas",
+  atlas_ui: "Beacon",
   legacy_import: "Legacy",
 };
 

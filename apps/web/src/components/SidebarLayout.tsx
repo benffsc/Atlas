@@ -498,9 +498,12 @@ export const beaconSidebarSections: NavSection[] = [
     ],
   },
   {
-    title: "Atlas",
+    // Cross-link from Beacon analytics pages back to the main operational app.
+    // The main app is also branded "Beacon" — this section surfaces the
+    // operations/admin entry points so users can jump between views.
+    title: "Operations",
     items: [
-      { label: "Operations", href: "/", icon: "home" },
+      { label: "Dashboard", href: "/", icon: "home" },
       { label: "Admin", href: "/admin", icon: "settings" },
     ],
   },

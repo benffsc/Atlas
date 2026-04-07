@@ -261,7 +261,7 @@ export function formatSourceSystem(source: string | null | undefined): string {
     web_intake: "Web Intake",
     petlink: "PetLink",
     google_maps: "Google Maps",
-    atlas_ui: "Atlas",
+    atlas_ui: "Beacon",
   };
   return labels[source] || titleCase(source);
 }

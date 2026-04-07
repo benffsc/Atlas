@@ -789,7 +789,7 @@ function IntakeQueueContent() {
               if (groupBy === "category") {
                 key = sub.triage_category?.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) || "Uncategorized";
               } else if (groupBy === "type") {
-                key = sub.is_legacy ? "Legacy (Airtable)" : "Native (Atlas)";
+                key = sub.is_legacy ? "Legacy (Airtable)" : "Native (Beacon)";
               } else if (groupBy === "status") {
                 key = (sub.submission_status || "unknown").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
               }
@@ -800,7 +800,7 @@ function IntakeQueueContent() {
           : { "": sortedSubmissions };
 
         const groupOrder = groupBy === "type"
-          ? ["Native (Atlas)", "Legacy (Airtable)"]
+          ? ["Native (Beacon)", "Legacy (Airtable)"]
           : groupBy === "category"
           ? ["High Priority Tnr", "Standard Tnr", "Wellness Only", "Owned Cat Low", "Out Of County", "Needs Review", "Uncategorized"]
           : ["New", "Reviewed", "Converted", "Rejected"];

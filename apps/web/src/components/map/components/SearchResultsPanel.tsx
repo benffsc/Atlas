@@ -194,10 +194,10 @@ export function SearchResultsPanel({
         overflowY: "auto",
       }}
     >
-      {/* ── In Atlas (local loaded + API results) ── */}
+      {/* ── In Beacon (local loaded + API results) ── */}
       {hasAtlasSection && (
         <>
-          <div style={sectionHeader}>In Atlas</div>
+          <div style={sectionHeader}>In Beacon</div>
 
           {searchResults.map((result, i) => {
             const flatIdx = localStartIdx + i;

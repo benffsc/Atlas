@@ -587,7 +587,7 @@ export function LegacyUpgradeWizard({ request, onComplete, onCancel }: LegacyUpg
             <div style={{ padding: "0.75rem", background: "var(--info-bg)", color: "var(--info-text)", borderRadius: "6px", fontSize: "0.875rem" }}>
               <strong>What will happen:</strong>
               <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem" }}>
-                <li>A new Atlas request will be created with the original date</li>
+                <li>A new Beacon request will be created with the original date</li>
                 <li>The legacy request will be archived (status: cancelled)</li>
                 <li>All linked cats will be copied to the new request</li>
                 <li>Both actions will be logged for audit</li>
