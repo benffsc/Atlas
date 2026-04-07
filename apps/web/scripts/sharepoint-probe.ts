@@ -6,10 +6,11 @@
  *   cd apps/web
  *   npx dotenv -e .env.production.local -- npx tsx scripts/sharepoint-probe.ts
  */
+export {}; // module mode — avoid script-scope collision with sibling script files
 
-const CLIENT_ID = process.env.MICROSOFT_CLIENT_ID;
-const TENANT_ID = process.env.MICROSOFT_TENANT_ID;
-const CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
+const CLIENT_ID = process.env.SHAREPOINT_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID;
+const TENANT_ID = process.env.SHAREPOINT_TENANT_ID || process.env.MICROSOFT_TENANT_ID;
+const CLIENT_SECRET = process.env.SHAREPOINT_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET;
 const DRIVE_ID = process.env.SHAREPOINT_DRIVE_ID;
 const WAIVER_PATH = process.env.SHAREPOINT_WAIVER_PATH || "Spay Neuter Clinics/Clinic HQ Waivers";
 

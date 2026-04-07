@@ -4,8 +4,21 @@
  * Uses client credentials flow (app-only auth, no user login).
  * Provides folder listing and file download for SharePoint document libraries.
  *
- * Required env vars:
- *   MICROSOFT_CLIENT_ID, MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_SECRET
+ * Required env vars (in priority order):
+ *   1. SHAREPOINT_CLIENT_ID / SHAREPOINT_TENANT_ID / SHAREPOINT_CLIENT_SECRET
+ *      — namespaced vars for the "Atlas - SharePoint Sync" app (Files.Read.All
+ *        + Sites.Read.All Application permissions)
+ *   2. MICROSOFT_CLIENT_ID / MICROSOFT_TENANT_ID / MICROSOFT_CLIENT_SECRET
+ *      — legacy fallback. DO NOT use for new deployments. These vars are
+ *        shared with lib/outlook.ts (user-delegated Mail.Send flow) which
+ *        requires a DIFFERENT app registration ("Atlas Email Integration").
+ *        Using the Outlook app credentials here causes 401 generalException
+ *        on every Graph call because the Outlook app lacks application
+ *        roles (only delegated scopes).
+ *
+ * 2026-04-07: namespaced the vars after discovering Vercel MICROSOFT_*
+ * were pointing at the Email Integration app for 4 days, causing 0
+ * successful waiver syncs. See microsoft-sharepoint-setup memory.
  *
  * Part of: FFS-1110 (SharePoint Waiver Sync)
  */
@@ -35,13 +48,28 @@ export interface SharePointFile {
 }
 
 /**
+ * Resolve SharePoint credentials with namespaced-var priority and
+ * legacy MICROSOFT_* fallback. Prefer namespaced to avoid collision
+ * with lib/outlook.ts which uses the same MICROSOFT_* names for a
+ * different app registration.
+ */
+function resolveCredentials() {
+  return {
+    clientId: process.env.SHAREPOINT_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID,
+    tenantId: process.env.SHAREPOINT_TENANT_ID || process.env.MICROSOFT_TENANT_ID,
+    clientSecret: process.env.SHAREPOINT_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET,
+  };
+}
+
+/**
  * Validate that all required env vars are set.
  */
 export function validateSharePointConfig(): { valid: boolean; missing: string[] } {
+  const creds = resolveCredentials();
   const missing: string[] = [];
-  if (!process.env.MICROSOFT_CLIENT_ID) missing.push("MICROSOFT_CLIENT_ID");
-  if (!process.env.MICROSOFT_TENANT_ID) missing.push("MICROSOFT_TENANT_ID");
-  if (!process.env.MICROSOFT_CLIENT_SECRET) missing.push("MICROSOFT_CLIENT_SECRET");
+  if (!creds.clientId) missing.push("SHAREPOINT_CLIENT_ID (or legacy MICROSOFT_CLIENT_ID)");
+  if (!creds.tenantId) missing.push("SHAREPOINT_TENANT_ID (or legacy MICROSOFT_TENANT_ID)");
+  if (!creds.clientSecret) missing.push("SHAREPOINT_CLIENT_SECRET (or legacy MICROSOFT_CLIENT_SECRET)");
   return { valid: missing.length === 0, missing };
 }
 
@@ -55,12 +83,12 @@ async function getAccessToken(): Promise<string> {
     return tokenCache.token;
   }
 
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const tenantId = process.env.MICROSOFT_TENANT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const { clientId, tenantId, clientSecret } = resolveCredentials();
 
   if (!clientId || !tenantId || !clientSecret) {
-    throw new Error("Missing Microsoft credentials. Set MICROSOFT_CLIENT_ID, MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_SECRET.");
+    throw new Error(
+      "Missing Microsoft credentials. Set SHAREPOINT_CLIENT_ID / SHAREPOINT_TENANT_ID / SHAREPOINT_CLIENT_SECRET."
+    );
   }
 
   const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;

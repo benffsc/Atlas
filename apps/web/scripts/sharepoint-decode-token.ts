@@ -3,10 +3,11 @@
  * Decode the app-only JWT to see what roles/app the token carries.
  * Diagnoses why Graph API returns 401 on every call.
  */
+export {}; // module mode — avoid script-scope collision with sibling script files
 
-const CLIENT_ID = process.env.MICROSOFT_CLIENT_ID;
-const TENANT_ID = process.env.MICROSOFT_TENANT_ID;
-const CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
+const CLIENT_ID = process.env.SHAREPOINT_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID;
+const TENANT_ID = process.env.SHAREPOINT_TENANT_ID || process.env.MICROSOFT_TENANT_ID;
+const CLIENT_SECRET = process.env.SHAREPOINT_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET;
 
 async function getToken(): Promise<string> {
   const res = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
