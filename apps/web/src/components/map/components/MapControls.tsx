@@ -134,6 +134,8 @@ interface MapControlsProps {
   onExportCsv?: () => void;
   onExportGeoJson?: () => void;
   exportPinCount?: number;
+  /** Copy current map URL to clipboard. Returns a promise that resolves when clipboard write succeeds. */
+  onCopyLink?: () => Promise<void>;
   /** When true, hide non-essential buttons (Measure, Export, Basemap) — used when BottomSheet is expanded on mobile */
   compact?: boolean;
 }
@@ -159,10 +161,23 @@ export function MapControls({
   onExportCsv,
   onExportGeoJson,
   exportPinCount,
+  onCopyLink,
   compact = false,
 }: MapControlsProps) {
   const [showBasemapMenu, setShowBasemapMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [copyLinkJustCopied, setCopyLinkJustCopied] = useState(false);
+
+  const handleCopyLink = async () => {
+    if (!onCopyLink) return;
+    try {
+      await onCopyLink();
+      setCopyLinkJustCopied(true);
+      window.setTimeout(() => setCopyLinkJustCopied(false), 1800);
+    } catch {
+      // Parent handles error toasts
+    }
+  };
 
   const handleAddPointClick = () => {
     if (addPointMode) {
@@ -331,6 +346,28 @@ export function MapControls({
             </div>
           )}
         </div>
+      )}
+
+      {/* Copy Link — shares the current map view URL with layers/dates/center/zoom (FFS-1178) */}
+      {onCopyLink && !compact && (
+        <button
+          onClick={handleCopyLink}
+          title="Copy link to this view"
+          aria-label="Copy link to this map view"
+          className={`map-control-btn ${copyLinkJustCopied ? "map-control-btn--active" : ""}`}
+        >
+          {copyLinkJustCopied ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          )}
+          {!isMobile && (copyLinkJustCopied ? "Copied" : "Share")}
+        </button>
       )}
 
       {/* Fullscreen toggle */}

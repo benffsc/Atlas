@@ -41,7 +41,8 @@ import {
 import { formatDistance } from "@/components/map/hooks/useMeasurement";
 import { GooglePinMarkers, PlaceMarkers, VolunteerMarkers, ClinicClientMarkers, TrapperTerritoryMarkers } from "@/components/map/components/LayerMarkers";
 import { ZoneBoundaries } from "@/components/map/components/ZoneBoundaries";
-import { useMapUrlState } from "@/components/map/hooks/useMapUrlState";
+import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
+import { MapTimeSlider } from "@/components/map/components/MapTimeSlider";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type {
   AtlasPin,
@@ -138,14 +139,21 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [basemap, setBasemap] = useState<BasemapType>("street");
   const [selectedZone, setSelectedZone] = useState("All Zones");
-  const [dateFrom, setDateFrom] = useState<string | null>(null);
-  const [dateTo, setDateTo] = useState<string | null>(null);
+
+  // Read initial date + viewport state from URL once on mount (FFS-1178)
+  const initialUrlState = useMemo(() => readMapInitialUrlState(), []);
+  const [dateFrom, setDateFrom] = useState<string | null>(initialUrlState.dateFrom);
+  const [dateTo, setDateTo] = useState<string | null>(initialUrlState.dateTo);
+  // Time slider visible by default in analystMode, toggleable elsewhere
+  const [showTimeSlider, setShowTimeSlider] = useState<boolean>(analystMode);
+
   // ── URL-synced drawer state (Phase 3) ──
   const {
     selectedPlaceId, setSelectedPlaceId,
     selectedPersonId, setSelectedPersonId,
     selectedCatId, setSelectedCatId,
     selectedAnnotationId, setSelectedAnnotationId,
+    syncDatesToUrl, syncViewportToUrl,
   } = useMapUrlState();
   const [selectedPin, setSelectedPin] = useState<AtlasPin | null>(null);
   const [comparisonPlaceIds, setComparisonPlaceIds] = useState<string[]>([]);
@@ -180,7 +188,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
 
   // ── Clustering state (Step 11) ──
   const [mapBounds, setMapBounds] = useState<{ west: number; south: number; east: number; north: number } | null>(null);
-  const [mapZoomLevel, setMapZoomLevel] = useState(mapZoom);
+  const [mapZoomLevel, setMapZoomLevel] = useState(initialUrlState.zoom ?? mapZoom);
 
   // ── Fullscreen state ──
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -225,7 +233,22 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   const handleDateRangeChange = useCallback((from: string | null, to: string | null) => {
     setDateFrom(from);
     setDateTo(to);
-  }, []);
+    syncDatesToUrl(from, to);
+  }, [syncDatesToUrl]);
+
+  // Viewport URL sync — listen to map 'idle' and write center/zoom (debounced by Google's
+  // idle event, which only fires after pan/zoom settles).
+  useEffect(() => {
+    if (!map) return;
+    const listener = map.addListener("idle", () => {
+      const c = map.getCenter();
+      const z = map.getZoom();
+      if (c && z != null) {
+        syncViewportToUrl({ lat: c.lat(), lng: c.lng() }, z);
+      }
+    });
+    return () => { google.maps.event.removeListener(listener); };
+  }, [map, syncViewportToUrl]);
 
   // ── SWR data fetch ──
   const { data: mapData, isLoading: mapIsLoading, mutate: refreshMapData } = useMapData({
@@ -1113,8 +1136,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     <div className="map-container-v2" role="application" aria-roledescription="interactive map" style={{ position: "relative", height: "100dvh", width: "100%" }}>
       <Map
         mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "atlas-map-v2"}
-        defaultCenter={{ lat: mapCenter[0], lng: mapCenter[1] }}
-        defaultZoom={mapZoom}
+        defaultCenter={initialUrlState.center ?? { lat: mapCenter[0], lng: mapCenter[1] }}
+        defaultZoom={initialUrlState.zoom ?? mapZoom}
         gestureHandling="greedy"
         disableDefaultUI
         style={{ width: "100%", height: "100%" }}
@@ -1390,6 +1413,15 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         onExportCsv={handleExportCsv}
         onExportGeoJson={handleExportGeoJson}
         exportPinCount={atlasPins.length}
+        onCopyLink={async () => {
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+            addToast({ type: "success", message: "Link copied to clipboard" });
+          } catch {
+            addToast({ type: "error", message: "Couldn't copy link — check clipboard permissions" });
+            throw new Error("clipboard unavailable");
+          }
+        }}
       />
 
       {/* ── "Return to search" chip — shows when navigated location exists and user clicked away ── */}
@@ -1441,6 +1473,15 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
 
       {/* ── Date range filter ── */}
       <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
+
+      {/* ── Time slider (FFS-1174) — scrubbable month-by-month date picker.
+             Drives dateTo. Visible by default in analystMode, toggleable otherwise. ── */}
+      {showTimeSlider && (
+        <MapTimeSlider
+          value={dateTo}
+          onChange={(iso) => handleDateRangeChange(dateFrom, iso)}
+        />
+      )}
 
       {/* ── Pin key (always-visible collapsible legend) ── */}
       <MapPinKey pinConfig={pinConfig} isMobile={isMobile} />
