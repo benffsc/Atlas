@@ -141,6 +141,18 @@ export default function ClinicDayHubPage() {
   // Photo upload state
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
+  // MIG_3050: Inline data quality health badge
+  const [health, setHealth] = useState<{
+    overall: "pass" | "warn" | "fail";
+    checks: Array<{
+      check_name: string;
+      status: string;
+      value: number;
+      detail: string;
+    }>;
+    summary: { pass: number; warn: number; fail: number };
+  } | null>(null);
+
   // ── Data loading ─────────────────────────────────────────────────
 
   const loadStatus = useCallback(async () => {
@@ -166,12 +178,31 @@ export default function ClinicDayHubPage() {
     }
   }, [date]);
 
+  // MIG_3050: Load inline health badge (silent failure if migration not applied)
+  const loadHealth = useCallback(async () => {
+    try {
+      const data = await fetchApi<{
+        overall: "pass" | "warn" | "fail";
+        checks: Array<{
+          check_name: string;
+          status: string;
+          value: number;
+          detail: string;
+        }>;
+        summary: { pass: number; warn: number; fail: number };
+      }>(`/api/admin/clinic-days/${date}/health`);
+      setHealth(data);
+    } catch {
+      setHealth(null);
+    }
+  }, [date]);
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadStatus(), loadEntries()]).finally(() =>
+    Promise.all([loadStatus(), loadEntries(), loadHealth()]).finally(() =>
       setLoading(false)
     );
-  }, [loadStatus, loadEntries]);
+  }, [loadStatus, loadEntries, loadHealth]);
 
   // ── Actions ──────────────────────────────────────────────────────
 
@@ -386,6 +417,44 @@ export default function ClinicDayHubPage() {
           )}
         </div>
       </div>
+
+      {/* MIG_3050: Inline data quality health badge */}
+      {health && (health.summary.warn > 0 || health.summary.fail > 0) && (
+        <div
+          style={{
+            marginBottom: "16px",
+            padding: "12px 16px",
+            borderRadius: "8px",
+            background:
+              health.overall === "fail"
+                ? "#fef2f2"
+                : "#fef3c7",
+            border: `1px solid ${
+              health.overall === "fail" ? "#ef4444" : "#f59e0b"
+            }`,
+            color:
+              health.overall === "fail" ? "#991b1b" : "#92400e",
+            fontSize: "0.9rem",
+          }}
+          title="Data quality checks for this clinic date"
+        >
+          <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+            Data Quality:{" "}
+            {health.summary.fail > 0 && `${health.summary.fail} fail · `}
+            {health.summary.warn > 0 && `${health.summary.warn} warn · `}
+            {health.summary.pass} pass
+          </div>
+          <ul style={{ margin: "4px 0 0 1.25rem", padding: 0 }}>
+            {health.checks
+              .filter((c) => c.status !== "pass")
+              .map((c) => (
+                <li key={c.check_name} style={{ fontSize: "0.85rem" }}>
+                  <strong>{c.check_name}</strong> ({c.value}) — {c.detail}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       {/* Status lanes */}
       <div style={{

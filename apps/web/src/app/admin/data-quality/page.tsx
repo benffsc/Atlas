@@ -5,7 +5,35 @@ import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { TabBar } from "@/components/ui/TabBar";
 import { SkeletonStats } from "@/components/feedback/Skeleton";
 
-type TabType = "dashboard" | "alerts" | "trends";
+type TabType = "dashboard" | "alerts" | "trends" | "checks";
+
+// MIG_3050: Data quality checks registry types
+interface CheckRegistryRow {
+  check_id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  severity: string;
+  enabled: boolean;
+  expected_max: number;
+  last_run_at: string | null;
+  last_value: number | null;
+  last_status: string | null;
+  last_error: string | null;
+  drilldown_sql: string | null;
+}
+
+interface ChecksResponse {
+  checks: CheckRegistryRow[];
+  summary: {
+    total: number;
+    pass: number;
+    warn: number;
+    fail: number;
+    error: number;
+    never_run: number;
+  };
+}
 
 interface DashboardMetrics {
   total_cats: number;
@@ -117,6 +145,8 @@ export default function DataQualityPage() {
   const [data, setData] = useState<DataQualityResponse | null>(null);
   const [alerts, setAlerts] = useState<AlertsResponse | null>(null);
   const [trends, setTrends] = useState<TrendResponse | null>(null);
+  const [checksData, setChecksData] = useState<ChecksResponse | null>(null);
+  const [checksRunning, setChecksRunning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
@@ -151,16 +181,39 @@ export default function DataQualityPage() {
     }
   }, []);
 
+  // MIG_3050: Data quality checks registry
+  const fetchChecks = useCallback(async () => {
+    try {
+      const result = await fetchApi<ChecksResponse>("/api/admin/data-quality/checks");
+      setChecksData(result);
+    } catch {
+      // Checks endpoint may not exist if MIG_3050 not applied
+    }
+  }, []);
+
+  const runChecksNow = async () => {
+    setChecksRunning(true);
+    try {
+      await postApi("/api/admin/data-quality/checks", { run: true });
+      await fetchChecks();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unknown error");
+    } finally {
+      setChecksRunning(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     fetchAlerts();
     fetchTrends();
+    fetchChecks();
     const interval = setInterval(() => {
       fetchData();
       fetchAlerts();
     }, 60000); // Refresh every minute
     return () => clearInterval(interval);
-  }, [fetchData, fetchAlerts, fetchTrends]);
+  }, [fetchData, fetchAlerts, fetchTrends, fetchChecks]);
 
   const takeSnapshot = async () => {
     setSnapshotLoading(true);
@@ -204,6 +257,14 @@ export default function DataQualityPage() {
     { key: "dashboard", label: "Dashboard" },
     { key: "alerts", label: "Alerts", badge: alerts?.summary?.total || 0 },
     { key: "trends", label: "Trends" },
+    {
+      key: "checks",
+      label: "Checks",
+      badge:
+        (checksData?.summary?.fail || 0) +
+        (checksData?.summary?.error || 0) +
+        (checksData?.summary?.warn || 0),
+    },
   ];
 
   return (
@@ -249,6 +310,13 @@ export default function DataQualityPage() {
       {/* Tab Content */}
       {activeTab === "alerts" && <AlertsPanel alerts={alerts} />}
       {activeTab === "trends" && <TrendsPanel trends={trends} />}
+      {activeTab === "checks" && (
+        <ChecksPanel
+          data={checksData}
+          onRunNow={runChecksNow}
+          running={checksRunning}
+        />
+      )}
       {activeTab !== "dashboard" && <div style={{ marginBottom: "2rem" }} />}
       {activeTab !== "dashboard" ? null : (
         <>
@@ -922,6 +990,228 @@ function TrendsPanel({ trends }: { trends: TrendResponse | null }) {
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+// MIG_3050 / FFS-1150 Initiative 3
+// Checks Registry tab
+function ChecksPanel({
+  data,
+  onRunNow,
+  running,
+}: {
+  data: ChecksResponse | null;
+  onRunNow: () => void;
+  running: boolean;
+}) {
+  if (!data) {
+    return (
+      <div style={{ padding: "1rem", color: "var(--text-muted)" }}>
+        Checks registry not available. Apply MIG_3050 to enable.
+      </div>
+    );
+  }
+
+  const { checks, summary } = data;
+
+  const statusColor = (status: string | null) => {
+    switch (status) {
+      case "pass":
+        return { bg: "#ecfdf5", border: "#10b981", text: "#059669" };
+      case "warn":
+        return { bg: "#fef3c7", border: "#f59e0b", text: "#d97706" };
+      case "fail":
+        return { bg: "#fef2f2", border: "#ef4444", text: "#dc2626" };
+      case "error":
+        return { bg: "#fce7f3", border: "#9d174d", text: "#9d174d" };
+      default:
+        return { bg: "#f3f4f6", border: "#9ca3af", text: "#6b7280" };
+    }
+  };
+
+  // Group by category
+  const byCategory: Record<string, CheckRegistryRow[]> = {};
+  for (const c of checks) {
+    if (!byCategory[c.category]) byCategory[c.category] = [];
+    byCategory[c.category].push(c);
+  }
+
+  return (
+    <div style={{ marginTop: "1rem" }}>
+      {/* Summary + Run Now */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "1rem",
+          padding: "1rem",
+          background: "var(--card-bg)",
+          border: "1px solid var(--border)",
+          borderRadius: "8px",
+        }}
+      >
+        <div style={{ display: "flex", gap: "1.5rem" }}>
+          <span>
+            <strong>{summary.total}</strong> total
+          </span>
+          <span style={{ color: "#059669" }}>
+            <strong>{summary.pass}</strong> pass
+          </span>
+          {summary.warn > 0 && (
+            <span style={{ color: "#d97706" }}>
+              <strong>{summary.warn}</strong> warn
+            </span>
+          )}
+          {summary.fail > 0 && (
+            <span style={{ color: "#dc2626" }}>
+              <strong>{summary.fail}</strong> fail
+            </span>
+          )}
+          {summary.error > 0 && (
+            <span style={{ color: "#9d174d" }}>
+              <strong>{summary.error}</strong> error
+            </span>
+          )}
+          {summary.never_run > 0 && (
+            <span style={{ color: "#6b7280" }}>
+              <strong>{summary.never_run}</strong> never run
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onRunNow}
+          disabled={running}
+          style={{
+            padding: "0.5rem 1rem",
+            background: "var(--card-bg)",
+            border: "1px solid var(--border)",
+            borderRadius: "6px",
+            cursor: running ? "not-allowed" : "pointer",
+            opacity: running ? 0.6 : 1,
+          }}
+        >
+          {running ? "Running..." : "Run All Now"}
+        </button>
+      </div>
+
+      {/* Grouped by category */}
+      {Object.entries(byCategory).map(([category, rows]) => (
+        <div key={category} style={{ marginBottom: "1.5rem" }}>
+          <h3
+            style={{
+              fontSize: "0.875rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              color: "var(--text-muted)",
+              marginBottom: "0.5rem",
+            }}
+          >
+            {category}
+          </h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: "0.75rem",
+            }}
+          >
+            {rows.map((c) => {
+              const sc = statusColor(c.last_status);
+              return (
+                <div
+                  key={c.check_id}
+                  style={{
+                    padding: "0.75rem",
+                    background: sc.bg,
+                    border: `1px solid ${sc.border}`,
+                    borderRadius: "6px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                        {c.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "var(--text-muted)",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {c.check_id} · {c.severity}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "1.5rem",
+                        color: sc.text,
+                      }}
+                    >
+                      {c.last_value ?? "—"}
+                    </div>
+                  </div>
+                  {c.description && (
+                    <div
+                      style={{
+                        fontSize: "0.8rem",
+                        marginTop: "0.5rem",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {c.description}
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: "0.7rem",
+                      marginTop: "0.5rem",
+                      color: "var(--text-muted)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span>
+                      Expected ≤ {c.expected_max} ·{" "}
+                      {c.last_status || "never run"}
+                    </span>
+                    {c.last_run_at && (
+                      <span>
+                        {new Date(c.last_run_at).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  {c.last_error && (
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        marginTop: "0.5rem",
+                        padding: "0.5rem",
+                        background: "#fee2e2",
+                        borderRadius: "4px",
+                        color: "#991b1b",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {c.last_error}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

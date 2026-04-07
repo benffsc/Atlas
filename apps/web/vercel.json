@@ -79,6 +79,10 @@
     {
       "path": "/api/cron/sharepoint-waiver-sync",
       "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/data-quality-checks",
+      "schedule": "30 */4 * * *"
     }
   ]
 }
