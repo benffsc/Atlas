@@ -232,10 +232,10 @@ from geo_latitude/geo_longitude unless staff_override is set.';
 --   Los Angeles         (34.0522, -118.2437)  → 'out' ✓
 --
 -- The full-resolution polygon (5544 points) lives in
--- data/boundaries/sonoma_county_boundary.geojson. To replace the
+-- sql/data/boundaries/sonoma_county_boundary.geojson. To replace the
 -- embedded simplified polygon with the official Sonoma County GIS
 -- Hub polygon (recommended before Go Live), follow the steps in
--- data/boundaries/README.md.
+-- sql/data/boundaries/README.md.
 --
 -- Source: OpenStreetMap (relation 396468) via Nominatim
 -- License: ODbL 1.0 — © OpenStreetMap contributors
