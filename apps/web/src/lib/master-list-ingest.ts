@@ -12,12 +12,41 @@
  */
 
 import * as xlsx from "xlsx";
-import { queryOne, queryRows, execute } from "@/lib/db";
+import { queryOne, queryRows, withTransaction } from "@/lib/db";
 import { runCDS } from "@/lib/cds";
 import {
   parseMasterList,
   type ParsedEntry,
 } from "@/lib/master-list-parser";
+
+// Allowed values for ops.clinic_day_entries.status (per CHECK constraint).
+// Master list raw status column carries clinical conditions (Heat, Preg,
+// DNC, Relo) that don't fit this workflow enum. Normalize on ingest:
+// known values pass through, unknown values fall back to 'completed'
+// (since a master list row represents a completed clinic visit).
+// The original raw value is preserved in `notes` so no data is lost.
+const ALLOWED_STATUSES = new Set([
+  "checked_in", "in_surgery", "recovering", "released", "held",
+  "completed", "no_show", "cancelled", "partial", "pending",
+]);
+
+function normalizeStatus(rawStatus: string | null): { status: string; preservedRaw: string | null } {
+  if (!rawStatus || !rawStatus.trim()) {
+    return { status: "completed", preservedRaw: null };
+  }
+  const lower = rawStatus.trim().toLowerCase();
+  if (ALLOWED_STATUSES.has(lower)) {
+    return { status: lower, preservedRaw: null };
+  }
+  // Not in the enum — preserve in notes, default to 'completed'
+  return { status: "completed", preservedRaw: rawStatus.trim() };
+}
+
+function mergeNotes(...parts: (string | null)[]): string | null {
+  const filtered = parts.filter((p): p is string => !!p && p.trim().length > 0);
+  if (filtered.length === 0) return null;
+  return filtered.join(" | ");
+}
 
 export interface IngestResult {
   status: "ok" | "skipped_existing" | "no_entries" | "no_date" | "date_mismatch";
@@ -161,59 +190,71 @@ export async function ingestMasterListWorkbook(
     );
   }
 
-  // 5. INSERT entries
+  // 5. INSERT entries — wrapped in a transaction so a single bad row
+  // doesn't leave orphan inserts. lib/db.ts withTransaction handles
+  // BEGIN/COMMIT/ROLLBACK on a single pooled client.
+  const clinicDayId = clinicDay.clinic_day_id;
   let inserted = 0;
   let trappersResolved = 0;
 
-  for (const entry of entries) {
-    const trapperResult = entry.parsed_trapper_alias
-      ? await queryOne<{ person_id: string | null }>(
-          `SELECT ops.resolve_trapper_alias($1) as person_id`,
-          [entry.parsed_trapper_alias]
-        )
-      : null;
+  await withTransaction(async (tx) => {
+    for (const entry of entries) {
+      const trapperResult = entry.parsed_trapper_alias
+        ? await tx.queryOne<{ person_id: string | null }>(
+            `SELECT ops.resolve_trapper_alias($1) as person_id`,
+            [entry.parsed_trapper_alias]
+          )
+        : null;
 
-    const trapperPersonId = trapperResult?.person_id || null;
-    if (trapperPersonId) trappersResolved++;
+      const trapperPersonId = trapperResult?.person_id || null;
+      if (trapperPersonId) trappersResolved++;
 
-    await execute(
-      `INSERT INTO ops.clinic_day_entries (
-        clinic_day_id, line_number, source_description,
-        raw_client_name, parsed_owner_name, parsed_cat_name,
-        parsed_trapper_alias, trapper_person_id,
-        cat_count, female_count, male_count, was_altered,
-        is_walkin, is_already_altered, fee_code,
-        test_requested, test_result, notes, status,
-        source_system, entered_by,
-        is_recheck, recheck_type,
-        is_foster, foster_parent_name, is_shelter,
-        org_code, shelter_animal_id, org_name,
-        is_address, parsed_address, parsed_cat_color,
-        contact_phone, alt_contact_name, alt_contact_phone,
-        weight_lbs, sx_end_time
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28,
-        $29, $30, $31, $32, $33, $34, $35, $36, $37
-      )`,
-      [
-        clinicDay.clinic_day_id, entry.line_number, entry.raw_client_name,
-        entry.raw_client_name, entry.parsed_owner_name, entry.parsed_cat_name,
-        entry.parsed_trapper_alias, trapperPersonId,
-        1, entry.is_female ? 1 : 0, entry.is_male ? 1 : 0, entry.was_altered,
-        entry.is_walkin, entry.is_already_altered, entry.fee_code,
-        entry.test_requested, entry.test_result, entry.notes,
-        entry.status || "completed", sourceSystem, enteredBy,
-        entry.is_recheck, entry.recheck_type,
-        entry.is_foster, entry.foster_parent_name, entry.is_shelter,
-        entry.org_code, entry.shelter_animal_id, entry.org_name,
-        entry.is_address, entry.parsed_address, entry.parsed_cat_color,
-        entry.contact_phone, entry.alt_contact_name, entry.alt_contact_phone,
-        entry.weight_lbs, entry.sx_end_time,
-      ]
-    );
-    inserted++;
-  }
+      // Normalize status to fit the CHECK constraint, preserve raw value in notes
+      const { status, preservedRaw } = normalizeStatus(entry.status);
+      const finalNotes = mergeNotes(
+        entry.notes,
+        preservedRaw ? `master_list_status=${preservedRaw}` : null
+      );
+
+      await tx.query(
+        `INSERT INTO ops.clinic_day_entries (
+          clinic_day_id, line_number, source_description,
+          raw_client_name, parsed_owner_name, parsed_cat_name,
+          parsed_trapper_alias, trapper_person_id,
+          cat_count, female_count, male_count, was_altered,
+          is_walkin, is_already_altered, fee_code,
+          test_requested, test_result, notes, status,
+          source_system, entered_by,
+          is_recheck, recheck_type,
+          is_foster, foster_parent_name, is_shelter,
+          org_code, shelter_animal_id, org_name,
+          is_address, parsed_address, parsed_cat_color,
+          contact_phone, alt_contact_name, alt_contact_phone,
+          weight_lbs, sx_end_time
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+          $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28,
+          $29, $30, $31, $32, $33, $34, $35, $36, $37
+        )`,
+        [
+          clinicDayId, entry.line_number, entry.raw_client_name,
+          entry.raw_client_name, entry.parsed_owner_name, entry.parsed_cat_name,
+          entry.parsed_trapper_alias, trapperPersonId,
+          1, entry.is_female ? 1 : 0, entry.is_male ? 1 : 0, entry.was_altered,
+          entry.is_walkin, entry.is_already_altered, entry.fee_code,
+          entry.test_requested, entry.test_result, finalNotes,
+          status, sourceSystem, enteredBy,
+          entry.is_recheck, entry.recheck_type,
+          entry.is_foster, entry.foster_parent_name, entry.is_shelter,
+          entry.org_code, entry.shelter_animal_id, entry.org_name,
+          entry.is_address, entry.parsed_address, entry.parsed_cat_color,
+          entry.contact_phone, entry.alt_contact_name, entry.alt_contact_phone,
+          entry.weight_lbs, entry.sx_end_time,
+        ]
+      );
+      inserted++;
+    }
+  });
 
   // 6. CDS run
   let cdsRunId: string | undefined;
