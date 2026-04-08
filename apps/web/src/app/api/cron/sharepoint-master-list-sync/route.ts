@@ -47,7 +47,11 @@ export const maxDuration = 300;
 const CRON_SECRET = process.env.CRON_SECRET;
 const SHAREPOINT_DRIVE_ID = (process.env.SHAREPOINT_DRIVE_ID || "").trim();
 
-const MAX_FILES_PER_RUN = 30;
+// Per-run budget. Each master list ingest holds the workbook in memory plus
+// CDS context if enabled. Keep this conservative — Vercel killed an earlier
+// 30-file run with "instance ran out of available memory". 10 files × ~3-5s
+// each = 30-50s, well under both the time budget (300s) and the memory cap.
+const MAX_FILES_PER_RUN = 10;
 
 // Build list of {Year} Completed Master List folders to scan.
 // Always scan current year + previous year to catch any late uploads.
@@ -202,14 +206,20 @@ export async function GET(request: NextRequest) {
             [file.name, storedFilename, content, content.length, fileHash]
           );
 
-          // Parse + ingest via shared lib
+          // Parse + ingest via shared lib.
+          // skipCDS: true — running CDS in the cron caused OOM (CDS loads
+          // appointments + waivers + clinic_day_entries per date). CDS will
+          // get triggered the next time staff opens the clinic day page,
+          // hits the rematch button, or when the data-quality cron's
+          // existing v_clinic_day_health surface flags missing matches.
+          // The cron's job is just to populate clinic_day_entries.
           const workbook = xlsx.read(content, { type: "buffer" });
           const result = await ingestMasterListWorkbook(workbook, {
             dateOverride: parsed.date,
             enteredBy: null, // cron-driven, no staff session
             sourceSystem: "master_list_sharepoint_sync",
             skipIfExists: true,
-            skipCDS: false,
+            skipCDS: true,
           });
 
           // Mark file_uploads completed
