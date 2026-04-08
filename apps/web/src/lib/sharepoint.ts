@@ -52,12 +52,17 @@ export interface SharePointFile {
  * legacy MICROSOFT_* fallback. Prefer namespaced to avoid collision
  * with lib/outlook.ts which uses the same MICROSOFT_* names for a
  * different app registration.
+ *
+ * .trim() is defensive — `vercel env add` via shell `echo "value" |`
+ * stores a trailing newline literally. Microsoft Graph happens to strip
+ * whitespace on form-urlencoded values, but local scripts and any other
+ * downstream consumers will choke on it. Trim once at the source.
  */
 function resolveCredentials() {
   return {
-    clientId: process.env.SHAREPOINT_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID,
-    tenantId: process.env.SHAREPOINT_TENANT_ID || process.env.MICROSOFT_TENANT_ID,
-    clientSecret: process.env.SHAREPOINT_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET,
+    clientId: (process.env.SHAREPOINT_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID)?.trim(),
+    tenantId: (process.env.SHAREPOINT_TENANT_ID || process.env.MICROSOFT_TENANT_ID)?.trim(),
+    clientSecret: (process.env.SHAREPOINT_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET)?.trim(),
   };
 }
 

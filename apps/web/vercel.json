@@ -81,6 +81,10 @@
       "schedule": "0 */4 * * *"
     },
     {
+      "path": "/api/cron/sharepoint-master-list-sync",
+      "schedule": "15 */6 * * *"
+    },
+    {
       "path": "/api/cron/data-quality-checks",
       "schedule": "30 */4 * * *"
     }
