@@ -87,15 +87,11 @@ function LoginForm() {
       >
         {/* Logo/Header */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <h1
-            style={{
-              fontSize: "2rem",
-              fontWeight: 700,
-              marginBottom: "0.5rem",
-            }}
-          >
-            Atlas
-          </h1>
+          <img
+            src="/beacon-logo.jpeg"
+            alt="Beacon"
+            style={{ width: "220px", height: "auto", marginBottom: "0.75rem" }}
+          />
           <p className="text-muted">Sign in to your account</p>
         </div>
 

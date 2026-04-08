@@ -135,10 +135,10 @@ export default function ChangePasswordPage() {
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <div style={{ marginBottom: "12px" }}>
             <img
-              src="/logo.png"
+              src="/beacon-logo.jpeg"
               alt="Beacon"
               className="nav-logo"
-              style={{ width: "60px", height: "auto" }}
+              style={{ width: "180px", height: "auto" }}
             />
           </div>
           <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "8px" }}>

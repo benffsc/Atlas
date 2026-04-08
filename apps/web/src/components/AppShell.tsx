@@ -6,7 +6,6 @@ import Link from "next/link";
 import { GlobalSearch, CommandPaletteProvider, useCommandPalette } from "@/components/search";
 import { mainSidebarSections, type NavSection } from "@/components/SidebarLayout";
 import { usePermission } from "@/hooks/usePermission";
-import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { ToastProvider } from "@/components/feedback/Toast";
 import { Icon } from "@/components/ui/Icon";
 
@@ -19,11 +18,12 @@ interface Staff {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { nameShort } = useOrgConfig();
-  // Product-level brand name (Beacon). Org nameShort is used as the in-app
-  // header label when an org-specific short name is configured; otherwise fall
-  // back to the Beacon product brand. Atlas is the internal backend name only.
-  const appName = nameShort || "Beacon";
+  // The product is ALWAYS "Beacon". The org (useOrgConfig().nameShort, e.g.
+  // "FFSC") is the organization operating the tool, not the tool itself. We
+  // explicitly do NOT fall back to nameShort here — that would hide the Beacon
+  // brand. Beacon is a standalone product name that works across any org that
+  // deploys it. Atlas is the internal backend name only.
+  const appName = "Beacon";
   const [staff, setStaff] = useState<Staff | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -111,10 +111,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {drawerOpen ? "\u2715" : "\u2630"}
           </button>
 
-          {/* Logo */}
-          <a href="/" className="nav-brand" style={{ flexShrink: 0 }}>
-            <img src="/logo.png" alt={appName} className="nav-logo" style={{ height: "32px" }} />
-            <span style={{ fontSize: "1.25rem" }}>{appName}</span>
+          {/* Beacon wordmark logo (wordmark already contains "BEACON" text) */}
+          <a href="/" className="nav-brand" style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+            <img
+              src="/beacon-logo.jpeg"
+              alt={appName}
+              className="nav-logo"
+              style={{ height: "36px", width: "auto", display: "block" }}
+            />
           </a>
 
           {/* Search - flex grow to fill center */}
@@ -294,8 +298,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }}
         >
           <a href="/" style={{ display: "flex", alignItems: "center", gap: "8px", textDecoration: "none", color: "var(--foreground)", fontWeight: 700, fontSize: "1.1rem" }}>
-            <img src="/logo.png" alt="" style={{ height: "28px" }} />
-            {appName}
+            <img src="/beacon-logo.jpeg" alt={appName} style={{ height: "32px", width: "auto" }} />
           </a>
           <button
             onClick={() => setDrawerOpen(false)}
