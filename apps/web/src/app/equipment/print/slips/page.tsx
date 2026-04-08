@@ -15,8 +15,20 @@ interface ScannedEquipment {
 }
 
 /**
- * Checkout slips — two half-sheets per page (portrait).
- * Clients fill in their info, staff enters it into the system later.
+ * Equipment Checkout Slips — half-sheet, 2-up per letter portrait page.
+ *
+ * Redesigned 2026-04-08 for big-handwriting walk-ins. Field set reduced
+ * to the 9 essentials per the field-reduction principle in
+ * docs/PAPER_FORM_DESIGN.md. Typography calibrated against the
+ * accessibility minimums in apps/web/src/lib/paper-form-design.ts.
+ *
+ * Email is intentionally KEPT — the slip is often the FIRST data
+ * collection point for walk-ins not yet in Atlas, and email is the
+ * canonical identifier for the data engine downstream.
+ *
+ * This is the canonical example of the Atlas paper form design language.
+ * When building any new printable form, read this file alongside
+ * docs/PAPER_FORM_DESIGN.md and apps/web/src/lib/paper-form-design.ts.
  */
 export default function CheckoutSlipsPage() {
   const { nameShort, phone: orgPhone } = useOrgConfig();
@@ -33,7 +45,7 @@ export default function CheckoutSlipsPage() {
     setError(null);
     try {
       const data = await fetchApi<ScannedEquipment>(
-        `/api/equipment/scan?barcode=${encodeURIComponent(trimmed)}`
+        `/api/equipment/scan?barcode=${encodeURIComponent(trimmed)}`,
       );
       setEquipment(data);
     } catch {
@@ -44,118 +56,244 @@ export default function CheckoutSlipsPage() {
   }, [barcode]);
 
   const today = formatPrintDate(new Date().toISOString());
-  const fmtCondition = (s: string) =>
-    s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const slipCount = Math.max(1, Math.min(copies, 4));
 
   return (
     <>
       <style jsx global>{`
         /*
-         * Layout math (2 slips per letter portrait page):
-         * - Letter portrait: 8.5" × 11"
-         * - Browser default margins: ~0.4" each side → printable area ~10.2" tall
-         * - Each slip is 5.0" tall → 2 slips = 10.0" → fits comfortably even
-         *   without explicitly setting Margins: None in the print dialog
-         * - Slip width is full letter width (8.5") so it can use the natural
-         *   printable area regardless of browser margin settings
+         * ─────────────────────────────────────────────────────────────────────
+         *  Equipment Checkout Slip — paper form CSS
+         * ─────────────────────────────────────────────────────────────────────
          *
-         * Previously slips were 5.5" tall which made 2 slips = 11.0" — exactly
-         * matching the page height with ZERO room for browser print margins,
-         * so the second slip always spilled to page 2. (Trap 0106 audit prep
-         * 2026-04-08.)
+         * Values mirror apps/web/src/lib/paper-form-design.ts (PAPER_FORM
+         * tokens). They're written as literal CSS here because we're inside
+         * a styled-jsx string and can't interpolate the tokens directly,
+         * but each section labels which token it matches so future-you can
+         * see the connection.
+         *
+         * Layout math (half-sheet 8.5" × 5.0", 2-up per letter portrait):
+         *
+         *   Page padding (top + bottom):        0.40" + 0.40" = 0.80"
+         *   Content area:                       4.20"
+         *
+         *   Header (org / date / logo)          0.38"
+         *   Hairline rule                       0.04"
+         *   Name field                          0.55"
+         *   Phone + Email row                   0.55"
+         *   Address field                       0.55"
+         *   Hairline rule                       0.04"
+         *   Equipment field                     0.45"
+         *   Purpose checkboxes row              0.40"
+         *   Hairline rule                       0.04"
+         *   Deposit / Due Date / Staff row      0.50"
+         *   Notes field                         0.45"
+         *   Footer (return policy + phone)      0.18"
+         *                                      ─────
+         *   Total content:                      4.13"  ≤ 4.20" ✓
+         *
+         * The 0.07" of slack absorbs font line-height rounding.
          */
+
+        /* Screen-side container */
         .slip-page {
-          width: 8.5in; margin: 1rem auto; background: #fff;
+          width: 8.5in;
+          margin: 1rem auto;
+          background: #fff;
           border: 1px solid var(--card-border, #e5e7eb);
           font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          color: #000;
         }
+
+        /* Half-sheet slip — matches PAPER_FORM.page.halfSheet */
         .slip {
-          width: 8.5in; height: 5.0in; box-sizing: border-box;
-          padding: 0.2in 0.4in 0.18in; position: relative; overflow: hidden;
-          page-break-inside: avoid; break-inside: avoid;
+          width: 8.5in;
+          height: 5.0in;
+          box-sizing: border-box;
+          /* PAPER_FORM.spacing.pageMarginY top/bottom + pageMarginX left/right */
+          padding: 0.40in 0.45in;
+          position: relative;
+          overflow: hidden;
+          page-break-inside: avoid;
+          break-inside: avoid;
+          font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          color: #000;
         }
-        /* On screen, the dashed line lives between adjacent slips so the
-         * preview matches the printed output. In print mode this rule is
-         * overridden and a pseudo-element on .slip-page positions the cut
-         * indicator at exactly the page midpoint (5.5in from top). */
+
+        /* Screen-only: dashed line between adjacent slips so the screen
+         * preview shows where the cut will land. In print mode this rule
+         * is overridden and the cut line moves to the .slip-page::after
+         * pseudo-element so it can be positioned at the exact paper
+         * midpoint regardless of slip dimensions. */
         .slip + .slip { border-top: 2px dashed #bbb; }
         .slip-page { page-break-after: always; break-after: page; }
 
-        .slip-hdr {
-          display: flex; justify-content: space-between; align-items: flex-end;
-          border-bottom: 2.5px solid #16a34a; padding-bottom: 2px; margin-bottom: 4px;
+        /* ── Header ─────────────────────────────────────────────────────── */
+        .pf-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          /* Single color accent — matches PAPER_FORM.color.rule */
+          border-bottom: 2px solid #1a7f3a;
+          padding-bottom: 4px;
+          margin-bottom: 0.10in;
         }
-        .slip-hdr h1 { font-size: 12pt; font-weight: 700; margin: 0; }
-        .slip-hdr .meta { font-size: 7pt; color: #666; text-align: right; }
-        .slip-hdr img { height: 26px; margin-left: 6px; }
-
-        .slip-grid {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px;
+        .pf-header h1 {
+          /* PAPER_FORM.font.h1 */
+          font-size: 14pt;
+          font-weight: 700;
+          margin: 0;
+          line-height: 1.1;
+          color: #000;
         }
-
-        .sf {
-          border-bottom: 1px solid #ccc; padding: 0; margin-bottom: 4px;
-          min-height: 19px; display: flex; align-items: flex-end;
+        .pf-header-right {
+          display: flex;
+          align-items: flex-end;
+          gap: 8px;
         }
-        .sf-lbl {
-          font-size: 6.5pt; font-weight: 700; color: #16a34a;
-          text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
-          margin-right: 6px; padding-bottom: 1px; flex-shrink: 0;
+        .pf-header-meta {
+          font-size: 9pt;
+          color: #555;
+          text-align: right;
+          line-height: 1.2;
         }
-        .sf-val { font-size: 9pt; font-weight: 500; flex: 1; padding-bottom: 1px; }
-        .sf.full { grid-column: 1 / -1; }
-        .sf.xl { min-height: 26px; }
-
-        .sf-cbs {
-          display: flex; gap: 11px; flex-wrap: wrap; align-items: center;
-          font-size: 7.5pt; padding: 1px 0;
-        }
-        .sf-cb { display: inline-flex; align-items: center; gap: 3px; }
-        .sf-box {
-          display: inline-block; width: 10px; height: 10px;
-          border: 1.5px solid #333; border-radius: 2px;
-        }
-
-        .sf-sec {
-          font-size: 6.5pt; font-weight: 800; color: #888;
-          text-transform: uppercase; letter-spacing: 0.6px;
-          margin: 5px 0 2px; grid-column: 1 / -1;
-          border-bottom: 1px solid #eee; padding-bottom: 1px;
+        .pf-header img {
+          height: 28px;
+          margin-left: 4px;
         }
 
-        .slip-staff-box {
-          margin-top: 3px; padding: 3px 8px;
-          border: 1.5px solid #ddd; border-radius: 4px;
-          background: #fafafa; grid-column: 1 / -1;
-          display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 16px;
+        /* ── Field — label above, write line below ─────────────────────── */
+        .pf-field {
+          /* PAPER_FORM.spacing.fieldGap */
+          margin-bottom: 0.10in;
         }
-        .slip-staff-box .sf { border-color: #ddd; margin-bottom: 1px; min-height: 16px; }
-        .slip-staff-box .sf-lbl { color: #999; font-size: 6pt; }
+        .pf-field-label {
+          display: block;
+          /* PAPER_FORM.font.label + weight.label */
+          font-size: 11pt;
+          font-weight: 700;
+          color: #000;
+          /* PAPER_FORM.field.labelMarginBottom */
+          margin-bottom: 0.04in;
+          line-height: 1.2;
+        }
+        .pf-field-line {
+          /* PAPER_FORM.field.writeLineHeight — the most important number
+           * in this whole CSS file. 0.45in fits adult/senior handwriting
+           * and chunky pens comfortably. */
+          height: 0.45in;
+          border-bottom: 1.5px solid #888;
+          display: flex;
+          align-items: flex-end;
+          padding-bottom: 3px;
+        }
+        .pf-field-value {
+          /* PAPER_FORM.font.body */
+          font-size: 13pt;
+          color: #000;
+          font-weight: 500;
+          line-height: 1.2;
+        }
+        .pf-field-value-mono {
+          font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
 
-        .slip-ft {
-          position: absolute; bottom: 0.1in; left: 0.4in; right: 0.4in;
-          display: flex; justify-content: space-between;
-          font-size: 6pt; color: #aaa;
+        /* ── Multi-column rows ─────────────────────────────────────────── */
+        .pf-row-2 {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 0 0.30in;
         }
-        .slip-ft-cut {
-          position: absolute; top: -1px; left: -0.4in;
-          font-size: 10pt; color: #bbb; transform: translateY(-50%);
+        .pf-row-3 {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 0 0.25in;
         }
 
+        /* ── Hairline rule between groups ──────────────────────────────── */
+        .pf-rule {
+          border: none;
+          border-top: 0.5px solid #ccc;
+          margin: 0.06in 0;
+          height: 0;
+        }
+
+        /* ── Checkbox row (Purpose) ────────────────────────────────────── */
+        .pf-checkbox-row {
+          display: flex;
+          align-items: center;
+          gap: 0.18in;
+          flex-wrap: wrap;
+          margin-bottom: 0.10in;
+          /* Match the field write-line height so spacing budget stays consistent */
+          min-height: 0.45in;
+        }
+        .pf-checkbox-row-label {
+          /* Same style as field label so it reads as a label, not a heading */
+          font-size: 11pt;
+          font-weight: 700;
+          color: #000;
+          margin-right: 0.05in;
+        }
+        .pf-checkbox {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.06in;
+          font-size: 11pt;
+          color: #000;
+        }
+        .pf-checkbox-box {
+          /* PAPER_FORM.checkbox.size — 0.22in is large enough for a chunky
+           * pen check without overflow */
+          display: inline-block;
+          width: 0.22in;
+          height: 0.22in;
+          border: 1.5px solid #000;
+          box-sizing: border-box;
+          flex-shrink: 0;
+        }
+
+        /* ── Footer ────────────────────────────────────────────────────── */
+        .pf-footer {
+          position: absolute;
+          /* Inset to clear the page margin */
+          bottom: 0.18in;
+          left: 0.45in;
+          right: 0.45in;
+          display: flex;
+          justify-content: space-between;
+          /* PAPER_FORM.font.footer + color.muted */
+          font-size: 8pt;
+          font-style: italic;
+          color: #555;
+          line-height: 1.2;
+        }
+        .pf-footer-cut {
+          position: absolute;
+          top: -2px;
+          left: -0.45in;
+          font-size: 10pt;
+          color: #bbb;
+          transform: translateY(-50%);
+        }
+
+        /* ── Print mode ────────────────────────────────────────────────── */
         @media print {
-          /* @page margin: 0 is honored when the user picks "Margins: None" in
-           * the print dialog. With Chrome's default margins (~0.4in), the
-           * page-default takes precedence, but the .slip-page flex centering
-           * below makes the slips center themselves within whatever printable
-           * area the browser provides. */
+          /* @page margin: 0 is honored when the user picks "Margins: None"
+           * in the print dialog. With Chrome's default margins, .slip-page
+           * uses 100vh + flex centering so the slips center within whatever
+           * printable area the browser provides. */
           @page { size: letter portrait; margin: 0; }
-          /* html + body need an explicit height for the slip-page's
-           * 100vh / flex-column-center to actually fill the page. Without
-           * these the slip-page collapses to its content height and the
-           * vertical centering doesn't take effect. */
+
+          /* html + body need explicit height so 100vh resolves to the actual
+           * page height (not the collapsed content height). Without this the
+           * .slip-page collapses and the vertical centering doesn't engage. */
           html, body { height: 100% !important; margin: 0 !important; padding: 0 !important; }
           body { background: #fff !important; }
+
+          /* Hide screen chrome */
           .slip-ctrl, .tippy-fab, .tippy-chat-panel,
           nav, aside, header, footer, [data-sidebar],
           [role="alert"], [data-banner], .transition-banner { display: none !important; }
@@ -163,35 +301,19 @@ export default function CheckoutSlipsPage() {
 
           /* Vertical layout for guillotine alignment.
            *
-           * Both slips need EQUAL whitespace around them so they look
-           * identical (the previous justify-content: center put all the
-           * free space above slip 1 and below slip 2, making slip 2 look
-           * loose at the bottom while slip 1 looked tight at the top).
-           *
-           * justify-content: space-around distributes the 1in of free
-           * space (11in page minus 10in of slip content) equally:
+           * justify-content: space-around distributes the 1in of free space
+           * (11in page minus 10in of slip content) equally:
            *   0.25in above slip 1
            *   5.0in slip 1
            *   0.25in below slip 1
-           *   0.25in above slip 2  ← (combined gap = 0.5in between slips)
+           *   0.25in above slip 2
            *   5.0in slip 2
            *   0.25in below slip 2
-           *   ───────────────────
-           *   11.0in total
            *
-           * Each slip is now centered in its own half of the page. Both
-           * slips look identical visually.
-           *
-           * The dashed cut line is no longer attached to slip 2's top edge
-           * (which would be at 5.75in, off the paper midpoint). Instead the
-           * .slip-page::after pseudo-element below positions a horizontal
-           * dashed line at exactly 50% of the slip-page height = 5.5in =
-           * the paper midpoint. Cut on the dashed line, both halves are
-           * exactly 5.5in tall, perfect stacks.
-           *
-           * For the 1-slip case (copies=1), space-around still centers the
-           * single slip vertically and the cut line still appears at the
-           * page midpoint, so staff can still trim if they want. */
+           * Both slips look identical visually, with equal breathing room.
+           * The dashed cut line is on a pseudo-element at the page midpoint
+           * (50% of slip-page height = 5.5in from paper top) so cutting
+           * there yields two equal halves. */
           .slip-page {
             border: none;
             margin: 0;
@@ -201,26 +323,23 @@ export default function CheckoutSlipsPage() {
             justify-content: space-around;
             position: relative;
           }
-          /* Print-mode: the cut line goes on a pseudo-element at the page
-           * midpoint, NOT on slip 2's top border. Override the screen rule.
-           * The :has() check ensures the cut line only renders when there
-           * are 2+ slips on the page — otherwise the line would draw through
-           * the middle of the only slip in the 1-slip case. */
+
+          /* Print-mode: cut line on pseudo-element, not slip 2's top border.
+           * :has() so the line only renders when there are 2+ slips. */
           .slip + .slip { border-top: none !important; }
           .slip-page:has(.slip + .slip)::after {
             content: "";
             position: absolute;
             top: 50%;
-            left: 0.4in;
-            right: 0.4in;
+            left: 0.45in;
+            right: 0.45in;
             height: 0;
             border-top: 2px dashed #bbb;
             pointer-events: none;
             transform: translateY(-1px);
           }
 
-          /* Force browser to print background colors (the green header line,
-           * the gray staff box) so slips look the same as the screen preview. */
+          /* Force background colors so the green header rule prints */
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
@@ -232,159 +351,247 @@ export default function CheckoutSlipsPage() {
           <h1 style={{ fontSize: "1.35rem", fontWeight: 700, margin: 0 }}>Checkout Slips</h1>
         </div>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: "0 0 1.25rem" }}>
-          Half-sheet forms — hand one to each person at checkout.
+          Half-sheet forms — hand one to each person at checkout. Designed for
+          older walk-ins, big handwriting, and photocopier survivability.
         </p>
 
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", background: "var(--card-bg)", border: "1px solid var(--card-border)", borderRadius: 10, padding: "0.75rem 1rem", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            marginBottom: "1rem",
+            background: "var(--card-bg)",
+            border: "1px solid var(--card-border)",
+            borderRadius: 10,
+            padding: "0.75rem 1rem",
+            alignItems: "center",
+          }}
+        >
           <input
-            type="text" value={barcode}
+            type="text"
+            value={barcode}
             onChange={(e) => setBarcode(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleScan(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleScan();
+            }}
             placeholder="Optional: scan barcode to pre-fill..."
-            style={{ flex: 1, padding: "0.5rem 0.75rem", border: "1px solid var(--card-border)", borderRadius: 8, fontFamily: "monospace", fontSize: "0.95rem", outline: "none" }}
+            style={{
+              flex: 1,
+              padding: "0.5rem 0.75rem",
+              border: "1px solid var(--card-border)",
+              borderRadius: 8,
+              fontFamily: "monospace",
+              fontSize: "0.95rem",
+              outline: "none",
+            }}
           />
           <Button variant="primary" size="sm" onClick={handleScan} disabled={loading || !barcode.trim()}>
             {loading ? "..." : "Look Up"}
           </Button>
         </div>
 
-        {error && <div style={{ color: "var(--danger-text)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>{error}</div>}
+        {error && (
+          <div style={{ color: "var(--danger-text)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>{error}</div>
+        )}
         {equipment && (
-          <div style={{ background: "var(--success-bg)", border: "1px solid var(--success-border, #bbf7d0)", borderRadius: 8, padding: "0.5rem 0.75rem", marginBottom: "0.75rem", fontSize: "0.85rem", color: "var(--success-text)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span>Pre-filling: <strong>{equipment.display_name}</strong> [{equipment.barcode}]</span>
-            <button onClick={() => { setEquipment(null); setBarcode(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--success-text)", fontSize: "1rem" }}>&times;</button>
+          <div
+            style={{
+              background: "var(--success-bg)",
+              border: "1px solid var(--success-border, #bbf7d0)",
+              borderRadius: 8,
+              padding: "0.5rem 0.75rem",
+              marginBottom: "0.75rem",
+              fontSize: "0.85rem",
+              color: "var(--success-text)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <span>
+              Pre-filling: <strong>{equipment.display_name}</strong> [{equipment.barcode}]
+            </span>
+            <button
+              onClick={() => {
+                setEquipment(null);
+                setBarcode("");
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--success-text)",
+                fontSize: "1rem",
+              }}
+            >
+              &times;
+            </button>
           </div>
         )}
 
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <Button variant="primary" icon="printer" onClick={() => window.print()}>Print Slips</Button>
+          <Button variant="primary" icon="printer" onClick={() => window.print()}>
+            Print Slips
+          </Button>
           <label style={{ display: "flex", alignItems: "center", gap: "0.375rem", fontSize: "0.85rem" }}>
             Per page:
-            <select value={copies} onChange={(e) => setCopies(Number(e.target.value))} style={{ padding: "0.25rem 0.5rem", borderRadius: 6, border: "1px solid var(--card-border)" }}>
+            <select
+              value={copies}
+              onChange={(e) => setCopies(Number(e.target.value))}
+              style={{ padding: "0.25rem 0.5rem", borderRadius: 6, border: "1px solid var(--card-border)" }}
+            >
               <option value={1}>1 slip</option>
               <option value={2}>2 slips</option>
             </select>
           </label>
         </div>
 
-        {/* Print tip — helps staff get a clean 2-up layout */}
-        {copies === 2 && (
-          <div
-            style={{
-              marginTop: "0.75rem",
-              padding: "0.625rem 0.875rem",
-              background: "var(--info-bg, rgba(59,130,246,0.06))",
-              border: "1px solid var(--info-border, #93c5fd)",
-              borderRadius: 8,
-              fontSize: "0.78rem",
-              color: "var(--info-text, #1d4ed8)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              lineHeight: 1.4,
-            }}
-          >
-            <Icon name="help-circle" size={14} color="var(--info-text, #1d4ed8)" />
-            <span>
-              <strong>Tip:</strong> Slips are vertically centered so the dashed
-              cut line lands at exactly the paper midpoint — guillotine cut at
-              5.5&quot; from the top edge and both halves stack cleanly. If
-              anything looks off, set <strong>Margins → None</strong> and{" "}
-              <strong>Scale → Default</strong> in the print dialog.
-            </span>
+        {/* Print tip — guillotine + paper form design language reference */}
+        <div
+          style={{
+            marginTop: "0.75rem",
+            padding: "0.625rem 0.875rem",
+            background: "var(--info-bg, rgba(59,130,246,0.06))",
+            border: "1px solid var(--info-border, #93c5fd)",
+            borderRadius: 8,
+            fontSize: "0.78rem",
+            color: "var(--info-text, #1d4ed8)",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "0.5rem",
+            lineHeight: 1.4,
+          }}
+        >
+          <Icon name="help-circle" size={14} color="var(--info-text, #1d4ed8)" />
+          <div>
+            {copies === 2 ? (
+              <>
+                <strong>Cut line at exactly 5.5&quot; from the top edge.</strong>{" "}
+                Slips are vertically centered so guillotine cut at the paper
+                midpoint gives two equal halves. If anything looks off, set{" "}
+                <strong>Margins → None</strong> in the print dialog.
+              </>
+            ) : (
+              <>
+                One full-width slip per page, vertically centered. No cut line.
+              </>
+            )}
+            <div style={{ marginTop: 4, opacity: 0.85 }}>
+              Designed for big handwriting (13pt body, 0.45&quot; write lines,
+              0.22&quot; checkboxes). See{" "}
+              <code style={{ fontSize: "0.72rem" }}>docs/PAPER_FORM_DESIGN.md</code>{" "}
+              for the full design language.
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── Printable slips ── */}
       <div className="slip-page">
         {Array.from({ length: slipCount }).map((_, i) => (
-          <Slip key={i} org={nameShort || "FFSC"} phone={orgPhone} date={today} eq={equipment} cut={i > 0} fmt={fmtCondition} />
+          <Slip
+            key={i}
+            org={nameShort || "FFSC"}
+            phone={orgPhone}
+            date={today}
+            eq={equipment}
+            cut={i > 0}
+          />
         ))}
       </div>
     </>
   );
 }
 
-/* ── Single slip ── */
+/* ─────────────────────────────────────────────────────────────────────────
+ *  Single slip component
+ *
+ *  Field set (9 essentials, per docs/PAPER_FORM_DESIGN.md):
+ *    1. Name              (full width)
+ *    2. Phone + Email     (2-col row — paired identity fields)
+ *    3. Address           (full width — where the trapping happens)
+ *    4. Equipment         (full width, auto-filled if pre-scanned)
+ *    5. Purpose           (checkbox row — TNR / Kitten / Colony / etc.)
+ *    6. Deposit / Due Date / Staff  (3-col row)
+ *    7. Notes             (full width)
+ *    + Header + Footer
+ *
+ *  Email is intentionally KEPT — paper slip is often the first data
+ *  collection point for walk-ins not yet in Atlas, and email is the
+ *  canonical identifier in the data engine for downstream identity
+ *  resolution.
+ * ─────────────────────────────────────────────────────────────────────── */
 
-function Slip({ org, phone, date, eq, cut, fmt }: {
-  org: string; phone: string; date: string;
-  eq: ScannedEquipment | null; cut: boolean;
-  fmt: (s: string) => string;
+function Slip({
+  org,
+  phone,
+  date,
+  eq,
+  cut,
+}: {
+  org: string;
+  phone: string;
+  date: string;
+  eq: ScannedEquipment | null;
+  cut: boolean;
 }) {
+  // If we have pre-scanned equipment, show "name (barcode)" in the field;
+  // otherwise leave it blank for staff to write in.
+  const equipmentDisplay = eq
+    ? `${eq.display_name}${eq.barcode ? ` — ${eq.barcode}` : ""}`
+    : null;
+
   return (
     <div className="slip">
-      {/* Header */}
-      <div className="slip-hdr">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <header className="pf-header">
         <h1>{org} — Equipment Checkout</h1>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-          <div className="meta">{date}</div>
+        <div className="pf-header-right">
+          <span className="pf-header-meta">{date}</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="" />
         </div>
+      </header>
+
+      {/* ── Caller info group ──────────────────────────────────────────── */}
+      <Field label="Name" />
+      <div className="pf-row-2">
+        <Field label="Phone" />
+        <Field label="Email" />
+      </div>
+      <Field label="Address (where trapping)" />
+
+      <hr className="pf-rule" />
+
+      {/* ── Equipment + purpose group ──────────────────────────────────── */}
+      <Field
+        label="Equipment"
+        value={equipmentDisplay}
+        valueMono={!!equipmentDisplay}
+      />
+      <div className="pf-checkbox-row">
+        <span className="pf-checkbox-row-label">Purpose:</span>
+        {["TNR", "Kitten", "Colony", "Feeding", "Pet", "Other"].map((p) => (
+          <span key={p} className="pf-checkbox">
+            <span className="pf-checkbox-box" />
+            {p}
+          </span>
+        ))}
       </div>
 
-      <div className="slip-grid">
-        {/* ── YOUR INFORMATION ── */}
-        <div className="sf-sec">Your Information (please print clearly)</div>
-        <F label="First Name" />
-        <F label="Last Name" />
-        <F label="Phone" />
-        <F label="Email" />
-        <F label="Address (where trapping)" full />
-        <F label="City / ZIP" />
-        <F label="Appointment Date" />
+      <hr className="pf-rule" />
 
-        {/* ── EQUIPMENT ── */}
-        <div className="sf-sec">Equipment</div>
-        <F label="Equipment" val={eq?.display_name} />
-        <F label="Barcode" val={eq?.barcode || undefined} mono />
-
-        {/* Type — staff circles one */}
-        <div className="sf full">
-          <span className="sf-lbl">Type:</span>
-          <div className="sf-cbs">
-            {["Public", "Trapper", "Foster", "Relo", "Clinic"].map((t) => (
-              <span key={t} className="sf-cb"><span className="sf-box" /> {t}</span>
-            ))}
-          </div>
-        </div>
-
-        {/* Condition — circle one */}
-        <div className="sf full">
-          <span className="sf-lbl">Condition Out:</span>
-          <div className="sf-cbs">
-            {["New", "Good", "Fair", "Poor", "Damaged"].map((c) => (
-              <span key={c} className="sf-cb"><span className="sf-box" /> {c}</span>
-            ))}
-          </div>
-        </div>
-
-        {/* ── DETAILS ── */}
-        <div className="sf-sec">Details</div>
-        <F label="Deposit $" />
-        <F label="Due Date" />
-        <F label="Notes" full xl />
-
-        {/* ── STAFF USE ── */}
-        <div className="slip-staff-box">
-          <div className="sf full" style={{ marginBottom: 4 }}>
-            <span className="sf-lbl">Purpose:</span>
-            <div className="sf-cbs">
-              {["TNR", "Kitten", "Colony", "Feeding", "Pet", "Other"].map((p) => (
-                <span key={p} className="sf-cb"><span className="sf-box" /> {p}</span>
-              ))}
-            </div>
-          </div>
-          <F label="Staff" />
-          <F label="Entered" />
-          <F label="Deposit Returned" />
-        </div>
+      {/* ── Details group ──────────────────────────────────────────────── */}
+      <div className="pf-row-3">
+        <Field label="Deposit $" />
+        <Field label="Due Date" />
+        <Field label="Staff" />
       </div>
+      <Field label="Notes" />
 
-      {/* Footer */}
-      <div className="slip-ft">
-        {cut && <span className="slip-ft-cut">✂</span>}
+      {/* ── Footer ─────────────────────────────────────────────────────── */}
+      <div className="pf-footer">
+        {cut && <span className="pf-footer-cut">✂</span>}
         <span>Return by due date. Call {phone} with questions.</span>
         <span>Deposits refunded on return in good condition.</span>
       </div>
@@ -392,13 +599,28 @@ function Slip({ org, phone, date, eq, cut, fmt }: {
   );
 }
 
-function F({ label, val, full, xl, mono }: {
-  label: string; val?: string; full?: boolean; xl?: boolean; mono?: boolean;
+/* Single field — label above, write line below */
+function Field({
+  label,
+  value,
+  valueMono,
+}: {
+  label: string;
+  value?: string | null;
+  valueMono?: boolean;
 }) {
   return (
-    <div className={`sf${full ? " full" : ""}${xl ? " xl" : ""}`}>
-      <span className="sf-lbl">{label}:</span>
-      {val && <span className="sf-val" style={mono ? { fontFamily: "monospace", fontWeight: 600 } : undefined}>{val}</span>}
+    <div className="pf-field">
+      <span className="pf-field-label">{label}</span>
+      <div className="pf-field-line">
+        {value && (
+          <span
+            className={`pf-field-value${valueMono ? " pf-field-value-mono" : ""}`}
+          >
+            {value}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
