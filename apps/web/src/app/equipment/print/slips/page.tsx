@@ -75,6 +75,10 @@ export default function CheckoutSlipsPage() {
           padding: 0.2in 0.4in 0.18in; position: relative; overflow: hidden;
           page-break-inside: avoid; break-inside: avoid;
         }
+        /* On screen, the dashed line lives between adjacent slips so the
+         * preview matches the printed output. In print mode this rule is
+         * overridden and a pseudo-element on .slip-page positions the cut
+         * indicator at exactly the page midpoint (5.5in from top). */
         .slip + .slip { border-top: 2px dashed #bbb; }
         .slip-page { page-break-after: always; break-after: page; }
 
@@ -157,31 +161,62 @@ export default function CheckoutSlipsPage() {
           [role="alert"], [data-banner], .transition-banner { display: none !important; }
           main { margin: 0 !important; padding: 0 !important; max-width: none !important; }
 
-          /* Vertical centering for guillotine alignment.
+          /* Vertical layout for guillotine alignment.
            *
-           * The 10in of slip content needs to sit DEAD CENTER on the 11in
-           * letter page so the dashed border between slip 1 and slip 2
-           * lands at exactly 5.5in from the top edge of the paper. That way,
-           * when Ben cuts on the guillotine at the paper midline, both halves
-           * come out the same height and stack cleanly.
+           * Both slips need EQUAL whitespace around them so they look
+           * identical (the previous justify-content: center put all the
+           * free space above slip 1 and below slip 2, making slip 2 look
+           * loose at the bottom while slip 1 looked tight at the top).
            *
-           * height: 100vh + flex-column + justify-content: center makes the
-           * slip-page fill the printable area and center its children
-           * vertically, regardless of whether browser margins are 0 (Margins:
-           * None) or ~0.4in default. The dashed cut border lands at the
-           * midline either way.
+           * justify-content: space-around distributes the 1in of free
+           * space (11in page minus 10in of slip content) equally:
+           *   0.25in above slip 1
+           *   5.0in slip 1
+           *   0.25in below slip 1
+           *   0.25in above slip 2  ← (combined gap = 0.5in between slips)
+           *   5.0in slip 2
+           *   0.25in below slip 2
+           *   ───────────────────
+           *   11.0in total
            *
-           * For the 1-slip case, the single slip also centers — staff still
-           * cuts at the paper midline if they want to trim the bottom blank
-           * area, and the slip is balanced left/right and top/bottom on the
-           * sheet. */
+           * Each slip is now centered in its own half of the page. Both
+           * slips look identical visually.
+           *
+           * The dashed cut line is no longer attached to slip 2's top edge
+           * (which would be at 5.75in, off the paper midpoint). Instead the
+           * .slip-page::after pseudo-element below positions a horizontal
+           * dashed line at exactly 50% of the slip-page height = 5.5in =
+           * the paper midpoint. Cut on the dashed line, both halves are
+           * exactly 5.5in tall, perfect stacks.
+           *
+           * For the 1-slip case (copies=1), space-around still centers the
+           * single slip vertically and the cut line still appears at the
+           * page midpoint, so staff can still trim if they want. */
           .slip-page {
             border: none;
             margin: 0;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: space-around;
+            position: relative;
+          }
+          /* Print-mode: the cut line goes on a pseudo-element at the page
+           * midpoint, NOT on slip 2's top border. Override the screen rule.
+           * The :has() check ensures the cut line only renders when there
+           * are 2+ slips on the page — otherwise the line would draw through
+           * the middle of the only slip in the 1-slip case. */
+          .slip + .slip { border-top: none !important; }
+          .slip-page:has(.slip + .slip)::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 0.4in;
+            right: 0.4in;
+            height: 0;
+            border-top: 2px dashed #bbb;
+            pointer-events: none;
+            transform: translateY(-1px);
           }
 
           /* Force browser to print background colors (the green header line,
