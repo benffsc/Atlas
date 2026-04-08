@@ -16,11 +16,11 @@ import { apiSuccess, apiError, apiServerError } from "@/lib/api-response";
  *   flow at /kiosk/equipment/add writes natively to ops.equipment with
  *   source_system='atlas_ui' and never touches Airtable
  * - The cron silently overwrote kiosk-recorded custodian names every 4 hours
- *   (trap 0106 audit, MIG_3064): for example, when staff checked out trap
+ *   (trap 0106 audit, MIG_3072): for example, when staff checked out trap
  *   0106 to Krystianna Enriquez via the kiosk, the cron would clobber
  *   current_holder_name back to "Danielle Hall" from Airtable's stale
  *   "Current Holder" field on the next run. Three confirmed stale traps
- *   (0106, 0176, 0208) were healed by MIG_3064.
+ *   (0106, 0176, 0208) were healed by MIG_3072.
  * - Multi-writer contention with no coordination is fundamentally unsafe;
  *   making Atlas the only writer eliminates an entire class of silent data
  *   corruption.
@@ -33,14 +33,14 @@ import { apiSuccess, apiError, apiServerError } from "@/lib/api-response";
  * If you need to re-import historical Airtable data for some one-off audit,
  * write a one-time script in scripts/ingest/ that explicitly opts in. Do
  * NOT re-enable this cron without designing the writer-contention model
- * first (see column comments on ops.equipment from MIG_3064).
+ * first (see column comments on ops.equipment from MIG_3072).
  */
 
 export const maxDuration = 120;
 
 const RETIRED = true;
 const RETIRED_AT = "2026-04-08";
-const RETIRED_REASON = "Atlas is the source of truth for equipment. See MIG_3064 + cron file header.";
+const RETIRED_REASON = "Atlas is the source of truth for equipment. See MIG_3072 + cron file header.";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
