@@ -8,6 +8,8 @@ import { mainSidebarSections, type NavSection } from "@/components/SidebarLayout
 import { usePermission } from "@/hooks/usePermission";
 import { ToastProvider } from "@/components/feedback/Toast";
 import { Icon } from "@/components/ui/Icon";
+import { usePresentationMode, PresentationModeIndicator } from "@/components/PresentationMode";
+import { fetchApi } from "@/lib/api-client";
 
 interface Staff {
   staff_id: string;
@@ -29,11 +31,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Presentation mode — config-driven (ops.app_config → presentation.*)
+  const { enabled: presentationEnabled, toggle: togglePresentation, exit: exitPresentation } = usePresentationMode();
+  const [presentationConfig, setPresentationConfig] = useState<{
+    enabled: boolean;
+    font_scale: number;
+    indicator_text: string;
+  }>({ enabled: true, font_scale: 1.2, indicator_text: "Presentation Mode — press ESC to exit" });
+
+  useEffect(() => {
+    fetchApi<{ enabled: boolean; font_scale: number; indicator_text: string }>("/api/presentation-config")
+      .then((result) => {
+        if (result && typeof result === "object" && "enabled" in result) {
+          setPresentationConfig(result as { enabled: boolean; font_scale: number; indicator_text: string });
+        }
+      })
+      .catch(() => { /* Silent fail — use defaults */ });
+  }, []);
+
   const isPrintRoute = pathname?.includes("/print") || pathname?.includes("/trapper-sheet");
   const isLoginPage = pathname === "/login";
   const isMapPage = pathname === "/map";
   const isKioskRoute = pathname?.startsWith("/kiosk");
-  const isChromeless = isPrintRoute || isLoginPage || isMapPage || isKioskRoute;
+  const isStoryPage = pathname === "/story";
+  const isChromeless = isPrintRoute || isLoginPage || isMapPage || isKioskRoute || isStoryPage;
 
   // Fetch current user on mount
   useEffect(() => {
@@ -218,6 +239,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         <DropdownLink href="/admin">Admin Panel</DropdownLink>
                       </>
                     )}
+                    {presentationConfig.enabled && (
+                      <>
+                        <div style={{ borderTop: "1px solid var(--card-border)", margin: "4px 0" }} />
+                        <button
+                          onClick={() => { togglePresentation(); setMenuOpen(false); }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            width: "100%",
+                            padding: "8px 16px",
+                            fontSize: "0.875rem",
+                            textAlign: "left",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "var(--foreground)",
+                          }}
+                          aria-label={presentationEnabled ? "Exit presentation mode" : "Enter presentation mode"}
+                        >
+                          <Icon name={presentationEnabled ? "eye-off" : "eye"} size={16} />
+                          {presentationEnabled ? "Exit presentation" : "Presentation mode"}
+                        </button>
+                      </>
+                    )}
                     <div style={{ borderTop: "1px solid var(--card-border)", margin: "4px 0" }} />
                     <button
                       onClick={handleLogout}
@@ -379,6 +425,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="container"><ToastProvider>{children}</ToastProvider></main>
+
+      {/* Presentation mode indicator (floats bottom-right when active) */}
+      <PresentationModeIndicator
+        enabled={presentationEnabled}
+        onExit={exitPresentation}
+        config={{
+          text: presentationConfig.indicator_text,
+          fontScale: presentationConfig.font_scale,
+        }}
+      />
     </CommandPaletteProvider>
   );
 }

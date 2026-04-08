@@ -235,9 +235,17 @@ function LoginForm() {
             Need help?{" "}
             <a
               href={`mailto:${supportEmail}`}
-              style={{ color: "#0d6efd" }}
+              style={{ color: "var(--primary, #4291df)" }}
             >
               Contact an administrator
+            </a>
+          </p>
+          <p style={{ marginTop: "0.5rem" }}>
+            <a
+              href="/story"
+              style={{ color: "var(--text-tertiary, var(--text-muted))", fontSize: "0.8rem" }}
+            >
+              Our story →
             </a>
           </p>
         </div>

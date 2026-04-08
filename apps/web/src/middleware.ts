@@ -16,11 +16,13 @@ import { NextRequest, NextResponse } from "next/server";
 const PUBLIC_PATHS = [
   "/login",
   "/change-password",
+  "/story",
   "/api/auth/login",
   "/api/auth/change-password",
   "/api/auth/kiosk",
   "/api/auth/me",
   "/api/intake/public",
+  "/api/story-config",
   "/api/version",
   "/api/health",
   "/kiosk",

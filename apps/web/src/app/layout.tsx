@@ -10,6 +10,18 @@ export const metadata: Metadata = {
     template: "%s | Beacon",
   },
   description: "A guiding light for humane cat population management — data-driven TNR tracking, predictive modeling, and colony insights.",
+  icons: {
+    // Uses the existing org logo as favicon. Modern browsers accept PNG.
+    // For white-label deployments, replace /logo.png in public/ with the
+    // org's preferred icon — no code change needed.
+    icon: [
+      { url: "/logo.png", sizes: "any", type: "image/png" },
+    ],
+    apple: [
+      { url: "/logo.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/logo.png",
+  },
 };
 
 export default function RootLayout({

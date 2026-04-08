@@ -9,6 +9,7 @@ import { fetchApi } from "@/lib/api-client";
 import { KpiStrip, ActionPanel, DASHBOARD_LAYER_GROUPS, getDefaultEnabledLayers } from "@/components/dashboard";
 import { ImpactSummary } from "@/components/dashboard/ImpactSummary";
 import { InsightsFeed } from "@/components/dashboard/InsightsFeed";
+import { LiveCounter } from "@/components/dashboard/LiveCounter";
 import { usePermission } from "@/hooks/usePermission";
 import type { DashboardMapPin, MapLayer } from "@/components/dashboard";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
@@ -352,6 +353,7 @@ function HomeInner() {
               : "Beacon"}
           </h1>
           <p className="dashboard-tagline">A guiding light for humane cat population management</p>
+          <LiveCounter />
           <div className="date-line">{today}</div>
         </div>
         <a href="/requests/new" className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
