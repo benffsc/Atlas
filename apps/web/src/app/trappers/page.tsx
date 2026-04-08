@@ -15,6 +15,7 @@ import { RowActionMenu } from "@/components/shared/RowActionMenu";
 import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
 import { Pagination } from "@/components/ui/Pagination";
 import { StatCard } from "@/components/ui/StatCard";
+import { EmptyState } from "@/components/feedback/EmptyState";
 
 interface AssignedRequest {
   request_id: string;
@@ -1133,7 +1134,12 @@ function TrappersPageInner() {
       {!loading && !error && data && (
         <>
           {data.trappers.length === 0 ? (
-            <div className="empty">No trappers found.</div>
+            <EmptyState
+              variant="filtered"
+              title="No trappers match your filters"
+              description="Try adjusting the tier, status, or search filters above — or clear them to see everyone."
+              size="md"
+            />
           ) : filters.view === "cards" ? (
             /* Card View */
             <div

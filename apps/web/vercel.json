@@ -69,10 +69,6 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/equipment-sync",
-      "schedule": "0 */4 * * *"
-    },
-    {
       "path": "/api/cron/alert-digest",
       "schedule": "0 9 * * *"
     },

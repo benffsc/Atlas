@@ -98,6 +98,11 @@
   --surface-0: var(--background);
   --surface-1: #f9fafb;
   --surface-raised: #ffffff;
+
+  /* Transitions — Linear-style cubic-bezier easing, consistent durations */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -904,34 +909,73 @@ button:disabled {
   font-weight: 500;
 }
 
-.dashboard-briefing {
+/* ============================================================================
+   Insights Feed (Tier 2 — FFS-1195)
+   Natural-language observations below the dashboard hero. Each row is a
+   compact icon + sentence describing the current state at a glance.
+   Replaces the Tier 1 inline briefing pattern.
+   ============================================================================ */
+
+.insights-feed {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.4rem;
   margin: 0.875rem 0 1.25rem;
   padding: 0.65rem 0.9rem;
-  background: linear-gradient(90deg, rgba(66, 145, 223, 0.08) 0%, rgba(66, 145, 223, 0.02) 100%);
+  background: linear-gradient(90deg, rgba(66, 145, 223, 0.06) 0%, rgba(66, 145, 223, 0.015) 100%);
   border-left: 3px solid var(--primary, #4291df);
   border-radius: 0 6px 6px 0;
+}
+
+.insight-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   font-size: 0.875rem;
   color: var(--foreground);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
-.dashboard-briefing-icon {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  color: var(--primary, #4291df);
-}
-
-.dashboard-briefing-text {
-  flex: 1;
-}
-
-.dashboard-briefing-text strong {
-  color: var(--primary, #4291df);
+.insight-row strong {
   font-weight: 700;
+  color: var(--foreground);
+}
+
+.insight-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.insight-tone-warning .insight-icon {
+  color: #f59e0b;
+}
+
+.insight-tone-warning strong {
+  color: #d97706;
+}
+
+.insight-tone-info .insight-icon {
+  color: var(--primary, #4291df);
+}
+
+.insight-tone-info strong {
+  color: var(--primary, #4291df);
+}
+
+.insight-tone-success .insight-icon {
+  color: #16a34a;
+}
+
+.insight-tone-success strong {
+  color: #15803d;
+}
+
+.insight-tone-neutral .insight-icon {
+  color: var(--text-secondary);
 }
 
 /* ============================================================================
@@ -2842,5 +2886,154 @@ button:disabled {
   /* Reduce card padding */
   .card {
     padding: 1rem !important;
+  }
+}
+
+/* ============================================================================
+   Global hover, focus, and transition polish (Tier 2 — FFS-1195)
+   Linear-inspired: every interactive surface feels responsive but subtle.
+   Keyboard-visible focus rings everywhere for accessibility.
+   ============================================================================ */
+
+/* Cards get a subtle lift on hover. Opt out with .card.no-hover or
+   data-hover="false" if a specific card shouldn't respond. */
+.card:not(.no-hover):not([data-hover="false"]) {
+  transition: box-shadow var(--transition-base), transform var(--transition-fast), border-color var(--transition-base);
+}
+
+.card:not(.no-hover):not([data-hover="false"]):hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Buttons: active state dip, consistent 200ms transitions */
+.btn,
+button[type="submit"],
+button[type="button"] {
+  transition: background var(--transition-base), box-shadow var(--transition-base), transform var(--transition-fast), border-color var(--transition-base), opacity var(--transition-base);
+}
+
+.btn:active:not(:disabled),
+button[type="submit"]:active:not(:disabled),
+button[type="button"]:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Keyboard-visible focus rings (WCAG AA) — Beacon blue outline, 2px offset.
+   Uses :focus-visible so mouse clicks don't show the ring, only keyboard nav. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--primary, #4291df);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Inputs get a Beacon blue border on focus (matches the ring) */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--primary, #4291df);
+  box-shadow: 0 0 0 3px rgba(66, 145, 223, 0.15);
+  outline-offset: 0;
+}
+
+/* Links get a subtle underline on focus for clarity */
+a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Skip-to-content affordance — if a page needs a skip link, this is the style */
+.skip-to-content:focus {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--primary, #4291df);
+  color: var(--primary-foreground, #fff);
+  border-radius: 4px;
+  z-index: 9999;
+  text-decoration: none;
+}
+
+.skip-to-content:not(:focus) {
+  position: absolute;
+  left: -9999px;
+}
+
+/* ============================================================================
+   Map caption overlay (Tier 2 — FFS-1195)
+   Floating semi-transparent card in the bottom-left of the main map.
+   Shows product name + tagline + live colony count. Admin-configurable via
+   ops.app_config (keys: map.caption_*).
+   ============================================================================ */
+
+.map-caption-overlay {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid rgba(66, 145, 223, 0.15);
+  border-left: 3px solid var(--primary, #4291df);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  max-width: 360px;
+  pointer-events: auto;
+  animation: map-caption-fade-in 400ms ease-out;
+}
+
+@keyframes map-caption-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.map-caption-title {
+  font-family: "Merriweather", "Raleway", Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--foreground);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.map-caption-subtitle {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+.map-caption-subtitle strong {
+  color: var(--primary, #4291df);
+  font-weight: 700;
+}
+
+/* Hide on mobile — preserve map real estate */
+@media (max-width: 768px) {
+  .map-caption-overlay {
+    display: none;
+  }
+}
+
+/* Dark mode — increase opacity for legibility against dark map tiles */
+@media (prefers-color-scheme: dark) {
+  .map-caption-overlay {
+    background: rgba(23, 23, 23, 0.85);
+    border-color: rgba(66, 145, 223, 0.25);
   }
 }

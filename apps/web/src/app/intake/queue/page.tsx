@@ -23,6 +23,7 @@ import { DataTable } from "@/components/data-table";
 import { getIntakeColumns } from "./columns";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { useToast } from "@/components/feedback/Toast";
+import { EmptyState } from "@/components/feedback/EmptyState";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
 const VIEW_PREF_KEY = "intake-queue-view";
@@ -741,20 +742,32 @@ function IntakeQueueContent() {
           ))}
         </div>
       ) : submissions.length === 0 ? (
-        <div style={{ padding: SPACING['3xl'], textAlign: "center", color: "var(--muted)" }}>
-          {activeTab === "active" ? (
-            <>
-              <p style={{ fontSize: TYPOGRAPHY.size.xl, marginBottom: SPACING.sm }}>All caught up!</p>
-              <p style={{ color: COLORS.textSecondary }}>No new submissions need attention right now.</p>
-            </>
-          ) : activeTab === "scheduled" ? (
-            <p style={{ color: COLORS.textSecondary }}>No scheduled intakes at this time.</p>
-          ) : activeTab === "completed" ? (
-            <p style={{ color: COLORS.textSecondary }}>No completed intakes to display.</p>
-          ) : (
-            <p style={{ color: COLORS.textSecondary }}>No submissions found.</p>
-          )}
-        </div>
+        activeTab === "active" ? (
+          <EmptyState
+            title="All caught up"
+            description="No new submissions need attention right now. New intake forms will appear here as they come in."
+            size="md"
+          />
+        ) : activeTab === "scheduled" ? (
+          <EmptyState
+            title="Nothing scheduled yet"
+            description="Submissions move here once they're scheduled for follow-up or clinic appointments."
+            size="md"
+          />
+        ) : activeTab === "completed" ? (
+          <EmptyState
+            title="No completed intakes yet"
+            description="Completed intake records will appear here as the team wraps up cases."
+            size="md"
+          />
+        ) : (
+          <EmptyState
+            variant="filtered"
+            title="No submissions match your filters"
+            description="Try adjusting the filters above or switch tabs to see other submissions."
+            size="md"
+          />
+        )
       ) : (() => {
         // FFS-1187 — client-side filter for out-of-area / ambiguous
         const baseSubmissions = showOutOfArea

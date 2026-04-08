@@ -15,6 +15,7 @@ import { getOutcomeLabel, getOutcomeColor } from "@/lib/request-status";
 import { useTriageFlags } from "@/hooks/useTriageFlags";
 import { SKELETON_LINE, SKELETON_BLOCK, FLEX_BETWEEN } from "./styles";
 import { SkeletonStats, SkeletonList } from "@/components/feedback/Skeleton";
+import { EmptyState, EmptyFilteredResults } from "@/components/feedback/EmptyState";
 import { useEntityDetail } from "@/hooks/useEntityDetail";
 import type { RequestDetail } from "@/hooks/useEntityDetail";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
@@ -875,14 +876,9 @@ function StatusGroupedCards({
         </div>
       )}
 
-      {/* Empty state for when all groups are empty */}
+      {/* Empty state for when all groups are empty — filter mismatch */}
       {Object.values(grouped).every(g => g.length === 0) && (
-        <div className="empty" style={{ padding: SPACING['3xl'], textAlign: 'center' }}>
-          <div style={{ fontSize: TYPOGRAPHY.size['2xl'], marginBottom: SPACING.sm, opacity: 0.5 }}>No requests found</div>
-          <p style={{ color: COLORS.textSecondary, fontSize: TYPOGRAPHY.size.sm }}>
-            Try adjusting your filters or create a new request.
-          </p>
-        </div>
+        <EmptyFilteredResults />
       )}
     </div>
   );
@@ -1356,13 +1352,15 @@ function RequestsPageContent() {
           ))}
         </div>
       ) : requests.length === 0 ? (
-        <div className="empty" style={{ padding: SPACING['3xl'], textAlign: 'center' }}>
-          <div style={{ fontSize: TYPOGRAPHY.size['2xl'], marginBottom: SPACING.sm, opacity: 0.5 }}>No requests found</div>
-          <p style={{ color: COLORS.textSecondary, fontSize: TYPOGRAPHY.size.sm, marginBottom: SPACING.lg }}>
-            Get started by creating your first request.
-          </p>
-          <a href="/requests/new" className="btn" style={{ background: COLORS.primary, color: COLORS.white }}>Create Request</a>
-        </div>
+        <EmptyState
+          title="No requests yet"
+          description="Get started by creating your first trapping request — someone in the community needs help."
+          action={{
+            label: "+ Create your first request",
+            onClick: () => { window.location.href = "/requests/new"; },
+          }}
+          size="lg"
+        />
       ) : filters.view === "cards" ? (
         <StatusGroupedCards
           requests={requests}

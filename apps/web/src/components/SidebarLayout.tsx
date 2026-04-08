@@ -163,35 +163,41 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.25rem",
+                    gap: "0.35rem",
                     width: "100%",
-                    padding: "0.15rem 1rem",
-                    marginBottom: isSectionCollapsed ? "0" : "0.5rem",
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
+                    padding: "0.5rem 1rem 0.35rem",
+                    marginBottom: isSectionCollapsed ? "0" : "0.35rem",
+                    borderBottom: isSectionCollapsed ? "none" : "1px solid var(--border-light, rgba(0, 0, 0, 0.05))",
+                    fontSize: "0.68rem",
+                    fontWeight: 700,
                     textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    color: "var(--text-muted)",
+                    letterSpacing: "0.08em",
+                    color: "var(--text-tertiary, var(--text-muted))",
                     background: "none",
                     border: "none",
+                    borderBottomWidth: isSectionCollapsed ? 0 : "1px",
+                    borderBottomStyle: "solid",
+                    borderBottomColor: isSectionCollapsed ? "transparent" : "var(--border-light, rgba(0, 0, 0, 0.05))",
                     cursor: "pointer",
                     textAlign: "left",
+                    transition: "color var(--transition-base)",
                   }}
                   aria-expanded={!isSectionCollapsed}
                 >
-                  <Icon name={isSectionCollapsed ? "chevron-right" : "chevron-down"} size={12} />
+                  <Icon name={isSectionCollapsed ? "chevron-right" : "chevron-down"} size={11} />
                   {section.title}
                 </button>
               ) : (
                 <div
                   style={{
-                    padding: "0 1rem",
-                    marginBottom: "0.5rem",
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
+                    padding: "0.5rem 1rem 0.35rem",
+                    marginBottom: "0.35rem",
+                    borderBottom: "1px solid var(--border-light, rgba(0, 0, 0, 0.05))",
+                    fontSize: "0.68rem",
+                    fontWeight: 700,
                     textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    color: "var(--text-muted)",
+                    letterSpacing: "0.08em",
+                    color: "var(--text-tertiary, var(--text-muted))",
                   }}
                 >
                   {section.title}

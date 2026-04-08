@@ -4,17 +4,43 @@ import { query, queryOne } from "@/lib/db";
 import { apiSuccess, apiError, apiServerError } from "@/lib/api-response";
 
 /**
- * Equipment Sync Cron — Airtable → Atlas Bridge
+ * Equipment Sync Cron — RETIRED 2026-04-08
  *
- * Fetches all 3 Airtable equipment tables and syncs to Atlas:
- * 1. Equipment (tblQ9fsfQUVpiI7VL) → ops.equipment
- * 2. Check-Out Log (tbl7KMM4RC7EnnWYN) → ops.equipment_events
- * 3. Equipment Collections (tblzczCz5LcNmNcwy) → ops.equipment_collection_tasks
+ * This cron used to sync 3 Airtable tables → Atlas every 4 hours:
+ *   1. Equipment        (tblQ9fsfQUVpiI7VL) → ops.equipment
+ *   2. Check-Out Log    (tbl7KMM4RC7EnnWYN) → ops.equipment_events
+ *   3. Collections      (tblzczCz5LcNmNcwy) → ops.equipment_collection_tasks
  *
- * Runs every 4 hours. Small dataset (~157 equipment, ~900 events, ~23 collections).
+ * It was retired because:
+ * - Airtable equipment tracking is no longer in use; the kiosk add-equipment
+ *   flow at /kiosk/equipment/add writes natively to ops.equipment with
+ *   source_system='atlas_ui' and never touches Airtable
+ * - The cron silently overwrote kiosk-recorded custodian names every 4 hours
+ *   (trap 0106 audit, MIG_3064): for example, when staff checked out trap
+ *   0106 to Krystianna Enriquez via the kiosk, the cron would clobber
+ *   current_holder_name back to "Danielle Hall" from Airtable's stale
+ *   "Current Holder" field on the next run. Three confirmed stale traps
+ *   (0106, 0176, 0208) were healed by MIG_3064.
+ * - Multi-writer contention with no coordination is fundamentally unsafe;
+ *   making Atlas the only writer eliminates an entire class of silent data
+ *   corruption.
+ *
+ * The cron entry has been removed from apps/web/vercel.json. The handler
+ * below now returns 410 Gone immediately so any stale scheduler probe,
+ * manual curl, or external pingback gets a clear "this is dead" signal
+ * instead of silently re-running the corruption.
+ *
+ * If you need to re-import historical Airtable data for some one-off audit,
+ * write a one-time script in scripts/ingest/ that explicitly opts in. Do
+ * NOT re-enable this cron without designing the writer-contention model
+ * first (see column comments on ops.equipment from MIG_3064).
  */
 
 export const maxDuration = 120;
+
+const RETIRED = true;
+const RETIRED_AT = "2026-04-08";
+const RETIRED_REASON = "Atlas is the source of truth for equipment. See MIG_3064 + cron file header.";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const AIRTABLE_PAT = process.env.AIRTABLE_PAT;
@@ -122,6 +148,16 @@ async function syncEquipment(records: AirtableRecord[]): Promise<{ staged: numbe
       : statusRaw === "Missing" ? "missing"
       : null;
 
+    // Trap-0106 stale-holder-name fix (2026-04-08):
+    // The Airtable "Current Holder" field is a stale legacy mirror. When the
+    // kiosk records a fresh check_out via the events trigger, it sets
+    // current_holder_name on ops.equipment. Then this cron used to blindly
+    // overwrite that name back to whatever Airtable still had — silently
+    // reverting every kiosk reassignment every 4 hours.
+    //
+    // Custody_status already had a "recent atlas_ui event" guard (preserved
+    // below). Apply the same guard to current_holder_name so kiosk activity
+    // wins over stale Airtable data.
     const result = await queryOne<{ equipment_id: string; custody_was_skipped: boolean }>(
       `UPDATE ops.equipment SET
          barcode = CASE
@@ -133,7 +169,18 @@ async function syncEquipment(records: AirtableRecord[]): Promise<{ staged: numbe
          item_type = $3,
          size = $4,
          functional_status = $5,
-         current_holder_name = $6,
+         current_holder_name = CASE
+           WHEN EXISTS (
+             SELECT 1 FROM ops.equipment_events
+             WHERE equipment_id = ops.equipment.equipment_id
+               AND source_system = 'atlas_ui'
+               AND created_at > COALESCE(
+                 (SELECT (value#>>'{}')::timestamptz FROM ops.app_config WHERE key = 'equipment.last_sync_at'),
+                 '2020-01-01'
+               )
+           ) THEN current_holder_name
+           ELSE COALESCE($6, current_holder_name)
+         END,
          expected_return_date = $7::date,
          photo_url = $8,
          barcode_image_url = $9,
@@ -315,10 +362,22 @@ async function syncCollections(records: AirtableRecord[]): Promise<{ upserted: n
   return { upserted };
 }
 
-export async function GET(request: NextRequest) {
-  // Auth: Vercel cron header or CRON_SECRET
-  const authHeader = request.headers.get("authorization");
-  const cronHeader = request.headers.get("x-vercel-cron");
+export async function GET(_request: NextRequest) {
+  // RETIRED 2026-04-08 — see file header. This handler returns 410 Gone
+  // so stale schedulers / probes get a clear "this is dead" response.
+  if (RETIRED) {
+    console.error(
+      `[equipment-sync] RETIRED ${RETIRED_AT} — refusing to run. ${RETIRED_REASON}`,
+    );
+    return apiError(
+      `equipment-sync cron retired on ${RETIRED_AT}. ${RETIRED_REASON}`,
+      410,
+    );
+  }
+
+  // ── DEAD CODE BELOW (kept for one-off audit reference, not reachable) ──
+  const authHeader = _request.headers.get("authorization");
+  const cronHeader = _request.headers.get("x-vercel-cron");
 
   if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
     return apiError("Unauthorized", 401);

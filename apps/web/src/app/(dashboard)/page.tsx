@@ -8,6 +8,7 @@ import { useMapData } from "@/hooks/useMapData";
 import { fetchApi } from "@/lib/api-client";
 import { KpiStrip, ActionPanel, DASHBOARD_LAYER_GROUPS, getDefaultEnabledLayers } from "@/components/dashboard";
 import { ImpactSummary } from "@/components/dashboard/ImpactSummary";
+import { InsightsFeed } from "@/components/dashboard/InsightsFeed";
 import { usePermission } from "@/hooks/usePermission";
 import type { DashboardMapPin, MapLayer } from "@/components/dashboard";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
@@ -340,33 +341,6 @@ function HomeInner() {
     return counts;
   }, [requestPins, intakePins, atlasPins, enabledLayers]);
 
-  // Compose a natural-language briefing from available stats
-  // (Tableau Pulse pattern: at-a-glance insights, not raw numbers)
-  const briefingParts: React.ReactNode[] = [];
-  if (stats) {
-    if (stats.needs_attention_total > 0) {
-      briefingParts.push(
-        <span key="attention"><strong>{stats.needs_attention_total}</strong> need{stats.needs_attention_total === 1 ? "s" : ""} your attention</span>
-      );
-    }
-    if (stats.active_requests > 0) {
-      briefingParts.push(
-        <span key="active"><strong>{stats.active_requests}</strong> active request{stats.active_requests === 1 ? "" : "s"}</span>
-      );
-    }
-    if (stats.cats_this_month != null && stats.cats_last_month != null && stats.cats_last_month > 0) {
-      const delta = Math.round(((stats.cats_this_month - stats.cats_last_month) / stats.cats_last_month) * 100);
-      const arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
-      briefingParts.push(
-        <span key="cats"><strong>{stats.cats_this_month}</strong> cats this month ({arrow}{Math.abs(delta)}% vs last)</span>
-      );
-    } else if (stats.cats_this_month != null && stats.cats_this_month > 0) {
-      briefingParts.push(
-        <span key="cats"><strong>{stats.cats_this_month}</strong> cats this month</span>
-      );
-    }
-  }
-
   return (
     <div className="dashboard-command-center">
       {/* Header */}
@@ -385,22 +359,9 @@ function HomeInner() {
         </a>
       </div>
 
-      {/* Natural-language briefing (Tableau Pulse pattern) */}
-      {briefingParts.length > 0 && (
-        <div className="dashboard-briefing" role="status" aria-live="polite">
-          <svg className="dashboard-briefing-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 16v-4M12 8h.01" />
-          </svg>
-          <div className="dashboard-briefing-text">
-            {briefingParts.reduce<React.ReactNode[]>((acc, part, i) => {
-              if (i > 0) acc.push(<span key={`sep-${i}`} style={{ margin: "0 0.5rem", color: "var(--text-tertiary, var(--text-muted))" }}>·</span>);
-              acc.push(part);
-              return acc;
-            }, [])}
-          </div>
-        </div>
-      )}
+      {/* Natural-language insights (Tableau Pulse pattern: at-a-glance health)
+          Replaces the Tier 1 inline briefing with a structured feed. */}
+      <InsightsFeed stats={stats} />
 
       {/* Impact summary — "since inception" mission-connected stats */}
       <ImpactSummary />
