@@ -11,7 +11,10 @@
  *
  * Usage:
  *   set -a && source .env.production.local && set +a
- *   npx tsx scripts/photo-upload-execute.ts plan_2026-04-01.json
+ *   npx tsx scripts/photo-upload-execute.ts plan_2026-04-01.json [--dry-run]
+ *
+ * --dry-run: walks the plan and verifies files exist + checks idempotency,
+ *            but does NOT upload to storage or insert into request_media.
  */
 export {};
 
@@ -61,18 +64,23 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 async function main() {
-  const planPath = process.argv[2];
+  const args = process.argv.slice(2);
+  const dryRun = args.includes("--dry-run");
+  const planPath = args.find((a) => !a.startsWith("--"));
   if (!planPath) {
-    console.error("Usage: photo-upload-execute.ts <plan.json>");
+    console.error("Usage: photo-upload-execute.ts <plan.json> [--dry-run]");
     process.exit(1);
   }
   if (!fs.existsSync(planPath)) {
     console.error(`Plan file not found: ${planPath}`);
     process.exit(1);
   }
-  if (!isStorageAvailable()) {
+  if (!dryRun && !isStorageAvailable()) {
     console.error("Supabase storage not configured. Set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.");
     process.exit(1);
+  }
+  if (dryRun) {
+    console.log("DRY RUN — no uploads, no DB writes\n");
   }
 
   const plan: Plan = JSON.parse(fs.readFileSync(planPath, "utf-8"));
@@ -130,6 +138,21 @@ async function main() {
             detail: `media_id=${existing.media_id}`,
           });
           console.log(`[${processed}/${totalFiles}] ⏭  ${filename} — already uploaded`);
+          continue;
+        }
+
+        if (dryRun) {
+          const target = line.cat_id
+            ? `cat ${line.cat_name || line.cat_id}`
+            : "UNLINKED (no cat_id)";
+          results.push({
+            line_number: line.line_number,
+            filename,
+            cat_id: line.cat_id,
+            status: line.cat_id ? "uploaded" : "unlinked",
+            detail: `dry-run: would upload ${buffer.length} bytes → ${target}`,
+          });
+          console.log(`[${processed}/${totalFiles}] ✓ ${filename} → line ${line.line_number} (${target}) [DRY]`);
           continue;
         }
 
