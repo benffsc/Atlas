@@ -1,11 +1,15 @@
 # Atlas Issues Log — Completed Work Archive
 
-Generated: 2026-03-24 | Updated: 2026-04-06
-Total completed issues: 746 (611 previously archived + 135 new)
+Generated: 2026-03-24 | Updated: 2026-04-07
+Total issues archived: 886 (746 previously archived + 140 new through FFS-1193)
 
-This file preserves all completed Linear issues so they can be safely archived
-in Linear to reduce project scope. All technical details, code references, and
+This file preserves all Linear issues so they can be safely archived/deleted in
+Linear to reduce project scope. All technical details, code references, and
 context from these issues are captured here.
+
+**2026-04-07 update:** All 140 issues from FFS-1075 onward are now preserved
+at the end of this file under "2026-04-07 Archive Update". Safe to bulk-delete
+from the Linear UI to free the free-tier issue quota.
 
 ---
 
@@ -2479,4 +2483,177 @@ Re-create in Linear as needed when workspace limit is resolved.
 ### FFS-956: Delete stale demo-vs-real and content-comparison test files (child of FFS-955)
 - **Priority:** Medium | **Labels:** Tippy, E2E Tests
 - **Created:** 2026-03-28 | **Completed:** 2026-03-28
+
+
+---
+
+## 2026-04-07 Archive Update — FFS-1075 through FFS-1193
+
+Generated: 2026-04-07 (end of day)
+New issues archived: 140 (68 Done + 40 Backlog + 20 In Progress + 12 Cancelled/Duplicate)
+
+All issues below are safe to bulk-delete from Linear once this file is committed.
+
+### Status legend
+- ✅ **Done** — shipped
+- 🔄 **In Progress** — active work at time of archive
+- 📋 **Backlog** — pending work
+- ❌ **Canceled / Duplicate** — will not ship
+
+---
+
+### Backlog (40)
+
+- **FFS-978**: Link adopted cats to adopter address via ShelterLuv outcome data _[Medium]_ — labels: Entity Linking, Data Quality
+- **FFS-979**: SAC-compliant outcome reporting dashboard _[Low]_ — labels: Beacon, Frontend
+- **FFS-993**: Request cards: TNR progress bar, aging colors, breathing room _[Medium]_ — labels: UX Polish, Requests, Frontend
+- **FFS-1029**: Consolidate Redirect + Handoff into single "Transfer Request" action _[Low]_ — labels: UX Polish, Requests, Feature
+- **FFS-1069**: Drain 4,897 unprocessed staged records _[Urgent]_ — labels: Ingest, Data Quality
+- **FFS-1075**: Data Hub Processing tab redesign (FFS-1054 implementation) _[Medium]_ — labels: Frontend, Infrastructure
+- **FFS-1076**: Dedup queue batch processing (places + cats) _[Medium]_ — labels: Entity Linking, Data Quality
+- **FFS-1077**: Colony Site Detection & Cat-Place Linking (DATA_GAP_058) _[Urgent]_ — labels: Beacon, Entity Linking, Data Quality
+- **FFS-1078**: VH data enrichment: events, hours, classification, dashboard _[High]_ — labels: Volunteers, Infrastructure
+- **FFS-1079**: MIG_3038: VH event tables + volunteer classification views _[High]_ — labels: Volunteers
+- **FFS-1080**: VH cron: add event sync step — fetch hours from /api/v1/events _[High]_ — labels: Volunteers, Ingest
+- **FFS-1081**: VH stats API: enriched response with population + hours _[Medium]_ — labels: Volunteers, API
+- **FFS-1084**: Run MIG_3037 on staging + verify backfill coverage _[Urgent]_ — labels: Ingest, Data Quality
+- **FFS-1085**: Admin UI: Colony site designation toggle + list view _[Medium]_ — labels: Beacon, Frontend
+- **FFS-1086**: Extend link_cats_to_places() Step 3 for is_colony_site places _[Medium]_ — labels: Entity Linking, Data Quality
+- **FFS-1087**: Epic: Clinic Day Photo & Data Automation _[High]_ — labels: Clinic, Ingest, Feature
+- **FFS-1089**: Photo Sequence Auto-Grouping by Timestamp _[High]_ — labels: Clinic, Feature
+- **FFS-1090**: Clinic Number + Description Extraction from Photo Waivers _[High]_ — labels: Clinic, Ingest, Feature
+- **FFS-1092**: Clinic Day Photo Processing UI _[Medium]_ — labels: Clinic, Frontend, Feature
+- **FFS-1093**: Backfill: Process Existing Clinic Day Photos (Jan-Mar 2026) _[Medium]_ — labels: Clinic, Data Quality
+- **FFS-1098**: Surface extracted relationships as staff review queue _[Low]_ — labels: Data Quality
+- **FFS-1118**: MIG_3041: Salvage real people from org clinic accounts (3-tier resolution) _[High]_ — labels: Data Quality
+- **FFS-1126**: Green Sheet (Call List) Parser & Pre-Clinic Sync _[Medium]_ — labels: Clinic, Ingest, Feature
+- **FFS-1127**: Protocol Docs → Tippy Knowledge Base Sync _[Low]_ — labels: Tippy, Clinic, Feature
+- **FFS-1136**: Clinic Day Hub page + batch photo upload _[High]_
+- **FFS-1137**: Process 04/01 and 04/06 clinic day photos via hub _[Medium]_
+- **FFS-1156**: Epic: AI Tippy — Reasoning Hardening (Apply Own Data Quality Knowledge) _[High]_ — labels: Architecture, Tippy, Data Quality
+- **FFS-1157**: Tippy A: Auto-apply data-quality module to all place tool results _[Urgent]_ — labels: Tippy, API, Data Quality
+- **FFS-1158**: Tippy B: NULL-status accounting in all rate queries _[High]_ — labels: Tippy, API, Data Quality
+- **FFS-1159**: Tippy C: is_community_cat_target filter for priority queries _[High]_ — labels: Tippy, Entity Linking, Data Quality
+- **FFS-1160**: Tippy D: Exclude active/completed requests from "needs attention" lists by default _[High]_ — labels: Tippy, Requests, API
+- **FFS-1161**: Tippy E: find_intact_cat_clusters density tool (concentration not membership) _[Medium]_ — labels: Tippy, API, Map
+- **FFS-1162**: Tippy F: get_place_recent_context tool (institutional knowledge lookup) _[High]_ — labels: Tippy, API
+- **FFS-1163**: Tippy G: Strategic-question intent class with required clarifying step _[Medium]_ — labels: Tippy, API
+- **FFS-1164**: Tippy H: System prompt — humility default for strategic questions _[Medium]_ — labels: Tippy, Documentation
+- **FFS-1165**: Tippy I: Eval regression — Santa Rosa priority + 717 Cherry St. lookup _[High]_ — labels: Tippy, E2E Tests
+- **FFS-1166**: Tippy J: Disambiguate AI Tippy vs Kiosk Tippy in Linear (housekeeping) _[Low]_ — labels: Tippy, Documentation
+- **FFS-1170**: Data cleanup: 717 Cherry St. + Donna Best identity consolidation _[Medium]_ — labels: Entity Linking, Data Quality
+- **FFS-1171**: Tippy K: Narrative synthesis — story over data dump (staff-friendly delivery) _[High]_ — labels: Tippy, Documentation
+- **FFS-1177**: Tippy density results overlay — render find_intact_cat_clusters output on map _[Medium]_ — labels: Tippy, Frontend, Map
+
+### Canceled (7)
+
+- **FFS-1061**: Design — Tippy question taxonomy & branching decision tree _[High]_ — labels: Tippy, Form System
+- **FFS-1062**: Design — Tippy routing matrix (situation → resource/pipeline) _[High]_ — labels: Tippy, Form System, Requests
+- **FFS-1063**: Design — Beacon data extraction schema from Tippy responses _[Medium]_ — labels: Tippy, Beacon, Data Quality
+- **FFS-1064**: Implementation — Tippy conversational form UI for kiosk _[Medium]_ — labels: Equipment, Tippy, Frontend
+- **FFS-1065**: Implementation — Tippy routing engine & resource cards _[Medium]_ — labels: Tippy, Frontend, API
+- **FFS-1066**: Integration — Connect Tippy FFR outcomes to Atlas intake & trapping pipelines _[Medium]_ — labels: Tippy, Requests, Infrastructure
+- **FFS-1176**: Service zone choropleth — alteration rate by zone overlay _[High]_ — labels: Beacon, Frontend, Map
+
+### Done (68)
+
+- **FFS-114**: CRITICAL: owner_first_name/last_name/address columns DON'T EXIST on ops.appointments _[Urgent]_ — labels: Mar 2026, Critical, Ingest, Data Quality, Bug
+- **FFS-134**: BUG: 2,642 duplicate place records — find_or_create_place_deduped() not deduplicating ClinicHQ addresses _[Urgent]_ — labels: Mar 2026, Entity Linking, Infrastructure, Data Quality, Bug
+- **FFS-136**: BUG: 1,194 cats linked to wrong address on map — trappers/caretakers show at home instead of trapping site _[High]_ — labels: Mar 2026, Entity Linking, Map, Data Quality, Bug
+- **FFS-144**: BUG: Request creation form saves only 9 of 50+ fields — massive data loss _[Urgent]_ — labels: Mar 2026, Requests, Critical, API, Bug
+- **FFS-148**: Add form-to-API field contract validation to prevent silent data loss _[Medium]_ — labels: Improvement
+- **FFS-1082**: MIG_3037: Site-name place extraction + is_colony_site column _[Urgent]_ — labels: Entity Linking, Infrastructure, Data Quality
+- **FFS-1083**: MIG_3036: Old Possum Brewing diagnostic — verify specific case _[High]_ — labels: Data Quality
+- **FFS-1088**: Master List Excel Parser & Auto-Ingest _[High]_ — labels: Clinic, Ingest
+- **FFS-1091**: Chip-First Cat Matching Engine _[High]_ — labels: Clinic, Entity Linking, Feature
+- **FFS-1099**: Epic: Digital Lobby Kiosk — Unified FFSC Program Hub _[High]_ — labels: Kiosk, Feature
+- **FFS-1100**: Kiosk Digital Lobby — Splash page redesign (5 program paths) _[High]_ — labels: Kiosk, Frontend
+- **FFS-1101**: Kiosk QR/Link paths — Volunteering, Barn Cat, Adopt, Rehome resources _[Medium]_ — labels: Kiosk, Frontend
+- **FFS-1102**: Kiosk Clinic Path — Contact-first intake with person lookup _[Urgent]_ — labels: Kiosk, Requests, Feature
+- **FFS-1103**: Kiosk Welcome Back — Smart person recognition with contextual greeting _[High]_ — labels: Kiosk, Feature
+- **FFS-1104**: Kiosk Mission Framing — Pet redirect + clinic focus messaging _[High]_ — labels: Kiosk, Feature
+- **FFS-1105**: Kiosk Cat Questions — Research-backed behavioral tree for pet vs colony detection _[Urgent]_ — labels: Kiosk, Beacon, Requests, Feature
+- **FFS-1106**: Kiosk Unified Shell — Merge equipment tab bar with lobby navigation _[Medium]_ — labels: Kiosk, Frontend
+- **FFS-1107**: Kiosk Phone Call Intake — Same form as kiosk for staff taking calls _[Medium]_ — labels: Kiosk, Requests, Feature
+- **FFS-1108**: Kiosk Admin — Tree editor, scoring tuner, path config, deployment settings _[Low]_ — labels: Kiosk, Feature
+- **FFS-1109**: Waiver Archive Filename Parser → Lookup Table _[High]_ — labels: Clinic, Ingest
+- **FFS-1110**: SharePoint Waiver Sync via Microsoft Graph API _[High]_ — labels: Clinic, Ingest, Infrastructure
+- **FFS-1111**: Community Resources Registry + Auto-Verification _[High]_ — labels: Kiosk, Infrastructure, Feature
+- **FFS-1112**: DB table + seed data for community resources _[High]_ — labels: Kiosk, Infrastructure
+- **FFS-1113**: Resource scraper engine + verification cron _[High]_ — labels: Kiosk, Infrastructure
+- **FFS-1114**: Resources API + React hook for kiosk consumption _[High]_ — labels: Kiosk, API
+- **FFS-1115**: Wire kiosk components to use dynamic resources _[Medium]_ — labels: Kiosk, Frontend
+- **FFS-1116**: Kiosk Legacy Cleanup — Delete old question engine + components _[Low]_ — labels: Kiosk
+- **FFS-1117**: Admin Resources Page — Inline edit, scrape status, verification trigger _[Medium]_ — labels: Kiosk, Feature
+- **FFS-1120**: Equipment Scan UX Overhaul — Intuitive, Handoff-Ready Workflows _[High]_ — labels: Equipment, UX Polish, Frontend
+- **FFS-1121**: Smart toggle: one-tap check-in from scan _[High]_ — labels: Kiosk, Equipment, UX Polish
+- **FFS-1122**: Soften "not found" scan state — offer inline registration _[Medium]_ — labels: Kiosk, Equipment, UX Polish
+- **FFS-1123**: "Found missing trap" flow — scan to resolve missing items _[High]_ — labels: Kiosk, Equipment, UX Polish
+- **FFS-1124**: "Already available" scan — capture return attribution _[Medium]_ — labels: Kiosk, Equipment, UX Polish
+- **FFS-1125**: Full-width primary action buttons + 48px touch targets _[Medium]_ — labels: Equipment, UX Polish
+- **FFS-1128**: Batch scan mode for Inventory Day + end-of-day returns _[High]_ — labels: Kiosk, Equipment, UX Polish
+- **FFS-1129**: Recent scans session history below scanner input _[Low]_ — labels: Equipment, UX Polish
+- **FFS-1130**: Undo toast instead of confirmation dialogs for routine actions _[Low]_ — labels: Equipment, UX Polish
+- **FFS-1131**: Floating scan FAB on equipment list pages _[Low]_ — labels: Equipment, UX Polish
+- **FFS-1132**: Sound + haptic feedback on successful scan _[Low]_ — labels: Equipment, UX Polish
+- **FFS-1133**: First-use onboarding overlay for equipment scan _[Low]_ — labels: Kiosk, Equipment, UX Polish
+- **FFS-1134**: Bug: Merged appointment duplicates in clinic day views _[Urgent]_ — labels: Bug
+- **FFS-1135**: Propagate clinic_day_number from master list to appointments _[High]_
+- **FFS-1138**: Add `merged_into_appointment_id` column to ops.appointments _[Urgent]_ — labels: Data Quality, Bug
+- **FFS-1139**: Master list ground truth comparison in compare/status routes _[High]_ — labels: Clinic, Data Quality
+- **FFS-1140**: Frontend: Surface ground truth analysis on Clinic Day Hub _[Medium]_ — labels: Clinic, Frontend
+- **FFS-1141**: Events API — State transition validation for all event types _[Urgent]_ — labels: Equipment, Bug
+- **FFS-1142**: Events API — Replace inline enum validation with ENTITY_ENUMS _[High]_ — labels: Equipment
+- **FFS-1143**: Remove orphaned `attribute_return` action from scan API _[High]_ — labels: Equipment
+- **FFS-1144**: Kiosk add page — barcode prefill overridden by session restore _[High]_ — labels: Kiosk, Equipment, Bug
+- **FFS-1145**: Reconcile/apply — wrap in DB transaction _[High]_ — labels: Equipment, Bug
+- **FFS-1146**: Wire useScanFeedback into both scan pages _[Medium]_ — labels: Equipment, UX Polish
+- **FFS-1147**: Render ScanOnboarding + help button on scan pages _[Medium]_ — labels: Kiosk, Equipment, UX Polish
+- **FFS-1148**: Add undo toasts to kiosk CheckinForm + SimpleActionConfirm _[Low]_ — labels: Kiosk, Equipment, UX Polish
+- **FFS-1149**: Fix ambiguous display_name reference in sot.data_engine_resolve_identity _[Medium]_ — labels: Bug
+- **FFS-1151**: Initiative 1: Field-Level Provenance & Manual Override Protection _[High]_ — labels: Architecture, Infrastructure, Data Quality
+- **FFS-1152**: Initiative 3: Data Quality Observability Layer _[High]_ — labels: Frontend, Infrastructure, Data Quality, Feature
+- **FFS-1154**: Initiative 5: Source Payload Extraction Registry _[Medium]_ — labels: Ingest, Infrastructure, Data Quality
+- **FFS-1167**: Inventory Day wizard — persist state across back-navigation _[None]_ — labels: Equipment, UX Polish, Feature
+- **FFS-1168**: Kiosk adoptable cats browser — ShelterLuv carousel (/kiosk/cats) _[None]_ — labels: Kiosk, Frontend, Feature
+- **FFS-1169**: Equipment kits page — replace hardcoded hex with CSS variables (Beacon readiness) _[None]_ — labels: Equipment, Beacon Porting, UX Polish
+- **FFS-1172**: Epic: Map Phase 2 — Spatial intelligence + Beacon handoff readiness _[High]_ — labels: Beacon, Frontend, Map
+- **FFS-1173**: Beacon Map page — /beacon/map with analyst-first defaults _[Urgent]_ — labels: Beacon, Frontend, Map
+- **FFS-1174**: Map time slider — Atlas staff date scrubber (inspiration for Beacon) _[High]_ — labels: Frontend, Map
+- **FFS-1175**: Density heatmap — audit + wire for Atlas staff (inspiration for Beacon) _[High]_ — labels: Frontend, Map
+- **FFS-1178**: Map URL state for filters — sharable links with layers/dates/center _[Medium]_ — labels: Frontend, Map
+- **FFS-1179**: Map E2E coverage — wire untracked map-interactions.spec.ts _[Medium]_ — labels: Frontend, Map, E2E Tests
+- **FFS-1191**: Kiosk clinic flow — explicit "Do you need trapping assistance?" fork _[None]_
+- **FFS-1192**: Intake queue — surface "self-service appointment" tag for Jami _[Medium]_
+
+### Duplicate (5)
+
+- **FFS-1002**: Filter e2e test requests from request list _[Urgent]_ — labels: Requests, Frontend, API, E2E Tests
+- **FFS-1003**: StaffTriagePanel component — Phase 2 accordion _[Medium]_ — labels: UX Polish, Form System, Requests, Frontend
+- **FFS-1004**: Consolidate cat section — merge redundant fields + facade derivation _[High]_ — labels: UX Polish, Form System, Requests, Frontend
+- **FFS-1005**: Consolidate access section — merge boolean questions _[Medium]_ — labels: UX Polish, Form System, Requests, Frontend
+- **FFS-1006**: Two-phase layout wiring — 5→4 sections + StaffTriagePanel _[High]_ — labels: UX Polish, Form System, Requests, Frontend
+
+### In Progress (20)
+
+- **FFS-977**: White-label contract test suite — verify admin config propagates to UI _[High]_ — labels: Helix Core, White Label, E2E Tests
+- **FFS-1094**: Entity Data Quality — Org Ghost Cleanup + Notes Enrichment _[High]_ — labels: Data Quality
+- **FFS-1095**: Filter organization-classified people from map & place queries (DATA_GAP_065) _[Urgent]_ — labels: Data Quality
+- **FFS-1096**: Audit + cleanup migration: org ghost person_place/person_cat links _[High]_ — labels: Data Quality
+- **FFS-1097**: Claude Batch API: Extract structured relationships from clinic notes (DATA_GAP_066) _[Medium]_ — labels: Data Quality
+- **FFS-1119**: MIG_3041: Salvage real people from org clinic accounts (3-tier resolution) _[High]_ — labels: Data Quality
+- **FFS-1150**: Epic: Atlas Data Hardening — Industry-Pattern Roadmap _[High]_ — labels: Architecture, Infrastructure, Data Quality
+- **FFS-1153**: Initiative 4: clinic_day_number Single Source of Truth + provenance _[Medium]_ — labels: Infrastructure, Data Quality, Bug
+- **FFS-1155**: Initiative 6: Generic Soft-Merge Pattern Standardization _[Medium]_ — labels: Architecture, Infrastructure, Data Quality
+- **FFS-1181**: Epic: Out-of-Service-Area Intake → Automated Resource Email Pipeline _[High]_ — labels: Architecture, Requests, Feature
+- **FFS-1182**: Phase 0 — Defuse existing out-of-county email cron behind feature flag _[Urgent]_ — labels: Critical, Infrastructure, Bug
+- **FFS-1183**: Phase 1 — PostGIS service area boundary + auto-populate intake_submissions.county _[High]_ — labels: White Label, Requests, Infrastructure
+- **FFS-1184**: Phase 2 — Expand ops.community_resources with neighbor counties + statewide directories _[High]_ — labels: Infrastructure, Feature
+- **FFS-1185**: Phase 2 — Build new out_of_service_area email template with dynamic resource cards _[High]_ — labels: White Label, Infrastructure, Feature
+- **FFS-1186**: Phase 3 — Fix v_pending_out_of_service_area view + approval gate + 90-day suppression _[High]_ — labels: Infrastructure, Bug
+- **FFS-1187**: Phase 4 — Out-of-service banner + Preview/Approve/Override actions in intake queue UI _[High]_ — labels: Requests, Frontend, Feature
+- **FFS-1188**: Phase 5 — Email dry-run mode + test recipient override + admin Go Live toggle _[Urgent]_ — labels: Critical, Infrastructure, Feature
+- **FFS-1189**: Phase 6 — E2E Playwright test for out-of-service-area pipeline _[High]_ — labels: Requests, E2E Tests
+- **FFS-1190**: Phase 6 — Go-Live runbook + pre-flight checklist for out-of-service-area emails _[High]_ — labels: Documentation
+- **FFS-1193**: Epic: Rebrand main app UI — Atlas → Beacon (gala prep) _[High]_ — labels: UX Polish, Beacon Porting, White Label, Frontend
 
