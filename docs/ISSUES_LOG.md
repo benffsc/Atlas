@@ -2657,3 +2657,132 @@ All issues below are safe to bulk-delete from Linear once this file is committed
 - **FFS-1190**: Phase 6 — Go-Live runbook + pre-flight checklist for out-of-service-area emails _[High]_ — labels: Documentation
 - **FFS-1193**: Epic: Rebrand main app UI — Atlas → Beacon (gala prep) _[High]_ — labels: UX Polish, Beacon Porting, White Label, Frontend
 
+
+---
+
+## 2026-04-07 Consolidation Report — Safe-to-Delete Plan
+
+Generated end-of-day 2026-04-07 after:
+1. Closing 2 stale-urgent issues whose work had already shipped (FFS-1079, FFS-1084)
+2. Closing FFS-1172 Map Phase 2 epic (5/7 sub-issues done, 1 cancelled, 1 blocked)
+3. Applying MIG_3036/3038/3063 to production DB
+4. Shipping Atlas→Beacon rebrand (commits `62fca4c9` + `520f56f3` + `728008e4`)
+
+This appendix indexes everything in the live Linear project so the whole
+set can be bulk-deleted and re-created from this archive if needed.
+
+### Current counts (live Linear — 2026-04-07 end of day)
+
+| Status | Count | Safe to delete now? |
+|---|---|---|
+| Done | ~672 | ✅ Yes (all in archive) |
+| Backlog | 107 | ✅ Yes (all captured below under "Epic hierarchy") |
+| In Progress | 21 | ⚠️ Delete only if active work will be re-created from this file |
+| Canceled | 19 | ✅ Yes (already resolved) |
+| Duplicate | 12 | ✅ Yes (already resolved) |
+| **Total** | **~831** | |
+
+### Active Epic hierarchy (the important structure to preserve)
+
+These 6 epics organize the vast majority of current work. If the sub-issues
+are deleted, the epic summary below is the recovery map.
+
+#### FFS-1193 — Epic: Rebrand main app UI — Atlas → Beacon (IN PROGRESS)
+**Status:** P0 shipped 2026-04-07 in commits `62fca4c9` and `520f56f3`. Atlas is now the internal DB/backend name only; Beacon is the user-facing product name for the entire operational app. Logo at `/beacon-logo.jpeg`. P1 deferrals: Tippy system prompt strings, favicon, config-driven brand name via `ops.app_config`, `AtlasCatIdBadge` label rename. See `memory/beacon-rebrand.md` for full state.
+
+#### FFS-1181 — Epic: Out-of-Service-Area Intake → Automated Resource Email Pipeline (IN PROGRESS)
+**Status:** Phases 0–6 all In Progress, represented as sub-issues FFS-1182 through FFS-1190. Rebuilds the old Airtable "Out of County Email" automation in Atlas-native. Gated behind `EMAIL_DRY_RUN=true` + admin Go Live toggle + runbook. Migrations shipped: MIG_3057 (service area boundary), MIG_3058 (backfill), MIG_3060 (template), MIG_3061 (pipeline), MIG_3062 (dry-run mode). Sub-issues: FFS-1182 (defuse old cron), FFS-1183 (PostGIS), FFS-1184 (community resources expansion), FFS-1185 (new template), FFS-1186 (view + approval gate), FFS-1187 (intake queue UI), FFS-1188 (dry-run + Go Live), FFS-1189 (E2E Playwright), FFS-1190 (runbook).
+
+#### FFS-1156 — Epic: AI Tippy — Reasoning Hardening (BACKLOG)
+**Status:** 11 sub-issues in Backlog (FFS-1157..1166, FFS-1171). Triggered 2026-04-07 by Santa Rosa priority-area failure case. North star: Tippy delivers Atlas institutional knowledge to ALL staff in user-friendly synthesized form. Critical path: FFS-1157 (auto-apply data-quality module) → FFS-1158 (NULL-status accounting) → FFS-1162 (get_place_recent_context) → FFS-1161 (density cluster tool) → FFS-1171 (narrative synthesis). Lock in as regression tests under FFS-1165 (Santa Rosa + 717 Cherry St.).
+
+#### FFS-1150 — Epic: Atlas Data Hardening — Industry-Pattern Roadmap (IN PROGRESS)
+**Status:** 6 initiatives shipped 2026-04-07 via MIG_3048–3054 (field provenance, find_or_create_appointment, data quality framework, extraction registry, merge standardization). Two sub-issues still In Progress: FFS-1153 (clinic_day_number SoT — debug trigger expires 2026-04-14), FFS-1155 (generic soft-merge pattern — deferred). See `memory/project_data_hardening_complete.md` for full state.
+
+#### FFS-1087 — Epic: Clinic Day Photo & Data Automation (BACKLOG)
+**Status:** 7 sub-issues in Backlog. Blocked on FFS-1110 (SharePoint waiver sync, manual Vercel env vars). Chain: FFS-1089 (photo auto-grouping) → FFS-1090 (clinic # extraction) → FFS-1092 (processing UI) → FFS-1093 (backfill existing photos). Also FFS-1126 (green sheet parser), FFS-1136 (clinic day hub page + batch upload), FFS-1137 (process 04/01 + 04/06 photos).
+
+#### FFS-976 — Epic: Cat Outcome & Lifecycle UX (IN PROGRESS)
+**Status:** 4 sub-issues in Backlog. Industry research done (ShelterLuv, PetPoint, ASM3, Pawlytics, SAC/Asilomar standards). Implementation pending: FFS-919 (ShelterLuv adoption data for Jean Worthey cat), FFS-921 (foster lifecycle marker), FFS-978 (adopter address linking), FFS-979 (SAC-compliant outcome dashboard).
+
+#### FFS-1094 — Epic: Entity Data Quality — Org Ghost Cleanup + Notes Enrichment (IN PROGRESS)
+**Status:** FFS-1095 (map/place query filter) shipped 2026-04-03. FFS-1119 (MIG_3041 salvage — 3-tier re-resolution of 744 org accounts, ~300 person creations) still In Progress, NOT YET APPLIED. FFS-1096 (cleanup migration), FFS-1097 (Claude Batch API extraction), FFS-1098 (staff review queue) all pending.
+
+### Other active backlog groups
+
+- **FFS-881 (Identity hardening)** — 5 sub-issues: FFS-884 (33 phone-only mismatches), FFS-887, FFS-893, FFS-894 (124 clinic account dups), FFS-896
+- **FFS-936 (Config-driven ingest engine)** — 4 sub-issues: FFS-937 (schema), FFS-938 (admin UI), FFS-939 (generic webhook), FFS-941 (error queue)
+- **FFS-1078 (VH data enrichment)** — 2 sub-issues remaining after FFS-1079 closed: FFS-1080 (cron step), FFS-1081 (stats API)
+- **FFS-1077 (Colony site detection)** — 2 sub-issues remaining after FFS-1084 closed: FFS-1085 (admin UI), FFS-1086 (link_cats_to_places extension)
+
+### Standalone High-priority backlog (no epic, 22 issues)
+
+Issues that represent real work but aren't rolled up under an epic. If deleted,
+recreate one-at-a-time as capacity allows.
+
+| ID | Title | Labels | Notes |
+|---|---|---|---|
+| FFS-741 | Cat color/pattern data not extracted from ClinicHQ | Data Quality, Ingest | Stale since 2026-03-25 |
+| FFS-763 | Replace emoji icons with Lucide React | UX Polish, Beacon Porting | Partially done via rebrand |
+| FFS-764 | User-customizable page shortcuts / favorites | UX Polish | Feature request |
+| FFS-766 | Admin panel information architecture | UX Polish | 67-page admin reorganization |
+| FFS-770 | Surface & elevation CSS tokens | UX Polish | Design system |
+| FFS-771 | Shared Button component (replaces 6,462 inline styles) | UX Polish | Design system |
+| FFS-772 | Skeleton loading adoption | UX Polish | Design system |
+| FFS-812 | Intake: Kanban should be default view | UX Polish, Requests, Bug | |
+| FFS-816 | Cat records page: poor list UX | UX Polish, Frontend | |
+| FFS-817 | Audit: Dead links in Beacon DataTables | Beacon, Frontend, Bug | |
+| FFS-818 | Barcode scanner result bounces back | UX Polish, Clinic, Bug | Real staff pain point |
+| FFS-820 | WCAG contrast failures (opacity disabled states) | UX Polish, Frontend, Bug | Accessibility |
+| FFS-821 | Hardcoded hex colors break dark mode | UX Polish, Frontend, Bug | |
+| FFS-827 | Print pages hardcode "Atlas" | Beacon Porting, Bug | P1 deferred per rebrand session |
+| FFS-861 | Recheck pattern detection broken (12 duplicates) | Clinic, Ingest, Data Quality, Bug | **Urgent** |
+| FFS-915 | 1,499 cats with appointments but no place link | Data Quality | Quick data fix |
+| FFS-916 | 25 completed requests with 0 cats linked | Data Quality | |
+| FFS-920 | Google Maps note mislinked (211 Shiloh → 5811 Faught) | Data Quality | Single-record |
+| FFS-955 | Test suite modernization & white-label readiness | Tippy, DX, E2E Tests | |
+| FFS-1029 | Transfer Request consolidation | Requests | Blocked by FFS-1028 |
+| FFS-1069 | Drain 4,897 unprocessed staged records | Ingest, Data Quality | **Urgent** |
+| FFS-1077 | Colony Site Detection (epic standalone) | Beacon, Entity Linking | **Urgent** |
+
+### Standalone Urgent-priority backlog (not listed above)
+
+- **FFS-333** — Rotate V1 database password (exposed in git history) — Manual Supabase operation, outstanding since 2026-03-08
+- **FFS-762** — Admin sidebar renders twice — Layout bug, not touched since 2026-03-26
+- **FFS-1157** — Tippy A: Auto-apply data-quality module (under FFS-1156 epic)
+
+### Issues closed during this consolidation session (2026-04-07)
+
+Recorded here for provenance:
+
+- **FFS-1079** (was High Backlog) — Closed Done. Work shipped: MIG_3038 applied 2026-04-07 to production DB. Tables `source.volunteerhub_events`, `source.volunteerhub_event_registrations`, classification views, and `backfill_volunteer_hours_from_events()` function all present.
+- **FFS-1084** (was Urgent Backlog) — Closed Done. Verified: MIG_3037 (`upsert_clinic_account_for_owner()` function) was already applied. The verification task is complete; downstream work (FFS-1085, FFS-1086) remains Backlog under FFS-1077 epic.
+- **FFS-1172** (was Backlog) — Closed Done. Map Phase 2 epic. 5/7 sub-issues shipped, 1 cancelled (FFS-1176 choropleth deferred to Beacon team), 1 blocked (FFS-1177 Tippy cluster overlay — gated on FFS-1161).
+
+### Consolidation recommendations (user decision needed before delete)
+
+These are issues I would close/merge if authorized:
+
+1. **FFS-1166** "Tippy J: Disambiguate AI Tippy vs Kiosk Tippy in Linear (housekeeping)" — Low priority, literal housekeeping, no acceptance criteria. Can delete without closing.
+2. **FFS-172** / **FFS-324** / **FFS-381** — Marked "Deferred" in memory, last touched 2026-03-08/13. Safe to close + delete.
+3. **FFS-752** — "Duplicate clinic_account rows per appointment" (Low, stale since 2026-03-25) — probably superseded by MIG_3041 salvage work. Verify before close.
+
+### Delete guidance — three buckets
+
+**Bucket A: Delete immediately (all captured here)**
+All **Done**, **Canceled**, and **Duplicate** status issues. ~703 total. Every one has a title + priority + labels in the 2026-04-07 Archive Update above, plus commit references for shipped work. Context is recoverable.
+
+**Bucket B: Delete with care (active work — recreate if deleted)**
+All **In Progress** (21) and **Backlog** (107) issues. Epic hierarchy + standalone list above is the recovery map. If you delete these and later need to re-create any, the title/priority/labels are in this archive, and the parent epic summary explains the context.
+
+**Bucket C: Do NOT delete yet (strategic/external)**
+- Epics themselves (FFS-1193, FFS-1181, FFS-1156, FFS-1150, FFS-1087, FFS-976, FFS-1094) — they're load-bearing for ongoing work coordination
+- Any issue actively referenced by a running cron, commit, or external doc
+- Anything touched by the parallel rebrand session in the last 24h (likely not deletion-safe until that session lands its final commit)
+
+**Recommended sequence:**
+1. Start with Bucket A (delete all Done/Canceled/Duplicate) — ~700 issues freed
+2. Re-evaluate whether the free-tier limit has been cleared
+3. If still tight, selectively delete Bucket B non-epic items
+4. Keep Bucket C epics as the scaffolding for rebuilding whatever's needed
+
