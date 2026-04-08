@@ -140,18 +140,50 @@ export default function CheckoutSlipsPage() {
         }
 
         @media print {
-          /* margin: 0 here is honored when the user picks "Margins: None" in
+          /* @page margin: 0 is honored when the user picks "Margins: None" in
            * the print dialog. With Chrome's default margins (~0.4in), the
-           * page-default takes precedence, but the slip dimensions above
-           * (5.0in tall × 2 = 10in) still fit comfortably in the resulting
-           * 10.2in printable area. */
+           * page-default takes precedence, but the .slip-page flex centering
+           * below makes the slips center themselves within whatever printable
+           * area the browser provides. */
           @page { size: letter portrait; margin: 0; }
+          /* html + body need an explicit height for the slip-page's
+           * 100vh / flex-column-center to actually fill the page. Without
+           * these the slip-page collapses to its content height and the
+           * vertical centering doesn't take effect. */
+          html, body { height: 100% !important; margin: 0 !important; padding: 0 !important; }
           body { background: #fff !important; }
           .slip-ctrl, .tippy-fab, .tippy-chat-panel,
           nav, aside, header, footer, [data-sidebar],
           [role="alert"], [data-banner], .transition-banner { display: none !important; }
           main { margin: 0 !important; padding: 0 !important; max-width: none !important; }
-          .slip-page { border: none; margin: 0; }
+
+          /* Vertical centering for guillotine alignment.
+           *
+           * The 10in of slip content needs to sit DEAD CENTER on the 11in
+           * letter page so the dashed border between slip 1 and slip 2
+           * lands at exactly 5.5in from the top edge of the paper. That way,
+           * when Ben cuts on the guillotine at the paper midline, both halves
+           * come out the same height and stack cleanly.
+           *
+           * height: 100vh + flex-column + justify-content: center makes the
+           * slip-page fill the printable area and center its children
+           * vertically, regardless of whether browser margins are 0 (Margins:
+           * None) or ~0.4in default. The dashed cut border lands at the
+           * midline either way.
+           *
+           * For the 1-slip case, the single slip also centers — staff still
+           * cuts at the paper midline if they want to trim the bottom blank
+           * area, and the slip is balanced left/right and top/bottom on the
+           * sheet. */
+          .slip-page {
+            border: none;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          }
+
           /* Force browser to print background colors (the green header line,
            * the gray staff box) so slips look the same as the screen preview. */
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -219,10 +251,11 @@ export default function CheckoutSlipsPage() {
           >
             <Icon name="help-circle" size={14} color="var(--info-text, #1d4ed8)" />
             <span>
-              <strong>Tip:</strong> If both slips don&apos;t fit on one page, in the
-              browser&apos;s print dialog set <strong>Margins → None</strong> and{" "}
-              <strong>Scale → Default</strong>. (The slips are sized to fit even
-              with default margins, but disabling margins is the safest path.)
+              <strong>Tip:</strong> Slips are vertically centered so the dashed
+              cut line lands at exactly the paper midpoint — guillotine cut at
+              5.5&quot; from the top edge and both halves stack cleanly. If
+              anything looks off, set <strong>Margins → None</strong> and{" "}
+              <strong>Scale → Default</strong> in the print dialog.
             </span>
           </div>
         )}
