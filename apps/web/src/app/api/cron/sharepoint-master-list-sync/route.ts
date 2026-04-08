@@ -48,10 +48,12 @@ const CRON_SECRET = process.env.CRON_SECRET;
 const SHAREPOINT_DRIVE_ID = (process.env.SHAREPOINT_DRIVE_ID || "").trim();
 
 // Per-run budget. Each master list ingest holds the workbook in memory plus
-// CDS context if enabled. Keep this conservative — Vercel killed an earlier
-// 30-file run with "instance ran out of available memory". 10 files × ~3-5s
-// each = 30-50s, well under both the time budget (300s) and the memory cap.
-const MAX_FILES_PER_RUN = 10;
+// the entry transaction. xlsx workbook objects don't release memory between
+// iterations even with explicit reassignment. Vercel killed earlier runs at
+// budget=30 (with CDS) and budget=10 (without CDS, partial). At 5 we get
+// reliable completion. Throughput: 5 files × 4 runs/day = 20/day max,
+// enough to drain a 35-file backlog in 2 days.
+const MAX_FILES_PER_RUN = 5;
 
 // Build list of {Year} Completed Master List folders to scan.
 // Always scan current year + previous year to catch any late uploads.
