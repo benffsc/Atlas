@@ -7,15 +7,19 @@ export const revalidate = 3600; // 1 hour
 interface ImpactRow {
   cats_altered: number;
   start_year: number;
+  kittens_multiplier: number;
+  shelter_cost_multiplier: number;
+  enabled: boolean;
+  card_title: string;
+  card_subtitle: string;
+  label_cats_altered: string;
+  label_kittens_prevented: string;
+  label_shelter_cost_avoided: string;
+  kittens_rationale: string;
+  shelter_cost_rationale: string;
+  kittens_source_label: string;
+  kittens_source_url: string;
 }
-
-// Rough multipliers used to translate operational data into mission outcomes.
-// These are intentionally conservative communication estimates, not scientific
-// projections. They're good enough for a donor-facing "impact since inception"
-// card and avoid overclaiming. Source: Alley Cat Allies TNR guidance + common
-// shelter intake cost ranges.
-const KITTENS_PREVENTED_PER_ALTERED_CAT = 10;
-const SHELTER_COST_PER_KITTEN_USD = 200;
 
 export interface ImpactMethodology {
   cats_altered: {
@@ -46,12 +50,22 @@ export interface ImpactMethodology {
   };
 }
 
+export interface ImpactLabels {
+  card_title: string;
+  card_subtitle: string;
+  cats_altered: string;
+  kittens_prevented: string;
+  shelter_cost_avoided: string;
+}
+
 export interface ImpactResponse {
+  enabled: boolean;
   cats_altered: number;
   kittens_prevented: number;
   shelter_cost_avoided: number;
   start_year: number;
   computed_at: string;
+  labels: ImpactLabels;
   methodology: ImpactMethodology;
 }
 
@@ -60,40 +74,80 @@ export interface ImpactResponse {
  *
  * Returns mission-connected impact numbers for the dashboard hero card.
  * Translates operational metrics (cats altered) into outcome metrics
- * (kittens prevented, shelter cost avoided) using conservative multipliers.
+ * (kittens prevented, shelter cost avoided) using admin-configurable
+ * multipliers from ops.app_config (category = 'impact').
+ *
+ * White-label ready: every number, label, rationale, and source comes from
+ * ops.app_config and can be edited via /admin/config without a code change.
+ * See MIG_3070__seed_impact_config.sql for the full list of keys.
  *
  * Also returns full methodology: formulas, assumptions, sources, and caveats
  * for each metric. This lets the UI "show its work" — clicking a stat opens
  * a drawer with the audit trail.
  *
  * Used by: components/dashboard/ImpactSummary.tsx
- * Epic: FFS-1194 (Tier 1 Beacon Polish)
+ * Epic: FFS-1194 (Tier 1 Beacon Polish), white-label: FFS-1193
  */
 export async function GET() {
   try {
+    // Single query: pulls the altered-cat count from ops.appointments AND
+    // all impact.* config values in one round-trip. This is more efficient
+    // than querying each config key separately.
     const row = await queryOne<ImpactRow>(`
+      WITH counts AS (
+        SELECT
+          COUNT(DISTINCT a.cat_id)::int AS cats_altered,
+          COALESCE(
+            EXTRACT(YEAR FROM MIN(a.appointment_date))::int,
+            EXTRACT(YEAR FROM CURRENT_DATE)::int
+          ) AS start_year
+        FROM ops.appointments a
+        WHERE a.cat_id IS NOT NULL
+          AND (a.is_spay = TRUE OR a.is_neuter = TRUE)
+      )
       SELECT
-        COUNT(DISTINCT a.cat_id)::int AS cats_altered,
-        COALESCE(
-          EXTRACT(YEAR FROM MIN(a.appointment_date))::int,
-          EXTRACT(YEAR FROM CURRENT_DATE)::int
-        ) AS start_year
-      FROM ops.appointments a
-      WHERE a.cat_id IS NOT NULL
-        AND (a.is_spay = TRUE OR a.is_neuter = TRUE)
+        counts.cats_altered,
+        counts.start_year,
+        ops.get_config_numeric('impact.kittens_prevented_per_altered_cat', 10)::int AS kittens_multiplier,
+        ops.get_config_numeric('impact.shelter_cost_per_kitten_usd', 200)::int AS shelter_cost_multiplier,
+        (ops.get_config_value('impact.enabled', 'true') = 'true') AS enabled,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.card_title'), 'Our impact') AS card_title,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.card_subtitle'), 'Click any number to see the math') AS card_subtitle,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.label_cats_altered'), 'cats altered') AS label_cats_altered,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.label_kittens_prevented'), 'kittens prevented') AS label_kittens_prevented,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.label_shelter_cost_avoided'), 'shelter costs avoided') AS label_shelter_cost_avoided,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.kittens_rationale'), '') AS kittens_rationale,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.shelter_cost_rationale'), '') AS shelter_cost_rationale,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.kittens_source_label'), 'TNR industry guidance') AS kittens_source_label,
+        COALESCE((SELECT value #>> '{}' FROM ops.app_config WHERE key = 'impact.kittens_source_url'), '') AS kittens_source_url
+      FROM counts
     `);
 
-    const catsAltered = row?.cats_altered ?? 0;
-    const startYear = row?.start_year ?? new Date().getFullYear();
-    const kittensPrevented = catsAltered * KITTENS_PREVENTED_PER_ALTERED_CAT;
-    const shelterCostAvoided = kittensPrevented * SHELTER_COST_PER_KITTEN_USD;
+    if (!row) {
+      return apiServerError("Impact query returned no row");
+    }
+
+    const catsAltered = row.cats_altered ?? 0;
+    const startYear = row.start_year ?? new Date().getFullYear();
+    const kittensMultiplier = row.kittens_multiplier;
+    const shelterCostMultiplier = row.shelter_cost_multiplier;
+    const kittensPrevented = catsAltered * kittensMultiplier;
+    const shelterCostAvoided = kittensPrevented * shelterCostMultiplier;
 
     const response: ImpactResponse = {
+      enabled: row.enabled,
       cats_altered: catsAltered,
       kittens_prevented: kittensPrevented,
       shelter_cost_avoided: shelterCostAvoided,
       start_year: startYear,
       computed_at: new Date().toISOString(),
+      labels: {
+        card_title: row.card_title,
+        card_subtitle: row.card_subtitle,
+        cats_altered: row.label_cats_altered,
+        kittens_prevented: row.label_kittens_prevented,
+        shelter_cost_avoided: row.label_shelter_cost_avoided,
+      },
       methodology: {
         cats_altered: {
           value: catsAltered,
@@ -116,38 +170,37 @@ export async function GET() {
         },
         kittens_prevented: {
           value: kittensPrevented,
-          formula: `cats_altered × ${KITTENS_PREVENTED_PER_ALTERED_CAT}`,
-          multiplier: KITTENS_PREVENTED_PER_ALTERED_CAT,
+          formula: `cats_altered × ${kittensMultiplier}`,
+          multiplier: kittensMultiplier,
           assumptions: [
             {
               label: "Kittens prevented per altered cat",
-              value: String(KITTENS_PREVENTED_PER_ALTERED_CAT),
-              rationale:
-                "Conservative floor. Approximately 50% of altered cats are female. An unaltered female can have 2–3 litters per year of 4–5 kittens, with varying survival rates. Over a reproductive lifespan of 3–5 years for an unaltered community cat, prevented-kitten estimates range widely in the literature (10 to 200+). We use 10 as a deliberately defensible minimum to avoid overclaiming impact.",
+              value: String(kittensMultiplier),
+              rationale: row.kittens_rationale,
             },
           ],
-          sources: [
-            {
-              label: "Alley Cat Allies — Trap-Neuter-Return guidance",
-              url: "https://www.alleycat.org/our-work/trap-neuter-return/",
-            },
-          ],
+          sources: row.kittens_source_url
+            ? [
+                {
+                  label: row.kittens_source_label,
+                  url: row.kittens_source_url,
+                },
+              ]
+            : [{ label: row.kittens_source_label, url: "#" }],
           caveats: [
             "This is an estimate, not a direct count. Actual prevented kittens cannot be measured.",
-            "The multiplier of 10 is intentionally conservative. Many TNR organizations cite 20+ or much higher.",
-            "To update the multiplier, change KITTENS_PREVENTED_PER_ALTERED_CAT in apps/web/src/app/api/dashboard/impact/route.ts",
+            `The multiplier of ${kittensMultiplier} is configurable via /admin/config (key: impact.kittens_prevented_per_altered_cat).`,
           ],
         },
         shelter_cost_avoided: {
           value: shelterCostAvoided,
-          formula: `kittens_prevented × $${SHELTER_COST_PER_KITTEN_USD}`,
-          multiplier: SHELTER_COST_PER_KITTEN_USD,
+          formula: `kittens_prevented × $${shelterCostMultiplier}`,
+          multiplier: shelterCostMultiplier,
           assumptions: [
             {
               label: "Shelter cost per kitten avoided",
-              value: `$${SHELTER_COST_PER_KITTEN_USD}`,
-              rationale:
-                "Widely cited intake and processing cost at municipal and community shelters. Includes vaccinations, medical care, food, housing, and staff time. Many shelters cite $500 or more per animal; we use $200 as a conservative floor to avoid overclaiming financial impact.",
+              value: `$${shelterCostMultiplier}`,
+              rationale: row.shelter_cost_rationale,
             },
           ],
           sources: [
@@ -160,7 +213,7 @@ export async function GET() {
             "Actual costs vary significantly by shelter and region",
             "Does not include indirect costs (euthanasia, community complaints, TNR program operations)",
             "Based on kittens_prevented, which is itself a conservative estimate",
-            "To update the multiplier, change SHELTER_COST_PER_KITTEN_USD in apps/web/src/app/api/dashboard/impact/route.ts",
+            `The multiplier of $${shelterCostMultiplier} is configurable via /admin/config (key: impact.shelter_cost_per_kitten_usd).`,
           ],
         },
       },

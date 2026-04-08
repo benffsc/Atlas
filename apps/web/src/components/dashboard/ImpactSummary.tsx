@@ -23,14 +23,16 @@
 import { useEffect, useState } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { ImpactMethodologyDrawer, type ImpactMetric } from "./ImpactMethodologyDrawer";
-import type { ImpactMethodology } from "@/app/api/dashboard/impact/route";
+import type { ImpactMethodology, ImpactLabels } from "@/app/api/dashboard/impact/route";
 
 interface ImpactResponse {
+  enabled: boolean;
   cats_altered: number;
   kittens_prevented: number;
   shelter_cost_avoided: number;
   start_year: number;
   computed_at: string;
+  labels: ImpactLabels;
   methodology: ImpactMethodology;
 }
 
@@ -71,22 +73,31 @@ export function ImpactSummary() {
     };
   }, []);
 
-  // Hide the card entirely if the endpoint fails — don't block the dashboard
+  // Hide the card entirely if the endpoint fails or admin has disabled it
   if (error) return null;
+  if (data && data.enabled === false) return null;
 
   const openAudit = (metric: ImpactMetric) => setAuditMetric(metric);
   const closeAudit = () => setAuditMetric(null);
 
+  // Labels come from ops.app_config (admin-configurable, white-label friendly).
+  // While loading, fall back to sensible defaults so the card doesn't flicker.
+  const labels = data?.labels ?? {
+    card_title: "Our impact",
+    card_subtitle: "Click any number to see the math",
+    cats_altered: "cats altered",
+    kittens_prevented: "kittens prevented",
+    shelter_cost_avoided: "shelter costs avoided",
+  };
+
   return (
     <>
-      <section className="impact-summary-card" aria-label="Our impact since inception">
+      <section className="impact-summary-card" aria-label={`${labels.card_title} since inception`}>
         <div className="impact-summary-header">
           <h3 className="impact-summary-title">
-            Our impact {data ? `since ${data.start_year}` : ""}
+            {labels.card_title} {data ? `since ${data.start_year}` : ""}
           </h3>
-          <span className="impact-summary-subtitle">
-            Click any number to see the math
-          </span>
+          <span className="impact-summary-subtitle">{labels.card_subtitle}</span>
         </div>
         <div className="impact-summary-grid">
           <button
@@ -94,12 +105,12 @@ export function ImpactSummary() {
             className="impact-stat impact-stat-button"
             onClick={() => data && openAudit("cats_altered")}
             disabled={!data}
-            aria-label="Cats altered — click to see methodology"
+            aria-label={`${labels.cats_altered} — click to see methodology`}
           >
             <div className="impact-number">
               {data ? formatBigNumber(data.cats_altered) : <span className="impact-skeleton" />}
             </div>
-            <div className="impact-label">cats altered</div>
+            <div className="impact-label">{labels.cats_altered}</div>
             {data && <div className="impact-audit-hint">See the data →</div>}
           </button>
 
@@ -108,12 +119,12 @@ export function ImpactSummary() {
             className="impact-stat impact-stat-button impact-stat-highlight"
             onClick={() => data && openAudit("kittens_prevented")}
             disabled={!data}
-            aria-label="Kittens prevented — click to see methodology"
+            aria-label={`${labels.kittens_prevented} — click to see methodology`}
           >
             <div className="impact-number">
               {data ? `~${formatBigNumber(data.kittens_prevented)}` : <span className="impact-skeleton" />}
             </div>
-            <div className="impact-label">kittens prevented</div>
+            <div className="impact-label">{labels.kittens_prevented}</div>
             {data && <div className="impact-audit-hint">See the math →</div>}
           </button>
 
@@ -122,12 +133,12 @@ export function ImpactSummary() {
             className="impact-stat impact-stat-button"
             onClick={() => data && openAudit("shelter_cost_avoided")}
             disabled={!data}
-            aria-label="Shelter costs avoided — click to see methodology"
+            aria-label={`${labels.shelter_cost_avoided} — click to see methodology`}
           >
             <div className="impact-number">
               {data ? formatCurrency(data.shelter_cost_avoided) : <span className="impact-skeleton" />}
             </div>
-            <div className="impact-label">shelter costs avoided</div>
+            <div className="impact-label">{labels.shelter_cost_avoided}</div>
             {data && <div className="impact-audit-hint">See the math →</div>}
           </button>
         </div>
