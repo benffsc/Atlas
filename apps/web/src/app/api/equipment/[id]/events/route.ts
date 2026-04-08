@@ -1,6 +1,7 @@
 import { queryRows, queryOne } from "@/lib/db";
 import { apiSuccess, apiNotFound } from "@/lib/api-response";
 import { requireValidUUID, parsePagination, withErrorHandling, ApiError } from "@/lib/api-validation";
+import { EQUIPMENT_EVENT_TYPE, EQUIPMENT_CHECKOUT_TYPE, EQUIPMENT_CHECKOUT_PURPOSE, EQUIPMENT_RESOLUTION_STATUS } from "@/lib/enums";
 import type { EquipmentEventRow } from "@/lib/types/view-contracts";
 import { NextRequest } from "next/server";
 
@@ -68,7 +69,8 @@ export const POST = withErrorHandling(async (
 
   const body = await request.json();
   const {
-    event_type, custodian_person_id, place_id, request_id,
+    event_type: requestedEventType,
+    custodian_person_id, place_id, request_id,
     condition_after, due_date, notes,
     // MIG_2983 fields
     checkout_type, deposit_amount, custodian_name, custodian_phone, appointment_id,
@@ -84,8 +86,13 @@ export const POST = withErrorHandling(async (
     actor_person_id,
   } = body;
 
-  if (!event_type) {
+  if (!requestedEventType) {
     throw new ApiError("event_type is required", 400);
+  }
+
+  // Validate event_type against centralized enum
+  if (!(EQUIPMENT_EVENT_TYPE as readonly string[]).includes(requestedEventType)) {
+    throw new ApiError(`Invalid event_type: ${requestedEventType}`, 400);
   }
 
   // Verify equipment exists
@@ -97,16 +104,59 @@ export const POST = withErrorHandling(async (
     return apiNotFound("equipment", id);
   }
 
-  // Validate state transitions
+  // Check required fields for check_out (applies to the USER'S INTENT, before
+  // any auto-conversion below)
+  if (requestedEventType === "check_out" && !custodian_person_id && !custodian_name) {
+    throw new ApiError("custodian_person_id or custodian_name is required for check_out", 400);
+  }
+
+  // ── Auto-transfer guard (trap 0106 fix 2026-04-08) ──────────────────────────
+  // When a caller requests `check_out` on an already-checked-out trap AND
+  // provides a NEW custodian, convert the request to a `transfer` event
+  // instead of rejecting with 400. Previously this was the main data-loss
+  // failure mode: staff would scan a trap that was checked out to someone
+  // else, pick "check out to a new person", get a silent error, and walk
+  // away thinking the reassignment stuck. Trap stayed on the old holder.
+  //
+  // Transfer has the same trigger-driven update path on ops.equipment
+  // (current_custodian_id, current_holder_name), so nothing else has to
+  // change downstream — the trigger handles the state update atomically.
+  let event_type: string = requestedEventType;
+  let autoConvertedNote: string | null = null;
+  if (
+    requestedEventType === "check_out" &&
+    equipment.custody_status === "checked_out" &&
+    (custodian_person_id || custodian_name)
+  ) {
+    event_type = "transfer";
+    autoConvertedNote =
+      "Auto-converted from check_out to transfer: trap was already checked_out; reassigned to new custodian.";
+  }
+
+  // Validate state transitions (using the possibly-rewritten event_type)
   if (event_type === "check_out" && equipment.custody_status !== "available") {
     throw new ApiError(`Cannot check out: equipment is currently ${equipment.custody_status}`, 400);
   }
   if (event_type === "check_in" && equipment.custody_status !== "checked_out") {
     throw new ApiError(`Cannot check in: equipment is currently ${equipment.custody_status}`, 400);
   }
-  // Allow check_out with either a resolved person OR free-text custodian_name (walk-ins)
-  if (event_type === "check_out" && !custodian_person_id && !custodian_name) {
-    throw new ApiError("custodian_person_id or custodian_name is required for check_out", 400);
+  if (event_type === "transfer" && equipment.custody_status !== "checked_out") {
+    throw new ApiError(`Cannot transfer: equipment is currently ${equipment.custody_status}`, 400);
+  }
+  if (event_type === "maintenance_start" && equipment.custody_status !== "available") {
+    throw new ApiError(`Cannot start maintenance: equipment is currently ${equipment.custody_status}`, 400);
+  }
+  if (event_type === "maintenance_end" && equipment.custody_status !== "maintenance") {
+    throw new ApiError(`Cannot end maintenance: equipment is currently ${equipment.custody_status}`, 400);
+  }
+  if (event_type === "found" && equipment.custody_status !== "missing") {
+    throw new ApiError(`Cannot mark found: equipment is currently ${equipment.custody_status}`, 400);
+  }
+  if (event_type === "reported_missing" && equipment.custody_status === "missing") {
+    throw new ApiError("Cannot report missing: equipment is already missing", 400);
+  }
+  if (event_type === "retired" && equipment.custody_status === "retired") {
+    throw new ApiError("Cannot retire: equipment is already retired", 400);
   }
 
   // Validate UUIDs if provided
@@ -118,20 +168,16 @@ export const POST = withErrorHandling(async (
 
   // Validate checkout_type enum if provided
   if (checkout_type) {
-    const validTypes = ["public", "trapper", "foster", "relo", "clinic", "client", "internal"];
-    if (!validTypes.includes(checkout_type)) {
+    if (!(EQUIPMENT_CHECKOUT_TYPE as readonly string[]).includes(checkout_type)) {
       throw new ApiError(`Invalid checkout_type: ${checkout_type}`, 400);
     }
   }
 
   // Validate checkout_purpose — multi-select, comma-separated (MIG_3023)
   if (checkout_purpose) {
-    const validPurposes = ["ffr", "well_check", "rescue_recovery", "trap_training", "transport",
-      // Legacy values (still accepted for backward compat)
-      "tnr_appointment", "kitten_rescue", "colony_check", "feeding_station", "personal_pet"];
     const purposes = String(checkout_purpose).split(",").map((p) => p.trim()).filter(Boolean);
     for (const p of purposes) {
-      if (!validPurposes.includes(p)) {
+      if (!(EQUIPMENT_CHECKOUT_PURPOSE as readonly string[]).includes(p)) {
         throw new ApiError(`Invalid checkout_purpose: ${p}`, 400);
       }
     }
@@ -139,8 +185,7 @@ export const POST = withErrorHandling(async (
 
   // Validate resolution_status if provided (MIG_2996)
   if (resolution_status) {
-    const validStatuses = ["resolved", "unresolved", "created"];
-    if (!validStatuses.includes(resolution_status)) {
+    if (!(EQUIPMENT_RESOLUTION_STATUS as readonly string[]).includes(resolution_status)) {
       throw new ApiError(`Invalid resolution_status: ${resolution_status}`, 400);
     }
   }
@@ -152,6 +197,11 @@ export const POST = withErrorHandling(async (
       throw new ApiError("deposit_amount must be a non-negative number", 400);
     }
   }
+
+  // Prepend the auto-convert note so it's visible in event history + audit
+  const finalNotes = autoConvertedNote
+    ? (notes ? `${autoConvertedNote}\n\n${notes}` : autoConvertedNote)
+    : (notes || null);
 
   // Insert event (trigger handles equipment table update)
   const result = await queryOne<{ event_id: string }>(
@@ -169,7 +219,7 @@ export const POST = withErrorHandling(async (
       id, event_type, actor_person_id || null, custodian_person_id || null,
       place_id || null, request_id || null,
       equipment.condition_status, condition_after || null,
-      due_date || null, notes || null,
+      due_date || null, finalNotes,
       checkout_type || null,
       deposit_amount !== undefined && deposit_amount !== null ? Number(deposit_amount) : null,
       custodian_name || null, custodian_phone || null,
@@ -181,5 +231,9 @@ export const POST = withErrorHandling(async (
     ]
   );
 
-  return apiSuccess({ event_id: result?.event_id, event_type });
+  return apiSuccess({
+    event_id: result?.event_id,
+    event_type,
+    ...(autoConvertedNote ? { auto_converted_from: requestedEventType } : {}),
+  });
 });

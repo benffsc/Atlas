@@ -821,6 +821,12 @@ export const EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS = [
   { value: "rescue_recovery", label: "Rescue / Recovery", shortLabel: "Rescue" },
   { value: "trap_training", label: "Trap Training", shortLabel: "Training" },
   { value: "transport", label: "Transport Only", shortLabel: "Transport" },
+  // Legacy values (still accepted for backward compat)
+  { value: "tnr_appointment", label: "TNR Appointment", shortLabel: "TNR" },
+  { value: "kitten_rescue", label: "Kitten Rescue", shortLabel: "Kitten" },
+  { value: "colony_check", label: "Colony Check", shortLabel: "Colony" },
+  { value: "feeding_station", label: "Feeding Station", shortLabel: "Feed Stn" },
+  { value: "personal_pet", label: "Personal Pet", shortLabel: "Personal" },
 ] as const satisfies readonly FormOption[];
 
 export const EQUIPMENT_CHECKOUT_TYPE_OPTIONS = [
@@ -829,12 +835,20 @@ export const EQUIPMENT_CHECKOUT_TYPE_OPTIONS = [
   { value: "foster", label: "Foster", shortLabel: "Foster" },
   { value: "relo", label: "Relocation", shortLabel: "Relo" },
   { value: "clinic", label: "Clinic", shortLabel: "Clinic" },
+  { value: "client", label: "Client", shortLabel: "Client" },
+  { value: "internal", label: "Internal", shortLabel: "Internal" },
 ] as const satisfies readonly FormOption[];
 
 export const EQUIPMENT_TRACKING_TIER_OPTIONS = [
   { value: "active", label: "Active Tracking", shortLabel: "Active" },
   { value: "passive", label: "Passive Tracking", shortLabel: "Passive" },
   { value: "untracked", label: "Untracked", shortLabel: "Untracked" },
+] as const satisfies readonly FormOption[];
+
+export const EQUIPMENT_RESOLUTION_STATUS_OPTIONS = [
+  { value: "resolved", label: "Resolved", shortLabel: "Resolved" },
+  { value: "unresolved", label: "Unresolved", shortLabel: "Unresolved" },
+  { value: "created", label: "Created", shortLabel: "Created" },
 ] as const satisfies readonly FormOption[];
 
 // =============================================================================

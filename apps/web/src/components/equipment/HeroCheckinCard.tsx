@@ -5,6 +5,7 @@ import { postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
 import { getCustodyStyle } from "@/lib/equipment-styles";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 
@@ -39,6 +40,15 @@ export function HeroCheckinCard({
   const [conditionAfter, setConditionAfter] = useState(currentCondition);
   const [notes, setNotes] = useState("");
 
+  // Transfer-to-new-person state (trap 0106 fix, 2026-04-08)
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferRef, setTransferRef] = useState<PersonReference>({
+    person_id: null,
+    display_name: "",
+    is_resolved: false,
+  });
+  const [transferring, setTransferring] = useState(false);
+
   const colors = getCustodyStyle("checked_out");
 
   const handleCheckin = async () => {
@@ -69,6 +79,56 @@ export function HeroCheckinCard({
       toast.error(err instanceof Error ? err.message : "Check-in failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Transfer to a different person — fires a transfer event directly so the
+  // trap moves from the current custodian to the new one without round-tripping
+  // through check_in → scan → check_out. Matches how the kiosk scan flow works
+  // on the API side via the auto-transfer guard in events/route.ts.
+  const handleTransfer = async () => {
+    if (!transferRef.display_name.trim()) {
+      toast.warning("Select who is receiving this trap.");
+      return;
+    }
+    setTransferring(true);
+    try {
+      await postApi(`/api/equipment/${equipmentId}/events`, {
+        event_type: "transfer",
+        custodian_person_id: transferRef.person_id || undefined,
+        custodian_name: transferRef.display_name.trim(),
+        custodian_name_raw: transferRef.display_name.trim(),
+        notes: `Reassigned from ${custodianName || "previous custodian"} via kiosk scan`,
+      });
+
+      const prevCustodianId = custodianId;
+      const prevCustodianName = custodianName;
+
+      toast.success(
+        `Transferred ${equipmentName} to ${transferRef.display_name.trim()}`,
+        {
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              // Undo by transferring back to the previous custodian
+              await postApi(`/api/equipment/${equipmentId}/events`, {
+                event_type: "transfer",
+                custodian_person_id: prevCustodianId || undefined,
+                custodian_name: prevCustodianName || undefined,
+                custodian_name_raw: prevCustodianName || undefined,
+                notes: "Undo transfer",
+              });
+            },
+          },
+          duration: 5000,
+        },
+      );
+
+      onComplete();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Transfer failed");
+    } finally {
+      setTransferring(false);
     }
   };
 
@@ -106,6 +166,7 @@ export function HeroCheckinCard({
         fullWidth
         loading={loading}
         onClick={handleCheckin}
+        disabled={showTransfer}
         style={{
           minHeight: "56px",
           borderRadius: "12px",
@@ -118,6 +179,89 @@ export function HeroCheckinCard({
       >
         Check In
       </Button>
+
+      {/* Secondary action — transfer to different person */}
+      {!showTransfer && (
+        <div style={{ marginTop: "0.625rem" }}>
+          <Button
+            variant="outline"
+            size="lg"
+            icon="arrow-right-left"
+            fullWidth
+            onClick={() => setShowTransfer(true)}
+            style={{
+              minHeight: "52px",
+              borderRadius: "12px",
+              fontSize: "0.95rem",
+              fontWeight: 600,
+            }}
+          >
+            Check out to different person
+          </Button>
+        </div>
+      )}
+
+      {/* Inline transfer form — shown when user picks "different person" */}
+      {showTransfer && (
+        <div
+          style={{
+            marginTop: "0.75rem",
+            padding: "0.875rem",
+            background: "var(--info-bg, rgba(59,130,246,0.06))",
+            border: "1px solid var(--info-border, #93c5fd)",
+            borderRadius: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.75rem",
+          }}
+        >
+          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>
+            Reassign from <strong>{custodianName || "previous custodian"}</strong> to:
+          </div>
+          <PersonReferencePicker
+            value={transferRef}
+            onChange={setTransferRef}
+            placeholder="Search or type a name..."
+            allowCreate
+            inputStyle={{
+              minHeight: "48px",
+              fontSize: "1rem",
+              borderRadius: 10,
+            }}
+          />
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Button
+              variant="ghost"
+              size="lg"
+              onClick={() => {
+                setShowTransfer(false);
+                setTransferRef({ person_id: null, display_name: "", is_resolved: false });
+              }}
+              disabled={transferring}
+              style={{ flex: 1, minHeight: "52px", borderRadius: 12 }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              icon="arrow-right-left"
+              loading={transferring}
+              onClick={handleTransfer}
+              disabled={!transferRef.display_name.trim()}
+              style={{
+                flex: 2,
+                minHeight: "52px",
+                borderRadius: 12,
+                fontSize: "0.95rem",
+                fontWeight: 600,
+              }}
+            >
+              Confirm Transfer
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Collapsible details */}
       <div style={{ marginTop: "0.75rem", textAlign: "center" }}>
