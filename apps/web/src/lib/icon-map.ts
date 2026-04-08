@@ -78,6 +78,9 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronUp,
+  Grid3X3,
+  SkipForward,
+  Truck,
   Zap,
   Gauge,
   HelpCircle,
@@ -265,6 +268,10 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   receipt: Receipt,
   package: Package,
   "file-output": FileOutput,
+  // Kiosk equipment add flow + found-trap flow
+  "grid-3x3": Grid3X3,
+  "skip-forward": SkipForward,
+  truck: Truck,
 };
 
 export type IconName = keyof typeof ICON_MAP;

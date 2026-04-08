@@ -113,7 +113,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  const result = await queryOne<{ equipment_id: string }>(
+  const result = await queryOne<{
+    equipment_id: string;
+    barcode: string | null;
+    equipment_name: string | null;
+  }>(
     `INSERT INTO ops.equipment (
        equipment_name, equipment_type, equipment_type_key, barcode,
        serial_number, manufacturer, model,
@@ -126,9 +130,23 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
        'available', COALESCE($7, 'new'), $8,
        $9, $10, COALESCE($11, 'functional'),
        'atlas_ui', NOW(), NOW()
-     ) RETURNING equipment_id`,
+     ) RETURNING
+       equipment_id,
+       barcode,
+       COALESCE(equipment_name, barcode, equipment_type) AS equipment_name`,
     [equipment_name || null, equipment_type_key, barcode || null, serial_number || null, manufacturer || null, model || null, condition_status, notes || null, item_type || null, size || null, functional_status]
   );
 
-  return apiSuccess({ equipment_id: result?.equipment_id });
+  // Return both the legacy `equipment_id` field AND the kiosk-add-page-expected
+  // `{ id, barcode, equipment_name }` shape. Without this dual-shape return,
+  // the kiosk add flow's photo upload, success screen, and "Scan This Item"
+  // link all break (they read result.id / created.barcode / created.equipment_name).
+  // The barcode fallback is empty-string so the success screen renders cleanly
+  // even when a user creates an item without scanning a barcode first.
+  return apiSuccess({
+    equipment_id: result?.equipment_id ?? "",
+    id: result?.equipment_id ?? "",
+    barcode: result?.barcode ?? "",
+    equipment_name: result?.equipment_name ?? "New equipment",
+  });
 });
