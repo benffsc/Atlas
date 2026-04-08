@@ -75,7 +75,9 @@ function LoginForm() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "var(--background)",
+        // Subtle radial "beacon glow" backdrop — reinforces the guiding light
+        // metaphor without being flashy. Peaks at top center, fades to base bg.
+        background: "radial-gradient(ellipse at top, rgba(66, 145, 223, 0.08) 0%, var(--background) 55%)",
         padding: "1rem",
       }}
     >
@@ -92,7 +94,17 @@ function LoginForm() {
             alt="Beacon"
             style={{ width: "220px", height: "auto", marginBottom: "0.75rem" }}
           />
-          <p className="text-muted">Sign in to your account</p>
+          <p className="text-muted" style={{ margin: "0 0 0.5rem" }}>Sign in to your account</p>
+          <p
+            style={{
+              fontSize: "0.8rem",
+              color: "var(--text-tertiary, var(--text-muted))",
+              fontStyle: "italic",
+              margin: 0,
+            }}
+          >
+            A guiding light for humane cat population management
+          </p>
         </div>
 
         {/* Login Form */}
@@ -192,15 +204,16 @@ function LoginForm() {
               style={{
                 width: "100%",
                 padding: "0.75rem 1rem",
-                background: "#0d6efd",
-                color: "white",
+                background: "var(--primary, #4291df)",
+                color: "var(--primary-foreground, #fff)",
                 border: "none",
                 borderRadius: "6px",
                 fontSize: "1rem",
-                fontWeight: 500,
+                fontWeight: 600,
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.7 : 1,
-                transition: "opacity 0.2s",
+                transition: "opacity 200ms ease, box-shadow 200ms ease, transform 150ms ease",
+                boxShadow: "0 2px 6px rgba(66, 145, 223, 0.25)",
               }}
             >
               {loading ? "Signing in..." : "Sign in"}

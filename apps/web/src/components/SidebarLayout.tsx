@@ -200,11 +200,15 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
             )}
             {!isSectionCollapsed && (
               <nav>
-                {section.items.map((item) => (
+                {section.items.map((item) => {
+                  const active = isActive(item.href);
+                  return (
                   <Link
                     key={item.href}
                     href={item.href}
                     title={isCollapsed ? item.label : undefined}
+                    className="sidebar-nav-link"
+                    data-active={active ? "true" : undefined}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -212,11 +216,15 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
                       justifyContent: isCollapsed ? "center" : "flex-start",
                       padding: isCollapsed ? "0.5rem" : "0.5rem 1rem",
                       fontSize: "0.875rem",
-                      color: isActive(item.href) ? "var(--primary)" : "var(--text-primary)",
-                      background: isActive(item.href) ? "var(--info-bg)" : "transparent",
-                      borderLeft: isActive(item.href) ? "3px solid var(--primary)" : "3px solid transparent",
+                      fontWeight: active ? 600 : 400,
+                      color: active ? "var(--primary, #4291df)" : "var(--text-primary)",
+                      background: active
+                        ? "linear-gradient(90deg, rgba(66, 145, 223, 0.12) 0%, rgba(66, 145, 223, 0.02) 100%)"
+                        : "transparent",
+                      borderLeft: active ? "3px solid var(--primary, #4291df)" : "3px solid transparent",
                       textDecoration: "none",
                       position: "relative",
+                      transition: "background 150ms ease, color 150ms ease",
                     }}
                   >
                     {item.icon && <Icon name={item.icon} size={isCollapsed ? 20 : 18} />}
@@ -242,7 +250,8 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
                       </span>
                     )}
                   </Link>
-                ))}
+                  );
+                })}
               </nav>
             )}
           </div>
