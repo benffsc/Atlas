@@ -5,7 +5,7 @@ import { postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
-import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { KioskPersonAutosuggest, type PersonReference } from "./KioskPersonAutosuggest";
 import { useKioskStaff } from "./KioskStaffContext";
 import { KioskCard } from "./KioskCard";
 import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
@@ -90,13 +90,15 @@ export function SimpleActionConfirm({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Transfer custodian state
+  // Transfer custodian state — resolution_status is derived from is_resolved
+  // at submit time (we no longer track a separate resolutionStatus state because
+  // KioskPersonAutosuggest doesn't have an onResolutionType callback — by design,
+  // since identity resolution is the backend's job per the trap-0106 lessons).
   const [personRef, setPersonRef] = useState<PersonReference>({
     person_id: null,
     display_name: "",
     is_resolved: false,
   });
-  const [resolutionStatus, setResolutionStatus] = useState<"resolved" | "unresolved" | "created">("resolved");
 
   const showCondition = CONDITION_ACTIONS.has(action);
   const showCustodian = CUSTODIAN_ACTIONS.has(action);
@@ -124,7 +126,9 @@ export function SimpleActionConfirm({
         custodian_person_id: showCustodian ? (personRef.person_id || undefined) : undefined,
         custodian_name: showCustodian ? (personRef.display_name.trim() || undefined) : undefined,
         custodian_name_raw: showCustodian ? (personRef.display_name.trim() || undefined) : undefined,
-        resolution_status: showCustodian ? resolutionStatus : undefined,
+        resolution_status: showCustodian
+          ? (personRef.is_resolved ? "resolved" : "unresolved")
+          : undefined,
         notes: notes.trim() || undefined,
       });
       const inverse = INVERSE_ACTION[action];
@@ -171,18 +175,11 @@ export function SimpleActionConfirm({
       >
         {/* Custodian picker — only for transfer */}
         {showCustodian && (
-          <PersonReferencePicker
+          <KioskPersonAutosuggest
             value={personRef}
             onChange={setPersonRef}
-            onResolutionType={setResolutionStatus}
-            placeholder="Search for the new custodian..."
+            placeholder="Type the new custodian's name..."
             label="Transfer To *"
-            allowCreate
-            inputStyle={{
-              minHeight: "48px",
-              fontSize: "1rem",
-              borderRadius: "10px",
-            }}
           />
         )}
 

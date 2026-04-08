@@ -6,7 +6,7 @@ import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { getCustodyStyle } from "@/lib/equipment-styles";
-import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { KioskPersonAutosuggest, type PersonReference } from "@/components/kiosk/KioskPersonAutosuggest";
 
 interface FoundTrapFlowProps {
   equipmentId: string;
@@ -152,7 +152,7 @@ export function FoundTrapFlow({
               borderRadius: "12px",
             }}
           >
-            <PersonReferencePicker
+            <KioskPersonAutosuggest
               value={person}
               onChange={setPerson}
               placeholder="Who had it?"

@@ -5,7 +5,7 @@ import { postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { KioskPersonAutosuggest, type PersonReference } from "@/components/kiosk/KioskPersonAutosuggest";
 import { getCustodyStyle } from "@/lib/equipment-styles";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 
@@ -218,16 +218,10 @@ export function HeroCheckinCard({
           <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>
             Reassign from <strong>{custodianName || "previous custodian"}</strong> to:
           </div>
-          <PersonReferencePicker
+          <KioskPersonAutosuggest
             value={transferRef}
             onChange={setTransferRef}
-            placeholder="Search or type a name..."
-            allowCreate
-            inputStyle={{
-              minHeight: "48px",
-              fontSize: "1rem",
-              borderRadius: 10,
-            }}
+            placeholder="Type the new custodian's name..."
           />
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <Button

@@ -5,7 +5,7 @@ import { postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { KioskPersonAutosuggest, type PersonReference } from "@/components/kiosk/KioskPersonAutosuggest";
 
 interface AvailableTrapCardProps {
   equipmentId: string;
@@ -105,7 +105,7 @@ export function AvailableTrapCard({
             borderRadius: "10px",
           }}
         >
-          <PersonReferencePicker
+          <KioskPersonAutosuggest
             value={person}
             onChange={setPerson}
             placeholder="Who returned it?"
