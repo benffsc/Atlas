@@ -74,10 +74,30 @@ export function parseMasterList(workbook: xlsx.WorkBook): ParseResult {
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
 
-  // Convert to array of arrays to handle the non-standard format
+  // Convert to array of arrays to handle the non-standard format.
+  //
+  // range: {s:{r:0,c:0},e:{r:199,c:25}} — hard cap at 200 rows × 26 cols.
+  // Some master list files (observed on March 11 2026) have phantom cells
+  // beyond the visible data range that cause sheet_to_json to iterate
+  // millions of empty rows and OOM the process. The real data is always
+  // well under 200 rows (largest observed: ~55 including header) so this
+  // cap is safe. If a future file needs more, bump the limit — xlsx honors
+  // range.e as the upper bound regardless of ghost references.
+  const MAX_ROWS = 200;
+  const realRef = sheet["!ref"];
+  const realRange = realRef ? xlsx.utils.decode_range(realRef) : null;
+  const cappedRange = {
+    s: { r: 0, c: 0 },
+    e: {
+      r: Math.min(realRange?.e.r ?? MAX_ROWS - 1, MAX_ROWS - 1),
+      c: Math.min(realRange?.e.c ?? 25, 25),
+    },
+  };
+
   const rows = xlsx.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
     defval: "",
+    range: cappedRange,
   });
 
   const entries: ParsedEntry[] = [];

@@ -210,12 +210,14 @@ export async function GET(request: NextRequest) {
 
           // Parse + ingest via shared lib.
           // skipCDS: true — running CDS in the cron caused OOM (CDS loads
-          // appointments + waivers + clinic_day_entries per date). CDS will
-          // get triggered the next time staff opens the clinic day page,
-          // hits the rematch button, or when the data-quality cron's
-          // existing v_clinic_day_health surface flags missing matches.
-          // The cron's job is just to populate clinic_day_entries.
-          const workbook = xlsx.read(content, { type: "buffer" });
+          // appointments + waivers + clinic_day_entries per date).
+          //
+          // sheetRows: 200 — caps the xlsx workbook at the first 200 rows
+          // at READ time. Some master list files (observed: March 11, 2026)
+          // have phantom cells beyond the visible data range that make the
+          // xlsx library iterate millions of empty rows and OOM the process.
+          // Real data is always < 60 rows so 200 is safe headroom.
+          const workbook = xlsx.read(content, { type: "buffer", sheetRows: 200 });
           const result = await ingestMasterListWorkbook(workbook, {
             dateOverride: parsed.date,
             enteredBy: null, // cron-driven, no staff session

@@ -44,7 +44,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const buffer = await file.arrayBuffer();
-    const workbook = xlsx.read(buffer, { type: "buffer" });
+    // sheetRows: 200 — caps rows loaded at read time. Protects against
+    // xlsx phantom-cell OOM observed on some master list files (see
+    // sharepoint-master-list-sync/route.ts for full rationale).
+    const workbook = xlsx.read(buffer, { type: "buffer", sheetRows: 200 });
 
     // Manual upload route uses the URL date as authoritative and refuses to
     // overwrite existing entries (skipIfExists=false → throws on conflict).
