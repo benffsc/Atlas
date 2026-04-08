@@ -190,12 +190,14 @@ export async function GET(request: NextRequest) {
           const ts = new Date().toISOString().replace(/[:.]/g, "-");
           const storedFilename = `master_list_sharepoint_${ts}_${fileHash.slice(0, 8)}.xlsx`;
 
+          // Plain INSERT — dedup is handled at the sharepoint_synced_files
+          // layer (item_id check above), so we never reach here for a file
+          // we've already processed. file_hash isn't unique on this table.
           const uploadRow = await queryOne<{ upload_id: string }>(
             `INSERT INTO ops.file_uploads (
                source_system, source_table, original_filename, stored_filename,
                file_content, file_size_bytes, file_hash, status, rows_total
              ) VALUES ('master_list', 'sharepoint_master_list', $1, $2, $3, $4, $5, 'pending', 0)
-             ON CONFLICT (file_hash) DO UPDATE SET file_hash = EXCLUDED.file_hash
              RETURNING upload_id`,
             [file.name, storedFilename, content, content.length, fileHash]
           );
