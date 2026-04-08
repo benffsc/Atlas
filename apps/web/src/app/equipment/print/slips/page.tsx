@@ -51,14 +51,28 @@ export default function CheckoutSlipsPage() {
   return (
     <>
       <style jsx global>{`
+        /*
+         * Layout math (2 slips per letter portrait page):
+         * - Letter portrait: 8.5" × 11"
+         * - Browser default margins: ~0.4" each side → printable area ~10.2" tall
+         * - Each slip is 5.0" tall → 2 slips = 10.0" → fits comfortably even
+         *   without explicitly setting Margins: None in the print dialog
+         * - Slip width is full letter width (8.5") so it can use the natural
+         *   printable area regardless of browser margin settings
+         *
+         * Previously slips were 5.5" tall which made 2 slips = 11.0" — exactly
+         * matching the page height with ZERO room for browser print margins,
+         * so the second slip always spilled to page 2. (Trap 0106 audit prep
+         * 2026-04-08.)
+         */
         .slip-page {
           width: 8.5in; margin: 1rem auto; background: #fff;
           border: 1px solid var(--card-border, #e5e7eb);
           font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
         .slip {
-          width: 8.5in; height: 5.5in; box-sizing: border-box;
-          padding: 0.25in 0.4in 0.2in; position: relative; overflow: hidden;
+          width: 8.5in; height: 5.0in; box-sizing: border-box;
+          padding: 0.2in 0.4in 0.18in; position: relative; overflow: hidden;
           page-break-inside: avoid; break-inside: avoid;
         }
         .slip + .slip { border-top: 2px dashed #bbb; }
@@ -66,57 +80,57 @@ export default function CheckoutSlipsPage() {
 
         .slip-hdr {
           display: flex; justify-content: space-between; align-items: flex-end;
-          border-bottom: 2.5px solid #16a34a; padding-bottom: 3px; margin-bottom: 6px;
+          border-bottom: 2.5px solid #16a34a; padding-bottom: 2px; margin-bottom: 4px;
         }
-        .slip-hdr h1 { font-size: 13pt; font-weight: 700; margin: 0; }
-        .slip-hdr .meta { font-size: 7.5pt; color: #666; text-align: right; }
-        .slip-hdr img { height: 30px; margin-left: 6px; }
+        .slip-hdr h1 { font-size: 12pt; font-weight: 700; margin: 0; }
+        .slip-hdr .meta { font-size: 7pt; color: #666; text-align: right; }
+        .slip-hdr img { height: 26px; margin-left: 6px; }
 
         .slip-grid {
-          display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px;
+          display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px;
         }
 
         .sf {
-          border-bottom: 1px solid #ccc; padding: 0; margin-bottom: 6px;
-          min-height: 22px; display: flex; align-items: flex-end;
+          border-bottom: 1px solid #ccc; padding: 0; margin-bottom: 4px;
+          min-height: 19px; display: flex; align-items: flex-end;
         }
         .sf-lbl {
           font-size: 6.5pt; font-weight: 700; color: #16a34a;
           text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
-          margin-right: 6px; padding-bottom: 2px; flex-shrink: 0;
+          margin-right: 6px; padding-bottom: 1px; flex-shrink: 0;
         }
         .sf-val { font-size: 9pt; font-weight: 500; flex: 1; padding-bottom: 1px; }
         .sf.full { grid-column: 1 / -1; }
-        .sf.xl { min-height: 30px; }
+        .sf.xl { min-height: 26px; }
 
         .sf-cbs {
-          display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
-          font-size: 8pt; padding: 2px 0;
+          display: flex; gap: 11px; flex-wrap: wrap; align-items: center;
+          font-size: 7.5pt; padding: 1px 0;
         }
         .sf-cb { display: inline-flex; align-items: center; gap: 3px; }
         .sf-box {
-          display: inline-block; width: 11px; height: 11px;
+          display: inline-block; width: 10px; height: 10px;
           border: 1.5px solid #333; border-radius: 2px;
         }
 
         .sf-sec {
           font-size: 6.5pt; font-weight: 800; color: #888;
           text-transform: uppercase; letter-spacing: 0.6px;
-          margin: 7px 0 2px; grid-column: 1 / -1;
+          margin: 5px 0 2px; grid-column: 1 / -1;
           border-bottom: 1px solid #eee; padding-bottom: 1px;
         }
 
         .slip-staff-box {
-          margin-top: 4px; padding: 4px 8px;
+          margin-top: 3px; padding: 3px 8px;
           border: 1.5px solid #ddd; border-radius: 4px;
           background: #fafafa; grid-column: 1 / -1;
           display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 16px;
         }
-        .slip-staff-box .sf { border-color: #ddd; margin-bottom: 2px; min-height: 18px; }
+        .slip-staff-box .sf { border-color: #ddd; margin-bottom: 1px; min-height: 16px; }
         .slip-staff-box .sf-lbl { color: #999; font-size: 6pt; }
 
         .slip-ft {
-          position: absolute; bottom: 0.15in; left: 0.4in; right: 0.4in;
+          position: absolute; bottom: 0.1in; left: 0.4in; right: 0.4in;
           display: flex; justify-content: space-between;
           font-size: 6pt; color: #aaa;
         }
@@ -126,6 +140,11 @@ export default function CheckoutSlipsPage() {
         }
 
         @media print {
+          /* margin: 0 here is honored when the user picks "Margins: None" in
+           * the print dialog. With Chrome's default margins (~0.4in), the
+           * page-default takes precedence, but the slip dimensions above
+           * (5.0in tall × 2 = 10in) still fit comfortably in the resulting
+           * 10.2in printable area. */
           @page { size: letter portrait; margin: 0; }
           body { background: #fff !important; }
           .slip-ctrl, .tippy-fab, .tippy-chat-panel,
@@ -133,6 +152,9 @@ export default function CheckoutSlipsPage() {
           [role="alert"], [data-banner], .transition-banner { display: none !important; }
           main { margin: 0 !important; padding: 0 !important; max-width: none !important; }
           .slip-page { border: none; margin: 0; }
+          /* Force browser to print background colors (the green header line,
+           * the gray staff box) so slips look the same as the screen preview. */
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
 
@@ -177,6 +199,33 @@ export default function CheckoutSlipsPage() {
             </select>
           </label>
         </div>
+
+        {/* Print tip — helps staff get a clean 2-up layout */}
+        {copies === 2 && (
+          <div
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.625rem 0.875rem",
+              background: "var(--info-bg, rgba(59,130,246,0.06))",
+              border: "1px solid var(--info-border, #93c5fd)",
+              borderRadius: 8,
+              fontSize: "0.78rem",
+              color: "var(--info-text, #1d4ed8)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              lineHeight: 1.4,
+            }}
+          >
+            <Icon name="help-circle" size={14} color="var(--info-text, #1d4ed8)" />
+            <span>
+              <strong>Tip:</strong> If both slips don&apos;t fit on one page, in the
+              browser&apos;s print dialog set <strong>Margins → None</strong> and{" "}
+              <strong>Scale → Default</strong>. (The slips are sized to fit even
+              with default margins, but disabling margins is the safest path.)
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── Printable slips ── */}
