@@ -24,6 +24,7 @@ export function KioskMissionFrame({
   onPet,
 }: KioskMissionFrameProps) {
   const { value: headline } = useAppConfig<string>("kiosk.mission_headline");
+  const { value: clinicDescription } = useAppConfig<string>("kiosk.clinic_description");
   const { nameShort } = useOrgConfig();
 
   return (
@@ -67,8 +68,8 @@ export function KioskMissionFrame({
             marginRight: "auto",
           }}
         >
-          {nameShort} provides free spay/neuter surgery for outdoor and community cats
-          to help manage cat populations humanely.
+          {clinicDescription ||
+            `${nameShort} provides spay/neuter surgery for outdoor and community cats for a $50 suggested donation per cat, helping manage populations humanely.`}
         </p>
       </div>
 

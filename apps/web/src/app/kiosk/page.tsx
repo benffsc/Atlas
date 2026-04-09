@@ -25,7 +25,7 @@ const DEFAULT_LOBBY_MODULES: LobbyModule[] = [
     id: "clinic",
     icon: "scissors",
     label: "Spay / Neuter Clinic",
-    subtitle: "Free surgery for community cats",
+    subtitle: "Spay/neuter for community cats — $50 donation",
     route: "/kiosk/clinic",
     primary: true,
   },
