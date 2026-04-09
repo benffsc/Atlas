@@ -6,6 +6,7 @@ export const revalidate = 3600; // 1 hour
 
 interface ImpactRow {
   cats_altered: number;
+  cats_altered_db_only: number;
   start_year: number;
   kittens_multiplier: number;
   shelter_cost_multiplier: number;
@@ -90,11 +91,12 @@ export interface ImpactResponse {
  */
 export async function GET() {
   try {
-    // Single query: pulls the altered-cat count from ops.appointments AND
-    // all impact.* config values in one round-trip. This is more efficient
-    // than querying each config key separately.
+    // Single query: pulls the altered-cat count from both the DB (provable
+    // records) AND the reference table (Pip's donor-facing Excel), then uses
+    // the HIGHER number per-year so we never show less than what the ED has
+    // committed to donors. See MIG_3073 for the reference data.
     const row = await queryOne<ImpactRow>(`
-      WITH counts AS (
+      WITH db_counts AS (
         SELECT
           COUNT(DISTINCT a.cat_id)::int AS cats_altered,
           COALESCE(
@@ -104,6 +106,19 @@ export async function GET() {
         FROM ops.appointments a
         WHERE a.cat_id IS NOT NULL
           AND (a.is_spay = TRUE OR a.is_neuter = TRUE)
+      ),
+      ref_counts AS (
+        SELECT
+          COALESCE(SUM(donor_facing_count), 0)::int AS total,
+          MIN(year)::int AS start_year
+        FROM ops.v_alteration_counts_by_year
+      ),
+      counts AS (
+        SELECT
+          GREATEST(ref_counts.total, db_counts.cats_altered) AS cats_altered,
+          db_counts.cats_altered AS cats_altered_db_only,
+          LEAST(ref_counts.start_year, db_counts.start_year) AS start_year
+        FROM db_counts, ref_counts
       )
       SELECT
         counts.cats_altered,
@@ -151,20 +166,31 @@ export async function GET() {
       methodology: {
         cats_altered: {
           value: catsAltered,
-          formula: "COUNT(DISTINCT cat_id) WHERE is_spay = TRUE OR is_neuter = TRUE",
-          data_source: "ops.appointments",
-          record_count: catsAltered,
-          assumptions: [],
+          formula: "MAX(reference_total, db_total) per year — uses the higher of ED-verified counts or DB records",
+          data_source: "ops.v_alteration_counts_by_year (reference: ops.alteration_reference_counts + DB: ops.appointments)",
+          record_count: row.cats_altered_db_only,
+          assumptions: [
+            {
+              label: "Reference data source",
+              value: "Pip's donor Excel (1990–present)",
+              rationale: "The Executive Director maintains a yearly alteration count for donor presentations that goes back to 1990 — before any database existed. For years where the DB count is lower than the reference count, we use the reference count to ensure the donor-facing number never underreports FFSC's actual impact.",
+            },
+          ],
           sources: [
             {
-              label: "ClinicHQ appointment records (primary source of truth)",
+              label: "ClinicHQ appointment records (2014–present, primary DB source)",
+              url: "#",
+            },
+            {
+              label: "ED's donor alteration spreadsheet (1990–present, reference)",
               url: "#",
             },
           ],
           caveats: [
-            "Counts each cat exactly once regardless of how many procedures they received",
-            "Excludes cats without a recorded cat_id (rare — pre-system imports may be affected)",
-            "Includes only appointments where is_spay or is_neuter is explicitly TRUE",
+            `${row.cats_altered_db_only.toLocaleString()} cats are directly provable in the database (individual records with cat_id)`,
+            `${(catsAltered - row.cats_altered_db_only).toLocaleString()} additional cats come from the ED's reference counts for years where the DB is incomplete (pre-2014 and partial early imports)`,
+            "The DB count is a floor, not a ceiling — it represents what we can prove with individual records",
+            "See ops.v_alteration_counts_by_year for the year-by-year comparison",
           ],
           audit_endpoint: "/api/dashboard/impact/audit?metric=cats_altered",
         },

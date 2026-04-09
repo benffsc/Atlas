@@ -469,6 +469,7 @@ export const mainSidebarSections: NavSection[] = [
   {
     title: "Beacon",
     items: [
+      { label: "Our Story", href: "/story", icon: "sparkles" },
       { label: "Beacon Dashboard", href: "/beacon", icon: "radio" },
       { label: "Compare", href: "/beacon/compare", icon: "bar-chart" },
       { label: "Scenarios", href: "/beacon/scenarios", icon: "sparkles" },
