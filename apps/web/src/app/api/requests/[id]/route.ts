@@ -224,6 +224,7 @@ export async function GET(
         r.source_system,
         r.source_record_id,
         r.source_created_at,
+        r.preferred_language,
         -- Archive fields (MIG_2580)
         COALESCE(r.is_archived, FALSE) AS is_archived,
         r.archived_at,

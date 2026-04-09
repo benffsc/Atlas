@@ -28,6 +28,8 @@ export interface EmailFlow {
   test_recipient_override: string | null;
   suppression_scope: "global" | "per_flow" | "per_flow_per_recipient";
   suppression_days: number;
+  send_via: "resend" | "outlook";
+  outlook_account_email: string | null;
 }
 
 /** Fetch the row for a flow, or null if it doesn't exist. */
@@ -35,7 +37,8 @@ export async function getFlow(flowSlug: string): Promise<EmailFlow | null> {
   return queryOne<EmailFlow>(
     `SELECT flow_slug, display_name, description, template_key,
             enabled, dry_run, test_recipient_override,
-            suppression_scope, suppression_days
+            suppression_scope, suppression_days,
+            send_via, outlook_account_email
        FROM ops.email_flows
       WHERE flow_slug = $1`,
     [flowSlug]
@@ -124,7 +127,8 @@ export async function updateFlow(
       WHERE flow_slug = $${idx}
       RETURNING flow_slug, display_name, description, template_key,
                 enabled, dry_run, test_recipient_override,
-                suppression_scope, suppression_days`,
+                suppression_scope, suppression_days,
+            send_via, outlook_account_email`,
     values
   );
 }
@@ -135,7 +139,8 @@ export async function listFlows(): Promise<EmailFlow[]> {
   return queryRows<EmailFlow>(
     `SELECT flow_slug, display_name, description, template_key,
             enabled, dry_run, test_recipient_override,
-            suppression_scope, suppression_days
+            suppression_scope, suppression_days,
+            send_via, outlook_account_email
        FROM ops.email_flows
       ORDER BY display_name`
   );

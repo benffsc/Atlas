@@ -38,8 +38,9 @@ import {
 import { renderCountyResources } from "./email-resource-renderer";
 import { isDryRunEnabled, getTestRecipientOverride } from "./email-config";
 import { buildOrgRenderContext } from "./email-render-context";
-import { isFlowDryRun, getFlowTestRecipient } from "./email-flows";
+import { isFlowDryRun, getFlowTestRecipient, getFlow } from "./email-flows";
 import { buildUnsubscribeUrl } from "./unsubscribe-tokens";
+import { sendOutlookEmail } from "./outlook";
 
 // Initialize Resend client
 const resend = process.env.RESEND_API_KEY
@@ -204,8 +205,80 @@ export async function sendTemplateEmail(
       };
     }
 
-    // Layer 3c — LIVE send (only reached when both above are bypassed)
-    // Guard: Resend client must be configured for real sends.
+    // Layer 3c — LIVE send (only reached when dry-run + test-override
+    // are both resolved). Route to the provider specified by the flow.
+
+    // Check if this flow sends via Outlook (Microsoft Graph) instead of Resend
+    const flow = flowSlug ? await getFlow(flowSlug) : null;
+    if (flow?.send_via === "outlook" && flow.outlook_account_email) {
+      // Find the connected Outlook account by email
+      const outlookAccount = await queryOne<{ account_id: string }>(
+        `SELECT account_id FROM ops.outlook_email_accounts
+          WHERE email = $1 AND is_active = TRUE`,
+        [flow.outlook_account_email]
+      );
+
+      if (!outlookAccount) {
+        return {
+          success: false,
+          error: `Outlook account ${flow.outlook_account_email} not connected. Go to /admin/email-settings → Connect Account.`,
+        };
+      }
+
+      // Call the low-level Graph API send directly — the template is
+      // already rendered and the dry-run + test-override gates are
+      // already resolved above. No need to go through
+      // sendTemplatedOutlookEmail (which has its own duplicate gates).
+      const outlookResult = await sendOutlookEmail({
+        accountId: outlookAccount.account_id,
+        to: actualRecipient,
+        toName,
+        subject: actualSubject,
+        bodyHtml,
+        bodyText,
+      });
+
+      if (outlookResult.error) {
+        await logSentEmail({
+          templateKey,
+          recipientEmail: to,
+          recipientName: toName,
+          subjectRendered: actualSubject,
+          bodyHtmlRendered: bodyHtml,
+          bodyTextRendered: bodyText,
+          status: "failed",
+          errorMessage: outlookResult.error,
+          submissionId,
+          personId,
+          createdBy: sentBy,
+        });
+        return {
+          success: false,
+          error: outlookResult.error,
+        };
+      }
+
+      const outlookEmailId = await logSentEmail({
+        templateKey,
+        recipientEmail: to,
+        recipientName: toName,
+        subjectRendered: actualSubject,
+        bodyHtmlRendered: bodyHtml,
+        bodyTextRendered: bodyText,
+        status: "sent",
+        submissionId,
+        personId,
+        createdBy: sentBy,
+      });
+
+      return {
+        success: true,
+        emailId: outlookEmailId,
+        ...(testOverride && { testOverride }),
+      };
+    }
+
+    // Resend path — guard: Resend client must be configured.
     // This check is intentionally AFTER the dry-run gate so that
     // testing works even when RESEND_API_KEY is not set.
     if (!resend) {
