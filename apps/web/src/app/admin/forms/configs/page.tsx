@@ -7,7 +7,7 @@ import { useToast } from "@/components/feedback/Toast";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
 
 const VALID_COMPONENTS = [
-  "person", "place", "catDetails", "kittens", "propertyAccess", "urgencyNotes",
+  "person", "place", "catDetails", "kittens", "propertyAccess", "urgencyNotes", "otherParties",
 ] as const;
 
 const COMPONENT_LABELS: Record<string, string> = {
@@ -17,6 +17,7 @@ const COMPONENT_LABELS: Record<string, string> = {
   kittens: "Kitten Assessment",
   propertyAccess: "Property & Access",
   urgencyNotes: "Urgency & Notes",
+  otherParties: "Other People Involved",
 };
 
 const PERSON_ROLES = ["requestor", "property_owner", "site_contact", "caretaker"];
@@ -510,6 +511,10 @@ function getPropsForComponent(component: string): PropDef[] {
     case "urgencyNotes":
       return [
         { key: "showDetails", label: "Show Details", type: "boolean" },
+        { key: "compact", label: "Compact", type: "boolean" },
+      ];
+    case "otherParties":
+      return [
         { key: "compact", label: "Compact", type: "boolean" },
       ];
     default:

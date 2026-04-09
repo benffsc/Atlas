@@ -148,6 +148,21 @@ export const createRequestSchema = z.object({
   entry_mode: optStr(50),
   completion_data: z.record(z.string(), z.unknown()).optional().nullable(),
 
+  // Language
+  preferred_language: optStr(10),
+
+  // Related people
+  related_people: z.array(z.object({
+    person_id: z.string().uuid().optional().nullable(),
+    raw_name: optStr(200),
+    raw_phone: optStr(30),
+    raw_email: optStr(200),
+    relationship_type: z.string().max(50).default("other"),
+    relationship_notes: optStr(500),
+    notify_before_release: z.boolean().optional(),
+    preferred_language: optStr(10),
+  })).optional().nullable(),
+
   // Provenance
   created_by: optStr(200),
 }).passthrough(); // Allow additional fields not yet in contract

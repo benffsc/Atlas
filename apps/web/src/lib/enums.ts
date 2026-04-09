@@ -22,6 +22,8 @@
 // Import from single source of truth
 import { ALL_STATUSES, type RequestStatus as RequestStatusType } from "./request-status";
 import {
+  RELATED_PERSON_RELATIONSHIP_OPTIONS as _RELATED_PERSON_RELATIONSHIP_OPTIONS,
+  LANGUAGE_OPTIONS as _LANGUAGE_OPTIONS,
   PROPERTY_TYPE_OPTIONS as _PROPERTY_TYPE_OPTIONS,
   COLONY_DURATION_OPTIONS as _COLONY_DURATION_OPTIONS,
   COUNT_CONFIDENCE_OPTIONS as _COUNT_CONFIDENCE_OPTIONS,
@@ -53,6 +55,10 @@ export const REQUEST_STATUS = ALL_STATUSES;
 
 // Derived from centralized form-options.ts registry (FFS-692)
 export const REQUEST_PRIORITY = getValues(_PRIORITY_OPTIONS) as unknown as readonly ["urgent", "high", "normal", "low"];
+
+// Related people & language (derived from form-options.ts)
+export const RELATED_PERSON_RELATIONSHIP = getValues(_RELATED_PERSON_RELATIONSHIP_OPTIONS) as unknown as readonly ["cat_owner", "caretaker", "neighbor", "family_member", "tenant", "landlord", "transporter", "rescue_contact", "other"];
+export const LANGUAGE = getValues(_LANGUAGE_OPTIONS) as unknown as readonly ["en", "es", "vi", "tl", "other"];
 
 export const HOLD_REASON = [
   "weather",
@@ -305,6 +311,8 @@ export const ENTITY_ENUMS = {
   // Request
   REQUEST_STATUS,
   REQUEST_PRIORITY,
+  RELATED_PERSON_RELATIONSHIP,
+  LANGUAGE,
   HOLD_REASON,
   NO_TRAPPER_REASON,
   PERMISSION_STATUS,
@@ -360,6 +368,8 @@ export const ENTITY_ENUMS = {
 // Re-export RequestStatus from single source of truth
 export type { RequestStatus } from "./request-status";
 export type RequestPriority = (typeof REQUEST_PRIORITY)[number];
+export type RelatedPersonRelationship = (typeof RELATED_PERSON_RELATIONSHIP)[number];
+export type Language = (typeof LANGUAGE)[number];
 export type HoldReason = (typeof HOLD_REASON)[number];
 export type NoTrapperReason = (typeof NO_TRAPPER_REASON)[number];
 export type PermissionStatus = (typeof PERMISSION_STATUS)[number];

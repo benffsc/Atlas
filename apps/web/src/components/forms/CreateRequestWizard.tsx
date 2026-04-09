@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import { formatPhone } from "@/lib/formatters";
 import { postApi, ApiError } from "@/lib/api-client";
 import { URGENCY_REASON_OPTIONS } from "@/lib/intake-options";
+import { LANGUAGE_OPTIONS } from "@/lib/form-options";
+import { OtherPartiesSection, EMPTY_OTHER_PARTIES } from "@/components/request-sections";
+import type { OtherPartiesSectionValue } from "@/components/request-sections";
+import { useSectionConfig } from "@/hooks/useSectionConfig";
 
 interface IntakeSubmission {
   submission_id: string;
@@ -75,6 +79,9 @@ export default function CreateRequestWizard({
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [otherParties, setOtherParties] = useState<OtherPartiesSectionValue>(EMPTY_OTHER_PARTIES);
+  const [preferredLanguage, setPreferredLanguage] = useState("");
+  const { isEnabled, getProps } = useSectionConfig("dynamic_intake");
 
   // Form state
   const [formData, setFormData] = useState({
@@ -129,6 +136,19 @@ export default function CreateRequestWizard({
       const data = await postApi<{ request_id: string }>("/api/intake/convert", {
         submission_id: submission.submission_id,
         ...formData,
+        preferred_language: preferredLanguage || null,
+        related_people: otherParties.entries
+          .filter((e) => e.is_resolved || e.phone || e.email || e.display_name)
+          .map((e) => ({
+            person_id: e.person_id,
+            raw_name: e.display_name || `${e.first_name} ${e.last_name}`.trim(),
+            raw_phone: e.phone || undefined,
+            raw_email: e.email || undefined,
+            relationship_type: e.relationship_type || "other",
+            relationship_notes: e.relationship_notes || undefined,
+            notify_before_release: e.notify_before_release,
+            preferred_language: e.preferred_language || undefined,
+          })),
         converted_by: "web_user",
         // Pass through MIG_2531/2532 fields from intake
         county: submission.county,
@@ -513,6 +533,35 @@ export default function CreateRequestWizard({
                   style={{ width: "100%", padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border)", resize: "vertical" }}
                 />
               </div>
+
+              {/* Language preference */}
+              <div style={{ marginTop: "1.25rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", fontWeight: 500 }}>
+                  Language Preference
+                </label>
+                <select
+                  value={preferredLanguage}
+                  onChange={(e) => setPreferredLanguage(e.target.value)}
+                  style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border)", width: "200px" }}
+                >
+                  <option value="">English (default)</option>
+                  {LANGUAGE_OPTIONS.filter((o) => o.value !== "en").map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Other people involved (config-gated) */}
+              {isEnabled("otherParties") && (
+                <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+                  <OtherPartiesSection
+                    value={otherParties}
+                    onChange={setOtherParties}
+                    compact
+                    {...(getProps("otherParties") as { maxEntries?: number })}
+                  />
+                </div>
+              )}
             </div>
           )}
 

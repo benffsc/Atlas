@@ -45,3 +45,13 @@ export type {
   StaffTriagePanelProps,
   StaffTriageValue,
 } from "./StaffTriagePanel";
+
+export {
+  OtherPartiesSection,
+  EMPTY_OTHER_PARTIES,
+} from "./OtherPartiesSection";
+export type {
+  OtherPartiesSectionProps,
+  OtherPartiesSectionValue,
+  RelatedPersonEntry,
+} from "./OtherPartiesSection";

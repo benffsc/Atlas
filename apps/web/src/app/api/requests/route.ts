@@ -334,7 +334,9 @@ export async function POST(request: NextRequest) {
         raw_requester_name, raw_requester_phone, raw_requester_email,
         -- Person slots parity (FFS-443b)
         property_owner_person_id, raw_property_owner_email,
-        raw_site_contact_name, raw_site_contact_phone, raw_site_contact_email
+        raw_site_contact_name, raw_site_contact_phone, raw_site_contact_email,
+        -- Language preference
+        preferred_language
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13,
@@ -351,7 +353,8 @@ export async function POST(request: NextRequest) {
         $73, $74, $75,
         $76, $77, $78,
         $79, $80,
-        $81, $82, $83
+        $81, $82, $83,
+        $84
       )
       RETURNING request_id::TEXT`,
       [
@@ -397,6 +400,8 @@ export async function POST(request: NextRequest) {
         // Person slots parity (FFS-443b): $79-$83
         body.property_owner_person_id ?? null, body.raw_property_owner_email ?? null,
         body.raw_site_contact_name ?? null, body.raw_site_contact_phone ?? null, body.raw_site_contact_email ?? null,
+        // Language preference: $84
+        body.preferred_language ?? null,
       ]
     );
 
@@ -554,6 +559,64 @@ export async function POST(request: NextRequest) {
         }
       } catch (resolveError) {
         console.warn("[POST /api/requests] Auto-resolve site contact failed (non-blocking):", resolveError);
+      }
+    }
+
+    // Process related people (non-blocking per entry)
+    if (result?.request_id && body.related_people && body.related_people.length > 0) {
+      for (const rp of body.related_people) {
+        try {
+          let personId = rp.person_id || null;
+
+          // Auto-resolve person if not already resolved
+          if (!personId && (rp.raw_email || rp.raw_phone)) {
+            const nameParts = (rp.raw_name || "").trim().split(/\s+/);
+            const firstName = nameParts[0] || null;
+            const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+
+            const resolved = await queryOne<{ person_id: string }>(
+              `SELECT sot.find_or_create_person(
+                $1, $2, $3, $4, NULL, 'atlas_ui'
+              )::TEXT AS person_id`,
+              [rp.raw_email ?? null, rp.raw_phone ?? null, firstName, lastName]
+            );
+            personId = resolved?.person_id || null;
+          }
+
+          if (!personId) continue;
+
+          // Insert related person link
+          await queryOne(
+            `INSERT INTO ops.request_related_people (
+              request_id, person_id, relationship_type, relationship_notes,
+              notify_before_release, preferred_language, source_system
+            ) VALUES ($1, $2, $3, $4, $5, $6, 'atlas_ui')
+            ON CONFLICT (request_id, person_id, relationship_type) DO UPDATE SET
+              relationship_notes = EXCLUDED.relationship_notes,
+              notify_before_release = EXCLUDED.notify_before_release,
+              preferred_language = EXCLUDED.preferred_language,
+              updated_at = NOW()`,
+            [
+              result.request_id,
+              personId,
+              rp.relationship_type || "other",
+              rp.relationship_notes ?? null,
+              rp.notify_before_release ?? false,
+              rp.preferred_language ?? null,
+            ]
+          );
+
+          // Best-effort: set preferred_language on person if currently NULL (Manual > AI)
+          if (rp.preferred_language) {
+            await queryOne(
+              `UPDATE sot.people SET preferred_language = $1
+               WHERE person_id = $2 AND preferred_language IS NULL`,
+              [rp.preferred_language, personId]
+            );
+          }
+        } catch (rpError) {
+          console.warn("[POST /api/requests] Related person processing failed (non-blocking):", rpError);
+        }
       }
     }
 

@@ -662,6 +662,34 @@ export const REDIRECT_REASON_OPTIONS = [
 ] as const satisfies readonly FormOption[];
 
 // =============================================================================
+// RELATED PEOPLE (request-level relationships beyond requester/site_contact/property_owner)
+// =============================================================================
+
+export const RELATED_PERSON_RELATIONSHIP_OPTIONS = [
+  { value: "cat_owner", label: "Cat Owner", shortLabel: "Owner", description: "Owner of the cat (microchip or claimed)" },
+  { value: "caretaker", label: "Colony Caretaker", shortLabel: "Caretaker" },
+  { value: "neighbor", label: "Neighbor", shortLabel: "Neighbor" },
+  { value: "family_member", label: "Family Member", shortLabel: "Family" },
+  { value: "tenant", label: "Tenant", shortLabel: "Tenant" },
+  { value: "landlord", label: "Landlord / Manager", shortLabel: "Landlord" },
+  { value: "transporter", label: "Transporter", shortLabel: "Transport", description: "Person who brought/will bring cats" },
+  { value: "rescue_contact", label: "Rescue Contact", shortLabel: "Rescue" },
+  { value: "other", label: "Other", shortLabel: "Other" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// LANGUAGE PREFERENCES
+// =============================================================================
+
+export const LANGUAGE_OPTIONS = [
+  { value: "en", label: "English", shortLabel: "EN" },
+  { value: "es", label: "Spanish", shortLabel: "ES" },
+  { value: "vi", label: "Vietnamese", shortLabel: "VI" },
+  { value: "tl", label: "Tagalog", shortLabel: "TL" },
+  { value: "other", label: "Other", shortLabel: "Other" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
 // CONTACT / RELATIONSHIPS
 // =============================================================================
 

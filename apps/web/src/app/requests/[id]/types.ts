@@ -234,6 +234,8 @@ export interface RequestDetail {
   classification_reviewed_at: string | null;
   classification_reviewed_by: string | null;
   current_place_classification: string | null;
+  // Language preference
+  preferred_language: string | null;
   // Source timestamp
   source_created_at: string | null;
   // Archive fields (MIG_2580)

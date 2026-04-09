@@ -25,6 +25,8 @@ import { formatPhone, formatAddress } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "./types";
+import { RELATED_PERSON_RELATIONSHIP_OPTIONS, LANGUAGE_OPTIONS, getLabel, getShortLabel } from "@/lib/form-options";
+import { RowActionMenu } from "@/components/shared/RowActionMenu";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, getStatusColor } from "@/lib/design-tokens";
 import { getOutcomeLabel, getOutcomeColor, getReasonLabel, type ResolutionOutcome } from "@/lib/request-status";
 import {
@@ -117,6 +119,29 @@ export default function RequestDetailPage() {
   // Trip reports
   const [tripReports, setTripReports] = useState<TripReportRow[]>([]);
 
+  // Related people
+  interface RelatedPersonDisplay {
+    id: string;
+    person_id: string;
+    relationship_type: string;
+    relationship_notes: string | null;
+    notify_before_release: boolean;
+    preferred_language: string | null;
+    display_name: string | null;
+    email: string | null;
+    phone: string | null;
+  }
+  const [relatedPeople, setRelatedPeople] = useState<RelatedPersonDisplay[]>([]);
+
+  const fetchRelatedPeople = useCallback(async () => {
+    try {
+      const data = await fetchApi<{ related_people: RelatedPersonDisplay[] }>(`/api/requests/${requestId}/related-people`);
+      setRelatedPeople(data.related_people || []);
+    } catch {
+      // Non-critical
+    }
+  }, [requestId]);
+
   // Map state
   const [mapUrl, setMapUrl] = useState<string | null>(null);
 
@@ -156,7 +181,8 @@ export default function RequestDetailPage() {
     fetchRequest();
     fetchJournalEntries();
     fetchTripReports();
-  }, [requestId, fetchJournalEntries, fetchTripReports]);
+    fetchRelatedPeople();
+  }, [requestId, fetchJournalEntries, fetchTripReports, fetchRelatedPeople]);
 
   const refreshRequest = async () => {
     try {
@@ -512,7 +538,131 @@ export default function RequestDetailPage() {
               preview.open("person", personId);
             }}
           />
+          {/* Language badge on requester */}
+          {request.preferred_language && request.preferred_language !== "en" && (
+            <div style={{ marginTop: "0.5rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+              <span style={{
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                padding: "2px 8px",
+                borderRadius: "10px",
+                background: "#eef2ff",
+                color: "#4338ca",
+                textTransform: "uppercase",
+              }}>
+                {getShortLabel(LANGUAGE_OPTIONS, request.preferred_language)} — {getLabel(LANGUAGE_OPTIONS, request.preferred_language)}
+              </span>
+            </div>
+          )}
         </div>
+
+        {/* Related People */}
+        {relatedPeople.length > 0 && (
+          <div style={{ marginTop: "1rem", background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", overflow: "hidden" }}>
+            <div style={{ padding: "0.625rem 1rem", background: "var(--bg-secondary, #f9fafb)", borderBottom: "1px solid var(--border, #e5e7eb)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Icon name="users" size={16} color="var(--text-muted)" />
+              <h3 style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "var(--foreground)" }}>
+                Other People Involved
+              </h3>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>({relatedPeople.length})</span>
+            </div>
+            <div style={{ padding: "0.5rem" }}>
+              {relatedPeople.map((rp) => (
+                <div
+                  key={rp.id}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    borderBottom: "1px solid var(--border-light, #f3f4f6)",
+                  }}
+                >
+                  {/* Name + link */}
+                  <a
+                    href={`/people/${rp.person_id}`}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey) return;
+                      e.preventDefault();
+                      preview.open("person", rp.person_id);
+                    }}
+                    style={{ fontWeight: 500, fontSize: "0.9rem", color: "var(--foreground)", textDecoration: "none", minWidth: "120px" }}
+                  >
+                    {rp.display_name || "Unknown"}
+                  </a>
+
+                  {/* Relationship badge */}
+                  <span style={{
+                    fontSize: "0.7rem",
+                    fontWeight: 500,
+                    padding: "1px 8px",
+                    borderRadius: "10px",
+                    background: "var(--bg-tertiary, #f3f4f6)",
+                    color: "var(--text-secondary)",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {getLabel(RELATED_PERSON_RELATIONSHIP_OPTIONS, rp.relationship_type)}
+                  </span>
+
+                  {/* Language pill */}
+                  {rp.preferred_language && rp.preferred_language !== "en" && (
+                    <span style={{
+                      fontSize: "0.65rem",
+                      fontWeight: 600,
+                      padding: "1px 6px",
+                      borderRadius: "8px",
+                      background: "#eef2ff",
+                      color: "#4338ca",
+                      textTransform: "uppercase",
+                    }}>
+                      {getShortLabel(LANGUAGE_OPTIONS, rp.preferred_language)}
+                    </span>
+                  )}
+
+                  {/* Notify icon */}
+                  {rp.notify_before_release && (
+                    <span title="Notify before release" style={{ fontSize: "0.75rem", color: "#f59e0b" }}>
+                      <Icon name="bell" size={14} />
+                    </span>
+                  )}
+
+                  {/* Contact info */}
+                  <div style={{ flex: 1, display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    {rp.phone && <span>{formatPhone(rp.phone)}</span>}
+                    {rp.email && <span>{rp.email}</span>}
+                  </div>
+
+                  {/* Notes */}
+                  {rp.relationship_notes && (
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      title={rp.relationship_notes}
+                    >
+                      {rp.relationship_notes}
+                    </span>
+                  )}
+
+                  {/* Row action: Remove */}
+                  <RowActionMenu
+                    actions={[
+                      {
+                        label: "Remove",
+                        variant: "danger",
+                        onClick: async () => {
+                          try {
+                            await fetchApi(`/api/requests/${requestId}/related-people?related_person_id=${rp.id}`, { method: "DELETE" });
+                            fetchRelatedPeople();
+                          } catch {
+                            // Non-critical
+                          }
+                        },
+                      },
+                    ]}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Location Card */}
         <div style={{ marginTop: "1rem", background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", overflow: "hidden" }}>
