@@ -49,6 +49,7 @@
  */
 
 import { getServerConfig } from "@/lib/server-config";
+import { getFlow } from "@/lib/email-flows";
 
 export class OutOfAreaPipelineDisabledError extends Error {
   constructor(message: string, public readonly reason: "env" | "db") {
@@ -75,15 +76,18 @@ export async function assertOutOfAreaLive(): Promise<void> {
     );
   }
 
-  // Layer 2: DB config (admin-toggleable kill switch)
-  const dbLive = await getServerConfig<boolean>(
-    "email.out_of_area.live",
-    false
-  );
+  // Layer 2: DB config — prefer ops.email_flows.enabled (MIG_3066) and
+  // fall through to the legacy email.out_of_area.live key for rows
+  // that don't exist yet.
+  const flow = await getFlow("out_of_service_area");
+  const dbLive = flow
+    ? flow.enabled
+    : await getServerConfig<boolean>("email.out_of_area.live", false);
+
   if (!dbLive) {
     throw new OutOfAreaPipelineDisabledError(
       "Out-of-service-area email pipeline is disabled until Go Live " +
-        "(DB config email.out_of_area.live is not true). " +
+        "(ops.email_flows.out_of_service_area.enabled is not true). " +
         "See docs/RUNBOOKS/out_of_service_area_email_golive.md.",
       "db"
     );
@@ -99,9 +103,9 @@ export async function getOutOfAreaLiveState(): Promise<{
   live: boolean;
 }> {
   const envLive = process.env.EMAIL_OUT_OF_AREA_LIVE === "true";
-  const dbLive = await getServerConfig<boolean>(
-    "email.out_of_area.live",
-    false
-  );
+  const flow = await getFlow("out_of_service_area");
+  const dbLive = flow
+    ? flow.enabled
+    : await getServerConfig<boolean>("email.out_of_area.live", false);
   return { envLive, dbLive, live: envLive && dbLive };
 }

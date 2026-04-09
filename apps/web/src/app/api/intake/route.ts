@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
-import { geocodeAddress, buildAddressString } from "@/lib/geocoding";
 
 interface IntakeSubmission {
   // Source tracking
@@ -348,36 +347,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // FFS-128: Inline geocoding — geocode the address immediately so map shows pin
-    // Don't block submission on geocoding failure; cron will retry later
-    if (body.cats_address && !body.selected_address_place_id) {
+    // FFS-1181 follow-up Phase 4: async geocoding.
+    // The submission lands with geocode_status='pending' (default column
+    // value from MIG_3067). /api/cron/geocode picks it up every 5 min,
+    // consults ops.geocode_cache, calls Google on miss, writes via
+    // ops.record_intake_geocoding_result(). The MIG_3064 trigger fires
+    // on the subsequent UPDATE and auto-computes service_area_status.
+    //
+    // The FFS-128 inline geocoding block that used to live here was
+    // removed once MIG_3067 landed. selected_address_place_id bookings
+    // still bypass the queue because the place already has coordinates.
+    if (body.selected_address_place_id && body.cats_address) {
       try {
-        const addressStr = buildAddressString(body.cats_address, body.cats_city, body.cats_zip);
-        const geoResult = await geocodeAddress(addressStr);
-        if (geoResult?.success) {
-          // Update the submission with geocoded coordinates
-          await queryOne(
-            `UPDATE ops.intake_submissions
-             SET geo_latitude = $1, geo_longitude = $2, geo_formatted_address = $3,
-                 geo_confidence = 1.0, updated_at = NOW()
-             WHERE submission_id = $4`,
-            [geoResult.lat, geoResult.lng, geoResult.formatted_address, data.submission_id]
-          );
-          // Also update the linked place if one was created
-          await queryOne(
-            `UPDATE sot.places
-             SET location = ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
-                 formatted_address = COALESCE(formatted_address, $3),
-                 updated_at = NOW()
-             WHERE place_id = (
-               SELECT place_id FROM ops.intake_submissions WHERE submission_id = $4
-             )
-             AND location IS NULL`,
-            [geoResult.lat, geoResult.lng, geoResult.formatted_address, data.submission_id]
-          );
-        }
-      } catch (geoErr: unknown) {
-        console.error("Inline geocoding error (non-fatal):", geoErr);
+        await queryOne(
+          `UPDATE ops.intake_submissions
+              SET geocode_status = 'ok',
+                  geocode_next_attempt_at = NULL,
+                  updated_at = NOW()
+            WHERE submission_id = $1`,
+          [data.submission_id]
+        );
+      } catch (err: unknown) {
+        console.error("Failed to mark pre-resolved submission as geocoded:", err);
       }
     }
 

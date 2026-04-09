@@ -14,8 +14,9 @@ proceed.
 
 Before starting:
 
-- All migrations applied through `MIG_3062`
+- All migrations applied through `MIG_3065` (MIG_3064 + MIG_3065 are the FFS-1181 follow-up Phase 1 fixes — see note below)
 - Phase 0–5 code deployed to production
+- FFS-1181 follow-up Phase 1 applied (see "Phase 1 applied" note below)
 - `EMAIL_DRY_RUN=true` set in Vercel env vars
 - `EMAIL_TEST_RECIPIENT_OVERRIDE=ben@forgottenfelines.com` set in Vercel
 - `EMAIL_OUT_OF_AREA_LIVE` **NOT set** (or `false`) in Vercel
@@ -154,3 +155,44 @@ once the issue is resolved.
 | 5 | [FFS-1188](https://linear.app/ffsc/issue/FFS-1188) | Dry-run + test override + Go Live toggle |
 | 6 | [FFS-1189](https://linear.app/ffsc/issue/FFS-1189) | E2E Playwright tests |
 | 6 | [FFS-1190](https://linear.app/ffsc/issue/FFS-1190) | This runbook |
+
+---
+
+## Phase 1 applied (FFS-1181 follow-up — 2026-04-07)
+
+After shipping the original FFS-1181 epic, four blocking gaps were
+discovered that prevented the pipeline from firing in production.
+Phase 1 of the follow-up (this commit) addresses the critical ones:
+
+- **MIG_3064** — `ops.compute_service_area_status()` trigger now reads
+  coordinates from `sot.places.location` via `NEW.place_id` when the
+  submission row itself has no `geo_latitude`/`geo_longitude`. Trigger
+  extended to `BEFORE INSERT OR UPDATE OF geo_latitude, geo_longitude,
+  place_id`. Backfills the 391 historical submissions whose linked
+  places have location but `service_area_status='unknown'`.
+- **MIG_3065** — seeds the 12 `org.*` keys in `ops.app_config`
+  (MIG_2963 replacement — the original seed migration never ran in
+  prod). Fixes the broken `org.logo_url` default that returned HTTP
+  400, pointing instead at the verified WordPress asset on
+  `forgottenfelines.org`.
+- **`apps/web/src/app/api/intake/public/route.ts`** — inline
+  geocoding stopgap matches the FFS-128 pattern in `/api/intake`.
+  New public web-form submissions are geocoded inline so the trigger
+  fires immediately. This is temporary — Phase 4 of the follow-up
+  replaces it with an async queue.
+
+After applying the Phase 1 migrations in prod, verify:
+
+```sql
+-- Should return 12 rows
+SELECT key FROM ops.app_config WHERE key LIKE 'org.%' ORDER BY key;
+
+-- Should return a reachable URL (test with curl -sI)
+SELECT value FROM ops.app_config WHERE key = 'org.logo_url';
+
+-- Should show ≥1 'out' and ≥1 'in' after backfill
+SELECT service_area_status, COUNT(*)
+  FROM ops.intake_submissions
+ GROUP BY service_area_status
+ ORDER BY 1;
+```

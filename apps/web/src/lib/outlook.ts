@@ -13,6 +13,7 @@
 
 import { queryOne, queryRows, query } from "./db";
 import { isDryRunEnabled, getTestRecipientOverride } from "./email-config";
+import { buildOrgRenderContext } from "./email-render-context";
 
 // Microsoft OAuth endpoints
 const MICROSOFT_AUTH_URL = "https://login.microsoftonline.com";
@@ -460,12 +461,19 @@ export async function sendTemplatedOutlookEmail(params: {
     return { success: false, error: `Template not found: ${templateKey}` };
   }
 
+  // FFS-1181 follow-up Phase 2: merge org placeholders before render.
+  // Caller-provided values override org defaults on collision.
+  const mergedPlaceholders: Record<string, string> = {
+    ...(await buildOrgRenderContext()),
+    ...placeholders,
+  };
+
   // Replace placeholders
   let subject = template.subject;
   let bodyHtml = template.body_html;
   let bodyText = template.body_text;
 
-  for (const [key, value] of Object.entries(placeholders)) {
+  for (const [key, value] of Object.entries(mergedPlaceholders)) {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, "g");
     subject = subject.replace(regex, value || "");
     bodyHtml = bodyHtml.replace(regex, value || "");

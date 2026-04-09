@@ -27,17 +27,7 @@ import { requireValidUUID } from "@/lib/api-validation";
 import { queryOne } from "@/lib/db";
 import { getEmailTemplate } from "@/lib/email";
 import { renderCountyResources } from "@/lib/email-resource-renderer";
-import {
-  getOrgName,
-  getOrgNameShort,
-  getOrgPhone,
-  getOrgWebsite,
-  getOrgSupportEmail,
-  getOrgAddress,
-  getOrgLogoUrl,
-  getOrgAnniversaryBadgeUrl,
-} from "@/lib/org-config";
-import { getServiceAreaName } from "@/lib/geo-config";
+import { buildOrgRenderContext } from "@/lib/email-render-context";
 import { requireAuth, AuthError } from "@/lib/auth";
 
 function replacePlaceholders(
@@ -85,44 +75,18 @@ export async function GET(request: NextRequest) {
 
     const resources = await renderCountyResources(submission.county);
 
-    const [
-      brandFullName,
-      brandName,
-      orgPhone,
-      orgEmail,
-      orgWebsite,
-      orgAddress,
-      orgLogoUrl,
-      orgAnniversaryBadgeUrl,
-      serviceAreaName,
-    ] = await Promise.all([
-      getOrgName(),
-      getOrgNameShort(),
-      getOrgPhone(),
-      getOrgSupportEmail(),
-      getOrgWebsite(),
-      getOrgAddress(),
-      getOrgLogoUrl(),
-      getOrgAnniversaryBadgeUrl(),
-      getServiceAreaName(),
-    ]);
-
+    // FFS-1181 follow-up Phase 2/6: shared org render context.
     const placeholders: Record<string, string> = {
+      ...(await buildOrgRenderContext()),
       first_name: submission.first_name || "there",
       detected_county: submission.county || "your area",
-      service_area_name: serviceAreaName,
-      brand_name: brandName,
-      brand_full_name: brandFullName,
-      org_phone: orgPhone,
-      org_email: orgEmail,
-      org_address: orgAddress,
-      org_website: orgWebsite,
-      org_logo_url: orgLogoUrl,
-      org_anniversary_badge_url: orgAnniversaryBadgeUrl,
       nearest_county_resources_html: resources.countyHtml,
       statewide_resources_html: resources.statewideHtml,
       nearest_county_resources_text: resources.countyText,
       statewide_resources_text: resources.statewideText,
+      // Preview-safe stub for unsubscribe URL — avoids minting a real
+      // token just for staff review.
+      unsubscribe_url: "#preview-no-unsubscribe",
     };
 
     const subject = replacePlaceholders(template.subject, placeholders);

@@ -182,6 +182,9 @@ function EmailSettingsContent() {
       {/* FFS-1188 — Email Pipeline Mode (dry-run / test override / live) */}
       <PipelineModeCard onAction={(text, type) => setMessage({ type, text })} />
 
+      {/* FFS-1181 follow-up Phase 3 — Per-flow config from ops.email_flows */}
+      <EmailFlowsSection onAction={(text, type) => setMessage({ type, text })} />
+
       {/* Connected Accounts */}
       <div className="card" style={{ overflow: "hidden" }}>
         <div
@@ -792,6 +795,268 @@ function PipelineModeCard({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// FFS-1181 follow-up Phase 3 — Email Flows section (ops.email_flows)
+// ────────────────────────────────────────────────────────────────────────────
+
+interface EmailFlowRow {
+  flow_slug: string;
+  display_name: string;
+  description: string | null;
+  template_key: string | null;
+  enabled: boolean;
+  dry_run: boolean;
+  test_recipient_override: string | null;
+  suppression_scope: "global" | "per_flow" | "per_flow_per_recipient";
+  suppression_days: number;
+}
+
+function EmailFlowsSection({
+  onAction,
+}: {
+  onAction: (text: string, type: "success" | "error") => void;
+}) {
+  const [flows, setFlows] = useState<EmailFlowRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const reload = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchApi<{ flows: EmailFlowRow[] }>(
+        "/api/admin/email-settings/flows"
+      );
+      setFlows(data.flows || []);
+    } catch (err) {
+      console.error("Failed to load email flows:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reload();
+  }, []);
+
+  const patchFlow = async (
+    flowSlug: string,
+    patch: Partial<Pick<EmailFlowRow, "enabled" | "dry_run">>
+  ) => {
+    setBusy(flowSlug);
+    try {
+      await postApi(
+        "/api/admin/email-settings/flows",
+        { flow_slug: flowSlug, ...patch },
+        { method: "PATCH" }
+      );
+      onAction(`Updated ${flowSlug}`, "success");
+      reload();
+    } catch (err) {
+      onAction(
+        err instanceof Error ? err.message : "Failed to update flow",
+        "error"
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div
+      className="card"
+      style={{ padding: "1.5rem", marginBottom: "1.5rem" }}
+    >
+      <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.25rem" }}>
+        Email Flows
+      </h2>
+      <p
+        style={{
+          fontSize: "0.8rem",
+          color: "var(--text-muted)",
+          margin: "0 0 1rem",
+        }}
+      >
+        Per-flow kill switches and dry-run knobs. New transactional flows
+        are added by inserting a row into <code>ops.email_flows</code>{" "}
+        (no code change required).
+      </p>
+      {loading ? (
+        <div style={{ color: "var(--text-muted)" }}>Loading…</div>
+      ) : flows.length === 0 ? (
+        <div style={{ color: "var(--text-muted)" }}>
+          No flows configured (MIG_3066 not applied?).
+        </div>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "var(--background-secondary)" }}>
+              <th
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  textAlign: "left",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                Flow
+              </th>
+              <th
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  textAlign: "left",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                Template
+              </th>
+              <th
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  textAlign: "left",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                Enabled
+              </th>
+              <th
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  textAlign: "left",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                Dry-run
+              </th>
+              <th
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  textAlign: "left",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                Test Recipient
+              </th>
+              <th
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  textAlign: "right",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {flows.map((f) => (
+              <tr
+                key={f.flow_slug}
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                <td style={{ padding: "0.75rem", fontSize: "0.85rem" }}>
+                  <div style={{ fontWeight: 600 }}>{f.display_name}</div>
+                  <div
+                    style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}
+                  >
+                    <code>{f.flow_slug}</code>
+                  </div>
+                </td>
+                <td style={{ padding: "0.75rem", fontSize: "0.8rem" }}>
+                  <code>{f.template_key ?? "—"}</code>
+                </td>
+                <td style={{ padding: "0.75rem", fontSize: "0.8rem" }}>
+                  {f.enabled ? (
+                    <span style={{ color: "#198754", fontWeight: 600 }}>
+                      🟢 On
+                    </span>
+                  ) : (
+                    <span style={{ color: "#dc3545", fontWeight: 600 }}>
+                      🔴 Off
+                    </span>
+                  )}
+                </td>
+                <td style={{ padding: "0.75rem", fontSize: "0.8rem" }}>
+                  {f.dry_run ? (
+                    <span style={{ color: "#856404", fontWeight: 600 }}>
+                      🟡 Dry-run
+                    </span>
+                  ) : (
+                    <span style={{ color: "#198754" }}>Real sends</span>
+                  )}
+                </td>
+                <td
+                  style={{
+                    padding: "0.75rem",
+                    fontSize: "0.75rem",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  {f.test_recipient_override ? (
+                    <code>{f.test_recipient_override}</code>
+                  ) : (
+                    <em>none</em>
+                  )}
+                </td>
+                <td style={{ padding: "0.75rem", textAlign: "right" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "0.4rem",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      disabled={busy === f.flow_slug}
+                      onClick={() =>
+                        patchFlow(f.flow_slug, { dry_run: !f.dry_run })
+                      }
+                      style={{
+                        padding: "0.3rem 0.6rem",
+                        background: "transparent",
+                        border: "1px solid var(--border)",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        fontSize: "0.7rem",
+                      }}
+                    >
+                      {f.dry_run ? "Exit dry-run" : "Dry-run"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy === f.flow_slug}
+                      onClick={() =>
+                        patchFlow(f.flow_slug, { enabled: !f.enabled })
+                      }
+                      style={{
+                        padding: "0.3rem 0.6rem",
+                        background: f.enabled ? "#dc3545" : "#198754",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        fontSize: "0.7rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {f.enabled ? "Disable" : "Enable"}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

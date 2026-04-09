@@ -67,28 +67,47 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const previous = await queryOne<{ value: unknown }>(
-      `SELECT value FROM ops.app_config WHERE key = 'email.out_of_area.live'`
+    // FFS-1181 follow-up Phase 3: flip ops.email_flows.enabled for the
+    // out_of_service_area flow (MIG_3066). Falls back to the legacy
+    // email.out_of_area.live key for environments where MIG_3066 has
+    // not yet been applied.
+    const previous = await queryOne<{ was_enabled: boolean | null }>(
+      `SELECT enabled AS was_enabled
+         FROM ops.email_flows
+        WHERE flow_slug = 'out_of_service_area'`
     );
 
-    await queryOne(
-      `UPDATE ops.app_config
-          SET value = $1::jsonb,
-              updated_by = $2,
-              updated_at = NOW()
-        WHERE key = 'email.out_of_area.live'
-        RETURNING key`,
-      [JSON.stringify(enabled), session.staff_id]
-    );
+    if (previous !== null) {
+      await queryOne(
+        `UPDATE ops.email_flows
+            SET enabled = $1,
+                updated_by = $2,
+                updated_at = NOW()
+          WHERE flow_slug = 'out_of_service_area'
+          RETURNING flow_slug`,
+        [enabled, session.staff_id]
+      );
+    } else {
+      // Legacy fallback — MIG_3066 not applied yet
+      await queryOne(
+        `UPDATE ops.app_config
+            SET value = $1::jsonb,
+                updated_by = $2,
+                updated_at = NOW()
+          WHERE key = 'email.out_of_area.live'
+          RETURNING key`,
+        [JSON.stringify(enabled), session.staff_id]
+      );
+    }
 
     // Audit log — best effort
     try {
       await queryOne(
         `INSERT INTO ops.entity_edits
            (entity_type, entity_id, field_name, old_value, new_value, changed_by, edit_source)
-         VALUES ('email_pipeline', NULL, 'out_of_area_live', $1, $2, $3, 'admin_go_live_toggle')`,
+         VALUES ('email_pipeline', NULL, 'out_of_service_area_flow_enabled', $1, $2, $3, 'admin_go_live_toggle')`,
         [
-          JSON.stringify(previous?.value ?? null),
+          JSON.stringify(previous?.was_enabled ?? null),
           JSON.stringify(enabled),
           session.staff_id,
         ]
@@ -98,11 +117,11 @@ export async function POST(request: NextRequest) {
     }
 
     return apiSuccess({
-      key: "email.out_of_area.live",
+      flow_slug: "out_of_service_area",
       enabled,
       changed_by: session.staff_id,
       reminder: enabled
-        ? "DB flag enabled. EMAIL_OUT_OF_AREA_LIVE env var must ALSO be set to 'true' in Vercel for the pipeline to run."
+        ? "Flow enabled. EMAIL_OUT_OF_AREA_LIVE env var must ALSO be set to 'true' in Vercel for the pipeline to run."
         : "Pipeline disabled at the DB layer.",
     });
   } catch (err) {

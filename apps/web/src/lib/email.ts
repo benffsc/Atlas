@@ -30,24 +30,16 @@
 
 import { Resend } from "resend";
 import { queryOne, queryRows } from "./db";
-import {
-  getOrgEmailFrom,
-  getOrgName,
-  getOrgNameShort,
-  getOrgPhone,
-  getOrgWebsite,
-  getOrgSupportEmail,
-  getOrgAddress,
-  getOrgLogoUrl,
-  getOrgAnniversaryBadgeUrl,
-} from "./org-config";
-import { getServiceAreaName } from "./geo-config";
+import { getOrgEmailFrom } from "./org-config";
 import {
   assertOutOfAreaLive,
   OutOfAreaPipelineDisabledError,
 } from "./email-safety";
 import { renderCountyResources } from "./email-resource-renderer";
 import { isDryRunEnabled, getTestRecipientOverride } from "./email-config";
+import { buildOrgRenderContext } from "./email-render-context";
+import { isFlowDryRun, getFlowTestRecipient } from "./email-flows";
+import { buildUnsubscribeUrl } from "./unsubscribe-tokens";
 
 // Initialize Resend client
 const resend = process.env.RESEND_API_KEY
@@ -78,6 +70,12 @@ export interface SendEmailParams {
   submissionId?: string;
   personId?: string;
   sentBy?: string;
+  /**
+   * FFS-1181 follow-up Phase 3: optional flow_slug for per-flow safety
+   * gates. When provided, dry-run / test-override / suppression respect
+   * the ops.email_flows row. When absent, falls through to global gates.
+   */
+  flowSlug?: string;
 }
 
 export interface SendEmailResult {
@@ -124,16 +122,16 @@ export async function getEmailTemplate(
 export async function sendTemplateEmail(
   params: SendEmailParams
 ): Promise<SendEmailResult> {
-  const { templateKey, to, toName, placeholders = {}, submissionId, personId, sentBy } = params;
-
-  // Check if Resend is configured
-  if (!resend) {
-    console.warn("RESEND_API_KEY not configured, email not sent");
-    return {
-      success: false,
-      error: "Email service not configured (RESEND_API_KEY missing)",
-    };
-  }
+  const {
+    templateKey,
+    to,
+    toName,
+    placeholders = {},
+    submissionId,
+    personId,
+    sentBy,
+    flowSlug,
+  } = params;
 
   try {
     // Get template
@@ -145,16 +143,29 @@ export async function sendTemplateEmail(
       };
     }
 
+    // FFS-1181 follow-up Phase 2: every template gets org placeholders
+    // for free. Caller-provided values win on collision.
+    const mergedPlaceholders: Record<string, string> = {
+      ...(await buildOrgRenderContext()),
+      ...placeholders,
+    };
+
     // Replace placeholders
-    const subject = replacePlaceholders(template.subject, placeholders);
-    const bodyHtml = replacePlaceholders(template.body_html, placeholders);
+    const subject = replacePlaceholders(template.subject, mergedPlaceholders);
+    const bodyHtml = replacePlaceholders(template.body_html, mergedPlaceholders);
     const bodyText = template.body_text
-      ? replacePlaceholders(template.body_text, placeholders)
+      ? replacePlaceholders(template.body_text, mergedPlaceholders)
       : undefined;
 
-    // ─── FFS-1188 Phase 5: Three-layer safety gate ─────────────────────
+    // ─── Three-layer safety gate (FFS-1188 + FFS-1181 Phase 3) ────────
+    // Per-flow config in ops.email_flows takes precedence; falls through
+    // to global email.* keys when no flow_slug is provided.
+    const dryRun = flowSlug
+      ? await isFlowDryRun(flowSlug)
+      : await isDryRunEnabled();
+
     // Layer 3a — DRY RUN: render + log but never call Resend
-    if (await isDryRunEnabled()) {
+    if (dryRun) {
       const dryRunEmailId = await logSentEmail({
         templateKey,
         recipientEmail: to,
@@ -163,7 +174,9 @@ export async function sendTemplateEmail(
         bodyHtmlRendered: bodyHtml,
         bodyTextRendered: bodyText,
         status: "dry_run",
-        errorMessage: "Dry-run mode (email.global.dry_run) — not sent",
+        errorMessage: flowSlug
+          ? `Dry-run mode (flow ${flowSlug}) — not sent`
+          : "Dry-run mode (email.global.dry_run) — not sent",
         submissionId,
         personId,
         createdBy: sentBy,
@@ -176,7 +189,9 @@ export async function sendTemplateEmail(
     }
 
     // Layer 3b — TEST OVERRIDE: substitute recipient + tag subject
-    const override = await getTestRecipientOverride();
+    const override = flowSlug
+      ? await getFlowTestRecipient(flowSlug)
+      : await getTestRecipientOverride();
     let actualRecipient = to;
     let actualSubject = subject;
     let testOverride: SendEmailResult["testOverride"] = undefined;
@@ -190,6 +205,17 @@ export async function sendTemplateEmail(
     }
 
     // Layer 3c — LIVE send (only reached when both above are bypassed)
+    // Guard: Resend client must be configured for real sends.
+    // This check is intentionally AFTER the dry-run gate so that
+    // testing works even when RESEND_API_KEY is not set.
+    if (!resend) {
+      console.warn("RESEND_API_KEY not configured, email not sent");
+      return {
+        success: false,
+        error: "Email service not configured (RESEND_API_KEY missing)",
+      };
+    }
+
     const fromAddress = await getDefaultFrom();
     const { data, error } = await resend.emails.send({
       from: fromAddress,
@@ -524,45 +550,28 @@ export async function sendOutOfServiceAreaEmail(
   // Render dynamic resource cards
   const resources = await renderCountyResources(submission.county);
 
-  // Pull all org placeholders in parallel
-  const [
-    brandFullName,
-    brandName,
-    orgPhone,
-    orgEmail,
-    orgWebsite,
-    orgAddress,
-    orgLogoUrl,
-    orgAnniversaryBadgeUrl,
-    serviceAreaName,
-  ] = await Promise.all([
-    getOrgName(),
-    getOrgNameShort(),
-    getOrgPhone(),
-    getOrgSupportEmail(),
-    getOrgWebsite(),
-    getOrgAddress(),
-    getOrgLogoUrl(),
-    getOrgAnniversaryBadgeUrl(),
-    getServiceAreaName(),
-  ]);
+  // FFS-1181 follow-up Phase 2: org placeholders are injected by
+  // sendTemplateEmail() via buildOrgRenderContext(). This call site
+  // only provides template-specific payload.
+  // Phase 5: inject a per-recipient unsubscribe URL. Failure to mint
+  // the token (missing EMAIL_UNSUBSCRIBE_SECRET) is non-fatal — the
+  // template falls back to an empty string and the `mailto:` fallback
+  // in the footer remains the recipient's way out.
+  let unsubscribeUrl = "";
+  try {
+    unsubscribeUrl = buildUnsubscribeUrl(submission.email, "out_of_service_area");
+  } catch (err) {
+    console.warn("Failed to mint unsubscribe URL:", err);
+  }
 
   const placeholders: Record<string, string> = {
     first_name: submission.first_name || "there",
     detected_county: submission.county || "your area",
-    service_area_name: serviceAreaName,
-    brand_name: brandName,
-    brand_full_name: brandFullName,
-    org_phone: orgPhone,
-    org_email: orgEmail,
-    org_address: orgAddress,
-    org_website: orgWebsite,
-    org_logo_url: orgLogoUrl,
-    org_anniversary_badge_url: orgAnniversaryBadgeUrl,
     nearest_county_resources_html: resources.countyHtml,
     statewide_resources_html: resources.statewideHtml,
     nearest_county_resources_text: resources.countyText,
     statewide_resources_text: resources.statewideText,
+    unsubscribe_url: unsubscribeUrl,
   };
 
   const result = await sendTemplateEmail({
@@ -572,6 +581,7 @@ export async function sendOutOfServiceAreaEmail(
     placeholders,
     submissionId,
     sentBy: approvedBy || "out_of_service_area_pipeline",
+    flowSlug: "out_of_service_area",
   });
 
   // Only mark as sent (and transition to redirected) on a real send.

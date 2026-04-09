@@ -365,8 +365,23 @@ export async function POST(request: NextRequest) {
       .catch((err: unknown) => console.error("Person matching error:", err));
 
     // link_intake_submission_to_place: creates/matches place, queues geocoding
-    queryOne("SELECT sot.link_intake_to_place($1)", [submissionId])
-      .catch((err: unknown) => console.error("Place linking error:", err));
+    // Awaited so the downstream geocoding UPDATE can also touch the created place.
+    try {
+      await queryOne("SELECT sot.link_intake_to_place($1)", [submissionId]);
+    } catch (err: unknown) {
+      console.error("Place linking error:", err);
+    }
+
+    // FFS-1181 follow-up Phase 4: async geocoding. Submission lands
+    // with geocode_status='pending' (set by the default column value);
+    // the /api/cron/geocode cron (every 5 minutes) picks it up, checks
+    // ops.geocode_cache, calls Google on miss, and records the result
+    // via ops.record_intake_geocoding_result(). The MIG_3064 trigger
+    // fires on the subsequent UPDATE of geo_latitude/longitude and
+    // auto-computes service_area_status.
+    //
+    // The Phase 1c inline-geocoding stopgap that previously lived here
+    // was removed once MIG_3067 landed.
 
     // Return success with submission reference
     const response = apiSuccess({
