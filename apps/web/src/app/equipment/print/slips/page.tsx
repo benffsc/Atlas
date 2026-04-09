@@ -85,7 +85,7 @@ export default function CheckoutSlipsPage() {
           width: 8.5in;
           min-height: 11.0in;
           box-sizing: border-box;
-          padding: 0.50in 0.55in 0.45in;
+          padding: 0.35in 0.50in 0.30in;
           position: relative;
           font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
           color: #000;
@@ -97,12 +97,12 @@ export default function CheckoutSlipsPage() {
         .pf-masthead {
           display: flex;
           align-items: flex-start;
-          gap: 0.30in;
-          margin-bottom: 0.14in;
+          gap: 0.22in;
+          margin-bottom: 0.08in;
         }
         .pf-masthead-logo {
-          width: 1.15in;
-          height: 1.15in;
+          width: 0.95in;
+          height: 0.95in;
           flex-shrink: 0;
           object-fit: contain;
         }
@@ -111,7 +111,7 @@ export default function CheckoutSlipsPage() {
           padding-top: 0.02in;
         }
         .pf-masthead-org {
-          font-size: 19pt;
+          font-size: 16pt;
           font-weight: 800;
           line-height: 1.05;
           color: #000;
@@ -125,10 +125,10 @@ export default function CheckoutSlipsPage() {
           line-height: 1.2;
         }
         .pf-masthead-form-title {
-          margin-top: 0.10in;
-          padding-top: 0.06in;
+          margin-top: 0.06in;
+          padding-top: 0.04in;
           border-top: 1px solid #ccc;
-          font-size: 15pt;
+          font-size: 13pt;
           font-weight: 700;
           color: #1a7f3a;
           line-height: 1.1;
@@ -159,7 +159,7 @@ export default function CheckoutSlipsPage() {
           font-weight: 700;
           letter-spacing: 0.04em;
           text-transform: uppercase;
-          margin-bottom: 0.18in;
+          margin-bottom: 0.10in;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -175,7 +175,7 @@ export default function CheckoutSlipsPage() {
         .pf-section {
           border: 1.5pt solid #ccc;
           border-radius: 4px;
-          margin-bottom: 0.14in;
+          margin-bottom: 0.10in;
           overflow: hidden;
         }
         .pf-section-heading {
@@ -189,7 +189,7 @@ export default function CheckoutSlipsPage() {
           border-bottom: 1pt solid #ccc;
         }
         .pf-section-body {
-          padding: 0.12in 0.16in 0.06in;
+          padding: 0.08in 0.14in 0.04in;
           background: #fafbfc;
         }
 
@@ -204,7 +204,7 @@ export default function CheckoutSlipsPage() {
 
         /* ── Field — label above, bordered write box below ───────── */
         .pf-field {
-          margin-bottom: 0.12in;
+          margin-bottom: 0.08in;
         }
         .pf-field-label {
           display: block;
@@ -224,7 +224,7 @@ export default function CheckoutSlipsPage() {
         /* The bordered write box — ABS-style: 0.5pt border, enclosed rectangle.
          * Feels like a REAL form field, not a bare underline. */
         .pf-field-box {
-          height: 0.42in;
+          height: 0.36in;
           border: 0.5pt solid #999;
           border-radius: 2px;
           background: #fff;
@@ -233,7 +233,7 @@ export default function CheckoutSlipsPage() {
           padding: 0 8px 3px;
         }
         .pf-field-box-tall {
-          height: 0.50in;
+          height: 0.42in;
         }
         .pf-field-value {
           font-size: 12pt;
@@ -249,7 +249,7 @@ export default function CheckoutSlipsPage() {
 
         /* ── Barcode field — prominent, large-text ───────────────── */
         .pf-barcode-box {
-          height: 0.55in;
+          height: 0.45in;
           border: 2pt solid #000;
           border-radius: 3px;
           background: #fff;
@@ -326,7 +326,7 @@ export default function CheckoutSlipsPage() {
 
         /* ── Notes (multi-line bordered boxes) ───────────────────── */
         .pf-notes-box {
-          height: 0.42in;
+          height: 0.34in;
           border: 0.5pt solid #999;
           border-radius: 2px;
           background: #fff;
@@ -335,8 +335,8 @@ export default function CheckoutSlipsPage() {
 
         /* ── Footer / colophon ───────────────────────────────────── */
         .pf-footer {
-          margin-top: 0.22in;
-          padding-top: 0.12in;
+          margin-top: 0.14in;
+          padding-top: 0.08in;
           border-top: 2pt solid #1a7f3a;
           display: flex;
           justify-content: space-between;
