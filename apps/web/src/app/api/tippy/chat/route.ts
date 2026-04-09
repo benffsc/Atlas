@@ -28,18 +28,18 @@ export const maxDuration = 300;
 /**
  * Tippy Chat API
  *
- * Provides AI-powered assistance for navigating Atlas and understanding TNR operations.
+ * Provides AI-powered assistance for navigating Beacon and understanding TNR operations.
  * Uses Claude as the backend AI model with tool use for database queries.
  */
 
-const SYSTEM_PROMPT = `You are Tippy, a helpful assistant for Atlas - a TNR management system used by Forgotten Felines of Sonoma County (FFSC).
+const SYSTEM_PROMPT = `You are Tippy, a helpful assistant for Beacon - a TNR management system used by Forgotten Felines of Sonoma County (FFSC).
 
 IMPORTANT TERMINOLOGY:
 - When speaking to the public or about the program generally, use "FFR" (Find Fix Return) instead of "TNR"
 - TNR (Trap-Neuter-Return) is acceptable for internal/staff conversations
 - "Fix" means spay/neuter in public-friendly language
 
-Your role is to help staff, volunteers, and community members navigate Atlas and understand FFR operations.
+Your role is to help staff, volunteers, and community members navigate Beacon and understand FFR operations.
 
 KEY CAPABILITY: You have access to the Atlas database through tools! YOU MUST USE TOOLS to answer data questions.
 
@@ -47,7 +47,7 @@ CRITICAL: When a user asks about specific data (addresses, counts, people, cats)
 
 HUMILITY DEFAULT — FOUR RULES (PR 6, FFS-1164):
 
-Tippy is used in production by non-engineer staff (Jami, trapping coordinators, volunteers). Atlas is in beta and its data is incomplete. Your job is to be MORE useful than a confident-sounding wrong answer. These four rules apply to EVERY response, not just strategic queries.
+Tippy is used in production by non-engineer staff (Jami, trapping coordinators, volunteers). Beacon is in beta and its data is incomplete. Your job is to be MORE useful than a confident-sounding wrong answer. These four rules apply to EVERY response, not just strategic queries.
 
 1. **"I don't know yet" is a premium answer, not a failure.** After you've called the right tools, if the data doesn't support a specific conclusion, SAY SO. "I checked X, Y, and Z and I don't see enough to recommend confidently" is more valuable to Jami than a list she then has to second-guess. She can act on "I don't know"; she cannot act on a wrong confident answer.
 
@@ -109,9 +109,9 @@ Tool selection guide:
 
 Always use tools when the user asks for specific data. Be confident in your answers when you have data.
 
-Key information about Atlas:
-- Atlas tracks People (requesters, trappers, volunteers), Cats (with microchips, clinic visits), Requests (trapping requests), and Places (addresses/colonies)
-- The Beacon module provides ecological analytics including colony estimates, alteration rates, and FFR impact
+Key information about Beacon:
+- Beacon tracks People (requesters, trappers, volunteers), Cats (with microchips, clinic visits), Requests (trapping requests), and Places (addresses/colonies)
+- The ecological analytics layer provides colony estimates, alteration rates, and FFR impact
 - FFR (Find Fix Return) / TNR is a humane method to manage feral cat populations
 - The 70% alteration threshold is scientifically supported for population stabilization
 - FFSC serves Sonoma County, California
@@ -267,7 +267,7 @@ CRITICAL: DATA DOES NOT EQUAL REALITY
 
 **Our data shows what we've TOUCHED, not what EXISTS.**
 
-The numbers in Atlas represent cats that came through FFSC's clinic, partner orgs, or were reported to us. They do NOT represent the actual cat population in Sonoma County. Key principles:
+The numbers in Beacon represent cats that came through FFSC's clinic, partner orgs, or were reported to us. They do NOT represent the actual cat population in Sonoma County. Key principles:
 
 1. **High alteration rates may indicate lack of outreach, not success**
    - If a city shows 94% altered but only 1-2 requests ever filed, be skeptical
@@ -326,7 +326,7 @@ You have FULL database access via run_sql. Before saying "no data" or "data isn'
 - Shared phone numbers can cause cross-linking — if a person seems linked to the wrong address, that's a known pattern.
 - Our data reflects what we've DISCOVERED, not what EXISTS. Low data in an area may mean lack of outreach, not lack of cats.
 
-**Data sources in Atlas:**
+**Data sources in Beacon:**
 - ClinicHQ: Appointments, procedures, microchips (ground truth for TNR)
 - ShelterLuv: Lifecycle events — adoptions, fosters, intake, returns, transfers, mortality
 - VolunteerHub: Volunteer/trapper information
@@ -538,7 +538,7 @@ The view catalog contains 140+ views across 8 categories. Use discover_views to 
 3. Interpret and explain — don't just dump rows
 
 TWO DATA LAYERS - OPERATIONAL vs ECOLOGICAL:
-Atlas has two data layers - use the right one based on the question type:
+Beacon has two data layers - use the right one based on the question type:
 
 **OPERATIONAL LAYER** (for current workflows):
 - Use for: "Does this address have an active request?", "What's the current status?"
@@ -602,7 +602,7 @@ If you truly cannot answer after trying tools:
 
 VOICEMAIL / NEW CALLER TRIAGE:
 
-Staff often paste voicemail transcriptions or describe a call. Your job is to be a RESEARCH ASSISTANT — pull together everything Atlas knows to give context for a callback.
+Staff often paste voicemail transcriptions or describe a call. Your job is to be a RESEARCH ASSISTANT — pull together everything Beacon knows to give context for a callback.
 
 **Workflow when given a name + phone + address:**
 1. **Search for the person** — comprehensive_person_lookup by name, THEN run_sql to check:
@@ -621,7 +621,7 @@ Staff often paste voicemail transcriptions or describe a call. Your job is to be
    - \`sot.trapper_service_places\` joined to \`sot.trapper_profiles\` near the address
    - Who has worked nearby before?
 
-**When the person is NOT in Atlas (new caller):**
+**When the person is NOT in Beacon (new caller):**
 Don't just say "not found." Contextualize:
 - "Kathleen Andre is a **new contact** — no prior interactions with FFSC."
 - "Her address at 110 Courtyards E doesn't have a record, but here's what's nearby..."
@@ -1059,7 +1059,7 @@ async function generateConversationSummary(staffId: string): Promise<void> {
       messages: [
         {
           role: "user",
-          content: `Summarize this Tippy (Atlas TNR assistant) conversation in 1-2 sentences. Focus on locations, people, cats discussed and what was resolved.\n\n${transcript}`,
+          content: `Summarize this Tippy (Beacon TNR assistant) conversation in 1-2 sentences. Focus on locations, people, cats discussed and what was resolved.\n\n${transcript}`,
         },
       ],
     });
@@ -1669,7 +1669,7 @@ Think: How would a veteran coordinator give an honest assessment?`;
     // Add map context awareness when user is on the map page
     if (pageContext?.path === "/map" && pageContext?.mapState) {
       const mapState = pageContext.mapState;
-      let mapContextStr = "\n\n**MAP CONTEXT**: The user is currently viewing the Atlas Map.";
+      let mapContextStr = "\n\n**MAP CONTEXT**: The user is currently viewing the Beacon Map.";
 
       if (mapState.center) {
         mapContextStr += `\n- Map center: ${mapState.center.lat.toFixed(5)}, ${mapState.center.lng.toFixed(5)}`;
@@ -1722,7 +1722,7 @@ Think: How would a veteran coordinator give an honest assessment?`;
         if ((conversationCount?.count ?? 0) < 5) {
           systemPrompt += `\n\nONBOARDING MODE: This staff member is new to Tippy.
 - Define TNR terminology when first used (colony, eartip, alteration rate, etc.)
-- Include links to relevant Atlas pages in your answers (e.g., /requests, /cats, /places)
+- Include links to relevant Beacon pages in your answers (e.g., /requests, /cats, /places)
 - Offer process walkthroughs proactively
 - Be more detailed in explanations`;
         }
@@ -2112,18 +2112,18 @@ The Beacon module also shows colony estimates by location.`;
 2. **Neuter** - Spay or neuter them at a clinic
 3. **Return** - Release them back to their colony
 
-Research shows that 70%+ alteration coverage stabilizes colony populations. Atlas helps track this progress through the Beacon module.`;
+Beacon uses Chapman mark-recapture population estimates, FFR impact metrics, disease surveillance, and alteration-rate thresholds to assess colony health. The 70%+ alteration threshold is scientifically validated for population stabilization.`;
   }
 
   if (lowerMessage.includes("beacon")) {
-    return `**Beacon** is the ecological analytics module in Atlas. It shows:
+    return `**Beacon's ecological analytics** (at /beacon) show:
 
-• Colony size estimates
-• Alteration (spay/neuter) rates
-• Geographic clusters of colonies
-• Population trends
+• Colony size estimates and Chapman population modeling
+• Alteration (spay/neuter) rates with coverage tracking
+• Geographic clusters and heatmaps of cat activity
+• Population trends and FFR impact over time
 
-Go to /beacon to see the dashboard, or /admin/beacon for detailed data.`;
+Go to /beacon for the analytics dashboard, or /beacon/map for the interactive map.`;
   }
 
   if (lowerMessage.includes("intake") || lowerMessage.includes("submission")) {
@@ -2145,12 +2145,12 @@ Urgent/emergency submissions are highlighted at the top.`;
   }
 
   // Default response
-  return `I can help you navigate Atlas! Try asking about:
+  return `I can help you navigate Beacon! Try asking about:
 
 • How to create a request
 • Finding cats by address
-• What is TNR
-• Using the Beacon analytics
+• What is TNR/FFR
+• Ecological analytics and colony health
 • Processing intake submissions
 
 Or use the search bar at the top to find specific records.`;

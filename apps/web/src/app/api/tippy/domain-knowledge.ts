@@ -309,7 +309,7 @@ export const DATA_SOURCES = {
     airtable: {
       authoritative_for: ["Legacy requests", "Historical data", "Public intake"],
       not_authoritative_for: ["Current volunteer status", "Clinic data"],
-      note: "Being phased out in favor of Atlas UI",
+      note: "Being phased out in favor of Beacon",
     },
     petlink: {
       authoritative_for: ["Microchip registry lookups"],

@@ -621,7 +621,7 @@ export function TippyChat() {
           <div>
             <div style={{ fontWeight: 600 }}>Tippy</div>
             <div style={{ fontSize: "0.75rem", opacity: 0.9 }}>
-              Atlas Assistant
+              Beacon Assistant
             </div>
           </div>
         </div>
@@ -750,7 +750,7 @@ export function TippyChat() {
                 marginBottom: "16px",
               }}
             >
-              I can help you navigate Atlas and answer questions about TNR
+              I can help you navigate Beacon and answer questions about TNR
               operations.
             </div>
 

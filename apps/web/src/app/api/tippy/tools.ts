@@ -657,7 +657,7 @@ Example queries:
   {
     name: "log_site_observation",
     description:
-      "Log a site observation or cat sighting report from the user. Creates a PENDING review item with lower confidence (40%) than UI submissions (75%). After logging, encourage the user to submit via the Atlas UI for a higher-weight observation. Use when someone says 'I saw X cats at Y location' or reports colony observations.",
+      "Log a site observation or cat sighting report from the user. Creates a PENDING review item with lower confidence (40%) than UI submissions (75%). After logging, encourage the user to submit via Beacon for a higher-weight observation. Use when someone says 'I saw X cats at Y location' or reports colony observations.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -3854,7 +3854,7 @@ async function logSiteObservation(
           `Observation logged: ~${catCount} cats at ${address}. ` +
           `This will be reviewed before being added to our colony data. ` +
           `\n\n💡 **Tip:** For observations to count with higher confidence (75%), ` +
-          `use the Atlas UI at /beacon or create a site visit report. ` +
+          `use Beacon at /beacon or create a site visit report. ` +
           `AI-reported observations have 40% weight vs 75% for UI submissions.`,
       },
     };
