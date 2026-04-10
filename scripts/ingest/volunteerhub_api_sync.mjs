@@ -21,6 +21,8 @@
  * Required env:
  *   DATABASE_URL           - Postgres connection string
  *   VOLUNTEERHUB_API_KEY   - Auth credentials (tried as basic auth, then bearer)
+ *     OR
+ *   VOLUNTEERHUB_USERNAME + VOLUNTEERHUB_PASSWORD - Basic auth credentials
  *   VOLUNTEERHUB_API_URL   - Base URL (default: https://forgottenfelines.volunteerhub.com)
  */
 
@@ -56,6 +58,8 @@ function parseArgs() {
     dryRun: args.includes('--dry-run'),
     verbose: args.includes('--verbose') || args.includes('-v'),
     groupsOnly: args.includes('--groups-only'),
+    eventsOnly: args.includes('--events-only'),
+    skipEvents: args.includes('--skip-events'),
   };
 }
 
@@ -515,7 +519,7 @@ async function processVolunteerRoles(client, volunteerhubId) {
 
   // Sync group memberships
   const syncRes = await client.query(`
-    SELECT ops.sync_volunteer_group_memberships($1, $2) as result
+    SELECT sot.sync_volunteer_group_memberships($1, $2) as result
   `, [volunteerhubId, await getVolunteerGroupUids(client, volunteerhubId)]);
 
   // Process roles from groups
@@ -539,22 +543,142 @@ async function getVolunteerGroupUids(client, volunteerhubId) {
 
 async function matchVolunteer(client, volunteerhubId) {
   const res = await client.query(`
-    SELECT ops.match_volunteerhub_volunteer($1) as result
+    SELECT sot.match_volunteerhub_volunteer($1) as result
   `, [volunteerhubId]);
   return res.rows[0]?.result;
 }
 
-async function enrichVolunteer(client, volunteerhubId) {
-  // Run enrichment for this specific volunteer
-  const res = await client.query(`
-    SELECT matched_person_id FROM source.volunteerhub_volunteers
-    WHERE volunteerhub_id = $1 AND matched_person_id IS NOT NULL
-  `, [volunteerhubId]);
+async function enrichVolunteer(_client, _volunteerhubId) {
+  // No-op: per-user enrichment removed in V2.
+  // Bulk enrichment via sot.enrich_skeleton_people() runs in Step 5.
+}
 
-  if (res.rows.length === 0) return;
+// ============================================================================
+// Event Sync
+// ============================================================================
 
-  // Enrich phones and places
-  await client.query(`SELECT ops.enrich_from_volunteerhub(1)`);
+async function syncEvents(client, options) {
+  const stats = {
+    eventsFetched: 0,
+    eventsUpserted: 0,
+    registrationsUpserted: 0,
+    registrationsSkipped: 0,
+  };
+
+  // Determine date range
+  const params = {};
+  if (!options.fullSync) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    params.earliestTime = `${thirtyDaysAgo.getMonth() + 1}/${thirtyDaysAgo.getDate()}/${thirtyDaysAgo.getFullYear()}`;
+    console.log(`  Fetching events since: ${params.earliestTime}`);
+  }
+
+  // Load known volunteer IDs for FK safety
+  const volRes = await client.query(`SELECT volunteerhub_id FROM source.volunteerhub_volunteers`);
+  const knownVolunteers = new Set(volRes.rows.map(r => r.volunteerhub_id));
+  console.log(`  Known volunteers for FK check: ${knownVolunteers.size}`);
+
+  const events = await apiGetPaginated('/api/v1/events', params);
+  stats.eventsFetched = events.length;
+  console.log(`  Fetched ${events.length} events`);
+
+  if (options.dryRun) {
+    for (const event of events) {
+      const title = event.Title || event.title || '(untitled)';
+      const regCount = (event.UserGroupRegistrations || [])
+        .reduce((sum, gr) => sum + (gr.UserRegistrations || []).length, 0);
+      if (options.verbose) {
+        console.log(`  ${colors.dim}[DRY] Event: ${title} (${regCount} registrations)${colors.reset}`);
+      }
+      stats.eventsUpserted++;
+    }
+    return stats;
+  }
+
+  for (const event of events) {
+    const eventUid = event.EventUid || event.eventUid;
+    const groupUid = (event.UserGroupRegistrations || [])[0]?.UserGroupUid || null;
+
+    await client.query(`
+      INSERT INTO source.volunteerhub_events
+        (event_uid, title, description, event_date, event_end_date, location, user_group_uid, vh_version, raw_data, synced_at)
+      VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz, $6, $7, $8, $9, NOW())
+      ON CONFLICT (event_uid) DO UPDATE SET
+        title = EXCLUDED.title, description = EXCLUDED.description,
+        event_date = EXCLUDED.event_date, event_end_date = EXCLUDED.event_end_date,
+        location = EXCLUDED.location, user_group_uid = EXCLUDED.user_group_uid,
+        vh_version = EXCLUDED.vh_version, raw_data = EXCLUDED.raw_data, synced_at = NOW()
+    `, [
+      eventUid,
+      event.Title || null,
+      event.Description || null,
+      event.Time || null,
+      event.EndTime || null,
+      event.Location || null,
+      groupUid,
+      event.Version || null,
+      JSON.stringify(event),
+    ]);
+    stats.eventsUpserted++;
+
+    // Walk nested registrations
+    for (const groupReg of (event.UserGroupRegistrations || [])) {
+      for (const userReg of (groupReg.UserRegistrations || [])) {
+        const userUid = userReg.UserUid || userReg.userUid;
+        if (!knownVolunteers.has(userUid)) {
+          stats.registrationsSkipped++;
+          continue;
+        }
+
+        await client.query(`
+          INSERT INTO source.volunteerhub_event_registrations
+            (event_uid, volunteerhub_id, hours, registration_date, is_deleted, is_waitlisted, updated_at)
+          VALUES ($1, $2, $3, $4::timestamptz, $5, $6, NOW())
+          ON CONFLICT (event_uid, volunteerhub_id) DO UPDATE SET
+            hours = EXCLUDED.hours, registration_date = EXCLUDED.registration_date,
+            is_deleted = EXCLUDED.is_deleted, is_waitlisted = EXCLUDED.is_waitlisted, updated_at = NOW()
+        `, [
+          eventUid,
+          userUid,
+          userReg.Hours ?? null,
+          userReg.RegistrationDate || null,
+          userReg.Deleted ?? false,
+          userReg.Waitlisted ?? false,
+        ]);
+        stats.registrationsUpserted++;
+      }
+    }
+
+    if (options.verbose && stats.eventsUpserted % 50 === 0) {
+      console.log(`  Processed ${stats.eventsUpserted}/${events.length} events...`);
+    }
+  }
+
+  // Backfill hours
+  if (stats.eventsUpserted > 0) {
+    try {
+      const backfill = await client.query(`SELECT * FROM source.backfill_volunteer_hours_from_events()`);
+      const b = backfill.rows[0];
+      if (b && b.updated_count > 0) {
+        console.log(`  ${colors.green}Hours backfilled:${colors.reset} ${b.updated_count} volunteers updated, ${b.total_hours} total hours`);
+      }
+    } catch (e) {
+      console.log(`  ${colors.yellow}Hours backfill warning:${colors.reset} ${e.message}`);
+    }
+  }
+
+  // Update sync state
+  await client.query(`
+    INSERT INTO source.volunteerhub_sync_state (sync_type, last_sync_at, records_synced, updated_at)
+    VALUES ('events', NOW(), $1, NOW())
+    ON CONFLICT (sync_type) DO UPDATE SET
+      last_sync_at = NOW(),
+      records_synced = source.volunteerhub_sync_state.records_synced + $1,
+      updated_at = NOW()
+  `, [stats.eventsUpserted]);
+
+  return stats;
 }
 
 // ============================================================================
@@ -575,8 +699,8 @@ async function main() {
     console.error(`${colors.red}Error:${colors.reset} DATABASE_URL not set`);
     process.exit(1);
   }
-  if (!API_KEY) {
-    console.error(`${colors.red}Error:${colors.reset} VOLUNTEERHUB_API_KEY not set`);
+  if (!API_KEY && !(process.env.VOLUNTEERHUB_USERNAME && process.env.VOLUNTEERHUB_PASSWORD)) {
+    console.error(`${colors.red}Error:${colors.reset} Set VOLUNTEERHUB_API_KEY or VOLUNTEERHUB_USERNAME + VOLUNTEERHUB_PASSWORD`);
     process.exit(1);
   }
 
@@ -661,6 +785,19 @@ async function main() {
     process.exit(0);
   }
 
+  // Events-only mode: skip user sync, go straight to events
+  if (options.eventsOnly) {
+    console.log(`\n${colors.cyan}Events Only Mode${colors.reset} — skipping user sync`);
+    if (client) {
+      console.log(`\n${colors.cyan}Step 3:${colors.reset} Syncing events...`);
+      const eventStats = await syncEvents(client, options);
+      console.log(`  ${colors.green}Events:${colors.reset} ${eventStats.eventsUpserted} upserted, ${eventStats.registrationsUpserted} registrations (${eventStats.registrationsSkipped} skipped)`);
+      await client.end();
+    }
+    console.log(`\n${colors.bold}Done (events only)${colors.reset} — ${Date.now() - startTime}ms`);
+    process.exit(0);
+  }
+
   // Step 3: Fetch users
   console.log(`\n${colors.cyan}Step 3:${colors.reset} Fetching users...`);
 
@@ -697,7 +834,6 @@ async function main() {
     group_joins: 0,
     group_leaves: 0,
     skeletons_promoted: 0,
-    skeletons_merged: 0,
   };
 
   for (let i = 0; i < users.length; i++) {
@@ -769,19 +905,43 @@ async function main() {
     }
   }
 
+  // Step 4.5: Sync events (hours data)
+  if (!options.skipEvents) {
+    console.log(`\n${colors.cyan}Step 4.5:${colors.reset} Syncing events (hours data)...`);
+    try {
+      const eventStats = await syncEvents(client, options);
+      console.log(`  ${colors.green}Events:${colors.reset} ${eventStats.eventsUpserted} upserted, ${eventStats.registrationsUpserted} registrations`);
+      if (eventStats.registrationsSkipped > 0) {
+        console.log(`  Skipped: ${eventStats.registrationsSkipped} (unknown volunteers)`);
+      }
+      stats.events_synced = eventStats.eventsUpserted;
+      stats.registrations_synced = eventStats.registrationsUpserted;
+    } catch (e) {
+      console.log(`  ${colors.yellow}Event sync warning:${colors.reset} ${e.message}`);
+      if (options.verbose) console.error(e.stack);
+    }
+  } else {
+    console.log(`\n${colors.cyan}Step 4.5:${colors.reset} Skipping events (--skip-events)`);
+  }
+
   // Step 5: Skeleton enrichment (merge/promote skeletons that now have contact info)
   if (client && !options.dryRun) {
     console.log(`\n${colors.cyan}Step 5:${colors.reset} Enriching skeleton people...`);
     try {
-      const enrichRes = await client.query(`SELECT ops.enrich_skeleton_people(200) as result`);
-      const e = enrichRes.rows[0]?.result;
+      const enrichRes = await client.query(`SELECT * FROM sot.enrich_skeleton_people()`);
+      const e = enrichRes.rows[0];
       if (e) {
-        stats.skeletons_promoted = e.promoted || 0;
-        stats.skeletons_merged = e.merged || 0;
-        if (e.promoted > 0 || e.merged > 0) {
-          console.log(`  ${colors.green}Promoted:${colors.reset} ${e.promoted} (contact info added, now normal quality)`);
-          console.log(`  ${colors.green}Merged:${colors.reset} ${e.merged} (matched to existing person)`);
-        } else {
+        stats.skeletons_promoted = e.enriched_count || 0;
+        if (e.enriched_count > 0) {
+          console.log(`  ${colors.green}Enriched:${colors.reset} ${e.enriched_count} skeletons`);
+        }
+        if (e.skipped_count > 0) {
+          console.log(`  Skipped: ${e.skipped_count}`);
+        }
+        if (e.error_count > 0) {
+          console.log(`  ${colors.yellow}Errors:${colors.reset} ${e.error_count}`);
+        }
+        if (!e.enriched_count && !e.skipped_count) {
           console.log(`  No skeletons ready for enrichment`);
         }
       }
@@ -820,9 +980,14 @@ async function main() {
   console.log(`  Roles assigned: ${stats.roles_assigned}`);
   console.log(`  Group joins:    ${stats.group_joins}`);
   console.log(`  Group leaves:   ${stats.group_leaves}`);
-  if (stats.skeletons_promoted || stats.skeletons_merged) {
-    console.log(`  Skeletons promoted: ${stats.skeletons_promoted || 0}`);
-    console.log(`  Skeletons merged:   ${stats.skeletons_merged || 0}`);
+  if (stats.events_synced) {
+    console.log(`  Events synced:  ${stats.events_synced}`);
+  }
+  if (stats.registrations_synced) {
+    console.log(`  Registrations:  ${stats.registrations_synced}`);
+  }
+  if (stats.skeletons_promoted) {
+    console.log(`  Skeletons enriched: ${stats.skeletons_promoted}`);
   }
   console.log(`  Errors:         ${stats.errors}`);
   if (options.dryRun) console.log(`\n  ${colors.yellow}DRY RUN — no database changes made${colors.reset}`);

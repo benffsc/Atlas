@@ -6,16 +6,22 @@ import { fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { BarcodeInput } from "@/components/equipment/BarcodeInput";
+import { ScanOnboarding } from "@/components/equipment/ScanOnboarding";
 import { KioskEquipmentCard } from "@/components/kiosk/KioskEquipmentCard";
+import { HeroCheckinCard } from "@/components/equipment/HeroCheckinCard";
+import { FoundTrapFlow } from "@/components/equipment/FoundTrapFlow";
+import { AvailableTrapCard } from "@/components/equipment/AvailableTrapCard";
+import { BatchScanBanner } from "@/components/equipment/BatchScanBanner";
+import { ScanSessionHistory, type ScanHistoryEntry } from "@/components/equipment/ScanSessionHistory";
 import { CheckoutForm } from "@/components/kiosk/CheckoutForm";
 import { CheckinForm } from "@/components/kiosk/CheckinForm";
 import { SimpleActionConfirm } from "@/components/kiosk/SimpleActionConfirm";
 import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
+import { useScanFeedback } from "@/hooks/useScanFeedback";
 import { getLabel, EQUIPMENT_EVENT_TYPE_OPTIONS } from "@/lib/form-options";
 import type { VEquipmentInventoryRow } from "@/lib/types/view-contracts";
 
-// Dynamic import — html5-qrcode uses browser APIs (window, navigator)
 const CameraScanner = dynamic(
   () =>
     import("@/components/kiosk/CameraScanner").then(
@@ -28,16 +34,12 @@ type ScanState = "idle" | "loading" | "found" | "not_found" | "action";
 
 interface ScanResult extends VEquipmentInventoryRow {
   available_actions: string[];
+  primary_action?: string | null;
 }
 
-/**
- * Kiosk scan page — barcode entry, equipment lookup, and inline action forms.
- *
- * FFS-828: AbortController prevents stale responses from overwriting state.
- * Scan ID counter ensures only the latest scan result is displayed.
- */
 export default function KioskScanPage() {
   const toast = useToast();
+  const { playSuccess, playError, vibrate } = useScanFeedback();
   const [state, setState] = useState<ScanState>("idle");
   const [equipment, setEquipment] = useState<ScanResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -45,21 +47,57 @@ export default function KioskScanPage() {
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
 
-  // AbortController for cancelling in-flight scan requests
+  // Smart card bypass
+  const [forceGenericCard, setForceGenericCard] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Batch mode + session history
+  const [batchMode, setBatchMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("equipment_batch_mode") === "true";
+    }
+    return false;
+  });
+  const [sessionHistory, setSessionHistory] = useState<ScanHistoryEntry[]>([]);
+  const barcodeInputRef = useRef<HTMLDivElement>(null);
+
   const abortRef = useRef<AbortController>();
-  // Monotonic scan ID — only the latest scan's response is applied
   const scanIdRef = useRef(0);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (abortRef.current) abortRef.current.abort();
     };
   }, []);
 
+  const toggleBatchMode = useCallback((on: boolean) => {
+    setBatchMode(on);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("equipment_batch_mode", String(on));
+    }
+  }, []);
+
+  const addHistoryEntry = useCallback((entry: Omit<ScanHistoryEntry, "timestamp">) => {
+    setSessionHistory((prev) => [
+      { ...entry, timestamp: new Date() },
+      ...prev.slice(0, 9),
+    ]);
+  }, []);
+
+  const resetForNextScan = useCallback(() => {
+    setState("idle");
+    setEquipment(null);
+    setActiveAction(null);
+    setForceGenericCard(false);
+    setErrorMessage("");
+    setTimeout(() => {
+      const input = barcodeInputRef.current?.querySelector("input");
+      input?.focus();
+    }, 100);
+  }, []);
+
   const handleScan = useCallback(
     async (barcode: string) => {
-      // Cancel any in-flight request
       if (abortRef.current) abortRef.current.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -68,6 +106,7 @@ export default function KioskScanPage() {
 
       setLastBarcode(barcode);
       setActiveAction(null);
+      setForceGenericCard(false);
       setState("loading");
       setErrorMessage("");
       setShowCamera(false);
@@ -78,16 +117,17 @@ export default function KioskScanPage() {
           { signal: controller.signal }
         );
 
-        // Stale response guard — a newer scan may have fired
         if (scanIdRef.current !== currentScanId) return;
 
         setEquipment(result);
         setState("found");
+        playSuccess();
+        vibrate();
       } catch (err) {
-        // Don't update state for aborted requests
         if (controller.signal.aborted) return;
         if (scanIdRef.current !== currentScanId) return;
 
+        playError();
         const message =
           err instanceof Error ? err.message : "Failed to look up equipment";
         setErrorMessage(message);
@@ -106,9 +146,20 @@ export default function KioskScanPage() {
   const handleActionComplete = useCallback(async () => {
     toast.success("Action completed successfully");
     setActiveAction(null);
-    // Re-fetch equipment to show updated status
+
+    addHistoryEntry({
+      barcode: lastBarcode,
+      name: equipment?.display_name || lastBarcode,
+      action: activeAction || "action",
+      success: true,
+    });
+
+    if (batchMode) {
+      setTimeout(resetForNextScan, 1500);
+      return;
+    }
+
     if (lastBarcode) {
-      // Cancel any in-flight request
       if (abortRef.current) abortRef.current.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -121,6 +172,7 @@ export default function KioskScanPage() {
         );
         if (!controller.signal.aborted) {
           setEquipment(result);
+          setForceGenericCard(false);
           setState("found");
         }
       } catch {
@@ -133,7 +185,46 @@ export default function KioskScanPage() {
       setState("idle");
       setEquipment(null);
     }
-  }, [lastBarcode, toast]);
+  }, [lastBarcode, equipment, activeAction, batchMode, toast, resetForNextScan, addHistoryEntry]);
+
+  const handleSmartCardComplete = useCallback(async () => {
+    playSuccess();
+    vibrate();
+    addHistoryEntry({
+      barcode: lastBarcode,
+      name: equipment?.display_name || lastBarcode,
+      action: equipment?.primary_action || "action",
+      success: true,
+    });
+
+    if (batchMode) {
+      setTimeout(resetForNextScan, 1500);
+      return;
+    }
+
+    // Re-fetch
+    const barcode = equipment?.barcode || equipment?.equipment_id || lastBarcode;
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setState("loading");
+    try {
+      const result = await fetchApi<ScanResult>(
+        `/api/equipment/scan?barcode=${encodeURIComponent(barcode)}`,
+        { signal: controller.signal }
+      );
+      if (!controller.signal.aborted) {
+        setEquipment(result);
+        setForceGenericCard(false);
+        setState("found");
+      }
+    } catch {
+      if (!controller.signal.aborted) {
+        resetForNextScan();
+      }
+    }
+  }, [lastBarcode, equipment, batchMode, resetForNextScan, addHistoryEntry]);
 
   const handleActionCancel = useCallback(() => {
     setActiveAction(null);
@@ -142,12 +233,14 @@ export default function KioskScanPage() {
 
   const handleReset = useCallback(() => {
     if (abortRef.current) abortRef.current.abort();
-    setState("idle");
-    setEquipment(null);
-    setActiveAction(null);
-    setErrorMessage("");
+    resetForNextScan();
     setLastBarcode("");
-  }, []);
+  }, [resetForNextScan]);
+
+  // Smart card display logic
+  const showSmartCard = state === "found" && equipment && !forceGenericCard;
+  const smartCardStatus = equipment?.custody_status;
+  const useSmartCard = showSmartCard && (smartCardStatus === "checked_out" || smartCardStatus === "missing" || smartCardStatus === "available");
 
   return (
     <div
@@ -173,14 +266,32 @@ export default function KioskScanPage() {
             fontWeight: 700,
             color: "var(--text-primary)",
             margin: 0,
+            flex: 1,
           }}
         >
           Scan Equipment
         </h1>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowHelp(true)}
+          style={{ minWidth: 32, padding: "0.25rem", flexShrink: 0 }}
+        >
+          <Icon name="help-circle" size={18} />
+        </Button>
       </div>
 
-      {/* Barcode Input — always visible */}
-      <div style={{ marginBottom: "1rem" }}>
+      <ScanOnboarding forceShow={showHelp} onDismiss={() => setShowHelp(false)} />
+
+      <BatchScanBanner
+        active={batchMode}
+        onToggle={toggleBatchMode}
+        scanCount={sessionHistory.filter((e) => e.success).length}
+        onClear={() => setSessionHistory([])}
+      />
+
+      {/* Barcode Input */}
+      <div style={{ marginBottom: "1rem" }} ref={barcodeInputRef}>
         <BarcodeInput
           onScan={handleScan}
           loading={state === "loading"}
@@ -189,10 +300,14 @@ export default function KioskScanPage() {
         />
       </div>
 
+      <ScanSessionHistory
+        entries={sessionHistory}
+        onRescan={handleScan}
+      />
+
       {/* Camera scan option */}
       {(state === "idle" || state === "not_found") && (
         <div style={{ marginBottom: "1.5rem" }}>
-          {/* Divider */}
           <div
             style={{
               display: "flex",
@@ -201,30 +316,11 @@ export default function KioskScanPage() {
               margin: "0.5rem 0 1rem",
             }}
           >
-            <div
-              style={{
-                flex: 1,
-                height: "1px",
-                background: "var(--border)",
-              }}
-            />
-            <span
-              style={{
-                color: "var(--muted)",
-                fontSize: "0.8rem",
-                fontWeight: 500,
-                whiteSpace: "nowrap",
-              }}
-            >
+            <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+            <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 500, whiteSpace: "nowrap" }}>
               or
             </span>
-            <div
-              style={{
-                flex: 1,
-                height: "1px",
-                background: "var(--border)",
-              }}
-            />
+            <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
           </div>
 
           <Button
@@ -248,27 +344,27 @@ export default function KioskScanPage() {
         />
       )}
 
-      {/* Not Found State */}
+      {/* Not Found State — amber instead of red */}
       {state === "not_found" && (
         <div
           style={{
             padding: "1.5rem",
-            background: "var(--danger-bg)",
-            border: "1px solid var(--danger-border)",
+            background: "var(--warning-bg, #fffbeb)",
+            border: "1px solid var(--warning-border, #fde68a)",
             borderRadius: "12px",
             textAlign: "center",
           }}
         >
-          <Icon name="alert-circle" size={40} color="var(--danger-text)" />
+          <Icon name="help-circle" size={40} color="var(--warning-text)" />
           <p
             style={{
-              color: "var(--danger-text)",
+              color: "var(--warning-text)",
               fontWeight: 600,
               fontSize: "1.1rem",
               margin: "0.75rem 0 0.5rem",
             }}
           >
-            Equipment Not Found
+            Not Recognized
           </p>
           <p
             style={{
@@ -294,7 +390,7 @@ export default function KioskScanPage() {
               size="lg"
               icon="plus"
               onClick={() => {
-                window.location.href = "/kiosk/equipment/add";
+                window.location.href = `/kiosk/equipment/add?barcode=${encodeURIComponent(lastBarcode)}`;
               }}
               style={{ minHeight: "48px" }}
             >
@@ -304,15 +400,54 @@ export default function KioskScanPage() {
         </div>
       )}
 
-      {/* Found State — show equipment card */}
-      {(state === "found" || state === "action") && equipment && (
+      {/* Smart Status Cards */}
+      {useSmartCard && smartCardStatus === "checked_out" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <HeroCheckinCard
+            equipmentId={equipment.equipment_id}
+            equipmentName={equipment.display_name}
+            custodianName={equipment.custodian_name || equipment.current_holder_name || null}
+            custodianId={equipment.current_custodian_id || null}
+            currentCondition={equipment.condition_status}
+            daysOut={equipment.days_checked_out}
+            onComplete={handleSmartCardComplete}
+            onOtherActions={() => setForceGenericCard(true)}
+          />
+        </div>
+      )}
+
+      {useSmartCard && smartCardStatus === "missing" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <FoundTrapFlow
+            equipmentId={equipment.equipment_id}
+            equipmentName={equipment.display_name}
+            onComplete={handleSmartCardComplete}
+          />
+        </div>
+      )}
+
+      {useSmartCard && smartCardStatus === "available" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <AvailableTrapCard
+            equipmentId={equipment.equipment_id}
+            equipmentName={equipment.display_name}
+            onComplete={handleSmartCardComplete}
+            onCheckOut={() => {
+              setForceGenericCard(true);
+              handleAction("check_out");
+            }}
+          />
+        </div>
+      )}
+
+      {/* Fallback: KioskEquipmentCard for non-smart-card statuses or "Other actions" */}
+      {(state === "found" || state === "action") && equipment && (forceGenericCard || !useSmartCard) && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <KioskEquipmentCard
             equipment={equipment}
             onAction={handleAction}
           />
 
-          {/* Action forms rendered inline below the card */}
           {state === "action" && activeAction === "check_out" && (
             <CheckoutForm
               equipmentId={equipment.equipment_id}
@@ -332,6 +467,7 @@ export default function KioskScanPage() {
                 equipment.checkout_type === "client" ||
                 equipment.checkout_type === "foster"
               }
+              previousCustodianId={equipment.current_custodian_id || null}
               onComplete={handleActionComplete}
               onCancel={handleActionCancel}
             />
@@ -351,7 +487,6 @@ export default function KioskScanPage() {
               />
             )}
 
-          {/* Scan Another button when in found state (not in action) */}
           {state === "found" && (
             <Button
               variant="ghost"

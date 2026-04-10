@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { useFormAutoSave } from "@/hooks/useFormAutoSave";
@@ -976,6 +976,17 @@ function SummaryRow({
 // ---------------------------------------------------------------------------
 
 export default function KioskEquipmentAddPage() {
+  return (
+    <Suspense fallback={null}>
+      <KioskEquipmentAddContent />
+    </Suspense>
+  );
+}
+
+function KioskEquipmentAddContent() {
+  const searchParams = useSearchParams();
+  const prefillBarcode = searchParams.get("barcode") || "";
+
   const [showResumed, setShowResumed] = useState(false);
 
   // Photo state (not auto-saved — File objects can't be serialized)
@@ -999,7 +1010,7 @@ export default function KioskEquipmentAddPage() {
       selectedCategory: null as string | null,
       selectedType: null as EquipmentType | null,
       details: {
-        barcode: "",
+        barcode: prefillBarcode,
         equipment_name: "",
         condition_status: "new",
         notes: "",
@@ -1007,13 +1018,20 @@ export default function KioskEquipmentAddPage() {
     },
   );
 
+  // If URL has a barcode prefill that differs from the restored session, clear the stale session
   useEffect(() => {
-    if (wasRestored) {
+    if (prefillBarcode && wasRestored && saved.details.barcode !== prefillBarcode) {
+      clearSaved();
+    }
+  }, [prefillBarcode, wasRestored, saved.details.barcode, clearSaved]);
+
+  useEffect(() => {
+    if (wasRestored && !(prefillBarcode && saved.details.barcode !== prefillBarcode)) {
       setShowResumed(true);
       const t = setTimeout(() => setShowResumed(false), 3000);
       return () => clearTimeout(t);
     }
-  }, [wasRestored]);
+  }, [wasRestored, prefillBarcode, saved.details.barcode]);
 
   const step = saved.step;
   const selectedCategory = saved.selectedCategory;

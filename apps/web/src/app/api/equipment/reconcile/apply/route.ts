@@ -37,8 +37,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return apiSuccess({ applied: 0, skipped: actions.length });
   }
 
+  // Wrap in a transaction so partial failures roll back cleanly
   try {
-    // Disable trigger for bulk performance
+    await query(`BEGIN`);
     await query(`ALTER TABLE ops.equipment_events DISABLE TRIGGER trg_equipment_event_sync`);
 
     let applied = 0;
@@ -102,13 +103,18 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       applied++;
     }
 
+    await query(`ALTER TABLE ops.equipment_events ENABLE TRIGGER trg_equipment_event_sync`);
+    await query(`COMMIT`);
+
     return apiSuccess({
       applied,
       skipped: actions.length - toApply.length,
     });
 
-  } finally {
-    // Re-enable trigger
-    await query(`ALTER TABLE ops.equipment_events ENABLE TRIGGER trg_equipment_event_sync`);
+  } catch (err) {
+    await query(`ROLLBACK`).catch(() => {});
+    // Re-enable trigger even on rollback (DDL not transactional in all cases)
+    await query(`ALTER TABLE ops.equipment_events ENABLE TRIGGER trg_equipment_event_sync`).catch(() => {});
+    throw err;
   }
 });

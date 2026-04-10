@@ -13,11 +13,19 @@ import { apiSuccess, apiServerError, apiError } from "@/lib/api-response";
 //   "crons": [{ "path": "/api/cron/volunteerhub-sync", "schedule": "0 7 * * *" }]
 //
 // Environment Variables Required:
-//   - VOLUNTEERHUB_API_KEY: Basic auth credential for VH API
+//   - VOLUNTEERHUB_USERNAME: VH account username (e.g., 'benffsc')
+//   - VOLUNTEERHUB_PASSWORD: VH account password (MUST be < 16 characters per VH support)
+//   - VOLUNTEERHUB_API_KEY: Fallback — base64(username:password) or raw key
 //   - CRON_SECRET: Optional secret for manual trigger security
+//
+// NOTE: VH API uses HTTP Basic Auth with username:password.
+// The API Keys in VH Settings → API Keys are for Zapier ONLY, not the REST API.
+// Per Jennifer Udan (VH support, 2026-04-01): password must be < 16 characters.
 
 export const maxDuration = 300;
 
+const VOLUNTEERHUB_USERNAME = process.env.VOLUNTEERHUB_USERNAME;
+const VOLUNTEERHUB_PASSWORD = process.env.VOLUNTEERHUB_PASSWORD;
 const VOLUNTEERHUB_API_KEY = process.env.VOLUNTEERHUB_API_KEY;
 const CRON_SECRET = process.env.CRON_SECRET;
 const API_BASE = "https://forgottenfelines.volunteerhub.com";
@@ -30,6 +38,20 @@ const SOURCE_SYSTEM = "volunteerhub";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Build Basic Auth header from username + password, falling back to API key */
+function getAuthHeader(): string {
+  // Preferred: explicit username + password → Basic base64(user:pass)
+  if (VOLUNTEERHUB_USERNAME && VOLUNTEERHUB_PASSWORD) {
+    const encoded = Buffer.from(`${VOLUNTEERHUB_USERNAME}:${VOLUNTEERHUB_PASSWORD}`).toString("base64");
+    return `Basic ${encoded}`;
+  }
+  // Fallback: API key (may be pre-encoded base64 of user:pass)
+  if (VOLUNTEERHUB_API_KEY) {
+    return `Basic ${VOLUNTEERHUB_API_KEY}`;
+  }
+  throw new Error("No VH credentials: set VOLUNTEERHUB_USERNAME + VOLUNTEERHUB_PASSWORD");
 }
 
 async function vhFetch(
@@ -45,7 +67,7 @@ async function vhFetch(
 
   const response = await fetch(url.toString(), {
     headers: {
-      Authorization: `basic ${VOLUNTEERHUB_API_KEY}`,
+      Authorization: getAuthHeader(),
       Accept: "application/json",
     },
   });
@@ -103,6 +125,31 @@ interface VHUser {
   IsActive?: boolean;
   UserGroupMemberships?: VHUserGroupMembership[];
   FormAnswers?: VHFormAnswer[];
+}
+
+// Event API types (VH /api/v1/events)
+interface VHUserRegistration {
+  UserUid: string;
+  Hours?: number | null;
+  RegistrationDate?: string;
+  Deleted?: boolean;
+  Waitlisted?: boolean;
+}
+
+interface VHUserGroupRegistration {
+  UserGroupUid: string;
+  UserRegistrations?: VHUserRegistration[];
+}
+
+interface VHEvent {
+  EventUid: string;
+  Title?: string;
+  Description?: string;
+  Time?: string;
+  EndTime?: string;
+  Location?: string;
+  Version?: number;
+  UserGroupRegistrations?: VHUserGroupRegistration[];
 }
 
 // ============================================
@@ -354,6 +401,180 @@ async function syncUsers(
 }
 
 // ============================================
+// Event Sync
+// ============================================
+
+interface EventSyncStats {
+  eventsFetched: number;
+  eventsUpserted: number;
+  registrationsUpserted: number;
+  registrationsSkipped: number;
+  apiPages: number;
+  hoursBackfilled: { updated_count: number; total_hours: number; total_events: number } | null;
+}
+
+async function syncEvents(
+  isFullSync: boolean,
+  timeBudgetMs: number = 200_000
+): Promise<EventSyncStats> {
+  const syncStart = Date.now();
+  const stats: EventSyncStats = {
+    eventsFetched: 0,
+    eventsUpserted: 0,
+    registrationsUpserted: 0,
+    registrationsSkipped: 0,
+    apiPages: 0,
+    hoursBackfilled: null,
+  };
+
+  // Determine date range: incremental = last 30 days, full = all
+  const params: Record<string, string | number> = { pageSize: 100 };
+  if (!isFullSync) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    params.earliestTime = `${thirtyDaysAgo.getMonth() + 1}/${thirtyDaysAgo.getDate()}/${thirtyDaysAgo.getFullYear()}`;
+  }
+
+  // Collect known volunteer IDs for FK safety
+  const knownVolunteers = new Set<string>();
+  const volRows = await queryRows<{ volunteerhub_id: string }>(
+    `SELECT volunteerhub_id FROM source.volunteerhub_volunteers`
+  );
+  for (const row of volRows) {
+    knownVolunteers.add(row.volunteerhub_id);
+  }
+
+  let page = 0;
+
+  while (true) {
+    // Time budget check
+    if (Date.now() - syncStart > timeBudgetMs) {
+      console.error(`[VH-SYNC] Event sync: time budget reached after ${stats.apiPages} pages, stopping`);
+      break;
+    }
+
+    const data = (await vhFetch("/api/v1/events", { ...params, page })) as {
+      Events?: VHEvent[];
+    };
+    stats.apiPages++;
+
+    const events = data.Events || [];
+    if (events.length === 0) break;
+
+    stats.eventsFetched += events.length;
+
+    for (const event of events) {
+      // Upsert event
+      const groupUid = event.UserGroupRegistrations?.[0]?.UserGroupUid || null;
+
+      await execute(
+        `INSERT INTO source.volunteerhub_events
+           (event_uid, title, description, event_date, event_end_date, location, user_group_uid, vh_version, raw_data, synced_at)
+         VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz, $6, $7, $8, $9, NOW())
+         ON CONFLICT (event_uid) DO UPDATE SET
+           title = EXCLUDED.title,
+           description = EXCLUDED.description,
+           event_date = EXCLUDED.event_date,
+           event_end_date = EXCLUDED.event_end_date,
+           location = EXCLUDED.location,
+           user_group_uid = EXCLUDED.user_group_uid,
+           vh_version = EXCLUDED.vh_version,
+           raw_data = EXCLUDED.raw_data,
+           synced_at = NOW()`,
+        [
+          event.EventUid,
+          event.Title || null,
+          event.Description || null,
+          event.Time || null,
+          event.EndTime || null,
+          event.Location || null,
+          groupUid,
+          event.Version || null,
+          JSON.stringify(event),
+        ]
+      );
+      stats.eventsUpserted++;
+
+      // Walk nested registrations
+      for (const groupReg of event.UserGroupRegistrations || []) {
+        for (const userReg of groupReg.UserRegistrations || []) {
+          // FK safety: skip unknown volunteers
+          if (!knownVolunteers.has(userReg.UserUid)) {
+            stats.registrationsSkipped++;
+            continue;
+          }
+
+          await execute(
+            `INSERT INTO source.volunteerhub_event_registrations
+               (event_uid, volunteerhub_id, hours, registration_date, is_deleted, is_waitlisted, updated_at)
+             VALUES ($1, $2, $3, $4::timestamptz, $5, $6, NOW())
+             ON CONFLICT (event_uid, volunteerhub_id) DO UPDATE SET
+               hours = EXCLUDED.hours,
+               registration_date = EXCLUDED.registration_date,
+               is_deleted = EXCLUDED.is_deleted,
+               is_waitlisted = EXCLUDED.is_waitlisted,
+               updated_at = NOW()`,
+            [
+              event.EventUid,
+              userReg.UserUid,
+              userReg.Hours ?? null,
+              userReg.RegistrationDate || null,
+              userReg.Deleted ?? false,
+              userReg.Waitlisted ?? false,
+            ]
+          );
+          stats.registrationsUpserted++;
+        }
+      }
+    }
+
+    if (events.length < 100) break;
+    page++;
+  }
+
+  // Backfill hours onto volunteerhub_volunteers
+  if (stats.eventsUpserted > 0) {
+    try {
+      const backfill = await queryOne<{
+        updated_count: number;
+        total_hours: number;
+        total_events: number;
+      }>(
+        `SELECT * FROM source.backfill_volunteer_hours_from_events()`
+      );
+      stats.hoursBackfilled = backfill || null;
+    } catch (err) {
+      console.error(
+        "Hours backfill error:",
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+
+  // Update sync state
+  await execute(
+    `INSERT INTO source.volunteerhub_sync_state (sync_type, last_sync_at, records_synced, metadata, updated_at)
+     VALUES ('events', NOW(), $1, $2, NOW())
+     ON CONFLICT (sync_type) DO UPDATE SET
+       last_sync_at = NOW(),
+       records_synced = source.volunteerhub_sync_state.records_synced + $1,
+       metadata = $2,
+       updated_at = NOW()`,
+    [
+      stats.eventsUpserted,
+      JSON.stringify({
+        pages: stats.apiPages,
+        registrations: stats.registrationsUpserted,
+        skipped: stats.registrationsSkipped,
+        full_sync: isFullSync,
+      }),
+    ]
+  );
+
+  return stats;
+}
+
+// ============================================
 // Route Handler
 // ============================================
 
@@ -409,6 +630,26 @@ export async function GET(request: NextRequest) {
 
     // Step 4: Sync users
     const userStats = await syncUsers(incrementalCutoff);
+
+    // Step 4.5: Sync events (hours live in /api/v1/events)
+    let eventStats: EventSyncStats | null = null;
+    try {
+      // Time budget: leave 80s for remaining steps (reconciliation + enrichment + logging)
+      const elapsed = Date.now() - startTime;
+      const timeBudget = Math.max(30_000, 200_000 - elapsed);
+      eventStats = await syncEvents(isFullSync, timeBudget);
+      console.error(
+        `[VH-SYNC] Events: ${eventStats.eventsUpserted} events, ${eventStats.registrationsUpserted} registrations` +
+          (eventStats.hoursBackfilled
+            ? `, ${eventStats.hoursBackfilled.updated_count} volunteers updated with hours`
+            : "")
+      );
+    } catch (eventErr) {
+      console.error(
+        "Event sync error:",
+        eventErr instanceof Error ? eventErr.message : eventErr
+      );
+    }
 
     // Step 5: Reconcile — deactivate roles not backed by current VH groups
     let reconciliation: { deactivated: number } | null = null;
@@ -479,6 +720,15 @@ export async function GET(request: NextRequest) {
             roles_processed: userStats.rolesProcessed,
             api_pages: userStats.apiPages,
             incremental_cutoff: incrementalCutoff,
+            events: eventStats
+              ? {
+                  events_fetched: eventStats.eventsFetched,
+                  events_upserted: eventStats.eventsUpserted,
+                  registrations: eventStats.registrationsUpserted,
+                  skipped: eventStats.registrationsSkipped,
+                  hours_backfilled: eventStats.hoursBackfilled,
+                }
+              : null,
             reconciliation: reconciliation
               ? { roles_deactivated: reconciliation.deactivated }
               : null,
@@ -512,6 +762,14 @@ export async function GET(request: NextRequest) {
         errors: userStats.errors,
         api_pages: userStats.apiPages,
       },
+      events: eventStats
+        ? {
+            events_upserted: eventStats.eventsUpserted,
+            registrations: eventStats.registrationsUpserted,
+            skipped: eventStats.registrationsSkipped,
+            hours_backfilled: eventStats.hoursBackfilled,
+          }
+        : null,
       reconciliation: reconciliation
         ? { roles_deactivated: reconciliation.deactivated }
         : null,

@@ -1,18 +1,59 @@
 "use client";
 
+import { useState } from "react";
 import { getLabel } from "@/lib/form-options";
 import { EQUIPMENT_CUSTODY_STATUS_OPTIONS, EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 import type { VEquipmentInventoryRow } from "@/lib/types/view-contracts";
 import { getCustodyStyle, getActionColor } from "@/lib/equipment-styles";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 
 interface QuickActionCardProps {
-  equipment: VEquipmentInventoryRow & { available_actions?: string[] };
+  equipment: VEquipmentInventoryRow & { available_actions?: string[]; primary_action?: string | null };
   onAction: (action: string) => void;
   actionLoading?: boolean;
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  check_out: "Check Out",
+  check_in: "Check In",
+  transfer: "Transfer",
+  condition_change: "Update Condition",
+  maintenance_start: "Start Maintenance",
+  maintenance_end: "End Maintenance",
+  reported_missing: "Report Missing",
+  found: "Mark Found",
+  retired: "Retire",
+  note: "Add Note",
+};
+
+const ACTION_ICONS: Record<string, string> = {
+  check_out: "log-out",
+  check_in: "log-in",
+  transfer: "arrow-right-left",
+  condition_change: "wrench",
+  maintenance_start: "tool",
+  maintenance_end: "check",
+  reported_missing: "alert-triangle",
+  found: "check-circle",
+  retired: "archive",
+  note: "message-square",
+};
+
+/** Max visible secondary actions before "More..." toggle */
+const MAX_VISIBLE_SECONDARY = 3;
+
 export function QuickActionCard({ equipment, onAction, actionLoading }: QuickActionCardProps) {
   const colors = getCustodyStyle(equipment.custody_status);
+  const [showAll, setShowAll] = useState(false);
+
+  const actions = equipment.available_actions || [];
+  const primaryAction = equipment.primary_action || actions[0];
+
+  // Split into primary + secondary
+  const secondaryActions = actions.filter((a) => a !== primaryAction);
+  const visibleSecondary = showAll ? secondaryActions : secondaryActions.slice(0, MAX_VISIBLE_SECONDARY);
+  const hiddenCount = secondaryActions.length - MAX_VISIBLE_SECONDARY;
 
   return (
     <div
@@ -71,18 +112,60 @@ export function QuickActionCard({ equipment, onAction, actionLoading }: QuickAct
         )}
       </div>
 
-      {/* Action Buttons */}
-      {equipment.available_actions && equipment.available_actions.length > 0 && (
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          {equipment.available_actions.map((action) => (
-            <ActionButton
+      {/* Primary Action */}
+      {primaryAction && (
+        <Button
+          variant="primary"
+          size="lg"
+          icon={ACTION_ICONS[primaryAction]}
+          fullWidth
+          loading={actionLoading}
+          onClick={() => onAction(primaryAction)}
+          style={{
+            minHeight: "48px",
+            borderRadius: "10px",
+            fontSize: "0.95rem",
+            fontWeight: 600,
+          }}
+        >
+          {ACTION_LABELS[primaryAction] || primaryAction}
+        </Button>
+      )}
+
+      {/* Secondary Actions */}
+      {visibleSecondary.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginTop: "0.5rem" }}>
+          {visibleSecondary.map((action) => (
+            <Button
               key={action}
-              action={action}
+              variant="ghost"
+              size="md"
+              icon={ACTION_ICONS[action]}
+              fullWidth
+              disabled={actionLoading}
               onClick={() => onAction(action)}
-              loading={actionLoading}
-              isPrimary={action === "check_out" || action === "check_in"}
-            />
+              style={{ borderRadius: "8px" }}
+            >
+              {ACTION_LABELS[action] || action}
+            </Button>
           ))}
+
+          {!showAll && hiddenCount > 0 && (
+            <button
+              onClick={() => setShowAll(true)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--muted)",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                padding: "0.25rem",
+                textAlign: "center",
+              }}
+            >
+              More ({hiddenCount})...
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -95,41 +178,5 @@ function InfoCell({ label, value, highlight }: { label: string; value: string; h
       <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", marginBottom: "0.125rem" }}>{label}</div>
       <div style={{ fontSize: "0.875rem", fontWeight: 500, color: highlight ? "var(--danger-text)" : undefined }}>{value}</div>
     </div>
-  );
-}
-
-const ACTION_LABELS: Record<string, string> = {
-  check_out: "Check Out",
-  check_in: "Check In",
-  transfer: "Transfer",
-  condition_change: "Update Condition",
-  maintenance_start: "Start Maintenance",
-  maintenance_end: "End Maintenance",
-  reported_missing: "Report Missing",
-  found: "Mark Found",
-  retired: "Retire",
-  note: "Add Note",
-};
-
-function ActionButton({ action, onClick, loading, isPrimary }: { action: string; onClick: () => void; loading?: boolean; isPrimary?: boolean }) {
-  const color = getActionColor(action);
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      style={{
-        padding: isPrimary ? "0.5rem 1.25rem" : "0.375rem 0.75rem",
-        fontSize: isPrimary ? "0.9rem" : "0.8rem",
-        fontWeight: isPrimary ? 600 : 500,
-        background: isPrimary ? color : "transparent",
-        color: isPrimary ? "#fff" : color,
-        border: isPrimary ? "none" : `1px solid ${color}40`,
-        borderRadius: "8px",
-        cursor: loading ? "wait" : "pointer",
-        opacity: loading ? 0.6 : 1,
-      }}
-    >
-      {ACTION_LABELS[action] || action}
-    </button>
   );
 }

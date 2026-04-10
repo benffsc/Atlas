@@ -2969,7 +2969,7 @@ Tippy's system prompt and showcase questions now emphasize:
 
 ## DATA_GAP_065: Organization-Classified People Still Visible on Map
 
-**Status:** IN PROGRESS (MIG_3039)
+**Status:** IN PROGRESS (MIG_3039 ghost cleanup + MIG_3041 re-resolution)
 
 **Discovery:** 1250 Cleveland Ave, Santa Rosa — map shows "Aamco Repair Santa Rosa" as a linked person with "Trapper At" relationship. 6 cats, all altered, last active 2y ago. Real residents Eileen Dabbs and Chris Dabbs are not linked.
 
@@ -2985,17 +2985,26 @@ Tippy's system prompt and showcase questions now emphasize:
 
 **Impact:** Staff see fake "people" on the map with no way to contact them. Real residents/caretakers are invisible. Cat-place links go through the ghost person instead of the real caretaker.
 
-**Fix (MIG_3039):**
+**Fix (MIG_3039 — ghost cleanup):**
 1. **View fix:** `v_place_detail_v2` now filters `is_organization = FALSE OR IS NULL` in `place_people` CTE
 2. **API fix:** `/api/places/[id]/route.ts` fallback query filters orgs + returns `is_organization` flag
 3. **Entity linking fix:** `link_cats_to_places()` excludes org people from person→place→cat chain
 4. **Link cleanup:** Org person_cat+person_place links converted to direct cat→place links, person_place marked `booked_under_org`
 
+**Fix (MIG_3041 — re-resolution of real people behind org accounts):**
+Three-tier re-resolution of ~744 unresolved org/site_name clinic accounts:
+- **Tier 0** (~394): Direct email/phone match to existing `sot.person_identifiers`. Zero risk — no person creation, just linkage.
+- **Tier 2** (~200): Regex extraction of person names from `quick_notes`/`long_notes` (e.g., "Contact is Eileen Dabbs") → `find_or_create_person()`.
+- **Tier 1** (~100): Email prefix derivation (`donna.nelson@gmail.com` → "Donna Nelson") → `find_or_create_person()`.
+- **Tier 3** (~150 remaining): Claude Batch API (FFS-1097) for accounts needing LLM interpretation.
+
+Key invariant: `account_type` stays 'organization'/'site_name'. Only `resolved_person_id` is set. Person→place links created with `evidence_type='org_account_salvage'`, `relationship_type='site_contact'`.
+
 ---
 
 ## DATA_GAP_066: Clinic Notes Contain Unused Identity & Relationship Context
 
-**Status:** IN PROGRESS (MIG_3039 table + extraction script)
+**Status:** IN PROGRESS (MIG_3039 table + extraction script, MIG_3041 Tier 2 regex extraction)
 
 **Discovery:** At 1250 Cleveland Ave, Eileen Dabbs and Chris Dabbs are the real residents with ClinicHQ contact info (phone, email), but the system linked to "Aamco Repair Santa Rosa" instead. The actual people and their relationship to this address likely exist in `ops.clinic_accounts.quick_notes` or `long_notes` — data that's stored but never mined.
 

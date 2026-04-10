@@ -46,8 +46,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return apiNotFound("equipment with barcode", barcode);
   }
 
-  // Compute available actions based on current state
+  // Compute available actions and primary action based on current state
   const actions: string[] = [];
+  let primary_action: string | null = null;
+
   switch (equipment.custody_status) {
     case "available":
       actions.push("check_out");
@@ -55,24 +57,28 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       actions.push("maintenance_start");
       actions.push("reported_missing");
       actions.push("retired");
+      primary_action = "check_out";
       break;
     case "checked_out":
       actions.push("check_in");
       actions.push("transfer");
       actions.push("condition_change");
       actions.push("reported_missing");
+      primary_action = "check_in";
       break;
     case "maintenance":
       actions.push("maintenance_end");
       actions.push("condition_change");
+      primary_action = "maintenance_end";
       break;
     case "missing":
       actions.push("found");
       actions.push("retired");
+      primary_action = "found";
       break;
     default:
       actions.push("note");
   }
 
-  return apiSuccess({ ...equipment, available_actions: actions });
+  return apiSuccess({ ...equipment, available_actions: actions, primary_action });
 });

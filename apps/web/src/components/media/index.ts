@@ -10,3 +10,4 @@ export { MediaGallery } from './MediaGallery';
 export { MediaLightbox } from './MediaLightbox';
 export { MediaUploader, type MediaItem } from './MediaUploader';
 export { PhotoGroupingPanel } from './PhotoGroupingPanel';
+export { ClinicDayPhotoStrip, type PhotoGroup } from './ClinicDayPhotoStrip';

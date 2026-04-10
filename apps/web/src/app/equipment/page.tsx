@@ -701,6 +701,31 @@ function EquipmentPageContent() {
           </>
         )}
       </ListDetailLayout>
+
+      {/* Floating scan button */}
+      <a
+        href="/equipment/scan"
+        style={{
+          position: "fixed",
+          bottom: "1.5rem",
+          right: "1.5rem",
+          width: 56,
+          height: 56,
+          borderRadius: "50%",
+          background: "var(--primary)",
+          color: "var(--primary-foreground, #fff)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "var(--shadow-lg, 0 4px 12px rgba(0,0,0,0.15))",
+          textDecoration: "none",
+          zIndex: 50,
+          transition: "transform 150ms ease",
+        }}
+        title="Scan Equipment"
+      >
+        <Icon name="scan-barcode" size={24} />
+      </a>
     </div>
   );
 }
