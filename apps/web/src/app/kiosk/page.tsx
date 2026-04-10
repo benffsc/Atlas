@@ -30,6 +30,13 @@ const DEFAULT_LOBBY_MODULES: LobbyModule[] = [
     primary: true,
   },
   {
+    id: "equipment",
+    icon: "box",
+    label: "Equipment",
+    subtitle: "Check out or return traps & cages",
+    route: "/kiosk/equipment/scan",
+  },
+  {
     id: "volunteer",
     icon: "users",
     label: "Volunteering",
@@ -66,12 +73,17 @@ const DEFAULT_LOBBY_MODULES: LobbyModule[] = [
 ];
 
 /**
- * Kiosk splash screen — 5-path digital lobby for all FFSC programs.
- * Clinic card is full-width primary. Other 4 in a 2x2 grid.
- * QR paths open a modal. Route paths navigate directly.
- * Equipment stays on tab bar (staff-only, behind PIN).
+ * Kiosk splash screen — unified hub for ALL FFSC programs + equipment.
  *
- * FFS-1100
+ * FFS-1225: Equipment is now a first-class module on the splash screen
+ * (not a hidden PIN-gated separate section). Borrowers can tap "Equipment"
+ * to check out or return traps and cages directly from the lobby.
+ *
+ * Clinic card is full-width primary. Equipment + other 4 in a grid.
+ * QR paths open a modal. Route paths navigate directly.
+ * Equipment admin (add, inventory, print) stays behind PIN gate.
+ *
+ * FFS-1100 / FFS-1225
  */
 export default function KioskSplashPage() {
   const router = useRouter();

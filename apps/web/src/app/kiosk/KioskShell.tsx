@@ -15,8 +15,12 @@ import { usePathname } from "next/navigation";
 /**
  * Client-side kiosk shell — routes content through the right wrappers.
  *
- * Public routes (splash, help, cats, trapper): no PIN gate, no tab bar.
- * Equipment routes: PIN gate + bottom tab bar.
+ * FFS-1225: Unified Kiosk Hub. Equipment checkout/return (scan page) is
+ * now a public-facing action — borrowers stand at the kiosk and do it.
+ * Only equipment ADMIN pages (add, inventory, restock, print) are PIN-gated.
+ *
+ * Public routes: splash, help, cats, clinic, rehome, equipment/scan
+ * PIN-gated routes: equipment/add, equipment/inventory, equipment/restock, equipment/print
  * Setup/print routes: no gate, no tab bar.
  *
  * Includes error boundary so a crash in any kiosk page doesn't white-screen.
@@ -29,8 +33,13 @@ export function KioskShell({ children }: { children: React.ReactNode }) {
   const isEquipmentRoute = pathname?.startsWith("/kiosk/equipment");
   const isSplash = pathname === "/kiosk";
 
-  const needsGate = isEquipmentRoute && !isPrintRoute && !isSetupRoute;
-  const showTabBar = isEquipmentRoute && !isPrintRoute;
+  // FFS-1225: The scan page is public (checkout + return are borrower-facing actions).
+  // Only admin equipment pages (add, inventory, restock, print) stay behind the PIN.
+  const isEquipmentScan = pathname === "/kiosk/equipment/scan";
+  const isEquipmentAdmin = isEquipmentRoute && !isEquipmentScan && !isPrintRoute && !isSetupRoute;
+
+  const needsGate = isEquipmentAdmin;
+  const showTabBar = isEquipmentAdmin && !isPrintRoute;
   const showHomeButton = !isSplash && !isSetupRoute && !isPrintRoute;
 
   const bottomPadding = showTabBar
