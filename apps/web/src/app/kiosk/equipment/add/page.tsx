@@ -335,9 +335,10 @@ function StepType({
     setLoading(true);
     setError(null);
 
-    fetchApi<EquipmentType[]>("/api/equipment/types")
-      .then((all) => {
+    fetchApi<{ types: EquipmentType[] }>("/api/equipment/types")
+      .then((data) => {
         if (cancelled) return;
+        const all = data.types || [];
         const filtered = all
           .filter((t) => t.category === category && t.is_active)
           .sort((a, b) => a.sort_order - b.sort_order);
