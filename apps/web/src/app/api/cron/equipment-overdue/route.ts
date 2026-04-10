@@ -1,0 +1,167 @@
+import { NextRequest } from "next/server";
+import { queryRows, queryOne, execute } from "@/lib/db";
+import { apiSuccess, apiError } from "@/lib/api-response";
+
+/**
+ * Equipment Overdue Check Cron
+ *
+ * Runs daily at 8 AM. Checks for equipment items past their due date and
+ * writes alerts to ops.alert_queue so staff sees them in the admin
+ * dashboard and the daily alert digest email.
+ *
+ * Uses the existing equipment.overdue_days_warning (14) and
+ * equipment.overdue_days_critical (30) config thresholds from ops.app_config.
+ *
+ * FFS-1205 (Layer 1.4 of the Equipment Overhaul epic FFS-1201).
+ *
+ * Vercel Cron: Add to vercel.json:
+ *   { "path": "/api/cron/equipment-overdue", "schedule": "0 16 * * *" }
+ *   (0 16 UTC = 8 AM PST / 9 AM PDT)
+ */
+
+const CRON_SECRET = process.env.CRON_SECRET;
+
+interface OverdueItem {
+  equipment_id: string;
+  barcode: string | null;
+  display_name: string;
+  custodian_name: string | null;
+  custodian_phone: string | null;
+  due_date: string;
+  days_overdue: number;
+}
+
+interface ThresholdConfig {
+  warning_days: number;
+  critical_days: number;
+}
+
+export async function GET(request: NextRequest) {
+  // Auth: Vercel cron header or CRON_SECRET
+  const authHeader = request.headers.get("authorization");
+  const cronHeader = request.headers.get("x-vercel-cron");
+
+  if (!cronHeader && CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+    return apiError("Unauthorized", 401);
+  }
+
+  try {
+    // Read thresholds from config (fallback to sensible defaults)
+    const warningConfig = await queryOne<{ value: string }>(
+      `SELECT value#>>'{}' AS value FROM ops.app_config WHERE key = 'equipment.overdue_days_warning'`,
+    );
+    const criticalConfig = await queryOne<{ value: string }>(
+      `SELECT value#>>'{}' AS value FROM ops.app_config WHERE key = 'equipment.overdue_days_critical'`,
+    );
+
+    const thresholds: ThresholdConfig = {
+      warning_days: warningConfig ? parseInt(warningConfig.value, 10) || 14 : 14,
+      critical_days: criticalConfig ? parseInt(criticalConfig.value, 10) || 30 : 30,
+    };
+
+    // Find all overdue equipment
+    const overdueItems = await queryRows<OverdueItem>(
+      `SELECT
+         e.equipment_id,
+         e.barcode,
+         COALESCE(e.equipment_name, e.barcode, e.equipment_type) AS display_name,
+         COALESCE(p.display_name, e.current_holder_name) AS custodian_name,
+         sot.get_phone(e.current_custodian_id) AS custodian_phone,
+         ev.due_date::text,
+         (CURRENT_DATE - ev.due_date)::int AS days_overdue
+       FROM ops.equipment_events ev
+       JOIN ops.equipment e ON e.equipment_id = ev.equipment_id
+       LEFT JOIN sot.people p ON p.person_id = e.current_custodian_id
+       WHERE ev.event_type = 'check_out'
+         AND ev.due_date < CURRENT_DATE
+         AND e.custody_status = 'checked_out'
+         AND e.retired_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM ops.equipment_events ev2
+           WHERE ev2.equipment_id = ev.equipment_id
+             AND ev2.event_type = 'check_in'
+             AND ev2.created_at > ev.created_at
+         )
+       ORDER BY ev.due_date ASC`,
+    );
+
+    if (overdueItems.length === 0) {
+      return apiSuccess({
+        message: "No overdue equipment",
+        overdue_count: 0,
+        alerts_created: 0,
+      });
+    }
+
+    // Classify each item and create alerts
+    let alertsCreated = 0;
+    let warningCount = 0;
+    let criticalCount = 0;
+
+    for (const item of overdueItems) {
+      const level =
+        item.days_overdue >= thresholds.critical_days ? "critical" : "warning";
+
+      if (level === "critical") criticalCount++;
+      else warningCount++;
+
+      // Check if we already have an unresolved alert for this item today
+      // (avoid duplicate alerts from manual cron triggers)
+      const existing = await queryOne<{ alert_id: string }>(
+        `SELECT alert_id FROM ops.alert_queue
+         WHERE source = 'equipment_overdue'
+           AND metric = $1
+           AND status IN ('new', 'notified')
+           AND created_at > CURRENT_DATE`,
+        [item.equipment_id],
+      );
+
+      if (existing) continue; // Already alerted today
+
+      const contactInfo = [item.custodian_name, item.custodian_phone]
+        .filter(Boolean)
+        .join(" — ");
+
+      await execute(
+        `INSERT INTO ops.alert_queue (
+           level, source, metric, message,
+           current_value, threshold_value, details
+         ) VALUES ($1, 'equipment_overdue', $2, $3, $4, $5, $6)`,
+        [
+          level,
+          item.equipment_id,
+          `${item.display_name} (${item.barcode || "no barcode"}) is ${item.days_overdue} days overdue. ${contactInfo || "No contact info."}`,
+          item.days_overdue,
+          level === "critical"
+            ? thresholds.critical_days
+            : thresholds.warning_days,
+          JSON.stringify({
+            equipment_id: item.equipment_id,
+            barcode: item.barcode,
+            display_name: item.display_name,
+            custodian_name: item.custodian_name,
+            custodian_phone: item.custodian_phone,
+            due_date: item.due_date,
+            days_overdue: item.days_overdue,
+          }),
+        ],
+      );
+      alertsCreated++;
+    }
+
+    return apiSuccess({
+      message: `${overdueItems.length} overdue items found, ${alertsCreated} new alerts created`,
+      overdue_count: overdueItems.length,
+      warning_count: warningCount,
+      critical_count: criticalCount,
+      alerts_created: alertsCreated,
+      thresholds,
+    });
+  } catch (err) {
+    console.error("[equipment-overdue] Error:", err);
+    return apiError(
+      err instanceof Error ? err.message : "Equipment overdue check failed",
+      500,
+    );
+  }
+}
