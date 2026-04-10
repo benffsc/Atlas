@@ -87,6 +87,10 @@
     {
       "path": "/api/cron/data-quality-checks",
       "schedule": "30 */4 * * *"
+    },
+    {
+      "path": "/api/cron/cds-ai-classify",
+      "schedule": "45 */4 * * *"
     }
   ]
 }

@@ -11,6 +11,8 @@ import {
   ClinicDayPhotoStrip,
   type PhotoGroup,
 } from "@/components/media/ClinicDayPhotoStrip";
+import { EvidencePoolSummary } from "@/components/clinic/EvidencePoolSummary";
+import { EvidenceReviewPanel } from "@/components/clinic/EvidenceReviewPanel";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -125,7 +127,7 @@ export default function ClinicDayHubPage() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"status" | "roster" | "photos">("status");
+  const [activeTab, setActiveTab] = useState<"status" | "roster" | "photos" | "evidence">("status");
 
   // Import state
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -554,6 +556,7 @@ export default function ClinicDayHubPage() {
           { id: "status", label: "Overview" },
           { id: "roster", label: `Roster (${status?.master_list.entry_count ?? 0})` },
           { id: "photos", label: `Photos (${status?.photos.count ?? 0})` },
+          { id: "evidence", label: "Evidence" },
         ]}
         activeTab={activeTab}
         onTabChange={(id) => setActiveTab(id as typeof activeTab)}
@@ -855,6 +858,12 @@ export default function ClinicDayHubPage() {
                 </div>
               </div>
             )}
+
+            {/* Evidence pool summary (CDS-AI photos) */}
+            <EvidencePoolSummary
+              date={date}
+              onNavigateToReview={() => setActiveTab("evidence")}
+            />
           </div>
         )}
 
@@ -1008,6 +1017,11 @@ export default function ClinicDayHubPage() {
               uploading={uploadingPhotos}
             />
           </div>
+        )}
+
+        {/* Evidence Tab — Phase 5 review UI renders here */}
+        {activeTab === "evidence" && (
+          <EvidenceReviewPanel date={date} />
         )}
       </div>
     </div>
