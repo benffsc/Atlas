@@ -40,7 +40,7 @@ import { isDryRunEnabled, getTestRecipientOverride } from "./email-config";
 import { buildOrgRenderContext } from "./email-render-context";
 import { isFlowDryRun, getFlowTestRecipient, getFlow } from "./email-flows";
 import { buildUnsubscribeUrl } from "./unsubscribe-tokens";
-import { sendOutlookEmail } from "./outlook";
+import { sendOutlookEmail, sendAsApp } from "./outlook";
 
 // Initialize Resend client
 const resend = process.env.RESEND_API_KEY
@@ -211,32 +211,40 @@ export async function sendTemplateEmail(
     // Check if this flow sends via Outlook (Microsoft Graph) instead of Resend
     const flow = flowSlug ? await getFlow(flowSlug) : null;
     if (flow?.send_via === "outlook" && flow.outlook_account_email) {
-      // Find the connected Outlook account by email
-      const outlookAccount = await queryOne<{ account_id: string }>(
+      // Try app-permission path first (no OAuth dance needed — the Entra
+      // app has Mail.Send application permission). Falls back to the
+      // delegated-account path if a connected account exists and app
+      // permissions aren't configured.
+      let outlookResult: { success: boolean; error?: string };
+
+      // Check if a delegated account exists (legacy per-user OAuth path)
+      const delegatedAccount = await queryOne<{ account_id: string }>(
         `SELECT account_id FROM ops.outlook_email_accounts
           WHERE email = $1 AND is_active = TRUE`,
         [flow.outlook_account_email]
       );
 
-      if (!outlookAccount) {
-        return {
-          success: false,
-          error: `Outlook account ${flow.outlook_account_email} not connected. Go to /admin/email-settings → Connect Account.`,
-        };
+      if (delegatedAccount) {
+        // Use delegated path (sends "as" that user, replies thread to their inbox)
+        outlookResult = await sendOutlookEmail({
+          accountId: delegatedAccount.account_id,
+          to: actualRecipient,
+          toName,
+          subject: actualSubject,
+          bodyHtml,
+          bodyText,
+        });
+      } else {
+        // Use app-permission path (simpler, no connected account needed)
+        outlookResult = await sendAsApp({
+          fromEmail: flow.outlook_account_email,
+          to: actualRecipient,
+          toName,
+          subject: actualSubject,
+          bodyHtml,
+          bodyText,
+        });
       }
-
-      // Call the low-level Graph API send directly — the template is
-      // already rendered and the dry-run + test-override gates are
-      // already resolved above. No need to go through
-      // sendTemplatedOutlookEmail (which has its own duplicate gates).
-      const outlookResult = await sendOutlookEmail({
-        accountId: outlookAccount.account_id,
-        to: actualRecipient,
-        toName,
-        subject: actualSubject,
-        bodyHtml,
-        bodyText,
-      });
 
       if (outlookResult.error) {
         await logSentEmail({

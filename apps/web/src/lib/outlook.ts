@@ -244,6 +244,131 @@ async function sendViaGraph(
 }
 
 // ============================================================================
+// App-Permission (Client Credentials) Flow
+// ============================================================================
+// This is the "Zapier-style" path: the app has Mail.Send application
+// permission and can send as any mailbox in the tenant without a user
+// needing to OAuth in. Requires the Entra app to have Mail.Send as an
+// APPLICATION permission (not Delegated) with admin consent.
+//
+// Used when email_flows.send_via='outlook' and no delegated account is
+// connected — the simpler, zero-maintenance path for transactional emails.
+
+let _appTokenCache: { token: string; expiresAt: number } | null = null;
+
+/**
+ * Get an app-level access token using client credentials grant.
+ * Cached in memory until 5 minutes before expiry.
+ */
+async function getAppAccessToken(): Promise<string> {
+  if (!CLIENT_ID || !CLIENT_SECRET || !TENANT_ID) {
+    throw new Error("Microsoft OAuth not configured (missing MICROSOFT_CLIENT_ID/SECRET/TENANT_ID)");
+  }
+
+  const now = Date.now();
+  if (_appTokenCache && _appTokenCache.expiresAt > now + 5 * 60 * 1000) {
+    return _appTokenCache.token;
+  }
+
+  const response = await fetch(
+    `${MICROSOFT_AUTH_URL}/${TENANT_ID}/oauth2/v2.0/token`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        scope: "https://graph.microsoft.com/.default",
+        grant_type: "client_credentials",
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(
+      err.error_description ||
+        `Client credentials token request failed: ${response.status}`
+    );
+  }
+
+  const data = await response.json();
+  _appTokenCache = {
+    token: data.access_token,
+    expiresAt: now + data.expires_in * 1000,
+  };
+  return data.access_token;
+}
+
+/**
+ * Send email via Microsoft Graph using APPLICATION permissions.
+ * The app sends on behalf of `fromEmail` without that user needing
+ * to OAuth in. This is the simple transactional email path.
+ *
+ * Requires: Mail.Send Application permission with admin consent on
+ * the "Atlas Email Integration" Entra app.
+ */
+export async function sendAsApp(params: {
+  fromEmail: string;
+  to: string;
+  toName?: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { fromEmail, to, toName, subject, bodyHtml } = params;
+
+  try {
+    const accessToken = await getAppAccessToken();
+
+    const message = {
+      message: {
+        subject,
+        body: {
+          contentType: "HTML",
+          content: bodyHtml,
+        },
+        toRecipients: [
+          {
+            emailAddress: {
+              address: to,
+              name: toName || to,
+            },
+          },
+        ],
+      },
+      saveToSentItems: true,
+    };
+
+    // App-permission endpoint: /users/{email}/sendMail (not /me/sendMail)
+    const response = await fetch(
+      `${GRAPH_API_URL}/users/${encodeURIComponent(fromEmail)}/sendMail`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(message),
+      }
+    );
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      const msg = err.error?.message || `Graph API ${response.status}`;
+      console.error("sendAsApp error:", msg);
+      return { success: false, error: msg };
+    }
+
+    return { success: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("sendAsApp error:", msg);
+    return { success: false, error: msg };
+  }
+}
+
+// ============================================================================
 // Database Operations
 // ============================================================================
 
