@@ -3,22 +3,23 @@
 /**
  * /demo — Guided gala presentation deck.
  *
- * A single-page keynote-style flow that walks a donor through
- * the Beacon story using live data. Each "slide" fills the viewport.
+ * Narrative arc (research-driven):
+ *   Problem → Impact → Growth → Map → Strategic Insight → Ask → Vision
+ *
+ * Follows the charity:water / Best Friends storytelling pattern:
+ *   - Lead with ONE powerful stat, not a data dump
+ *   - Show geographic reach via map
+ *   - Prove the model works with zone-level analysis
+ *   - Close with unit economics (what a donation buys)
  *
  * Controls:
  *   - Arrow keys (←/→) or click prev/next
  *   - Progress dots at bottom
  *   - ESC exits back to dashboard
- *   - Swipe on touch devices
  *
- * Slides:
- *   1. Title — Beacon logo + tagline
- *   2. The Problem — community cats in Sonoma County
- *   3. Impact Numbers — hero stats (live)
- *   4. Year-by-Year — alteration chart (live)
- *   5. Live Map — embedded fullscreen map
- *   6. The Vision — what Beacon means
+ * Data sources:
+ *   /api/story-config, /api/dashboard/stats,
+ *   /api/beacon/zones, /api/beacon/county-rollup
  *
  * Auth required (presenter is logged in).
  * Epic: FFS-1193 (Beacon Polish)
@@ -43,6 +44,30 @@ interface DashboardStats {
   active_requests: number;
   pending_intake: number;
   cats_this_month: number;
+  cats_last_month: number;
+}
+
+interface ZoneRollup {
+  zone_code: string;
+  zone_name: string;
+  place_count: number;
+  total_cats: number;
+  altered_cats: number;
+  alteration_rate_pct: number | null;
+  zone_status: string;
+  active_requests: number;
+  alterations_last_90d: number;
+}
+
+interface ZonesResponse {
+  zones: ZoneRollup[];
+  summary: {
+    total_zones: number;
+    total_places: number;
+    total_cats: number;
+    total_altered: number;
+    alteration_rate_pct: number | null;
+  };
 }
 
 function formatBigNumber(n: number): string {
@@ -57,24 +82,27 @@ function formatCurrency(n: number): string {
   return `$${n.toLocaleString()}`;
 }
 
-const TOTAL_SLIDES = 6;
+const TOTAL_SLIDES = 8;
 
 export default function DemoPage() {
   const router = useRouter();
   const [story, setStory] = useState<StoryData | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [zones, setZones] = useState<ZonesResponse | null>(null);
   const [current, setCurrent] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch data
+  // Fetch all data in parallel
   useEffect(() => {
     Promise.all([
       fetchApi<StoryData>("/api/story-config").catch(() => null),
       fetchApi<DashboardStats>("/api/dashboard/stats").catch(() => null),
-    ]).then(([storyData, statsData]) => {
+      fetchApi<ZonesResponse>("/api/beacon/zones").catch(() => null),
+    ]).then(([storyData, statsData, zonesData]) => {
       if (storyData && "slides" in storyData) setStory(storyData as StoryData);
       if (statsData) setStats(statsData);
+      if (zonesData && "zones" in zonesData) setZones(zonesData as ZonesResponse);
       setLoaded(true);
     });
   }, []);
@@ -137,23 +165,37 @@ export default function DemoPage() {
 
   const impact = story?.impact;
 
+  // Compute zone-level insights
+  const managedZones = zones?.zones?.filter(z => z.zone_status === "managed") || [];
+  const needsAttentionZones = zones?.zones?.filter(z =>
+    z.zone_status !== "managed" && z.active_requests > 0
+  ) || [];
+  const topActiveZones = [...(zones?.zones || [])]
+    .sort((a, b) => b.active_requests - a.active_requests)
+    .slice(0, 5);
+  const overallRate = zones?.summary?.alteration_rate_pct;
+
   return (
     <div className="demo-page">
       {/* Slides container */}
       <div className="demo-slides" ref={containerRef}>
-        {/* Slide 1: Title */}
+
+        {/* ── Slide 1: Title ── */}
         <section className="demo-slide demo-slide-title">
           <div className="demo-slide-inner">
             <img src="/beacon-logo.jpeg" alt="Beacon" className="demo-logo" />
             <h1 className="demo-headline">Beacon</h1>
             <p className="demo-tagline">A guiding light for humane cat population management</p>
+            <p className="demo-tagline" style={{ marginTop: "0.5rem", fontSize: "0.85rem", opacity: 0.5 }}>
+              Forgotten Felines of Sonoma County
+            </p>
             <div className="demo-hint">
               Press <kbd>→</kbd> to begin
             </div>
           </div>
         </section>
 
-        {/* Slide 2: The Problem */}
+        {/* ── Slide 2: The Problem ── */}
         <section className="demo-slide demo-slide-problem">
           <div className="demo-slide-inner">
             <div className="demo-eyebrow">The challenge</div>
@@ -161,16 +203,19 @@ export default function DemoPage() {
               {story?.slides[0]?.title || "Sonoma County has thousands of community cats"}
             </h2>
             <p className="demo-slide-body">
-              {story?.slides[0]?.body || "Community cats live outdoors without an owner — in neighborhoods, farms, parks, and industrial areas. Without intervention, a single pair can lead to hundreds of descendants in just a few years."}
+              {story?.slides[0]?.body || "Community cats live outdoors without an owner — in neighborhoods, farms, parks, and industrial areas. Without intervention, a single pair can produce 100+ descendants in just 7 years."}
             </p>
             <div className="demo-callout">
-              <span className="demo-callout-label">The only sustainable solution</span>
+              <span className="demo-callout-label">The only sustainable, humane solution</span>
               <span className="demo-callout-value">Trap-Neuter-Return (TNR)</span>
             </div>
+            <p className="demo-slide-body" style={{ marginTop: "1.5rem", fontSize: "0.85rem" }}>
+              FFSC is the only dedicated spay/neuter clinic for community cats in Sonoma County.
+            </p>
           </div>
         </section>
 
-        {/* Slide 3: Impact Numbers */}
+        {/* ── Slide 3: Impact Numbers ── */}
         <section className="demo-slide demo-slide-impact">
           <div className="demo-slide-inner">
             <div className="demo-eyebrow">Our impact{impact ? ` since ${impact.start_year}` : ""}</div>
@@ -195,12 +240,12 @@ export default function DemoPage() {
               </div>
             </div>
             <p className="demo-impact-note">
-              Every number is backed by real records — click any stat on the dashboard to see the data
+              Every number is auditable — backed by individual cat records in the Beacon database
             </p>
           </div>
         </section>
 
-        {/* Slide 4: Year-by-Year */}
+        {/* ── Slide 4: Year-by-Year Growth ── */}
         <section className="demo-slide demo-slide-chart">
           <div className="demo-slide-inner demo-slide-inner-wide">
             <div className="demo-eyebrow">Growth over time</div>
@@ -213,20 +258,24 @@ export default function DemoPage() {
           </div>
         </section>
 
-        {/* Slide 5: Live Map */}
+        {/* ── Slide 5: Live Map ── */}
         <section className="demo-slide demo-slide-map">
           <div className="demo-slide-inner demo-slide-inner-full">
             <div className="demo-eyebrow">Where we work</div>
             <h2 className="demo-slide-title-text">
-              Every pin is a real request for help
+              Every pin is a real community member asking for help
             </h2>
             {stats && (
               <div className="demo-map-stats">
-                <span>{stats.active_requests} active requests</span>
+                <span><strong>{stats.active_requests}</strong> active requests</span>
                 <span className="demo-map-stats-sep">·</span>
-                <span>{stats.cats_this_month} cats this month</span>
-                <span className="demo-map-stats-sep">·</span>
-                <span>{stats.pending_intake} pending intake</span>
+                <span><strong>{stats.cats_this_month}</strong> cats this month</span>
+                {stats.pending_intake > 0 && (
+                  <>
+                    <span className="demo-map-stats-sep">·</span>
+                    <span><strong>{stats.pending_intake}</strong> waiting for help</span>
+                  </>
+                )}
               </div>
             )}
             <div className="demo-map-frame">
@@ -240,7 +289,98 @@ export default function DemoPage() {
           </div>
         </section>
 
-        {/* Slide 6: The Vision */}
+        {/* ── Slide 6: Strategic Insight (Beacon's core promise) ── */}
+        <section className="demo-slide demo-slide-zones">
+          <div className="demo-slide-inner demo-slide-inner-wide">
+            <div className="demo-eyebrow">Strategic insight</div>
+            <h2 className="demo-slide-title-text">
+              Beacon shows exactly where intervention creates the greatest impact
+            </h2>
+
+            {zones?.summary && (
+              <div className="demo-zone-overview">
+                <div className="demo-zone-stat">
+                  <div className="demo-zone-number">{zones.summary.total_zones}</div>
+                  <div className="demo-zone-label">service zones tracked</div>
+                </div>
+                <div className="demo-zone-stat">
+                  <div className="demo-zone-number">{zones.summary.total_places?.toLocaleString()}</div>
+                  <div className="demo-zone-label">locations monitored</div>
+                </div>
+                <div className="demo-zone-stat">
+                  <div className="demo-zone-number" style={{ color: "#22c55e" }}>
+                    {overallRate ? `${overallRate}%` : "—"}
+                  </div>
+                  <div className="demo-zone-label">county alteration rate</div>
+                </div>
+                <div className="demo-zone-stat">
+                  <div className="demo-zone-number" style={{ color: "#60a5fa" }}>
+                    {managedZones.length}
+                  </div>
+                  <div className="demo-zone-label">zones at managed status</div>
+                </div>
+              </div>
+            )}
+
+            {topActiveZones.length > 0 && (
+              <div className="demo-zone-table">
+                <div className="demo-zone-table-title">Highest-need zones right now</div>
+                {topActiveZones.map((z) => (
+                  <div key={z.zone_code} className="demo-zone-row">
+                    <span className="demo-zone-row-name">{z.zone_name}</span>
+                    <span className="demo-zone-row-requests">
+                      {z.active_requests} request{z.active_requests !== 1 ? "s" : ""}
+                    </span>
+                    <span className="demo-zone-row-rate">
+                      {z.alteration_rate_pct != null ? `${z.alteration_rate_pct}%` : "—"} altered
+                    </span>
+                    <span className={`demo-zone-row-status demo-zone-status-${z.zone_status}`}>
+                      {z.zone_status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="demo-slide-body" style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.85rem" }}>
+              Predictive models forecast population trends so we can allocate resources <em>before</em> colonies grow
+            </p>
+          </div>
+        </section>
+
+        {/* ── Slide 7: Unit Economics / The Ask ── */}
+        <section className="demo-slide demo-slide-ask">
+          <div className="demo-slide-inner">
+            <div className="demo-eyebrow">What your support does</div>
+            <h2 className="demo-slide-title-text">
+              Every dollar is traceable to an outcome
+            </h2>
+
+            <div className="demo-unit-grid">
+              <div className="demo-unit-card">
+                <div className="demo-unit-amount">$50</div>
+                <div className="demo-unit-equals">=</div>
+                <div className="demo-unit-outcome">1 cat trapped, neutered, vaccinated, ear-tipped, and returned</div>
+              </div>
+              <div className="demo-unit-card">
+                <div className="demo-unit-amount">$500</div>
+                <div className="demo-unit-equals">=</div>
+                <div className="demo-unit-outcome">One colony stabilized — ~10 cats fixed, kittens prevented for years</div>
+              </div>
+              <div className="demo-unit-card">
+                <div className="demo-unit-amount">$5,000</div>
+                <div className="demo-unit-equals">=</div>
+                <div className="demo-unit-outcome">An entire neighborhood served — 100 cats, measurable population decline</div>
+              </div>
+            </div>
+
+            <p className="demo-slide-body" style={{ marginTop: "1.5rem" }}>
+              Beacon tracks every cat from trap to return. Your donation isn't a black box — it's a pin on the map, a record in the database, a life changed.
+            </p>
+          </div>
+        </section>
+
+        {/* ── Slide 8: The Vision ── */}
         <section className="demo-slide demo-slide-vision">
           <div className="demo-slide-inner">
             <div className="demo-eyebrow">The vision</div>
@@ -248,10 +388,10 @@ export default function DemoPage() {
               {story?.slides[1]?.title || "Beacon illuminates where help is needed most"}
             </h2>
             <p className="demo-slide-body">
-              Beacon is a data platform built for TNR organizations. It tracks every cat, every request, every volunteer — and turns operational data into measurable community impact.
+              Beacon is the first data platform purpose-built for TNR. It integrates colony tracking, predictive modeling, volunteer coordination, and real-time impact reporting into a single system.
             </p>
             <p className="demo-slide-body">
-              What started as a tool for Forgotten Felines of Sonoma County is being built to serve any TNR organization that wants to prove their impact with data.
+              What started at Forgotten Felines of Sonoma County is being built to serve any TNR organization that wants to prove their impact with data — scalable, replicable, and open.
             </p>
             <div className="demo-cta-group">
               <a href="/impact" className="demo-cta">See the full data</a>
