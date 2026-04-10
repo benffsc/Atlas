@@ -300,6 +300,46 @@ export default function KioskScanPage() {
         />
       </div>
 
+      {/* Quick links — staff tools accessible from the scan page */}
+      {state === "idle" && (
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            marginBottom: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            icon="plus"
+            onClick={() => { window.location.href = "/kiosk/equipment/add"; }}
+            style={{ borderRadius: 8, fontSize: "0.8rem" }}
+          >
+            Add Equipment
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            icon="list"
+            onClick={() => { window.location.href = "/kiosk/equipment/inventory"; }}
+            style={{ borderRadius: 8, fontSize: "0.8rem" }}
+          >
+            Inventory
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            icon="printer"
+            onClick={() => { window.location.href = "/equipment/print/slips"; }}
+            style={{ borderRadius: 8, fontSize: "0.8rem" }}
+          >
+            Print Slips
+          </Button>
+        </div>
+      )}
+
       <ScanSessionHistory
         entries={sessionHistory}
         onRescan={handleScan}
