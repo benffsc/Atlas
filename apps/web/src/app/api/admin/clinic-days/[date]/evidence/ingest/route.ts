@@ -32,11 +32,36 @@ interface RouteParams {
 
 const MIME_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
+  "image/jpg": "jpg",
   "image/png": "png",
   "image/heic": "heic",
   "image/heif": "heif",
   "image/webp": "webp",
 };
+
+// Fallback: resolve extension from filename when browser reports empty/unknown MIME
+const EXT_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  heic: "image/heic",
+  heif: "image/heif",
+  webp: "image/webp",
+};
+
+function resolveFileType(file: File): { ext: string; mime: string } | null {
+  // Try MIME type first
+  const extFromMime = MIME_TYPES[file.type];
+  if (extFromMime) return { ext: extFromMime, mime: file.type };
+
+  // Fallback: extract extension from filename
+  const nameExt = file.name.split(".").pop()?.toLowerCase();
+  if (nameExt && EXT_TO_MIME[nameExt]) {
+    return { ext: nameExt === "jpeg" ? "jpg" : nameExt, mime: EXT_TO_MIME[nameExt] };
+  }
+
+  return null;
+}
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -81,9 +106,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
-      // Validate MIME type
-      const ext = MIME_TYPES[file.type];
-      if (!ext) {
+      // Validate file type (MIME or extension fallback for HEIC)
+      const fileType = resolveFileType(file);
+      if (!fileType) {
         // Skip non-image files silently
         skipped++;
         continue;
@@ -114,11 +139,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       const seqNum = i + 1;
 
       // Build stored filename matching evidence-ingest-photos.ts pattern
-      const storedFilename = `${date}_seq${String(seqNum).padStart(4, "0")}_${shortHash}.${ext}`;
+      const storedFilename = `${date}_seq${String(seqNum).padStart(4, "0")}_${shortHash}.${fileType.ext}`;
       const storagePath = `clinic-days/${date}/evidence/${storedFilename}`;
 
       // Upload to Supabase
-      const uploadResult = await uploadFile(storagePath, buffer, file.type);
+      const uploadResult = await uploadFile(storagePath, buffer, fileType.mime);
       if (!uploadResult.success) {
         errors++;
         continue;
@@ -156,7 +181,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           file.name,
           storedFilename,
           buffer.length,
-          file.type,
+          fileType.mime,
           publicUrl,
           `staff:${staffId}`,
           notesJson,

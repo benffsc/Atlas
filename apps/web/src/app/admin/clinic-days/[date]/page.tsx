@@ -145,6 +145,9 @@ export default function ClinicDayHubPage() {
   // Photo upload state
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
+  // Evidence refresh key — forces EvidenceReviewPanel remount after CDS-AI classify
+  const [evidenceRefreshKey, setEvidenceRefreshKey] = useState(0);
+
   // MIG_3050: Inline data quality health badge
   const [health, setHealth] = useState<{
     overall: "pass" | "warn" | "fail";
@@ -1049,9 +1052,14 @@ export default function ClinicDayHubPage() {
                   clinicDate={date}
                   onUploadComplete={() => {
                     loadStatus();
+                    setEvidenceRefreshKey((k) => k + 1);
+                  }}
+                  onClassifyComplete={() => {
+                    loadStatus();
+                    setEvidenceRefreshKey((k) => k + 1);
                   }}
                 />
-                <EvidenceReviewPanel date={date} />
+                <EvidenceReviewPanel key={evidenceRefreshKey} date={date} />
               </>
             )}
           </div>

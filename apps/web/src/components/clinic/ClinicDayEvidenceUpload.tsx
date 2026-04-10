@@ -21,6 +21,7 @@ import { EvidencePoolSummary } from "./EvidencePoolSummary";
 interface Props {
   clinicDate: string;
   onUploadComplete?: () => void;
+  onClassifyComplete?: () => void;
 }
 
 interface FileEntry {
@@ -30,10 +31,9 @@ interface FileEntry {
   status: "pending" | "uploading" | "done" | "error";
 }
 
-export function ClinicDayEvidenceUpload({ clinicDate, onUploadComplete }: Props) {
+export function ClinicDayEvidenceUpload({ clinicDate, onUploadComplete, onClassifyComplete }: Props) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [uploadResult, setUploadResult] = useState<{
     uploaded: number;
     skipped: number;
@@ -78,8 +78,10 @@ export function ClinicDayEvidenceUpload({ clinicDate, onUploadComplete }: Props)
 
       const entries: FileEntry[] = [];
 
+      const imageExtensions = new Set(["jpg", "jpeg", "png", "heic", "heif", "webp", "gif"]);
       for (const file of Array.from(selectedFiles)) {
-        if (!file.type.startsWith("image/")) continue;
+        const ext = file.name.split(".").pop()?.toLowerCase();
+        if (!file.type.startsWith("image/") && !(ext && imageExtensions.has(ext))) continue;
 
         const exifTakenAt = await extractExif(file);
         const preview = URL.createObjectURL(file);
@@ -112,7 +114,6 @@ export function ClinicDayEvidenceUpload({ clinicDate, onUploadComplete }: Props)
   const handleUpload = useCallback(async () => {
     if (files.length === 0) return;
     setUploading(true);
-    setUploadProgress({ current: 0, total: files.length });
 
     try {
       // Compress all files first
@@ -147,7 +148,6 @@ export function ClinicDayEvidenceUpload({ clinicDate, onUploadComplete }: Props)
 
       const data = json.data || json;
       setUploadResult(data);
-      setUploadProgress({ current: files.length, total: files.length });
 
       // Mark all files as done
       setFiles((prev) => prev.map((f) => ({ ...f, status: "done" as const })));
@@ -188,6 +188,7 @@ export function ClinicDayEvidenceUpload({ clinicDate, onUploadComplete }: Props)
       });
 
       setRefreshKey((k) => k + 1);
+      onClassifyComplete?.();
     } catch (err) {
       addToast({
         type: "error",
@@ -196,7 +197,7 @@ export function ClinicDayEvidenceUpload({ clinicDate, onUploadComplete }: Props)
     } finally {
       setClassifying(false);
     }
-  }, [clinicDate, addToast]);
+  }, [clinicDate, addToast, onClassifyComplete]);
 
   // ── Clear selection ──────────────────────────────────────
 
