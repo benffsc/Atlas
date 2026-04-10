@@ -55,3 +55,13 @@ export type {
   OtherPartiesSectionValue,
   RelatedPersonEntry,
 } from "./OtherPartiesSection";
+
+export {
+  RelatedPlacesSection,
+  EMPTY_RELATED_PLACES,
+} from "./RelatedPlacesSection";
+export type {
+  RelatedPlacesSectionProps,
+  RelatedPlacesSectionValue,
+  RelatedPlaceEntry,
+} from "./RelatedPlacesSection";

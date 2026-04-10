@@ -259,7 +259,7 @@ export interface FormSubmission {
 
 // ── Admin form config section components ──
 
-export type FormSectionComponent = "person" | "place" | "catDetails" | "kittens" | "propertyAccess" | "urgencyNotes" | "otherParties";
+export type FormSectionComponent = "person" | "place" | "catDetails" | "kittens" | "propertyAccess" | "urgencyNotes" | "otherParties" | "relatedPlaces";
 
 /** Runtime-checkable array of all valid form section components. */
-export const FORM_SECTION_COMPONENTS = ["person", "place", "catDetails", "kittens", "propertyAccess", "urgencyNotes", "otherParties"] as const satisfies readonly FormSectionComponent[];
+export const FORM_SECTION_COMPONENTS = ["person", "place", "catDetails", "kittens", "propertyAccess", "urgencyNotes", "otherParties", "relatedPlaces"] as const satisfies readonly FormSectionComponent[];

@@ -5,8 +5,8 @@ import { formatPhone } from "@/lib/formatters";
 import { postApi, ApiError } from "@/lib/api-client";
 import { URGENCY_REASON_OPTIONS } from "@/lib/intake-options";
 import { LANGUAGE_OPTIONS } from "@/lib/form-options";
-import { OtherPartiesSection, EMPTY_OTHER_PARTIES } from "@/components/request-sections";
-import type { OtherPartiesSectionValue } from "@/components/request-sections";
+import { OtherPartiesSection, EMPTY_OTHER_PARTIES, RelatedPlacesSection, EMPTY_RELATED_PLACES } from "@/components/request-sections";
+import type { OtherPartiesSectionValue, RelatedPlacesSectionValue } from "@/components/request-sections";
 import { useSectionConfig } from "@/hooks/useSectionConfig";
 
 interface IntakeSubmission {
@@ -80,6 +80,7 @@ export default function CreateRequestWizard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otherParties, setOtherParties] = useState<OtherPartiesSectionValue>(EMPTY_OTHER_PARTIES);
+  const [relatedPlaces, setRelatedPlaces] = useState<RelatedPlacesSectionValue>(EMPTY_RELATED_PLACES);
   const [preferredLanguage, setPreferredLanguage] = useState("");
   const { isEnabled, getProps } = useSectionConfig("dynamic_intake");
 
@@ -148,6 +149,14 @@ export default function CreateRequestWizard({
             relationship_notes: e.relationship_notes || undefined,
             notify_before_release: e.notify_before_release,
             preferred_language: e.preferred_language || undefined,
+          })),
+        related_places: relatedPlaces.entries
+          .filter((e) => e.place_id)
+          .map((e) => ({
+            place_id: e.place_id,
+            relationship_type: e.relationship_type || "other",
+            relationship_notes: e.relationship_notes || undefined,
+            is_primary_trapping_site: e.is_primary_trapping_site,
           })),
         converted_by: "web_user",
         // Pass through MIG_2531/2532 fields from intake
@@ -559,6 +568,18 @@ export default function CreateRequestWizard({
                     onChange={setOtherParties}
                     compact
                     {...(getProps("otherParties") as { maxEntries?: number })}
+                  />
+                </div>
+              )}
+
+              {/* Related locations (config-gated) */}
+              {isEnabled("relatedPlaces") && (
+                <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+                  <RelatedPlacesSection
+                    value={relatedPlaces}
+                    onChange={setRelatedPlaces}
+                    compact
+                    {...(getProps("relatedPlaces") as { maxEntries?: number })}
                   />
                 </div>
               )}
