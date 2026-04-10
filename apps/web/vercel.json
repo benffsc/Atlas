@@ -85,8 +85,12 @@
       "schedule": "15 */6 * * *"
     },
     {
-      "path": "/api/cron/data-quality-checks",
+      "path": "/api/cron/sharepoint-photo-sync",
       "schedule": "30 */4 * * *"
+    },
+    {
+      "path": "/api/cron/data-quality-checks",
+      "schedule": "35 */4 * * *"
     },
     {
       "path": "/api/cron/cds-ai-classify",

@@ -13,6 +13,7 @@ import {
 } from "@/components/media/ClinicDayPhotoStrip";
 import { EvidencePoolSummary } from "@/components/clinic/EvidencePoolSummary";
 import { EvidenceReviewPanel } from "@/components/clinic/EvidenceReviewPanel";
+import { ClinicDayEvidenceUpload } from "@/components/clinic/ClinicDayEvidenceUpload";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -127,7 +128,8 @@ export default function ClinicDayHubPage() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"status" | "roster" | "photos" | "evidence">("status");
+  const [activeTab, setActiveTab] = useState<"status" | "roster" | "evidence">("status");
+  const [manualPhotoMode, setManualPhotoMode] = useState(false);
 
   // Import state
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -555,7 +557,6 @@ export default function ClinicDayHubPage() {
         tabs={[
           { id: "status", label: "Overview" },
           { id: "roster", label: `Roster (${status?.master_list.entry_count ?? 0})` },
-          { id: "photos", label: `Photos (${status?.photos.count ?? 0})` },
           { id: "evidence", label: "Evidence" },
         ]}
         activeTab={activeTab}
@@ -1007,21 +1008,53 @@ export default function ClinicDayHubPage() {
           </div>
         )}
 
-        {/* Photos Tab */}
-        {activeTab === "photos" && (
-          <div className="card">
-            <ClinicDayPhotoStrip
-              clinicDate={date}
-              entryCount={status?.master_list.entry_count ?? 0}
-              onUpload={handlePhotoUpload}
-              uploading={uploadingPhotos}
-            />
-          </div>
-        )}
-
-        {/* Evidence Tab — Phase 5 review UI renders here */}
+        {/* Evidence Tab — Upload + Pipeline Progress + Review */}
         {activeTab === "evidence" && (
-          <EvidenceReviewPanel date={date} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {/* Manual Mode toggle */}
+            <div style={{
+              display: "flex",
+              justifyContent: "flex-end",
+            }}>
+              <button
+                onClick={() => setManualPhotoMode((v) => !v)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  textDecoration: "underline",
+                  padding: 0,
+                }}
+              >
+                {manualPhotoMode ? "Switch to AI Mode" : "Manual Mode"}
+              </button>
+            </div>
+
+            {manualPhotoMode ? (
+              /* Manual Mode — original ClinicDayPhotoStrip for fallback */
+              <div className="card">
+                <ClinicDayPhotoStrip
+                  clinicDate={date}
+                  entryCount={status?.master_list.entry_count ?? 0}
+                  onUpload={handlePhotoUpload}
+                  uploading={uploadingPhotos}
+                />
+              </div>
+            ) : (
+              /* AI Mode — Upload + CDS-AI pipeline */
+              <>
+                <ClinicDayEvidenceUpload
+                  clinicDate={date}
+                  onUploadComplete={() => {
+                    loadStatus();
+                  }}
+                />
+                <EvidenceReviewPanel date={date} />
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>

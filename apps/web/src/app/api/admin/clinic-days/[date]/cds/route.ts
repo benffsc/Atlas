@@ -9,6 +9,9 @@ import {
 } from "@/lib/api-response";
 import { queryOne } from "@/lib/db";
 import { runCDS, getLatestCDSRun } from "@/lib/cds";
+import { runCdsAi } from "@/lib/cds-ai";
+
+export const maxDuration = 300;
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -16,7 +19,11 @@ interface RouteParams {
 
 /**
  * POST /api/admin/clinic-days/[date]/cds
- * Trigger a CDS (Cat Determining System) run for a clinic day.
+ * Trigger a CDS run for a clinic day.
+ *
+ * Query params:
+ *   - pipeline=ai  — Run CDS-AI (classify → chunk → match photos)
+ *   - (default)    — Run CDS-SQL (deterministic master list matching)
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
@@ -28,7 +35,33 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return apiBadRequest("Invalid date format. Use YYYY-MM-DD.");
     }
 
-    // Check clinic day exists with entries
+    const pipeline = request.nextUrl.searchParams.get("pipeline");
+
+    // CDS-AI pipeline: classify → chunk → match evidence photos
+    if (pipeline === "ai") {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        return apiBadRequest("ANTHROPIC_API_KEY not configured");
+      }
+
+      const result = await runCdsAi(date, {
+        apply: true,
+        log: (msg) => console.log(`[cds-ai:${date}] ${msg}`),
+      });
+
+      return apiSuccess({
+        date: result.date,
+        classified: result.classified,
+        classification_errors: result.classification_errors,
+        chunks_formed: result.chunks_formed,
+        matched: result.matched,
+        unmatched: result.unmatched,
+        agreements: result.agreements,
+        disagreements: result.disagreements,
+        elapsed_ms: result.elapsed_ms,
+      });
+    }
+
+    // Default: CDS-SQL pipeline (deterministic master list matching)
     const clinicDay = await queryOne<{
       clinic_day_id: string;
       entry_count: number;
