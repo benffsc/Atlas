@@ -54,7 +54,7 @@ export const GET = withErrorHandling(
       return apiNotFound("call_sheet", id);
     }
 
-    const items = await queryRows<CallSheetItemDetail>(
+    const items = await queryRows<Record<string, unknown>>(
       `SELECT * FROM ops.v_call_sheet_items_detail
        WHERE call_sheet_id = $1
        ORDER BY priority_order`,
