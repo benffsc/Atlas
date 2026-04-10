@@ -46,6 +46,9 @@ import {
   EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS as _EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS,
   EQUIPMENT_TRACKING_TIER_OPTIONS as _EQUIPMENT_TRACKING_TIER_OPTIONS,
   EQUIPMENT_RESOLUTION_STATUS_OPTIONS as _EQUIPMENT_RESOLUTION_STATUS_OPTIONS,
+  CALL_SHEET_STATUS_OPTIONS as _CALL_SHEET_STATUS_OPTIONS,
+  CALL_SHEET_ITEM_STATUS_OPTIONS as _CALL_SHEET_ITEM_STATUS_OPTIONS,
+  CALL_DISPOSITION_OPTIONS as _CALL_DISPOSITION_OPTIONS,
   getValues,
 } from "./form-options";
 
@@ -288,6 +291,14 @@ export const EQUIPMENT_TRACKING_TIER = getValues(_EQUIPMENT_TRACKING_TIER_OPTION
 export const EQUIPMENT_RESOLUTION_STATUS = getValues(_EQUIPMENT_RESOLUTION_STATUS_OPTIONS) as unknown as readonly ["resolved", "unresolved", "created"];
 
 // =============================================================================
+// CALL SHEET ENUMS
+// =============================================================================
+
+export const CALL_SHEET_STATUS = getValues(_CALL_SHEET_STATUS_OPTIONS) as unknown as readonly ["draft", "assigned", "in_progress", "completed", "expired"];
+export const CALL_SHEET_ITEM_STATUS = getValues(_CALL_SHEET_ITEM_STATUS_OPTIONS) as unknown as readonly ["pending", "attempted", "follow_up", "converted", "dead_end", "skipped"];
+export const CALL_DISPOSITION = getValues(_CALL_DISPOSITION_OPTIONS) as unknown as readonly ["reached", "left_voicemail", "left_message_person", "no_answer", "busy", "wrong_number", "disconnected", "not_interested", "already_resolved", "do_not_contact", "scheduled_trapping", "scheduled_callback", "needs_more_info", "referred_elsewhere", "appointment_booked"];
+
+// =============================================================================
 // GENERAL ENUMS
 // =============================================================================
 
@@ -357,6 +368,11 @@ export const ENTITY_ENUMS = {
   EQUIPMENT_TRACKING_TIER,
   EQUIPMENT_RESOLUTION_STATUS,
 
+  // Call Sheets
+  CALL_SHEET_STATUS,
+  CALL_SHEET_ITEM_STATUS,
+  CALL_DISPOSITION,
+
   // General
   ENTITY_TYPE,
 } as const;
@@ -413,5 +429,9 @@ export type EquipmentCheckoutType = (typeof EQUIPMENT_CHECKOUT_TYPE)[number];
 export type EquipmentCheckoutPurpose = (typeof EQUIPMENT_CHECKOUT_PURPOSE)[number];
 export type EquipmentTrackingTier = (typeof EQUIPMENT_TRACKING_TIER)[number];
 export type EquipmentResolutionStatus = (typeof EQUIPMENT_RESOLUTION_STATUS)[number];
+
+export type CallSheetStatusEnum = (typeof CALL_SHEET_STATUS)[number];
+export type CallSheetItemStatusEnum = (typeof CALL_SHEET_ITEM_STATUS)[number];
+export type CallDispositionEnum = (typeof CALL_DISPOSITION)[number];
 
 export type EntityType = (typeof ENTITY_TYPE)[number];

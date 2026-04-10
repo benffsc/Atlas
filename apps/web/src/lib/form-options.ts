@@ -880,6 +880,45 @@ export const EQUIPMENT_RESOLUTION_STATUS_OPTIONS = [
 ] as const satisfies readonly FormOption[];
 
 // =============================================================================
+// CALL SHEET ENUMS
+// =============================================================================
+
+export const CALL_SHEET_STATUS_OPTIONS = [
+  { value: "draft", label: "Draft", shortLabel: "Draft" },
+  { value: "assigned", label: "Assigned", shortLabel: "Assigned" },
+  { value: "in_progress", label: "In Progress", shortLabel: "Active" },
+  { value: "completed", label: "Completed", shortLabel: "Done" },
+  { value: "expired", label: "Expired", shortLabel: "Expired" },
+] as const satisfies readonly FormOption[];
+
+export const CALL_SHEET_ITEM_STATUS_OPTIONS = [
+  { value: "pending", label: "Pending", shortLabel: "Pending" },
+  { value: "attempted", label: "Attempted", shortLabel: "Tried" },
+  { value: "follow_up", label: "Follow Up", shortLabel: "Follow Up" },
+  { value: "converted", label: "Converted", shortLabel: "Converted" },
+  { value: "dead_end", label: "Dead End", shortLabel: "Dead End" },
+  { value: "skipped", label: "Skipped", shortLabel: "Skipped" },
+] as const satisfies readonly FormOption[];
+
+export const CALL_DISPOSITION_OPTIONS = [
+  { value: "reached", label: "Reached", shortLabel: "Reached", group: "Contact" },
+  { value: "left_voicemail", label: "Left Voicemail", shortLabel: "VM", group: "Contact" },
+  { value: "left_message_person", label: "Left Message (Person)", shortLabel: "Msg", group: "Contact" },
+  { value: "no_answer", label: "No Answer", shortLabel: "No Ans", group: "Contact" },
+  { value: "busy", label: "Busy", shortLabel: "Busy", group: "Contact" },
+  { value: "wrong_number", label: "Wrong Number", shortLabel: "Wrong #", group: "Dead End" },
+  { value: "disconnected", label: "Disconnected", shortLabel: "Disc.", group: "Dead End" },
+  { value: "not_interested", label: "Not Interested", shortLabel: "Not Int.", group: "Dead End" },
+  { value: "already_resolved", label: "Already Resolved", shortLabel: "Resolved", group: "Dead End" },
+  { value: "do_not_contact", label: "Do Not Contact", shortLabel: "DNC", group: "Dead End" },
+  { value: "scheduled_trapping", label: "Scheduled Trapping", shortLabel: "Sched.", group: "Conversion" },
+  { value: "scheduled_callback", label: "Scheduled Callback", shortLabel: "Callback", group: "Conversion" },
+  { value: "needs_more_info", label: "Needs More Info", shortLabel: "More Info", group: "Conversion" },
+  { value: "referred_elsewhere", label: "Referred Elsewhere", shortLabel: "Referred", group: "Dead End" },
+  { value: "appointment_booked", label: "Appointment Booked", shortLabel: "Appt.", group: "Conversion" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
 // CALL TYPE → OWNERSHIP MAPPING
 // =============================================================================
 

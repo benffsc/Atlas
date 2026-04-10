@@ -41,6 +41,15 @@ export const PRINT_DOCUMENTS = {
     audience: "Trappers" as const,
     prefillable: true,
   },
+  call_sheet_print: {
+    key: "call_sheet_print",
+    title: "Call Sheet (Tracked)",
+    routeForCallSheet: (callSheetId: string) =>
+      `/admin/call-sheets/${callSheetId}/print`,
+    description: "Tracked call sheet with contacts and disposition columns",
+    audience: "Coordinator" as const,
+    prefillable: false,
+  },
 } as const;
 
 export type PrintDocumentKey = keyof typeof PRINT_DOCUMENTS;

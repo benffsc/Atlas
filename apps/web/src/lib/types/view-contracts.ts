@@ -817,6 +817,78 @@ export interface VBeaconPlaceMetricsRow {
 }
 
 // =============================================================================
+// CALL SHEET VIEWS (MIG_3077)
+// =============================================================================
+
+/**
+ * Contract for ops.v_call_sheet_summary
+ * @see sql/schema/v2/MIG_3077__call_sheet_tracking.sql
+ * @route /api/admin/call-sheets
+ */
+export interface VCallSheetSummaryRow {
+  call_sheet_id: string;
+  title: string;
+  status: string;
+  due_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  assigned_at: string | null;
+  completed_at: string | null;
+  created_by: string | null;
+  assigned_to_person_id: string | null;
+  assigned_to_name: string | null;
+  assigned_to_trapper_type: string | null;
+  total_items: number;
+  pending_count: number;
+  attempted_count: number;
+  follow_up_count: number;
+  converted_count: number;
+  dead_end_count: number;
+  skipped_count: number;
+  completed_items: number;
+  is_overdue: boolean;
+}
+
+/**
+ * Contract for ops.v_call_sheet_items_detail
+ * @see sql/schema/v2/MIG_3077__call_sheet_tracking.sql
+ * @route /api/admin/call-sheets/[id]
+ */
+export interface VCallSheetItemsDetailRow {
+  item_id: string;
+  call_sheet_id: string;
+  contact_name: string;
+  contact_phone: string | null;
+  contact_email: string | null;
+  place_id: string | null;
+  place_address: string | null;
+  request_id: string | null;
+  person_id: string | null;
+  priority_order: number;
+  status: string;
+  disposition: string | null;
+  attempt_count: number;
+  last_attempted_at: string | null;
+  follow_up_at: string | null;
+  notes: string | null;
+  converted_to_type: string | null;
+  converted_to_id: string | null;
+  converted_at: string | null;
+  context_summary: string | null;
+  created_at: string;
+  updated_at: string;
+  place_name: string | null;
+  place_full_address: string | null;
+  request_status: string | null;
+  request_summary: string | null;
+  request_priority: string | null;
+  person_name: string | null;
+  primary_phone: string | null;
+  primary_email: string | null;
+}
+
+// =============================================================================
 // HELPER TYPES
 // =============================================================================
 
