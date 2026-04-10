@@ -1177,39 +1177,43 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           </AdvancedMarker>
         ))}
 
-        {/* ── Navigated location marker (Step 13) — clickable to pan back ── */}
+        {/* ── Navigated location marker (Step 13) — small dot, label doesn't block nearby pins ── */}
         {search.navigatedLocation && (
           <AdvancedMarker
             position={{ lat: search.navigatedLocation.lat, lng: search.navigatedLocation.lng }}
             collisionBehavior={CollisionBehavior.REQUIRED}
-            zIndex={20}
+            zIndex={5}
             onClick={() => {
               map?.panTo({ lat: search.navigatedLocation!.lat, lng: search.navigatedLocation!.lng });
-              map?.setZoom(Math.max(map.getZoom() || 16, 16));
+              map?.setZoom(Math.max(map.getZoom() || 18, 18));
             }}
           >
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              {/* Label: pointer-events none so clicks pass through to data pins below */}
               <div style={{
                 background: "var(--background, #fff)", borderRadius: 6,
-                padding: "4px 8px", fontSize: 11, fontWeight: 600,
-                boxShadow: "0 2px 6px rgba(0,0,0,0.2)", whiteSpace: "nowrap",
-                maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis",
-                marginBottom: 4, color: "var(--foreground, #111)",
-                display: "flex", alignItems: "center", gap: 4,
+                padding: "3px 7px", fontSize: 10, fontWeight: 600,
+                boxShadow: "0 1px 4px rgba(0,0,0,0.15)", whiteSpace: "nowrap",
+                maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis",
+                marginBottom: 3, color: "var(--foreground, #111)",
+                display: "flex", alignItems: "center", gap: 3,
+                pointerEvents: "none", opacity: 0.85,
               }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                   <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 {search.navigatedLocation.address || "Searched location"}
               </div>
+              {/* Dot: small, cursor pointer, this IS the clickable part */}
               <div style={{
-                width: 20, height: 20, borderRadius: "50%",
-                background: "#3b82f6", border: "3px solid white",
-                boxShadow: "0 0 0 3px rgba(59,130,246,0.3), 0 2px 6px rgba(0,0,0,0.3)",
-                animation: "pulse 2s infinite",
+                width: 14, height: 14, borderRadius: "50%",
+                background: "#3b82f6", border: "2px solid white",
+                boxShadow: "0 0 0 2px rgba(59,130,246,0.3), 0 1px 4px rgba(0,0,0,0.3)",
+                animation: "searchPulse 2s infinite",
+                cursor: "pointer",
               }} />
             </div>
-            <style>{`@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(59,130,246,0.3), 0 2px 6px rgba(0,0,0,0.3); } 50% { box-shadow: 0 0 0 8px rgba(59,130,246,0.1), 0 2px 6px rgba(0,0,0,0.3); } }`}</style>
+            <style>{`@keyframes searchPulse { 0%, 100% { box-shadow: 0 0 0 2px rgba(59,130,246,0.3), 0 1px 4px rgba(0,0,0,0.3); } 50% { box-shadow: 0 0 0 6px rgba(59,130,246,0.1), 0 1px 4px rgba(0,0,0,0.3); } }`}</style>
           </AdvancedMarker>
         )}
 
@@ -1428,7 +1432,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         <button
           onClick={() => {
             map?.panTo({ lat: search.navigatedLocation!.lat, lng: search.navigatedLocation!.lng });
-            map?.setZoom(Math.max(map?.getZoom() || 16, 16));
+            map?.setZoom(Math.max(map?.getZoom() || 18, 18));
             setSelectedPin(null);
             setSelectedPlaceId(null);
           }}

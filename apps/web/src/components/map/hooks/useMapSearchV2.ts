@@ -183,7 +183,7 @@ export function useMapSearchV2({
 
   /** Pan Google Map to coordinates */
   const panTo = useCallback(
-    (lat: number, lng: number, zoom = 16) => {
+    (lat: number, lng: number, zoom = 18) => {
       if (!map) return;
       map.panTo({ lat, lng });
       map.setZoom(zoom);
@@ -252,8 +252,14 @@ export function useMapSearchV2({
       }
 
       if (lat && lng) {
-        setNavigatedLocation({ lat, lng, address: result.display_name });
         panTo(lat, lng);
+        // When selecting a known place, don't show the search pin — the data pin IS the result.
+        // This prevents the blue search marker from overlaying the place pin and blocking clicks.
+        if (result.entity_type === "place") {
+          setNavigatedLocation(null);
+        } else {
+          setNavigatedLocation({ lat, lng, address: result.display_name });
+        }
       }
 
       if (result.entity_type === "place") {
