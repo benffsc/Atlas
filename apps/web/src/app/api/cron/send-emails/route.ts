@@ -8,6 +8,7 @@ import {
   assertOutOfAreaLive,
   OutOfAreaPipelineDisabledError,
 } from "@/lib/email-safety";
+import { getFlow } from "@/lib/email-flows";
 
 // Email Sending Cron Job
 //
@@ -43,9 +44,11 @@ export async function GET(request: NextRequest) {
     throw err;
   }
 
-  // Check if email is configured
-  if (!process.env.RESEND_API_KEY) {
-    return apiServerError("RESEND_API_KEY not configured");
+  // Check if an email provider is configured. Flows that send via
+  // Outlook (Microsoft Graph app permissions) don't need RESEND_API_KEY.
+  const outOfAreaFlow = await getFlow("out_of_service_area");
+  if (outOfAreaFlow?.send_via !== "outlook" && !process.env.RESEND_API_KEY) {
+    return apiServerError("RESEND_API_KEY not configured (and flow is not set to send via Outlook)");
   }
 
   const startTime = Date.now();
