@@ -23,6 +23,7 @@
 import { ALL_STATUSES, type RequestStatus as RequestStatusType } from "./request-status";
 import {
   RELATED_PERSON_RELATIONSHIP_OPTIONS as _RELATED_PERSON_RELATIONSHIP_OPTIONS,
+  RELATED_PLACE_RELATIONSHIP_OPTIONS as _RELATED_PLACE_RELATIONSHIP_OPTIONS,
   LANGUAGE_OPTIONS as _LANGUAGE_OPTIONS,
   PROPERTY_TYPE_OPTIONS as _PROPERTY_TYPE_OPTIONS,
   COLONY_DURATION_OPTIONS as _COLONY_DURATION_OPTIONS,
@@ -61,6 +62,7 @@ export const REQUEST_PRIORITY = getValues(_PRIORITY_OPTIONS) as unknown as reado
 
 // Related people & language (derived from form-options.ts)
 export const RELATED_PERSON_RELATIONSHIP = getValues(_RELATED_PERSON_RELATIONSHIP_OPTIONS) as unknown as readonly ["cat_owner", "caretaker", "neighbor", "family_member", "tenant", "landlord", "transporter", "rescue_contact", "other"];
+export const RELATED_PLACE_RELATIONSHIP = getValues(_RELATED_PLACE_RELATIONSHIP_OPTIONS) as unknown as readonly ["suspected_source", "trapping_site", "colony_extent", "feeder_location", "staging_area", "property_owner_address", "other"];
 export const LANGUAGE = getValues(_LANGUAGE_OPTIONS) as unknown as readonly ["en", "es", "vi", "tl", "other"];
 
 export const HOLD_REASON = [
@@ -323,6 +325,7 @@ export const ENTITY_ENUMS = {
   REQUEST_STATUS,
   REQUEST_PRIORITY,
   RELATED_PERSON_RELATIONSHIP,
+  RELATED_PLACE_RELATIONSHIP,
   LANGUAGE,
   HOLD_REASON,
   NO_TRAPPER_REASON,
@@ -385,6 +388,7 @@ export const ENTITY_ENUMS = {
 export type { RequestStatus } from "./request-status";
 export type RequestPriority = (typeof REQUEST_PRIORITY)[number];
 export type RelatedPersonRelationship = (typeof RELATED_PERSON_RELATIONSHIP)[number];
+export type RelatedPlaceRelationship = (typeof RELATED_PLACE_RELATIONSHIP)[number];
 export type Language = (typeof LANGUAGE)[number];
 export type HoldReason = (typeof HOLD_REASON)[number];
 export type NoTrapperReason = (typeof NO_TRAPPER_REASON)[number];

@@ -620,6 +620,49 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Process related places (non-blocking per entry)
+    if (result?.request_id && body.related_places && body.related_places.length > 0) {
+      for (const rpl of body.related_places) {
+        try {
+          let placeId = rpl.place_id || null;
+
+          // Auto-resolve place if not already resolved
+          if (!placeId && rpl.raw_address) {
+            const resolved = await queryOne<{ place_id: string }>(
+              `SELECT sot.find_or_create_place_deduped(
+                $1, NULL, NULL, NULL, 'atlas_ui'
+              )::TEXT AS place_id`,
+              [rpl.raw_address]
+            );
+            placeId = resolved?.place_id || null;
+          }
+
+          if (!placeId) continue;
+
+          // Insert related place link
+          await queryOne(
+            `INSERT INTO ops.request_related_places (
+              request_id, place_id, relationship_type, relationship_notes,
+              is_primary_trapping_site, source_system
+            ) VALUES ($1, $2, $3, $4, $5, 'atlas_ui')
+            ON CONFLICT (request_id, place_id, relationship_type) DO UPDATE SET
+              relationship_notes = EXCLUDED.relationship_notes,
+              is_primary_trapping_site = EXCLUDED.is_primary_trapping_site,
+              updated_at = NOW()`,
+            [
+              result.request_id,
+              placeId,
+              rpl.relationship_type || "other",
+              rpl.relationship_notes ?? null,
+              rpl.is_primary_trapping_site ?? false,
+            ]
+          );
+        } catch (rplError) {
+          console.warn("[POST /api/requests] Related place processing failed (non-blocking):", rplError);
+        }
+      }
+    }
+
     // FFS-296: Link requestor to place + enrich place data
     if (result?.request_id) {
       try {

@@ -26,6 +26,8 @@ import {
   EMPTY_STAFF_TRIAGE,
   OtherPartiesSection,
   EMPTY_OTHER_PARTIES,
+  RelatedPlacesSection,
+  EMPTY_RELATED_PLACES,
 } from "@/components/request-sections";
 import type {
   PersonSectionValue,
@@ -36,6 +38,7 @@ import type {
   UrgencyNotesValue,
   StaffTriageValue,
   OtherPartiesSectionValue,
+  RelatedPlacesSectionValue,
 } from "@/components/request-sections";
 import { LANGUAGE_OPTIONS } from "@/lib/form-options";
 import { useSectionConfig } from "@/hooks/useSectionConfig";
@@ -113,6 +116,7 @@ function NewRequestForm() {
 
   // Related people + language (config-gated)
   const [otherParties, setOtherParties] = useState<OtherPartiesSectionValue>(EMPTY_OTHER_PARTIES);
+  const [relatedPlaces, setRelatedPlaces] = useState<RelatedPlacesSectionValue>(EMPTY_RELATED_PLACES);
   const [preferredLanguage, setPreferredLanguage] = useState("");
   const { isEnabled, getProps } = useSectionConfig("ffr_new");
 
@@ -735,6 +739,15 @@ function NewRequestForm() {
             relationship_notes: e.relationship_notes || undefined,
             notify_before_release: e.notify_before_release,
             preferred_language: e.preferred_language || undefined,
+          })),
+        // Related places
+        related_places: relatedPlaces.entries
+          .filter((e) => e.place_id)
+          .map((e) => ({
+            place_id: e.place_id,
+            relationship_type: e.relationship_type || "other",
+            relationship_notes: e.relationship_notes || undefined,
+            is_primary_trapping_site: e.is_primary_trapping_site,
           })),
         // Entry mode and completion data
         entry_mode: entryMode,
@@ -1432,6 +1445,18 @@ function NewRequestForm() {
               </div>
             </div>
           </div>
+
+          {/* Related locations (config-gated) */}
+          {isEnabled("relatedPlaces") && (
+            <div style={{ marginTop: SPACING.lg, paddingTop: SPACING.lg, borderTop: "1px solid var(--border-light, #f3f4f6)" }}>
+              <RelatedPlacesSection
+                value={relatedPlaces}
+                onChange={setRelatedPlaces}
+                compact
+                {...(getProps("relatedPlaces") as { maxEntries?: number })}
+              />
+            </div>
+          )}
         </div>
 
         {/* ─── SECTION 3: Tell me about the cats ────────────────────── */}

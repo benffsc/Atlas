@@ -163,6 +163,15 @@ export const createRequestSchema = z.object({
     preferred_language: optStr(10),
   })).optional().nullable(),
 
+  // Related places
+  related_places: z.array(z.object({
+    place_id: z.string().uuid().optional().nullable(),
+    raw_address: optStr(500),
+    relationship_type: z.string().max(50).default("other"),
+    relationship_notes: optStr(500),
+    is_primary_trapping_site: z.boolean().optional(),
+  })).optional().nullable(),
+
   // Provenance
   created_by: optStr(200),
 }).passthrough(); // Allow additional fields not yet in contract

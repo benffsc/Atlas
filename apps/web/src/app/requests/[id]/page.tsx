@@ -25,7 +25,9 @@ import { formatPhone, formatAddress } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "./types";
-import { RELATED_PERSON_RELATIONSHIP_OPTIONS, LANGUAGE_OPTIONS, getLabel, getShortLabel } from "@/lib/form-options";
+import { RELATED_PERSON_RELATIONSHIP_OPTIONS, RELATED_PLACE_RELATIONSHIP_OPTIONS, LANGUAGE_OPTIONS, getLabel, getShortLabel } from "@/lib/form-options";
+import PlaceResolver from "@/components/forms/PlaceResolver";
+import type { ResolvedPlace } from "@/components/forms/PlaceResolver";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import { PersonReferencePicker } from "@/components/ui/PersonReferencePicker";
@@ -183,6 +185,63 @@ export default function RequestDetailPage() {
     }
   }, [requestId, addPersonRef, addPersonRelType, addPersonLanguage, addPersonNotify, addPersonNotes, fetchRelatedPeople, resetAddPersonForm]);
 
+  // Related places
+  interface RelatedPlaceDisplay {
+    id: string;
+    place_id: string;
+    relationship_type: string;
+    relationship_notes: string | null;
+    is_primary_trapping_site: boolean;
+    display_name: string | null;
+    formatted_address: string | null;
+    locality: string | null;
+    place_kind: string | null;
+  }
+  const [relatedPlaces, setRelatedPlaces] = useState<RelatedPlaceDisplay[]>([]);
+
+  const [showAddPlaceDrawer, setShowAddPlaceDrawer] = useState(false);
+  const [addPlaceResolved, setAddPlaceResolved] = useState<ResolvedPlace | null>(null);
+  const [addPlaceRelType, setAddPlaceRelType] = useState("");
+  const [addPlaceNotes, setAddPlaceNotes] = useState("");
+  const [addPlacePrimary, setAddPlacePrimary] = useState(false);
+  const [addPlaceSaving, setAddPlaceSaving] = useState(false);
+
+  const resetAddPlaceForm = useCallback(() => {
+    setAddPlaceResolved(null);
+    setAddPlaceRelType("");
+    setAddPlaceNotes("");
+    setAddPlacePrimary(false);
+  }, []);
+
+  const fetchRelatedPlaces = useCallback(async () => {
+    try {
+      const data = await fetchApi<{ related_places: RelatedPlaceDisplay[] }>(`/api/requests/${requestId}/related-places`);
+      setRelatedPlaces(data.related_places || []);
+    } catch {
+      // Non-critical
+    }
+  }, [requestId]);
+
+  const handleAddPlace = useCallback(async () => {
+    if (!addPlaceResolved) return;
+    setAddPlaceSaving(true);
+    try {
+      await postApi(`/api/requests/${requestId}/related-places`, {
+        place_id: addPlaceResolved.place_id,
+        relationship_type: addPlaceRelType || "other",
+        relationship_notes: addPlaceNotes || undefined,
+        is_primary_trapping_site: addPlacePrimary,
+      });
+      fetchRelatedPlaces();
+      resetAddPlaceForm();
+      setShowAddPlaceDrawer(false);
+    } catch {
+      // Non-critical
+    } finally {
+      setAddPlaceSaving(false);
+    }
+  }, [requestId, addPlaceResolved, addPlaceRelType, addPlaceNotes, addPlacePrimary, fetchRelatedPlaces, resetAddPlaceForm]);
+
   // Map state
   const [mapUrl, setMapUrl] = useState<string | null>(null);
 
@@ -223,7 +282,8 @@ export default function RequestDetailPage() {
     fetchJournalEntries();
     fetchTripReports();
     fetchRelatedPeople();
-  }, [requestId, fetchJournalEntries, fetchTripReports, fetchRelatedPeople]);
+    fetchRelatedPlaces();
+  }, [requestId, fetchJournalEntries, fetchTripReports, fetchRelatedPeople, fetchRelatedPlaces]);
 
   const refreshRequest = async () => {
     try {
@@ -802,6 +862,195 @@ export default function RequestDetailPage() {
                 value={addPersonNotes}
                 onChange={(e) => setAddPersonNotes(e.target.value)}
                 placeholder="e.g., microchip owner, speaks only Spanish..."
+                style={{ width: "100%", padding: "6px 8px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px" }}
+              />
+            </div>
+          </div>
+        </ActionDrawer>
+
+        {/* Related Locations */}
+        <div style={{ marginTop: "1rem", background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", overflow: "hidden" }}>
+          <div style={{ padding: "0.625rem 1rem", background: "var(--bg-secondary, #f9fafb)", borderBottom: relatedPlaces.length > 0 ? "1px solid var(--border, #e5e7eb)" : "none", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Icon name="map-pin" size={16} color="var(--text-muted)" />
+            <h3 style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "var(--foreground)" }}>
+              Related Locations
+            </h3>
+            {relatedPlaces.length > 0 && (
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>({relatedPlaces.length})</span>
+            )}
+            <button
+              type="button"
+              onClick={() => { resetAddPlaceForm(); setShowAddPlaceDrawer(true); }}
+              style={{
+                marginLeft: "auto", padding: "2px 10px", fontSize: "0.75rem", fontWeight: 500,
+                color: "var(--primary)", background: "transparent",
+                border: "1px solid var(--primary)", borderRadius: "5px", cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: "4px",
+              }}
+            >
+              <Icon name="plus" size={12} /> Add
+            </button>
+          </div>
+          {relatedPlaces.length > 0 && (
+            <div style={{ padding: "0.5rem" }}>
+              {relatedPlaces.map((rpl) => (
+                <div
+                  key={rpl.id}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    borderBottom: "1px solid var(--border-light, #f3f4f6)",
+                  }}
+                >
+                  {/* Place name + link */}
+                  <a
+                    href={`/places/${rpl.place_id}`}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey) return;
+                      e.preventDefault();
+                      preview.open("place", rpl.place_id);
+                    }}
+                    style={{ fontWeight: 500, fontSize: "0.9rem", color: "var(--foreground)", textDecoration: "none", minWidth: "120px" }}
+                  >
+                    {rpl.display_name || rpl.formatted_address || "Unknown"}
+                  </a>
+
+                  {/* Relationship badge */}
+                  <span style={{
+                    fontSize: "0.7rem",
+                    fontWeight: 500,
+                    padding: "1px 8px",
+                    borderRadius: "10px",
+                    background: "var(--bg-tertiary, #f3f4f6)",
+                    color: "var(--text-secondary)",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {getLabel(RELATED_PLACE_RELATIONSHIP_OPTIONS, rpl.relationship_type)}
+                  </span>
+
+                  {/* Primary trapping site pill */}
+                  {rpl.is_primary_trapping_site && (
+                    <span style={{
+                      fontSize: "0.65rem",
+                      fontWeight: 600,
+                      padding: "1px 6px",
+                      borderRadius: "8px",
+                      background: "#dcfce7",
+                      color: "#166534",
+                      textTransform: "uppercase",
+                    }}>
+                      Primary
+                    </span>
+                  )}
+
+                  {/* Locality */}
+                  <div style={{ flex: 1, fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    {rpl.locality || rpl.formatted_address || ""}
+                  </div>
+
+                  {/* Notes */}
+                  {rpl.relationship_notes && (
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      title={rpl.relationship_notes}
+                    >
+                      {rpl.relationship_notes}
+                    </span>
+                  )}
+
+                  {/* Row action: Remove */}
+                  <RowActionMenu
+                    actions={[
+                      {
+                        label: "Remove",
+                        variant: "danger",
+                        onClick: async () => {
+                          try {
+                            await fetchApi(`/api/requests/${requestId}/related-places?related_place_id=${rpl.id}`, { method: "DELETE" });
+                            fetchRelatedPlaces();
+                          } catch {
+                            // Non-critical
+                          }
+                        },
+                      },
+                    ]}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          {relatedPlaces.length === 0 && (
+            <div style={{ padding: "0.75rem 1rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+              No related locations yet. Click Add to link a suspected source, trapping site, or colony extent.
+            </div>
+          )}
+        </div>
+
+        {/* Add Related Place Drawer */}
+        <ActionDrawer
+          isOpen={showAddPlaceDrawer}
+          onClose={() => setShowAddPlaceDrawer(false)}
+          title="Add Related Location"
+          width="sm"
+          footer={
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setShowAddPlaceDrawer(false)}
+                style={{ padding: "6px 16px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px", background: "transparent", cursor: "pointer", color: "var(--text-secondary)" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddPlace}
+                disabled={addPlaceSaving || !addPlaceResolved}
+                style={{
+                  padding: "6px 16px", fontSize: "0.85rem", fontWeight: 500,
+                  border: "none", borderRadius: "6px", cursor: addPlaceSaving ? "wait" : "pointer",
+                  background: "var(--primary)", color: "#fff",
+                  opacity: addPlaceSaving || !addPlaceResolved ? 0.5 : 1,
+                }}
+              >
+                {addPlaceSaving ? "Saving..." : "Add Location"}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div>
+              <label style={{ display: "block", marginBottom: "4px", fontSize: "0.8rem", fontWeight: 500 }}>Location</label>
+              <PlaceResolver
+                value={addPlaceResolved}
+                onChange={setAddPlaceResolved}
+                placeholder="Search for an address..."
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: "4px", fontSize: "0.8rem", fontWeight: 500 }}>Relationship</label>
+              <select
+                value={addPlaceRelType}
+                onChange={(e) => setAddPlaceRelType(e.target.value)}
+                style={{ width: "100%", padding: "6px 8px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px" }}
+              >
+                <option value="">Select relationship...</option>
+                {RELATED_PLACE_RELATIONSHIP_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", cursor: "pointer" }}>
+              <input type="checkbox" checked={addPlacePrimary} onChange={(e) => setAddPlacePrimary(e.target.checked)} />
+              Primary trapping site
+            </label>
+            <div>
+              <label style={{ display: "block", marginBottom: "4px", fontSize: "0.8rem", fontWeight: 500 }}>Notes</label>
+              <input
+                type="text"
+                value={addPlaceNotes}
+                onChange={(e) => setAddPlaceNotes(e.target.value)}
+                placeholder="e.g., feeder lives here, cats seen crossing from here..."
                 style={{ width: "100%", padding: "6px 8px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px" }}
               />
             </div>

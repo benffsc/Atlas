@@ -677,6 +677,16 @@ export const RELATED_PERSON_RELATIONSHIP_OPTIONS = [
   { value: "other", label: "Other", shortLabel: "Other" },
 ] as const satisfies readonly FormOption[];
 
+export const RELATED_PLACE_RELATIONSHIP_OPTIONS = [
+  { value: "suspected_source", label: "Suspected Source", shortLabel: "Source", description: "Where cats are believed to originate/be fed" },
+  { value: "trapping_site", label: "Trapping Site", shortLabel: "Trapping", description: "Where traps will be set" },
+  { value: "colony_extent", label: "Colony Extent", shortLabel: "Colony", description: "Part of the colony's territory" },
+  { value: "feeder_location", label: "Feeder Location", shortLabel: "Feeder", description: "Where someone regularly feeds cats" },
+  { value: "staging_area", label: "Staging Area", shortLabel: "Staging", description: "Where traps/crates are staged" },
+  { value: "property_owner_address", label: "Property Owner Address", shortLabel: "Owner", description: "Where the property owner lives" },
+  { value: "other", label: "Other", shortLabel: "Other" },
+] as const satisfies readonly FormOption[];
+
 // =============================================================================
 // LANGUAGE PREFERENCES
 // =============================================================================
