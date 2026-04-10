@@ -52,6 +52,7 @@ function formatCurrency(n: number): string {
 export function ImpactSummary() {
   const [data, setData] = useState<ImpactResponse | null>(null);
   const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [auditMetric, setAuditMetric] = useState<ImpactMetric | null>(null);
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export function ImpactSummary() {
         if (cancelled) return;
         if (result && typeof result === "object" && "cats_altered" in result) {
           setData(result as ImpactResponse);
+          setError(false);
         } else {
           setError(true);
         }
@@ -71,11 +73,38 @@ export function ImpactSummary() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryCount]);
 
-  // Hide the card entirely if the endpoint fails or admin has disabled it
-  if (error) return null;
+  // Admin disabled — hide entirely
   if (data && data.enabled === false) return null;
+
+  // On error, show a subtle retry prompt instead of hiding
+  if (error) {
+    return (
+      <section className="impact-summary-card" aria-label="Impact summary (loading error)">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0" }}>
+          <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+            Impact numbers unavailable
+          </span>
+          <button
+            type="button"
+            onClick={() => { setError(false); setRetryCount((c) => c + 1); }}
+            style={{
+              background: "none",
+              border: "1px solid var(--card-border)",
+              borderRadius: 6,
+              padding: "0.25rem 0.75rem",
+              fontSize: "0.78rem",
+              color: "var(--primary)",
+              cursor: "pointer",
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   const openAudit = (metric: ImpactMetric) => setAuditMetric(metric);
   const closeAudit = () => setAuditMetric(null);

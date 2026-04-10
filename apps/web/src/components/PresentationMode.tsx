@@ -60,7 +60,8 @@ interface IndicatorConfig {
 
 /**
  * PresentationModeIndicator — floating indicator shown when mode is active.
- * Also handles the ESC-to-exit keyboard shortcut.
+ * Also handles the ESC-to-exit keyboard shortcut and shows a "Start Demo"
+ * button so the presenter can launch the guided deck from any page.
  */
 export function PresentationModeIndicator({
   enabled,
@@ -93,10 +94,22 @@ export function PresentationModeIndicator({
 
   if (!enabled) return null;
 
+  // Don't show the demo button if we're already on /demo
+  const isOnDemo = typeof window !== "undefined" && window.location.pathname === "/demo";
+
   return (
     <div className="presentation-indicator" role="status" aria-live="polite">
       <span className="presentation-indicator-dot" aria-hidden="true" />
       <span className="presentation-indicator-text">{config.text}</span>
+      {!isOnDemo && (
+        <a
+          href="/demo"
+          className="presentation-indicator-demo"
+          aria-label="Start guided presentation"
+        >
+          Start Demo
+        </a>
+      )}
       <button
         type="button"
         onClick={onExit}

@@ -1,17 +1,16 @@
 "use client";
 
 /**
- * YearlyImpactChart — Year-over-year alteration bar chart.
+ * YearlyImpactChart — Year-over-year alteration line chart.
  *
- * Pure CSS flexbox bars (no external chart library). Follows the same
- * pattern as PopulationTrendChart: inline styles with CSS variables,
- * hover tooltips, proportional bar heights.
+ * SVG line chart (no external chart library). Shows the growth trend
+ * clearly with filled area underneath. Hover tooltips on data points.
  *
  * Data source: /api/dashboard/impact/yearly
  * Epic: FFS-1193 (Beacon Polish)
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { fetchApi } from "@/lib/api-client";
 
 interface YearlyRow {
@@ -39,7 +38,7 @@ const RANGE_LABELS: Record<RangePreset, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  aligned: "var(--primary, #2563eb)",
+  aligned: "#2563eb",
   db_under: "#f59e0b",
   db_over: "#ef4444",
   pre_system: "#9ca3af",
@@ -59,11 +58,20 @@ function filterByRange(years: YearlyRow[], preset: RangePreset): YearlyRow[] {
   }
 }
 
+/** Nice Y-axis ticks: round to nearest 500/1000/5000 */
+function niceMax(val: number): number {
+  if (val <= 100) return Math.ceil(val / 10) * 10;
+  if (val <= 1000) return Math.ceil(val / 100) * 100;
+  if (val <= 5000) return Math.ceil(val / 500) * 500;
+  return Math.ceil(val / 1000) * 1000;
+}
+
 export function YearlyImpactChart() {
   const [data, setData] = useState<YearlyData | null>(null);
   const [error, setError] = useState(false);
   const [range, setRange] = useState<RangePreset>("since_2013");
-  const [hoveredYear, setHoveredYear] = useState<number | null>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,14 +101,45 @@ export function YearlyImpactChart() {
   const filtered = filterByRange(data.years, range);
   if (filtered.length === 0) return null;
 
-  const maxCount = Math.max(...filtered.map((y) => y.donor_facing_count));
-  if (maxCount === 0) return null;
+  const rawMax = Math.max(...filtered.map((y) => y.donor_facing_count));
+  if (rawMax === 0) return null;
 
-  const barHeight = 140;
+  const maxCount = niceMax(rawMax);
   const rangeTotal = filtered.reduce((sum, y) => sum + y.donor_facing_count, 0);
 
-  // Sparse x-axis labels: show every Nth year depending on count
+  // Chart geometry
+  const chartW = 700;
+  const chartH = 160;
+  const padL = 50; // y-axis labels
+  const padR = 16;
+  const padT = 12;
+  const padB = 24; // x-axis labels
+  const plotW = chartW - padL - padR;
+  const plotH = chartH - padT - padB;
+
+  // Map data to SVG coordinates
+  const points = filtered.map((row, i) => ({
+    x: padL + (filtered.length === 1 ? plotW / 2 : (i / (filtered.length - 1)) * plotW),
+    y: padT + plotH - (row.donor_facing_count / maxCount) * plotH,
+    row,
+  }));
+
+  // Line path
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+
+  // Filled area path
+  const areaPath = `${linePath} L${points[points.length - 1].x},${padT + plotH} L${points[0].x},${padT + plotH} Z`;
+
+  // Y-axis grid lines (0, 25%, 50%, 75%, 100%)
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((pct) => ({
+    y: padT + plotH - pct * plotH,
+    label: Math.round(maxCount * pct).toLocaleString(),
+  }));
+
+  // X-axis labels (sparse)
   const labelInterval = filtered.length > 20 ? 5 : filtered.length > 12 ? 3 : filtered.length > 8 ? 2 : 1;
+
+  const hovered = hoveredIdx !== null ? points[hoveredIdx] : null;
 
   return (
     <section className="impact-chart-card" aria-label="Year-over-year alterations">
@@ -113,7 +152,6 @@ export function YearlyImpactChart() {
             {range !== "all" && ` (${RANGE_LABELS[range].toLowerCase()})`}
           </span>
         </div>
-        {/* Range pills */}
         <div className="impact-chart-pills">
           {(Object.keys(RANGE_LABELS) as RangePreset[]).map((preset) => (
             <button
@@ -128,73 +166,135 @@ export function YearlyImpactChart() {
         </div>
       </div>
 
-      {/* Chart */}
-      <div className="impact-chart-area">
-        {/* Y-axis reference lines */}
-        <div className="impact-chart-grid" aria-hidden="true">
-          <div className="impact-chart-gridline" style={{ bottom: "100%" }}>
-            <span className="impact-chart-gridlabel">{maxCount.toLocaleString()}</span>
-          </div>
-          <div className="impact-chart-gridline" style={{ bottom: "50%" }}>
-            <span className="impact-chart-gridlabel">{Math.round(maxCount / 2).toLocaleString()}</span>
-          </div>
-          <div className="impact-chart-gridline" style={{ bottom: "0%" }}>
-            <span className="impact-chart-gridlabel">0</span>
-          </div>
-        </div>
-
-        {/* Bars */}
-        <div
-          className="impact-chart-bars"
-          style={{ height: `${barHeight}px` }}
+      {/* SVG Line Chart */}
+      <div className="impact-chart-area" style={{ position: "relative" }}>
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${chartW} ${chartH}`}
+          style={{ width: "100%", height: "auto", display: "block" }}
+          preserveAspectRatio="xMidYMid meet"
         >
-          {filtered.map((year, idx) => {
-            const pct = (year.donor_facing_count / maxCount) * 100;
-            const color = STATUS_COLORS[year.alignment_status] || STATUS_COLORS.aligned;
-            const isHovered = hoveredYear === year.year;
-
-            return (
-              <div
-                key={year.year}
-                className="impact-chart-bar-col"
-                onMouseEnter={() => setHoveredYear(year.year)}
-                onMouseLeave={() => setHoveredYear(null)}
+          {/* Grid lines */}
+          {yTicks.map((tick, i) => (
+            <g key={i}>
+              <line
+                x1={padL}
+                y1={tick.y}
+                x2={chartW - padR}
+                y2={tick.y}
+                stroke="var(--card-border, #e5e7eb)"
+                strokeWidth={i === 0 ? 1 : 0.5}
+                strokeDasharray={i === 0 ? "none" : "4 3"}
+              />
+              <text
+                x={padL - 6}
+                y={tick.y + 3.5}
+                textAnchor="end"
+                fontSize="9"
+                fill="var(--text-muted, #9ca3af)"
+                fontFamily="inherit"
               >
-                {/* Tooltip */}
-                {isHovered && (
-                  <div className="impact-chart-tooltip">
-                    <strong>{year.year}</strong>
-                    <div>{year.donor_facing_count.toLocaleString()} cats</div>
-                    {year.alignment_status !== "pre_system" && (
-                      <div className="impact-chart-tooltip-detail">
-                        Ref: {year.reference_count.toLocaleString()} · DB: {year.db_count.toLocaleString()}
-                      </div>
-                    )}
-                    {year.alignment_status === "db_over" && (
-                      <div className="impact-chart-tooltip-warn">DB exceeds reference</div>
-                    )}
-                  </div>
-                )}
-                {/* Bar */}
-                <div
-                  className="impact-chart-bar"
-                  style={{
-                    height: `${pct}%`,
-                    background: color,
-                    opacity: isHovered ? 1 : 0.85,
-                  }}
-                  title={`${year.year}: ${year.donor_facing_count.toLocaleString()} cats altered`}
-                />
-                {/* X-axis label */}
-                {(idx % labelInterval === 0 || idx === filtered.length - 1) && (
-                  <span className="impact-chart-year-label">
-                    {filtered.length > 12 ? `'${String(year.year).slice(-2)}` : year.year}
-                  </span>
-                )}
-              </div>
+                {tick.label}
+              </text>
+            </g>
+          ))}
+
+          {/* Filled area */}
+          <path
+            d={areaPath}
+            fill="url(#areaGradient)"
+          />
+
+          {/* Gradient definition */}
+          <defs>
+            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+
+          {/* Line */}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="#2563eb"
+            strokeWidth={2}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {/* Data point dots — colored by alignment status */}
+          {points.map((p, i) => (
+            <circle
+              key={p.row.year}
+              cx={p.x}
+              cy={p.y}
+              r={hoveredIdx === i ? 5 : 3}
+              fill={STATUS_COLORS[p.row.alignment_status] || STATUS_COLORS.aligned}
+              stroke="#fff"
+              strokeWidth={1.5}
+              style={{ cursor: "pointer", transition: "r 100ms ease" }}
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
+            />
+          ))}
+
+          {/* X-axis labels */}
+          {points.map((p, i) => {
+            if (i % labelInterval !== 0 && i !== points.length - 1) return null;
+            return (
+              <text
+                key={`xl-${p.row.year}`}
+                x={p.x}
+                y={chartH - 4}
+                textAnchor="middle"
+                fontSize="9"
+                fill="var(--text-muted, #9ca3af)"
+                fontFamily="inherit"
+              >
+                {filtered.length > 12 ? `'${String(p.row.year).slice(-2)}` : p.row.year}
+              </text>
             );
           })}
-        </div>
+
+          {/* Hover crosshair line */}
+          {hovered && (
+            <line
+              x1={hovered.x}
+              y1={padT}
+              x2={hovered.x}
+              y2={padT + plotH}
+              stroke="var(--text-muted, #9ca3af)"
+              strokeWidth={0.5}
+              strokeDasharray="3 3"
+            />
+          )}
+        </svg>
+
+        {/* Tooltip (HTML overlay for better styling) */}
+        {hovered && (
+          <div
+            className="impact-chart-tooltip"
+            style={{
+              position: "absolute",
+              left: `${(hovered.x / chartW) * 100}%`,
+              top: `${(hovered.y / chartH) * 100}%`,
+              transform: "translate(-50%, -110%)",
+              pointerEvents: "none",
+            }}
+          >
+            <strong>{hovered.row.year}</strong>
+            <div>{hovered.row.donor_facing_count.toLocaleString()} cats</div>
+            {hovered.row.alignment_status !== "pre_system" && (
+              <div className="impact-chart-tooltip-detail">
+                Ref: {hovered.row.reference_count.toLocaleString()} · DB: {hovered.row.db_count.toLocaleString()}
+              </div>
+            )}
+            {hovered.row.alignment_status === "db_over" && (
+              <div className="impact-chart-tooltip-warn">DB exceeds reference</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Legend */}

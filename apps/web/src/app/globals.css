@@ -1133,6 +1133,23 @@ body.presentation-mode [data-admin-section="true"] {
   background: rgba(255, 255, 255, 0.25);
 }
 
+.presentation-indicator-demo {
+  background: var(--primary, #2563eb);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition-base);
+}
+
+.presentation-indicator-demo:hover {
+  background: #1d4ed8;
+}
+
 /* ============================================================================
    /story — Scrollytelling intro (Tier 3 — FFS-1196)
    Three full-height slides with scroll-snap and IntersectionObserver reveal.

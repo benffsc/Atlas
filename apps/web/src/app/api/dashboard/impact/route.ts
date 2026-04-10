@@ -1,8 +1,9 @@
 import { queryOne } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
-// Cache aggressively — "since inception" numbers only change slowly.
-export const revalidate = 3600; // 1 hour
+// Revalidate every 5 minutes. Numbers only change slowly but a stale error
+// response shouldn't hide the impact card for a full hour.
+export const revalidate = 300;
 
 interface ImpactRow {
   cats_altered: number;
