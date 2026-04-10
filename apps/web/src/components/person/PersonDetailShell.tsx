@@ -39,6 +39,7 @@ import { RequestsSectionAdapter } from "./sections/RequestsSectionAdapter";
 import { SubmissionsSectionAdapter } from "./sections/SubmissionsSectionAdapter";
 import { AliasesSectionAdapter } from "./sections/AliasesSectionAdapter";
 import { DataSourcesSectionAdapter } from "./sections/DataSourcesSectionAdapter";
+import { EquipmentSectionAdapter } from "./sections/EquipmentSectionAdapter";
 import { TrapperStatsCardAdapter } from "./sections/TrapperStatsCardAdapter";
 import { TrapperJournalAdapter } from "./sections/TrapperJournalAdapter";
 import { FosterOverviewAdapter } from "./sections/FosterOverviewAdapter";
@@ -74,6 +75,8 @@ const SECTION_COMPONENTS: Record<string, React.ComponentType<import("@/lib/perso
   "submissions": SubmissionsSectionAdapter,
   "aliases": AliasesSectionAdapter,
   "data-sources": DataSourcesSectionAdapter,
+  // Equipment section (FFS-1206) — shows checked-out equipment for this person
+  "equipment": EquipmentSectionAdapter,
   // Trapper sections
   "performance-banner": PerformanceBannerSection,
   "contract-profile": ContractProfileSection,

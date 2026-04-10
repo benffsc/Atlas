@@ -54,6 +54,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     paramIdx++;
   }
 
+  // FFS-1206 — filter by custodian or place for person/place detail pages
+  const custodianPersonId = searchParams.get("custodian_person_id");
+  const placeId = searchParams.get("place_id");
+
+  if (custodianPersonId) {
+    conditions.push(`v.current_custodian_id = $${paramIdx}::uuid`);
+    params.push(custodianPersonId);
+    paramIdx++;
+  }
+  if (placeId) {
+    conditions.push(`v.current_place_id = $${paramIdx}::uuid`);
+    params.push(placeId);
+    paramIdx++;
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   // Sort

@@ -37,6 +37,13 @@ export const BASE_CONFIG: RoleConfig = {
       order: 25,
     },
     {
+      id: "equipment",
+      title: "Equipment",
+      component: null!,
+      tab: "main",
+      order: 27,
+    },
+    {
       id: "verification",
       title: "Verification Status",
       component: null!,
