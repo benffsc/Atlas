@@ -8,6 +8,7 @@ import { useMapData } from "@/hooks/useMapData";
 import { fetchApi } from "@/lib/api-client";
 import { KpiStrip, ActionPanel, DASHBOARD_LAYER_GROUPS, getDefaultEnabledLayers } from "@/components/dashboard";
 import { ImpactSummary } from "@/components/dashboard/ImpactSummary";
+import { YearlyImpactChart } from "@/components/dashboard/YearlyImpactChart";
 import { InsightsFeed } from "@/components/dashboard/InsightsFeed";
 import { LiveCounter } from "@/components/dashboard/LiveCounter";
 import { usePermission } from "@/hooks/usePermission";
@@ -367,6 +368,9 @@ function HomeInner() {
 
       {/* Impact summary — "since inception" mission-connected stats */}
       <ImpactSummary />
+
+      {/* Year-over-year alterations chart */}
+      <YearlyImpactChart />
 
       {/* KPI Cards */}
       <KpiStrip stats={stats} />

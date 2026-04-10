@@ -17,6 +17,7 @@ const PUBLIC_PATHS = [
   "/login",
   "/change-password",
   "/story",
+  "/impact",
   "/api/auth/login",
   "/api/auth/change-password",
   "/api/auth/kiosk",

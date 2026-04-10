@@ -25,6 +25,26 @@ import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import { fetchApi } from "@/lib/api-client";
 import type { ImpactMethodology } from "@/app/api/dashboard/impact/route";
 
+interface YearlyRow {
+  year: number;
+  reference_count: number;
+  db_count: number;
+  donor_facing_count: number;
+  alignment_status: string;
+}
+
+interface YearlyData {
+  years: YearlyRow[];
+  totals: { reference: number; db: number; donor_facing: number };
+}
+
+const YEARLY_STATUS_STYLE: Record<string, { label: string; bg: string; color: string }> = {
+  aligned: { label: "Aligned", bg: "rgba(34,197,94,0.12)", color: "#15803d" },
+  db_under: { label: "Under", bg: "rgba(245,158,11,0.12)", color: "#92400e" },
+  db_over: { label: "Over", bg: "rgba(239,68,68,0.12)", color: "#b91c1c" },
+  pre_system: { label: "Pre-sys", bg: "rgba(156,163,175,0.12)", color: "#4b5563" },
+};
+
 export type ImpactMetric = "cats_altered" | "kittens_prevented" | "shelter_cost_avoided";
 
 interface SampleRecord {
@@ -88,6 +108,8 @@ export function ImpactMethodologyDrawer({
   const [audit, setAudit] = useState<AuditResponse | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState(false);
+  const [yearly, setYearly] = useState<YearlyData | null>(null);
+  const [yearlyLoading, setYearlyLoading] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !metric) {
@@ -112,6 +134,30 @@ export function ImpactMethodologyDrawer({
       })
       .finally(() => {
         if (!cancelled) setAuditLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, metric]);
+
+  // Fetch yearly breakdown when drawer opens for cats_altered
+  useEffect(() => {
+    if (!isOpen || metric !== "cats_altered") {
+      setYearly(null);
+      return;
+    }
+    let cancelled = false;
+    setYearlyLoading(true);
+    fetchApi<YearlyData>("/api/dashboard/impact/yearly")
+      .then((result) => {
+        if (cancelled) return;
+        if (result && Array.isArray(result.years)) {
+          setYearly(result);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setYearlyLoading(false);
       });
     return () => {
       cancelled = true;
@@ -261,6 +307,62 @@ export function ImpactMethodologyDrawer({
             <div className="impact-audit-empty">No records yet.</div>
           )}
         </section>
+
+        {/* Year-by-year breakdown (cats_altered only) */}
+        {metric === "cats_altered" && (
+          <section className="impact-audit-section">
+            <h4 className="impact-audit-section-title">Year-by-year breakdown</h4>
+            {yearlyLoading && (
+              <div className="impact-audit-loading">Loading yearly data…</div>
+            )}
+            {yearly && yearly.years.length > 0 && (
+              <div className="impact-audit-table-wrapper" style={{ maxHeight: "320px", overflowY: "auto" }}>
+                <table className="impact-audit-table">
+                  <thead>
+                    <tr>
+                      <th>Year</th>
+                      <th style={{ textAlign: "right" }}>Reference</th>
+                      <th style={{ textAlign: "right" }}>DB</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...yearly.years].reverse().map((row) => {
+                      const s = YEARLY_STATUS_STYLE[row.alignment_status] || YEARLY_STATUS_STYLE.pre_system;
+                      return (
+                        <tr key={row.year}>
+                          <td><strong>{row.year}</strong></td>
+                          <td className="impact-audit-mono" style={{ textAlign: "right" }}>
+                            {row.reference_count.toLocaleString()}
+                          </td>
+                          <td className="impact-audit-mono" style={{ textAlign: "right" }}>
+                            {row.db_count.toLocaleString()}
+                          </td>
+                          <td>
+                            <span style={{
+                              display: "inline-block",
+                              padding: "0.1rem 0.4rem",
+                              borderRadius: "3px",
+                              fontSize: "0.68rem",
+                              fontWeight: 600,
+                              background: s.bg,
+                              color: s.color,
+                            }}>
+                              {s.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="impact-audit-sample-note">
+                  Totals — Reference: {yearly.totals.reference.toLocaleString()} · DB: {yearly.totals.db.toLocaleString()} · Donor-facing: {yearly.totals.donor_facing.toLocaleString()}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Footer metadata */}
         <div className="impact-audit-footer">

@@ -45,15 +45,15 @@ export async function GET(request: NextRequest) {
     // explains the derivation for the computed metrics.
     const rows = await queryRows<SampleAltered>(
       `
+      -- Show only actual surgery appointments (service item), not status-checkbox matches (MIG_3075)
       SELECT
         c.cat_id::text AS cat_id,
         COALESCE(c.display_name, c.name) AS cat_name,
         c.microchip,
         a.appointment_date::text AS appointment_date,
         CASE
-          WHEN a.is_spay = TRUE AND a.is_neuter = TRUE THEN 'spay + neuter'
-          WHEN a.is_spay = TRUE THEN 'spay'
-          WHEN a.is_neuter = TRUE THEN 'neuter'
+          WHEN a.service_type ~* 'Cat Spay' THEN 'spay'
+          WHEN a.service_type ~* 'Cat Neuter' THEN 'neuter'
           ELSE 'altered'
         END AS procedure,
         p.display_name AS clinic_name,
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       JOIN sot.cats c ON c.cat_id = a.cat_id
       LEFT JOIN sot.places p ON p.place_id = a.place_id
       WHERE a.cat_id IS NOT NULL
-        AND (a.is_spay = TRUE OR a.is_neuter = TRUE)
+        AND a.service_type ~* 'Cat Spay|Cat Neuter'
         AND c.merged_into_cat_id IS NULL
       ORDER BY a.appointment_date DESC NULLS LAST
       LIMIT $1

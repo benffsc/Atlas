@@ -37,15 +37,22 @@ export async function GET() {
   try {
     const row = await queryOne<StoryRow>(`
       WITH impact AS (
+        -- Count first-time alterations by service item (MIG_3075).
+        -- Uses service_type (actual surgery) not is_spay/is_neuter (status checkbox).
         SELECT
-          COUNT(DISTINCT a.cat_id)::int AS cats_altered,
+          COUNT(*)::int AS cats_altered,
           COALESCE(
-            EXTRACT(YEAR FROM MIN(a.appointment_date))::int,
+            EXTRACT(YEAR FROM MIN(first_surgery))::int,
             EXTRACT(YEAR FROM CURRENT_DATE)::int
           ) AS start_year
-        FROM ops.appointments a
-        WHERE a.cat_id IS NOT NULL
-          AND (a.is_spay = TRUE OR a.is_neuter = TRUE)
+        FROM (
+          SELECT cat_id, MIN(appointment_date) AS first_surgery
+          FROM ops.appointments
+          WHERE cat_id IS NOT NULL
+            AND service_type IS NOT NULL
+            AND service_type ~* 'Cat Spay|Cat Neuter'
+          GROUP BY cat_id
+        ) first_surgeries
       ),
       kittens_mult AS (
         SELECT ops.get_config_numeric('impact.kittens_prevented_per_altered_cat', 10)::int AS m
