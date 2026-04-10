@@ -79,7 +79,7 @@ export function CheckoutForm({
       selectedPurposes: [] as string[],
       clientStatedPurpose: "",
       checkoutType: "",
-      depositAmount: 0,
+      depositAmount: 50, // FFS-1231: default $50 (FFSC standard) — staff must actively waive
       customDeposit: "",
       depositMethod: "" as string, // FFS-1208: cash, card, waived, none
       dueDate: defaultDueDate(),
@@ -161,7 +161,12 @@ export function CheckoutForm({
   const custodianName = collectedPerson.display_name || personRef.display_name;
   const custodianPersonId = collectedPerson.person_id || personRef.person_id;
 
-  const canSubmit = (custodianName.length > 0 && collectedPerson.first_name.trim().length > 0) && checkoutType.length > 0;
+  // FFS-1231: purpose is now REQUIRED (data showed 99.6% of checkouts had none)
+  const canSubmit =
+    custodianName.length > 0 &&
+    collectedPerson.first_name.trim().length > 0 &&
+    checkoutType.length > 0 &&
+    checkoutPurpose.length > 0;
 
   // Resolved deposit
   const resolvedDeposit = useMemo(() => {
@@ -314,7 +319,7 @@ export function CheckoutForm({
       selectedPurposes: [],
       clientStatedPurpose: "",
       checkoutType: "",
-      depositAmount: 0,
+      depositAmount: 50, // FFS-1231: default $50
       customDeposit: "",
       depositMethod: "",
       dueDate: defaultDueDate(),
@@ -656,8 +661,8 @@ export function CheckoutForm({
             background: "var(--section-bg, #f9fafb)",
           }}
         >
-          <label style={{ ...labelStyle, fontSize: "0.7rem", color: "var(--muted)" }}>
-            Staff Use — Checkout Purpose (select all that apply)
+          <label style={{ ...labelStyle, fontSize: "0.7rem", color: checkoutPurpose ? "var(--muted)" : "var(--danger-text, #dc2626)" }}>
+            Staff Use — Checkout Purpose * (select at least one)
           </label>
           <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "0.625rem" }}>
             {(EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS as readonly { value: string; label: string; shortLabel: string }[]).map((opt) => {
