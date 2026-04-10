@@ -1,8 +1,74 @@
 # Equipment Overhaul Plan — Transfer Cage Readiness + Digital Checkout
 
-**Status:** Plan mode (2026-04-09)
+**Status:** Plan mode (2026-04-09, updated 2026-04-10 with data analysis + industry research)
 **Trigger:** Transfer cages arriving in ~2 weeks; need formalized checkout system
 **Strategic context:** Equipment kiosk is the central checkout point. Paper slip is the mid-step. Beacon/Atlas tracks everything.
+**Epic:** FFS-1201 in Linear (14 sub-issues: FFS-1202–1214, FFS-1224–1227)
+
+---
+
+## Data Analysis (2026-04-10 — live production database)
+
+### Fleet snapshot
+- **157 active items** (130 traps, 27 accessories)
+- **64% checked out** (101 items), **26% available** (41), **10% missing** (15)
+- All 15 missing items are Large Trap (Backdoor) from the April 3 Inventory Day audit
+- Only 13 of 99 large backdoor traps are currently available on the shelf
+
+### Checkout patterns
+- **Median checkout duration: 10 days** (mean 19.6, max 236)
+- **Typical month: 90-170 checkout events** across 35-55 unique items
+- **April 2026 is 100% Atlas UI** (11 checkouts) — system transition is active
+- **93.5% of historical checkouts have no named borrower** (Airtable legacy gap)
+
+### Critical data gaps (fields that exist but are never used)
+| Field | Usage | Impact |
+|---|---|---|
+| **Due date** | 0% set | No overdue tracking possible |
+| **Deposit amount** | 0% set (tracked on paper per notes) | No "who owes us" dashboard |
+| **Checkout purpose** | 0.4% set (5 of 1,410) | No purpose analytics |
+| **Checkout type** | 0.7% set (10 of 1,410) | No type breakdown |
+| **Place linked** | 0% of checkouts | No geographic tracking |
+| **Digital agreements** | 0 signed | No waiver records |
+| **Borrower identity** | 6.5% of historical checkouts | Person resolution mostly broken |
+
+### What the notes tell us
+- Paper slip transcription: staff entering old-form checkouts into Atlas after the fact
+- Inventory Day: 4 distinct note patterns (confirmed shelf / stale clearing / confirmed out / missing)
+- Deposit mentions: "Deposit NOT returned" appears in notes — deposits are real, just not in the schema
+
+### Top borrowers (named only — 93.5% are unnamed)
+- Crystal Furtado: 30 checkouts, avg 6.9 days (fast — likely a trapper)
+- Cassie Thomson: 11 checkouts, avg 32.7 days (holds traps longer)
+- Lesley Cowley: 4 checkouts, avg 85 days (significant outlier)
+
+### Implications for design
+1. **14-day default loan period** aligns with 10-day median + buffer
+2. **Deposits are real** but only tracked on paper → first-class digital tracking is urgent
+3. **The paper-to-digital transition is in progress** but the UI must be fast enough to replace paper at the counter
+4. **Place linking is the biggest data gap** — traps go to specific locations but no record of where
+5. **The 15 missing traps** suggest Inventory Day should be a repeatable scheduled workflow
+6. **Borrower identity must be captured at checkout time**, not backfilled later
+
+---
+
+## Industry Research (2026-04-10)
+
+### TNR Equipment Lending (HumanePro, Alley Cat Allies, Shelter Pro)
+- **QR/barcode on every trap** — weatherproof stickers, scan at checkout (Operation Catnip + FCCO)
+- **FCCO abandoned paper forms** for real-time barcode scanning that "forces staff to record transactions as they occur"
+- **Deposits: $20-75/trap** (Alley Cat Allies: $60). Credit card kept under lock and key, NOT in digital system
+- **Loan agreement = liability waiver** — "may serve as release form to protect from liability for injury"
+- **Weekly follow-up calls** — check on colony status + troubleshoot, not just demand returns
+- **Generous extensions** for trapping unpredictability; credit card charged only after repeated ignored calls
+
+### Unified Kiosk (Bibliotheca, Lyngso, Vet Lobby)
+- **"Menu of services" on one device** — lending + returns + account info + payments simultaneously
+- **Each kiosk configurable differently** but managed from central admin
+- **Accessibility first** — large touch targets, multilingual, clear visuals
+- **"Too much complexity = users needing staff support"** — keep it simple
+
+Full source citations in `memory/industry-equipment-kiosk-research.md`.
 
 ---
 
