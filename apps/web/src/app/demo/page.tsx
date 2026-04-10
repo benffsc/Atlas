@@ -21,6 +21,9 @@
  *   /api/story-config, /api/dashboard/stats,
  *   /api/beacon/zones, /api/beacon/county-rollup
  *
+ * All slide text is admin-configurable via ops.app_config (demo.* keys).
+ * Edit at /admin/demo. MIG_3078 seeds defaults.
+ *
  * Auth required (presenter is logged in).
  * Epic: FFS-1193 (Beacon Polish)
  */
@@ -28,6 +31,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
+import { useAppConfig } from "@/hooks/useAppConfig";
+import { useOrgConfig } from "@/hooks/useOrgConfig";
 import { YearlyImpactChart } from "@/components/dashboard/YearlyImpactChart";
 
 interface StoryData {
@@ -82,6 +87,10 @@ function formatCurrency(n: number): string {
   return `$${n.toLocaleString()}`;
 }
 
+function formatDollar(n: number): string {
+  return `$${n.toLocaleString()}`;
+}
+
 const TOTAL_SLIDES = 8;
 
 export default function DemoPage() {
@@ -92,6 +101,37 @@ export default function DemoPage() {
   const [current, setCurrent] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Config values
+  const orgConfig = useOrgConfig();
+  const { value: demoEnabled } = useAppConfig<boolean>("demo.enabled");
+  const { value: tagline } = useAppConfig<string>("demo.tagline");
+  const { value: clinicDistinction } = useAppConfig<string>("demo.clinic_distinction");
+  const { value: impactFootnote } = useAppConfig<string>("demo.impact_footnote");
+  const { value: zonesTitle } = useAppConfig<string>("demo.zones_title");
+  const { value: zonesFootnote } = useAppConfig<string>("demo.zones_footnote");
+  const { value: askEyebrow } = useAppConfig<string>("demo.ask_eyebrow");
+  const { value: askTitle } = useAppConfig<string>("demo.ask_title");
+  const { value: tier1Amount } = useAppConfig<number>("demo.unit_tier1_amount");
+  const { value: tier1Outcome } = useAppConfig<string>("demo.unit_tier1_outcome");
+  const { value: tier2Amount } = useAppConfig<number>("demo.unit_tier2_amount");
+  const { value: tier2Outcome } = useAppConfig<string>("demo.unit_tier2_outcome");
+  const { value: tier3Amount } = useAppConfig<number>("demo.unit_tier3_amount");
+  const { value: tier3Outcome } = useAppConfig<string>("demo.unit_tier3_outcome");
+  const { value: askBody } = useAppConfig<string>("demo.ask_body");
+  const { value: visionBody1 } = useAppConfig<string>("demo.vision_body1");
+  const { value: visionBody2 } = useAppConfig<string>("demo.vision_body2");
+  const { value: cta1Label } = useAppConfig<string>("demo.cta1_label");
+  const { value: cta1Href } = useAppConfig<string>("demo.cta1_href");
+  const { value: cta2Label } = useAppConfig<string>("demo.cta2_label");
+  const { value: cta2Href } = useAppConfig<string>("demo.cta2_href");
+
+  // Kill switch — redirect if demo is disabled
+  useEffect(() => {
+    if (demoEnabled === false) {
+      router.replace("/");
+    }
+  }, [demoEnabled, router]);
 
   // Fetch all data in parallel
   useEffect(() => {
@@ -152,6 +192,8 @@ export default function DemoPage() {
     return () => observer.disconnect();
   }, [loaded]);
 
+  if (demoEnabled === false) return null;
+
   if (!loaded) {
     return (
       <div className="demo-page">
@@ -167,9 +209,6 @@ export default function DemoPage() {
 
   // Compute zone-level insights
   const managedZones = zones?.zones?.filter(z => z.zone_status === "managed") || [];
-  const needsAttentionZones = zones?.zones?.filter(z =>
-    z.zone_status !== "managed" && z.active_requests > 0
-  ) || [];
   const topActiveZones = [...(zones?.zones || [])]
     .sort((a, b) => b.active_requests - a.active_requests)
     .slice(0, 5);
@@ -180,14 +219,14 @@ export default function DemoPage() {
       {/* Slides container */}
       <div className="demo-slides" ref={containerRef}>
 
-        {/* ── Slide 1: Title ── */}
+        {/* -- Slide 1: Title -- */}
         <section className="demo-slide demo-slide-title">
           <div className="demo-slide-inner">
             <img src="/beacon-logo.jpeg" alt="Beacon" className="demo-logo" />
             <h1 className="demo-headline">Beacon</h1>
-            <p className="demo-tagline">A guiding light for humane cat population management</p>
+            <p className="demo-tagline">{tagline}</p>
             <p className="demo-tagline" style={{ marginTop: "0.5rem", fontSize: "0.85rem", opacity: 0.5 }}>
-              Forgotten Felines of Sonoma County
+              {orgConfig.nameFull}
             </p>
             <div className="demo-hint">
               Press <kbd>→</kbd> to begin
@@ -195,7 +234,7 @@ export default function DemoPage() {
           </div>
         </section>
 
-        {/* ── Slide 2: The Problem ── */}
+        {/* -- Slide 2: The Problem -- */}
         <section className="demo-slide demo-slide-problem">
           <div className="demo-slide-inner">
             <div className="demo-eyebrow">The challenge</div>
@@ -210,12 +249,12 @@ export default function DemoPage() {
               <span className="demo-callout-value">Trap-Neuter-Return (TNR)</span>
             </div>
             <p className="demo-slide-body" style={{ marginTop: "1.5rem", fontSize: "0.85rem" }}>
-              FFSC is the only dedicated spay/neuter clinic for community cats in Sonoma County.
+              {clinicDistinction}
             </p>
           </div>
         </section>
 
-        {/* ── Slide 3: Impact Numbers ── */}
+        {/* -- Slide 3: Impact Numbers -- */}
         <section className="demo-slide demo-slide-impact">
           <div className="demo-slide-inner">
             <div className="demo-eyebrow">Our impact{impact ? ` since ${impact.start_year}` : ""}</div>
@@ -240,12 +279,12 @@ export default function DemoPage() {
               </div>
             </div>
             <p className="demo-impact-note">
-              Every number is auditable — backed by individual cat records in the Beacon database
+              {impactFootnote}
             </p>
           </div>
         </section>
 
-        {/* ── Slide 4: Year-by-Year Growth ── */}
+        {/* -- Slide 4: Year-by-Year Growth -- */}
         <section className="demo-slide demo-slide-chart">
           <div className="demo-slide-inner demo-slide-inner-wide">
             <div className="demo-eyebrow">Growth over time</div>
@@ -258,7 +297,7 @@ export default function DemoPage() {
           </div>
         </section>
 
-        {/* ── Slide 5: Live Map ── */}
+        {/* -- Slide 5: Live Map -- */}
         <section className="demo-slide demo-slide-map">
           <div className="demo-slide-inner demo-slide-inner-full">
             <div className="demo-eyebrow">Where we work</div>
@@ -289,12 +328,12 @@ export default function DemoPage() {
           </div>
         </section>
 
-        {/* ── Slide 6: Strategic Insight (Beacon's core promise) ── */}
+        {/* -- Slide 6: Strategic Insight (Beacon's core promise) -- */}
         <section className="demo-slide demo-slide-zones">
           <div className="demo-slide-inner demo-slide-inner-wide">
             <div className="demo-eyebrow">Strategic insight</div>
             <h2 className="demo-slide-title-text">
-              Beacon shows exactly where intervention creates the greatest impact
+              {zonesTitle}
             </h2>
 
             {zones?.summary && (
@@ -343,44 +382,44 @@ export default function DemoPage() {
             )}
 
             <p className="demo-slide-body" style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.85rem" }}>
-              Predictive models forecast population trends so we can allocate resources <em>before</em> colonies grow
+              {zonesFootnote}
             </p>
           </div>
         </section>
 
-        {/* ── Slide 7: Unit Economics / The Ask ── */}
+        {/* -- Slide 7: Unit Economics / The Ask -- */}
         <section className="demo-slide demo-slide-ask">
           <div className="demo-slide-inner">
-            <div className="demo-eyebrow">What your support does</div>
+            <div className="demo-eyebrow">{askEyebrow}</div>
             <h2 className="demo-slide-title-text">
-              Every dollar is traceable to an outcome
+              {askTitle}
             </h2>
 
             <div className="demo-unit-grid">
               <div className="demo-unit-card">
-                <div className="demo-unit-amount">$50</div>
+                <div className="demo-unit-amount">{formatDollar(tier1Amount)}</div>
                 <div className="demo-unit-equals">=</div>
-                <div className="demo-unit-outcome">1 cat trapped, neutered, vaccinated, ear-tipped, and returned</div>
+                <div className="demo-unit-outcome">{tier1Outcome}</div>
               </div>
               <div className="demo-unit-card">
-                <div className="demo-unit-amount">$500</div>
+                <div className="demo-unit-amount">{formatDollar(tier2Amount)}</div>
                 <div className="demo-unit-equals">=</div>
-                <div className="demo-unit-outcome">One colony stabilized — ~10 cats fixed, kittens prevented for years</div>
+                <div className="demo-unit-outcome">{tier2Outcome}</div>
               </div>
               <div className="demo-unit-card">
-                <div className="demo-unit-amount">$5,000</div>
+                <div className="demo-unit-amount">{formatDollar(tier3Amount)}</div>
                 <div className="demo-unit-equals">=</div>
-                <div className="demo-unit-outcome">An entire neighborhood served — 100 cats, measurable population decline</div>
+                <div className="demo-unit-outcome">{tier3Outcome}</div>
               </div>
             </div>
 
             <p className="demo-slide-body" style={{ marginTop: "1.5rem" }}>
-              Beacon tracks every cat from trap to return. Your donation isn't a black box — it's a pin on the map, a record in the database, a life changed.
+              {askBody}
             </p>
           </div>
         </section>
 
-        {/* ── Slide 8: The Vision ── */}
+        {/* -- Slide 8: The Vision -- */}
         <section className="demo-slide demo-slide-vision">
           <div className="demo-slide-inner">
             <div className="demo-eyebrow">The vision</div>
@@ -388,14 +427,14 @@ export default function DemoPage() {
               {story?.slides[1]?.title || "Beacon illuminates where help is needed most"}
             </h2>
             <p className="demo-slide-body">
-              Beacon is the first data platform purpose-built for TNR. It integrates colony tracking, predictive modeling, volunteer coordination, and real-time impact reporting into a single system.
+              {visionBody1}
             </p>
             <p className="demo-slide-body">
-              What started at Forgotten Felines of Sonoma County is being built to serve any TNR organization that wants to prove their impact with data — scalable, replicable, and open.
+              {visionBody2}
             </p>
             <div className="demo-cta-group">
-              <a href="/impact" className="demo-cta">See the full data</a>
-              <a href="/" className="demo-cta demo-cta-secondary">Explore the dashboard</a>
+              <a href={cta1Href} className="demo-cta">{cta1Label}</a>
+              <a href={cta2Href} className="demo-cta demo-cta-secondary">{cta2Label}</a>
             </div>
           </div>
         </section>

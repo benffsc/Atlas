@@ -70,6 +70,28 @@ const DEFAULTS: Record<string, unknown> = {
   "kiosk.deposit_presets": [0, 50, 75],
   "kiosk.purpose_due_offsets": { tnr_appointment: 3, kitten_rescue: 14, colony_check: 7, feeding_station: 90, personal_pet: 14, ffr: 3, well_check: 7, rescue_recovery: 14, trap_training: 7, transport: 3 },
   "kiosk.inactivity_countdown": 30,
+  // Demo deck (MIG_3078 / FFS-1196)
+  "demo.enabled": true,
+  "demo.tagline": "A guiding light for humane cat population management",
+  "demo.clinic_distinction": "FFSC is the only dedicated spay/neuter clinic for community cats in Sonoma County.",
+  "demo.impact_footnote": "Every number is auditable — backed by individual cat records in the Beacon database",
+  "demo.zones_title": "Beacon shows exactly where intervention creates the greatest impact",
+  "demo.zones_footnote": "Predictive models forecast population trends so we can allocate resources before colonies grow",
+  "demo.ask_eyebrow": "What your support does",
+  "demo.ask_title": "Every dollar is traceable to an outcome",
+  "demo.unit_tier1_amount": 50,
+  "demo.unit_tier1_outcome": "1 cat trapped, neutered, vaccinated, ear-tipped, and returned",
+  "demo.unit_tier2_amount": 500,
+  "demo.unit_tier2_outcome": "One colony stabilized — ~10 cats fixed, kittens prevented for years",
+  "demo.unit_tier3_amount": 5000,
+  "demo.unit_tier3_outcome": "An entire neighborhood served — 100 cats, measurable population decline",
+  "demo.ask_body": "Beacon tracks every cat from trap to return. Your donation isn't a black box — it's a pin on the map, a record in the database, a life changed.",
+  "demo.vision_body1": "Beacon is the first data platform purpose-built for TNR. It integrates colony tracking, predictive modeling, volunteer coordination, and real-time impact reporting into a single system.",
+  "demo.vision_body2": "What started at Forgotten Felines of Sonoma County is being built to serve any TNR organization that wants to prove their impact with data — scalable, replicable, and open.",
+  "demo.cta1_label": "See the full data",
+  "demo.cta1_href": "/impact",
+  "demo.cta2_label": "Explore the dashboard",
+  "demo.cta2_href": "/",
 };
 
 interface ConfigRow {
