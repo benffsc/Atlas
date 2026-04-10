@@ -18,6 +18,7 @@ import type { EquipmentContextResponse } from "@/lib/types/view-contracts";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useKioskStaff } from "./KioskStaffContext";
+import { KioskAgreementModal, type AgreementResult } from "./KioskAgreementModal";
 import { KioskCard } from "./KioskCard";
 import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
 
@@ -55,6 +56,10 @@ export function CheckoutForm({
   const { activeStaff } = useKioskStaff();
   const { value: DEPOSIT_PRESETS } = useAppConfig<number[]>("kiosk.deposit_presets");
   const { value: PURPOSE_DUE_OFFSET } = useAppConfig<Record<string, number>>("kiosk.purpose_due_offsets");
+  // FFS-1207 — agreement config
+  const { value: agreementText } = useAppConfig<string>("equipment.agreement_text");
+  const { value: agreementVersion } = useAppConfig<string>("equipment.agreement_version");
+  const [showAgreement, setShowAgreement] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showResumed, setShowResumed] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -76,6 +81,7 @@ export function CheckoutForm({
       checkoutType: "",
       depositAmount: 0,
       customDeposit: "",
+      depositMethod: "" as string, // FFS-1208: cash, card, waived, none
       dueDate: defaultDueDate(),
       dueDateManuallySet: false,
       notes: "",
@@ -219,7 +225,18 @@ export function CheckoutForm({
     }
   }, [custodianPersonId, fetchContext]);
 
-  const handleSubmit = async () => {
+  // FFS-1207 — show agreement modal before submitting (gates the checkout)
+  const handleRequestSubmit = () => {
+    if (agreementText) {
+      setShowAgreement(true);
+    } else {
+      // No agreement configured — proceed directly (legacy/test mode)
+      handleSubmit(null);
+    }
+  };
+
+  const handleSubmit = async (agreement: AgreementResult | null) => {
+    setShowAgreement(false);
     setSubmitting(true);
     try {
       // Resolve collected person to a person_id (creates if needed)
@@ -231,13 +248,14 @@ export function CheckoutForm({
         resolvedStatus = resolution.resolution_type;
       }
 
-      await postApi(`/api/equipment/${equipmentId}/events`, {
+      const eventResult = await postApi<{ event_id: string }>(`/api/equipment/${equipmentId}/events`, {
         event_type: "check_out",
         actor_person_id: activeStaff?.person_id || undefined,
         custodian_person_id: resolvedPersonId || undefined,
         custodian_name: custodianName || undefined,
         checkout_type: checkoutType,
         deposit_amount: resolvedDeposit > 0 ? resolvedDeposit : undefined,
+        deposit_method: saved.depositMethod || undefined, // FFS-1208
         due_date: dueDate || undefined,
         notes: notes.trim() || undefined,
         // Context links
@@ -250,6 +268,26 @@ export function CheckoutForm({
         custodian_name_raw: custodianName || undefined,
         resolution_status: resolvedStatus,
       });
+
+      // FFS-1207 — store the signed agreement linked to the checkout event
+      if (agreement && eventResult?.event_id) {
+        try {
+          await postApi(`/api/equipment/${equipmentId}/agreement`, {
+            event_id: eventResult.event_id,
+            person_id: resolvedPersonId || undefined,
+            person_name: agreement.personName,
+            agreement_version: agreement.agreementVersion,
+            agreement_text: agreement.agreementText,
+            signature_value: agreement.signatureValue,
+            signature_type: "typed_name",
+          });
+        } catch {
+          // Agreement storage failure is non-blocking — the checkout already succeeded.
+          // Staff can retroactively collect a paper signature if needed.
+          console.error("[CheckoutForm] Agreement storage failed (non-blocking)");
+        }
+      }
+
       clearSaved();
       setSuccessName(custodianName);
       setSuccess(true);
@@ -278,6 +316,7 @@ export function CheckoutForm({
       checkoutType: "",
       depositAmount: 0,
       customDeposit: "",
+      depositMethod: "",
       dueDate: defaultDueDate(),
       dueDateManuallySet: false,
       notes: "",
@@ -343,6 +382,7 @@ export function CheckoutForm({
   }
 
   return (
+    <>
     <KioskCard icon="log-out" title="Check Out" subtitle={equipmentName} showResumed={showResumed}>
       <div style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         {/* ===================== WHO ===================== */}
@@ -438,6 +478,46 @@ export function CheckoutForm({
               step={1}
               style={{ ...inputStyle, minHeight: "36px", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
             />
+            {/* FFS-1208 — deposit method (cash / card / waived) */}
+            {resolvedDeposit > 0 && (
+              <div style={{ marginTop: "0.375rem" }}>
+                <label style={{ ...labelStyle, marginBottom: "0.25rem" }}>Payment Method</label>
+                <div style={{ display: "flex", gap: "0.375rem" }}>
+                  {[
+                    { value: "cash", label: "Cash" },
+                    { value: "card", label: "Card" },
+                    { value: "waived", label: "Waived" },
+                  ].map((opt) => {
+                    const isSelected = saved.depositMethod === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setSaved((p) => ({ ...p, depositMethod: opt.value }))}
+                        style={{
+                          flex: 1,
+                          minHeight: "36px",
+                          borderRadius: "8px",
+                          border: isSelected
+                            ? "2px solid var(--primary)"
+                            : "2px solid var(--card-border, #e5e7eb)",
+                          background: isSelected
+                            ? "var(--primary-bg, rgba(59,130,246,0.08))"
+                            : "var(--background, #fff)",
+                          color: isSelected ? "var(--primary)" : "var(--text-primary)",
+                          cursor: "pointer",
+                          fontSize: "0.8rem",
+                          fontWeight: isSelected ? 700 : 500,
+                          WebkitTapHighlightColor: "transparent",
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -639,7 +719,7 @@ export function CheckoutForm({
             icon="log-out"
             loading={submitting}
             disabled={!canSubmit}
-            onClick={handleSubmit}
+            onClick={handleRequestSubmit}
             style={{
               minHeight: "56px",
               borderRadius: "12px",
@@ -653,6 +733,18 @@ export function CheckoutForm({
         </div>
       </div>
     </KioskCard>
+
+    {/* FFS-1207 — Agreement modal (gates the checkout) */}
+    {showAgreement && agreementText && (
+      <KioskAgreementModal
+        agreementText={agreementText}
+        agreementVersion={agreementVersion || "1.0"}
+        defaultName={custodianName}
+        onAgree={(result) => handleSubmit(result)}
+        onCancel={() => setShowAgreement(false)}
+      />
+    )}
+    </>
   );
 }
 
