@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/core";
 import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 import type { IntakeSubmission } from "@/lib/intake-types";
-import { SubmissionStatusBadge, formatDate, normalizeName } from "./IntakeBadges";
+import { SubmissionStatusBadge, ServiceAreaBadge, formatDate, normalizeName } from "./IntakeBadges";
 import { formatPhone } from "@/lib/formatters";
 import { COLORS } from "@/lib/design-tokens";
 
@@ -66,6 +66,7 @@ function IntakeKanbanCard({
 }) {
   const isUrgent = submission.is_emergency;
   const isOverdue = submission.overdue;
+  const isOutOfArea = submission.service_area_status === "out" && !submission.out_of_service_area_email_sent_at;
   const phone = formatPhone(submission.phone);
   const email = truncateEmail(submission.email);
   const contactParts = [phone, email].filter(Boolean);
@@ -75,16 +76,18 @@ function IntakeKanbanCard({
       onClick={() => onOpenDetail?.(submission)}
       style={{
         background: "var(--card-bg, white)",
-        border: `1px solid ${isUrgent ? COLORS.error : isOverdue ? COLORS.warning : "var(--card-border, #e5e7eb)"}`,
+        border: `1px solid ${isUrgent ? COLORS.error : isOverdue ? COLORS.warning : isOutOfArea ? COLORS.error : "var(--card-border, #e5e7eb)"}`,
         borderRadius: "8px",
         padding: "0.75rem",
         cursor: "pointer",
         transition: "box-shadow 0.15s, transform 0.15s",
         borderLeft: isUrgent
           ? `3px solid ${COLORS.error}`
-          : isOverdue
-            ? `3px solid ${COLORS.warning}`
-            : undefined,
+          : isOutOfArea
+            ? `3px solid ${COLORS.error}`
+            : isOverdue
+              ? `3px solid ${COLORS.warning}`
+              : undefined,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
@@ -181,11 +184,18 @@ function IntakeKanbanCard({
         )}
       </div>
 
-      {isOverdue && (
-        <div style={{ fontSize: "0.65rem", color: COLORS.warning, fontWeight: 500, marginTop: "0.25rem" }}>
-          STALE
-        </div>
-      )}
+      {/* Status indicators */}
+      <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
+        {isOverdue && (
+          <span style={{ fontSize: "0.65rem", color: COLORS.warning, fontWeight: 500 }}>
+            STALE
+          </span>
+        )}
+        <ServiceAreaBadge
+          status={submission.service_area_status}
+          emailSentAt={submission.out_of_service_area_email_sent_at}
+        />
+      </div>
     </div>
   );
 }

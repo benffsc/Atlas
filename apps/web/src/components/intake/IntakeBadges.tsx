@@ -81,20 +81,32 @@ export function KittenPriorityBadge({ score, hasKittens }: { score: number | nul
 /**
  * FFS-1187 — Service area status badge.
  * Hidden when status is 'in', 'unknown', or null.
+ * Shows REDIRECTED when email has been sent.
  */
 export function ServiceAreaBadge({
   status,
+  emailSentAt,
 }: {
   status: "in" | "ambiguous" | "out" | "unknown" | null | undefined;
+  emailSentAt?: string | null;
 }) {
   if (!status || status === "in" || status === "unknown") return null;
+
+  // Email already sent → green "REDIRECTED" badge
+  if (status === "out" && emailSentAt) {
+    return (
+      <span style={{ ...badgeBase, background: COLORS.success, color: COLORS.white }}>
+        REDIRECTED
+      </span>
+    );
+  }
 
   const colors: Record<
     "ambiguous" | "out",
     { bg: string; color: string; label: string }
   > = {
-    out: { bg: COLORS.error, color: COLORS.white, label: "Out of Area" },
-    ambiguous: { bg: COLORS.warning, color: COLORS.black, label: "Ambiguous" },
+    out: { bg: COLORS.error, color: COLORS.white, label: "OUT OF AREA" },
+    ambiguous: { bg: COLORS.warning, color: COLORS.black, label: "BOUNDARY" },
   };
   const style = colors[status];
   return (

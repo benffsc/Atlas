@@ -27,6 +27,8 @@ import { getKittenPriorityTier, KITTEN_PRIORITY_LABELS } from "@/lib/display-lab
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 import { OutOfServiceAreaBanner } from "@/components/intake/OutOfServiceAreaBanner";
 import { SendOutOfServiceConfirmModal } from "@/components/intake/SendOutOfServiceConfirmModal";
+import { EmailSuggestionBanner } from "@/components/intake/EmailSuggestionBanner";
+import { useEmailSuggestions, type EmailSuggestion } from "@/hooks/useEmailSuggestions";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
 
 export interface IntakeDetailPanelProps {
@@ -131,6 +133,9 @@ export function IntakeDetailPanel({
   const [ooaPreviewLoading, setOoaPreviewLoading] = useState(false);
   const [ooaSending, setOoaSending] = useState(false);
   const [ooaSuppressed, setOoaSuppressed] = useState(false);
+
+  // Config-driven email suggestions (Phase 2 — MIG_3078)
+  const { suggestions: emailSuggestions } = useEmailSuggestions(submission, ooaSuppressed);
 
   // Inline contact form state
   const [showInlineContactForm, setShowInlineContactForm] = useState<"note" | "call" | null>(null);
@@ -349,6 +354,21 @@ export function IntakeDetailPanel({
       onRefresh();
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to override");
+    }
+  };
+
+  // Config-driven email suggestion handlers (reuse existing OoA handlers for now)
+  const handleSuggestionPreview = (suggestion: EmailSuggestion) => {
+    // For out_of_service_area flow, reuse the existing preview handler
+    if (suggestion.rule.flow_slug === "out_of_service_area") {
+      handleOoaPreview();
+    }
+  };
+
+  const handleSuggestionSend = (suggestion: EmailSuggestion) => {
+    // For out_of_service_area flow, reuse the existing approve handler
+    if (suggestion.rule.flow_slug === "out_of_service_area") {
+      handleOoaApprove();
     }
   };
 
@@ -615,7 +635,7 @@ export function IntakeDetailPanel({
           </div>
         </div>
 
-        {/* FFS-1187 — Out-of-Service-Area banner */}
+        {/* FFS-1187 — Out-of-Service-Area banner (hardcoded fallback) */}
         <OutOfServiceAreaBanner
           submission={submission}
           onPreviewEmail={handleOoaPreview}
@@ -623,6 +643,18 @@ export function IntakeDetailPanel({
           onOverride={handleOoaOverride}
           isSuppressed={ooaSuppressed}
         />
+
+        {/* Config-driven email suggestions (Phase 2 — MIG_3078) */}
+        {emailSuggestions
+          .filter((s) => s.rule.flow_slug !== "out_of_service_area") // OoA has its own banner above
+          .map((suggestion) => (
+            <EmailSuggestionBanner
+              key={suggestion.rule.rule_id}
+              suggestion={suggestion}
+              onPreview={handleSuggestionPreview}
+              onSend={handleSuggestionSend}
+            />
+          ))}
 
         {submission.is_emergency ? (
           <div style={{ background: "rgba(220, 53, 69, 0.15)", padding: "0.75rem", borderRadius: "8px", marginBottom: "1rem", border: "1px solid rgba(220, 53, 69, 0.3)" }}>

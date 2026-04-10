@@ -10,6 +10,7 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import type { IntakeSubmission, StaffMember, TabType } from "@/lib/intake-types";
 import {
   SubmissionStatusBadge,
+  ServiceAreaBadge,
   formatDate,
   normalizeName,
 } from "@/components/intake/IntakeBadges";
@@ -573,6 +574,22 @@ function IntakeQueueContent() {
         >
           Out of Area {showOutOfArea ? "On" : "Off"}
         </button>
+        {/* Out-of-area summary stats (visible when filter is active) */}
+        {showOutOfArea && (() => {
+          const ooa = submissions.filter(s => s.service_area_status === "out" || s.service_area_status === "ambiguous");
+          const pending = ooa.filter(s => s.service_area_status === "out" && !s.out_of_service_area_email_sent_at).length;
+          const sent = ooa.filter(s => !!s.out_of_service_area_email_sent_at).length;
+          const ambiguous = ooa.filter(s => s.service_area_status === "ambiguous").length;
+          return (
+            <span style={{ fontSize: "0.75rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+              {pending > 0 && <span style={{ color: COLORS.error }}>{pending} pending</span>}
+              {pending > 0 && (sent > 0 || ambiguous > 0) && " · "}
+              {sent > 0 && <span style={{ color: COLORS.success }}>{sent} sent</span>}
+              {sent > 0 && ambiguous > 0 && " · "}
+              {ambiguous > 0 && <span style={{ color: COLORS.warning }}>{ambiguous} boundary</span>}
+            </span>
+          );
+        })()}
 
         {/* View Toggle (FFS-166) */}
         <div style={{ display: "flex", gap: "2px", marginLeft: "auto", flexShrink: 0 }}>
@@ -950,7 +967,7 @@ function IntakeQueueContent() {
                   style={{
                     padding: "0.75rem",
                     border: "1px solid var(--border)",
-                    borderLeft: `3px solid ${sub.is_emergency ? COLORS.error : sub.overdue ? COLORS.warning : "transparent"}`,
+                    borderLeft: `3px solid ${sub.is_emergency ? COLORS.error : (sub.service_area_status === "out" && !sub.out_of_service_area_email_sent_at) ? COLORS.error : sub.overdue ? COLORS.warning : "transparent"}`,
                     borderRadius: "6px",
                     background: selectedIds.has(sub.submission_id) ? COLORS.primaryLight : "var(--background)",
                     cursor: "pointer",
@@ -963,11 +980,15 @@ function IntakeQueueContent() {
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
                     {sub.geo_formatted_address || sub.cats_address}
                   </div>
-                  <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.7rem", color: "var(--muted)" }}>
+                  <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.7rem", color: "var(--muted)", alignItems: "center", flexWrap: "wrap" }}>
                     <span>{sub.cat_count_estimate ?? "?"} cats</span>
                     <span>{formatDate(sub.submitted_at)}</span>
                     {sub.is_emergency && <span style={{ color: COLORS.error, fontWeight: 600 }}>URGENT</span>}
                     {sub.overdue && <span style={{ color: COLORS.warning }}>STALE</span>}
+                    <ServiceAreaBadge
+                      status={sub.service_area_status}
+                      emailSentAt={sub.out_of_service_area_email_sent_at}
+                    />
                   </div>
                 </div>
               ))}
@@ -999,7 +1020,7 @@ function IntakeQueueContent() {
                 if (sub) openDetail(sub);
               }}
               getRowStyle={(row) => ({
-                borderLeft: `3px solid ${row.is_emergency ? COLORS.error : row.overdue ? COLORS.warning : "transparent"}`,
+                borderLeft: `3px solid ${row.is_emergency ? COLORS.error : (row.service_area_status === "out" && !row.out_of_service_area_email_sent_at) ? COLORS.error : row.overdue ? COLORS.warning : "transparent"}`,
               })}
               loading={false}
               aria-label="Intake queue submissions"

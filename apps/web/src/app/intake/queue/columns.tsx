@@ -14,6 +14,7 @@ import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import type { IntakeSubmission } from "@/lib/intake-types";
 import {
   SubmissionStatusBadge,
+  ServiceAreaBadge,
   KittenPriorityBadge,
   formatDate,
   normalizeName,
@@ -190,6 +191,10 @@ export function getIntakeColumns(cb: IntakeColumnCallbacks): ColumnDef<IntakeSub
                   NEEDS TRAPPER
                 </span>
               )}
+              <ServiceAreaBadge
+                status={sub.service_area_status}
+                emailSentAt={sub.out_of_service_area_email_sent_at}
+              />
             </div>
             {sub.triage_category && (
               <span
