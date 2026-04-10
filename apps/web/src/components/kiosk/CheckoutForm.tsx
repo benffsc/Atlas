@@ -18,6 +18,7 @@ import type { EquipmentContextResponse } from "@/lib/types/view-contracts";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useKioskStaff } from "./KioskStaffContext";
+import { useKioskPreview } from "@/hooks/useKioskPreview";
 import { KioskAgreementModal, type AgreementResult } from "./KioskAgreementModal";
 import { KioskCard } from "./KioskCard";
 import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
@@ -53,6 +54,7 @@ export function CheckoutForm({
   onCancel,
 }: CheckoutFormProps) {
   const toast = useToast();
+  const isPreview = useKioskPreview();
   const { activeStaff } = useKioskStaff();
   const { value: DEPOSIT_PRESETS } = useAppConfig<number[]>("kiosk.deposit_presets");
   const { value: PURPOSE_DUE_OFFSET } = useAppConfig<Record<string, number>>("kiosk.purpose_due_offsets");
@@ -162,11 +164,13 @@ export function CheckoutForm({
   const custodianPersonId = collectedPerson.person_id || personRef.person_id;
 
   // FFS-1231: purpose is now REQUIRED (data showed 99.6% of checkouts had none)
-  const canSubmit =
+  // Preview mode bypasses all validation so admin can click through flows
+  const canSubmit = isPreview || (
     custodianName.length > 0 &&
     collectedPerson.first_name.trim().length > 0 &&
     checkoutType.length > 0 &&
-    checkoutPurpose.length > 0;
+    checkoutPurpose.length > 0
+  );
 
   // Resolved deposit
   const resolvedDeposit = useMemo(() => {
@@ -242,6 +246,15 @@ export function CheckoutForm({
 
   const handleSubmit = async (agreement: AgreementResult | null) => {
     setShowAgreement(false);
+
+    // Preview mode: show success without hitting the API
+    if (isPreview) {
+      toast.info("Preview mode — no data submitted");
+      setSuccessName("Preview User");
+      setSuccess(true);
+      return;
+    }
+
     setSubmitting(true);
     try {
       // Resolve collected person to a person_id (creates if needed)

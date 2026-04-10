@@ -11,6 +11,7 @@ import { KioskStaffBadge } from "@/components/kiosk/KioskStaffBadge";
 import { OfflineBanner } from "@/components/kiosk/OfflineBanner";
 import { Icon } from "@/components/ui/Icon";
 import { usePathname } from "next/navigation";
+import { useKioskPreview } from "@/hooks/useKioskPreview";
 
 /**
  * Client-side kiosk shell — routes content through the right wrappers.
@@ -27,6 +28,7 @@ import { usePathname } from "next/navigation";
  */
 export function KioskShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isPreview = useKioskPreview();
 
   const isPrintRoute = pathname?.includes("/print");
   const isSetupRoute = pathname?.startsWith("/kiosk/setup");
@@ -35,10 +37,11 @@ export function KioskShell({ children }: { children: React.ReactNode }) {
 
   // FFS-1225: The scan page is public (checkout + return are borrower-facing actions).
   // Only admin equipment pages (add, inventory, restock, print) stay behind the PIN.
+  // Preview mode (?preview=1) bypasses the PIN gate entirely.
   const isEquipmentScan = pathname === "/kiosk/equipment/scan";
   const isEquipmentAdmin = isEquipmentRoute && !isEquipmentScan && !isPrintRoute && !isSetupRoute;
 
-  const needsGate = isEquipmentAdmin;
+  const needsGate = isEquipmentAdmin && !isPreview;
   const showTabBar = isEquipmentAdmin && !isPrintRoute;
   const showHomeButton = !isSplash && !isSetupRoute && !isPrintRoute;
 
@@ -58,6 +61,25 @@ export function KioskShell({ children }: { children: React.ReactNode }) {
       }}
     >
       <OfflineBanner />
+      {isPreview && (
+        <div
+          style={{
+            background: "#7c3aed",
+            color: "#fff",
+            padding: "6px 16px",
+            fontSize: "0.8rem",
+            fontWeight: 700,
+            textAlign: "center",
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            position: "sticky",
+            top: 0,
+            zIndex: 999,
+          }}
+        >
+          Preview Mode — submissions disabled, validation bypassed
+        </div>
+      )}
       {children}
     </div>
   );

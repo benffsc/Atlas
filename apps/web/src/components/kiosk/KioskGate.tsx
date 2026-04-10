@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { useKioskStaff } from "./KioskStaffContext";
 import { KioskStaffPicker } from "./KioskStaffPicker";
+import { useKioskPreview } from "@/hooks/useKioskPreview";
 
 const STORAGE_KEY = "kiosk_unlocked";
 const STAFF_STORAGE_KEY = "kiosk_active_staff";
@@ -22,6 +23,7 @@ const STAFF_STORAGE_KEY = "kiosk_active_staff";
  * This is a privacy gate, not security auth. Equipment data only.
  */
 export function KioskGate({ children }: { children: React.ReactNode }) {
+  const isPreview = useKioskPreview();
   const [state, setState] = useState<"checking" | "locked" | "staff_select" | "unlocked" | "not_configured">("checking");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -33,6 +35,12 @@ export function KioskGate({ children }: { children: React.ReactNode }) {
   // Check localStorage on mount
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    // Preview mode bypasses the PIN gate entirely
+    if (isPreview) {
+      setState("unlocked");
+      return;
+    }
 
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "true") {

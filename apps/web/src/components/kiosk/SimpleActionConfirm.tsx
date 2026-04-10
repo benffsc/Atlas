@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 import { KioskPersonAutosuggest, type PersonReference } from "./KioskPersonAutosuggest";
 import { useKioskStaff } from "./KioskStaffContext";
+import { useKioskPreview } from "@/hooks/useKioskPreview";
 import { KioskCard } from "./KioskCard";
 import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
 
@@ -85,6 +86,7 @@ export function SimpleActionConfirm({
   onCancel,
 }: SimpleActionConfirmProps) {
   const toast = useToast();
+  const isPreview = useKioskPreview();
   const { activeStaff } = useKioskStaff();
   const [conditionAfter, setConditionAfter] = useState(currentCondition);
   const [notes, setNotes] = useState("");
@@ -105,6 +107,11 @@ export function SimpleActionConfirm({
   const isDanger = DANGER_ACTIONS.has(action);
 
   const handleSubmit = async () => {
+    if (isPreview) {
+      toast.info("Preview mode — no data submitted");
+      onComplete();
+      return;
+    }
     // Condition change requires the value to actually change
     if (showCondition && conditionAfter === currentCondition) {
       toast.warning("Please select a different condition.");

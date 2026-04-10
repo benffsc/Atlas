@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { KioskPhotoCapture } from "@/components/kiosk/KioskPhotoCapture";
 import { EQUIPMENT_CONDITION_OPTIONS } from "@/lib/form-options";
 import { useKioskStaff } from "./KioskStaffContext";
+import { useKioskPreview } from "@/hooks/useKioskPreview";
 import { KioskCard } from "./KioskCard";
 import { kioskLabelStyle as labelStyle, kioskInputStyle as inputStyle } from "./kiosk-styles";
 
@@ -36,6 +37,7 @@ export function CheckinForm({
   onCancel,
 }: CheckinFormProps) {
   const toast = useToast();
+  const isPreview = useKioskPreview();
   const { activeStaff } = useKioskStaff();
   const [submitting, setSubmitting] = useState(false);
   const [showResumed, setShowResumed] = useState(false);
@@ -80,6 +82,11 @@ export function CheckinForm({
   const setNotes = (v: string) => setSaved((p) => ({ ...p, notes: v }));
 
   const handleSubmit = async () => {
+    if (isPreview) {
+      toast.info("Preview mode — no data submitted");
+      onComplete();
+      return;
+    }
     setSubmitting(true);
     try {
       // Upload photo first if captured

@@ -16,6 +16,7 @@ import { KioskMissionFrame } from "@/components/kiosk/KioskMissionFrame";
 import { KioskClinicReview } from "@/components/kiosk/KioskClinicReview";
 import { useKioskStaff } from "@/components/kiosk/KioskStaffContext";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useKioskPreview } from "@/hooks/useKioskPreview";
 import {
   CLINIC_CAT_TREE,
   classifyCatFromTags,
@@ -92,7 +93,8 @@ function KioskClinicContent() {
   const searchParams = useSearchParams();
   const { activeStaff } = useKioskStaff();
   const { user: adminUser } = useCurrentUser();
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, info: toastInfo } = useToast();
+  const isPreview = useKioskPreview();
 
   // FFS-1107 — phone-intake mode
   const { value: allowPhoneIntake } = useAppConfig<boolean>("kiosk.allow_phone_intake");
@@ -208,13 +210,15 @@ function KioskClinicContent() {
   }, [phase, questionProgress.current, totalSteps]);
 
   const canGoNext = useMemo(() => {
+    // Preview mode bypasses all validation
+    if (isPreview) return true;
     if (phase === "contact") {
       return !!(contact.firstName.trim() && contact.phone && isValidPhone(contact.phone));
     }
     if (phase === "location") return !!(place || freeformAddress.trim());
     if (phase === "review") return true;
     return false;
-  }, [phase, contact, place, freeformAddress]);
+  }, [phase, contact, place, freeformAddress, isPreview]);
 
   // Person lookup
   const doPersonLookup = useCallback(async () => {
@@ -263,6 +267,11 @@ function KioskClinicContent() {
 
   // Build and submit intake payload
   const handleSubmit = useCallback(async () => {
+    if (isPreview) {
+      toastInfo("Preview mode — no data submitted");
+      setPhase("success");
+      return;
+    }
     setPhase("submitting");
 
     try {
