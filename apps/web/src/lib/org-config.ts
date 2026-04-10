@@ -26,7 +26,7 @@ const DEFAULTS = {
     "By submitting, you agree to be contacted by Forgotten Felines regarding this request.",
   // FFS-1185 — fields used by the out-of-service-area email template
   "org.address": "1814 Empire Industrial Ct, Santa Rosa, CA 95404",
-  "org.logo_url": "https://www.forgottenfelines.com/logo.png",
+  "org.logo_url": "https://atlas.forgottenfelines.com/logo.png",
   "org.anniversary_badge_url": "",
 } as const;
 

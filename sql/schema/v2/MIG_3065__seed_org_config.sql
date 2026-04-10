@@ -87,7 +87,7 @@ INSERT INTO ops.app_config (key, value, category, description) VALUES
   ),
   (
     'org.logo_url',
-    '"https://www.forgottenfelines.org/wp-content/uploads/ForgottenFelines-with-Germansville-Logo2026-300x156.png"'::jsonb,
+    '"https://atlas.forgottenfelines.com/logo.png"'::jsonb,
     'org',
     'Public URL to the org logo image used in email templates. Must be reachable from external email clients.'
   ),
