@@ -73,6 +73,10 @@
       "schedule": "0 16 * * *"
     },
     {
+      "path": "/api/cron/equipment-return-reminders",
+      "schedule": "30 16 * * *"
+    },
+    {
       "path": "/api/cron/alert-digest",
       "schedule": "0 9 * * *"
     },
