@@ -131,6 +131,7 @@ export async function GET() {
       )
       SELECT
         counts.cats_altered,
+        counts.cats_altered_db_only,
         counts.start_year,
         ops.get_config_numeric('impact.kittens_prevented_per_altered_cat', 10)::int AS kittens_multiplier,
         ops.get_config_numeric('impact.shelter_cost_per_kitten_usd', 200)::int AS shelter_cost_multiplier,
