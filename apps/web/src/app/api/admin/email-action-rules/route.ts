@@ -18,7 +18,7 @@ import {
   apiNotFound,
 } from "@/lib/api-response";
 import { getSession } from "@/lib/auth";
-import { query, queryOne } from "@/lib/db";
+import { queryRows, queryOne } from "@/lib/db";
 
 const VALID_OPERATORS = ["eq", "neq", "in", "is_null", "is_not_null"] as const;
 
@@ -40,12 +40,12 @@ export async function GET(request: NextRequest) {
   try {
     const showAll = request.nextUrl.searchParams.get("all") === "1";
 
-    const rows = await query(
+    const rules = await queryRows(
       showAll
         ? `SELECT * FROM ops.email_action_rules ORDER BY priority DESC, display_name`
         : `SELECT * FROM ops.email_action_rules WHERE enabled = TRUE ORDER BY priority DESC, display_name`
     );
-    return apiSuccess(rows);
+    return apiSuccess(rules);
   } catch (err) {
     console.error("email-action-rules list error:", err);
     return apiServerError("Failed to load email action rules");
