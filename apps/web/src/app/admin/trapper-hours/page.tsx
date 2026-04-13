@@ -1000,9 +1000,26 @@ function TrapperHoursContent() {
             </Link>
           </div>
         </div>
-        <Button variant="primary" icon="plus" onClick={handleOpenCreate}>
-          Log Hours
-        </Button>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <Link
+            href="/admin/trapper-hours/print?blank=true"
+            target="_blank"
+            style={{
+              padding: "0.45rem 0.75rem",
+              border: "1px solid var(--border-primary)",
+              borderRadius: "6px",
+              fontSize: "0.8rem",
+              color: "var(--text-secondary)",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Print Blank Timesheet
+          </Link>
+          <Button variant="primary" icon="plus" onClick={handleOpenCreate}>
+            Log Hours
+          </Button>
+        </div>
       </div>
 
       {/* Stats row */}
