@@ -14,6 +14,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { ImpactMethodologyDrawer, type ImpactMetric } from "./ImpactMethodologyDrawer";
+import type { ImpactMethodology } from "@/app/api/dashboard/impact/route";
 
 interface YearlyRow {
   year: number;
@@ -204,26 +206,33 @@ export function YearlyImpactChart() {
   const [error, setError] = useState(false);
   const [yearRange, setYearRange] = useState<[number, number] | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [methodology, setMethodology] = useState<ImpactMethodology | null>(null);
+  const [methodologyStartYear, setMethodologyStartYear] = useState(2013);
+  const [auditMetric, setAuditMetric] = useState<ImpactMetric | null>(null);
   const { value: kittensMultiplier } = useAppConfig<number>("impact.kittens_prevented_per_altered_cat");
   const { value: shelterCostPerKitten } = useAppConfig<number>("impact.shelter_cost_per_kitten_usd");
 
   useEffect(() => {
     let cancelled = false;
-    fetchApi<YearlyData>("/api/dashboard/impact/yearly")
-      .then((result) => {
-        if (cancelled) return;
-        if (result && Array.isArray(result.years)) {
-          setData(result);
-          const minY = Math.min(...result.years.map((y) => y.year));
-          const maxY = Math.max(...result.years.map((y) => y.year));
-          setYearRange([Math.max(2013, minY), maxY]);
-        } else {
-          setError(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      });
+    // Fetch yearly data + methodology in parallel
+    Promise.all([
+      fetchApi<YearlyData>("/api/dashboard/impact/yearly").catch(() => null),
+      fetchApi<{ methodology: ImpactMethodology; start_year: number }>("/api/dashboard/impact").catch(() => null),
+    ]).then(([yearlyResult, impactResult]) => {
+      if (cancelled) return;
+      if (yearlyResult && Array.isArray(yearlyResult.years)) {
+        setData(yearlyResult);
+        const minY = Math.min(...yearlyResult.years.map((y) => y.year));
+        const maxY = Math.max(...yearlyResult.years.map((y) => y.year));
+        setYearRange([Math.max(2013, minY), maxY]);
+      } else {
+        setError(true);
+      }
+      if (impactResult && "methodology" in impactResult) {
+        setMethodology(impactResult.methodology);
+        setMethodologyStartYear(impactResult.start_year ?? 1990);
+      }
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -350,7 +359,7 @@ export function YearlyImpactChart() {
         </div>
       </div>
 
-      {/* Impact stats strip — reacts to slider */}
+      {/* Impact stats strip — reacts to slider, clickable for methodology */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(3, 1fr)",
@@ -359,30 +368,36 @@ export function YearlyImpactChart() {
         borderBottom: "1px solid var(--card-border, #e5e7eb)",
         marginBottom: "0.5rem",
       }}>
-        <div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            {fmtBig(rangeTotal)}
-          </div>
-          <div style={{ fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>
-            cats altered
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--primary, #2563eb)" }}>
-            ~{fmtBig(kittensPrevented)}
-          </div>
-          <div style={{ fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>
-            kittens prevented
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            {fmtCurrency(shelterCostAvoided)}
-          </div>
-          <div style={{ fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>
-            shelter costs avoided
-          </div>
-        </div>
+        {([
+          { metric: "cats_altered" as ImpactMetric, value: fmtBig(rangeTotal), label: "cats altered", color: "var(--text-primary)" },
+          { metric: "kittens_prevented" as ImpactMetric, value: `~${fmtBig(kittensPrevented)}`, label: "kittens prevented", color: "var(--primary, #2563eb)" },
+          { metric: "shelter_cost_avoided" as ImpactMetric, value: fmtCurrency(shelterCostAvoided), label: "shelter costs avoided", color: "var(--text-primary)" },
+        ]).map((stat) => (
+          <button
+            key={stat.metric}
+            type="button"
+            onClick={() => methodology && setAuditMetric(stat.metric)}
+            disabled={!methodology}
+            style={{
+              background: "none", border: "none", padding: 0,
+              cursor: methodology ? "pointer" : "default",
+              textAlign: "left",
+            }}
+            title={methodology ? "Click to see the math" : undefined}
+          >
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: stat.color }}>
+              {stat.value}
+            </div>
+            <div style={{ fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>
+              {stat.label}
+            </div>
+            {methodology && (
+              <div style={{ fontSize: "0.65rem", color: "var(--primary)", marginTop: "0.15rem" }}>
+                See the math →
+              </div>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Range slider */}
@@ -526,6 +541,16 @@ export function YearlyImpactChart() {
           </div>
         )}
       </div>
+
+      {/* Methodology audit drawer */}
+      <ImpactMethodologyDrawer
+        isOpen={auditMetric !== null}
+        onClose={() => setAuditMetric(null)}
+        metric={auditMetric}
+        methodology={methodology}
+        startYear={methodologyStartYear}
+        computedAt={new Date().toISOString()}
+      />
     </section>
   );
 }
