@@ -124,6 +124,16 @@ function formatHours(val: number | null | undefined): string {
   return val.toFixed(1);
 }
 
+function getSuffix(day: number): string {
+  if (day >= 11 && day <= 13) return "th";
+  switch (day % 10) {
+    case 1: return "st";
+    case 2: return "nd";
+    case 3: return "rd";
+    default: return "th";
+  }
+}
+
 function getMondayOfCurrentWeek(): string {
   const now = new Date();
   const day = now.getDay();
@@ -208,7 +218,8 @@ const TIMESHEET_CSS = `
     vertical-align: middle;
   }
   .ts-daily-table td.ts-write-cell {
-    border-left: 1px solid #ecf0f1;
+    border-left: 1px solid #bdc3c7;
+    border-right: 1px solid #bdc3c7;
   }
   .ts-daily-table td.ts-write-cell input {
     border: none;
@@ -367,213 +378,242 @@ function BlankTimesheetForm({
   weekStart,
   employeeName,
   orgName,
+  periodType,
+  onNameChange,
+  onWeekChange,
+  onPeriodTypeChange,
 }: {
   weekStart: string;
   employeeName: string;
   orgName: string;
+  periodType: "weekly" | "monthly";
+  onNameChange: (name: string) => void;
+  onWeekChange: (week: string) => void;
+  onPeriodTypeChange: (type: "weekly" | "monthly") => void;
 }) {
-  const weekEnd = toDateStr(addDays(parseDateLocal(weekStart)!, 6));
-  const periodLabel = formatPeriodRange(weekStart, weekEnd, "weekly");
-  const days = getWeekDays(weekStart);
-  const categories = ["Trapping", "Admin", "Transport", "Training", "Other"];
+  const start = parseDateLocal(weekStart);
+  let endDate: Date;
+  if (periodType === "monthly" && start) {
+    // Monthly: 4 weeks from start (28 days), matching Crystal's ~month spans
+    endDate = addDays(start, 27);
+  } else if (start) {
+    endDate = addDays(start, 6);
+  } else {
+    endDate = new Date();
+  }
+  const weekEnd = toDateStr(endDate);
+  const periodLabel = formatPeriodRange(weekStart, weekEnd, periodType);
+
+  // Generate all days in the period
+  const days: { date: Date; label: string; dateStr: string; dayNum: string }[] = [];
+  if (start) {
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    let cursor = new Date(start);
+    while (cursor <= endDate) {
+      days.push({
+        date: new Date(cursor),
+        label: dayNames[cursor.getDay()],
+        dateStr: cursor.toLocaleDateString("en-US", { month: "numeric", day: "numeric" }),
+        dayNum: periodType === "monthly"
+          ? cursor.getDate().toString() + getSuffix(cursor.getDate())
+          : dayNames[cursor.getDay()],
+      });
+      cursor = addDays(cursor, 1);
+    }
+  }
 
   return (
     <div className="print-wrapper">
       <style jsx global>{TIMESHEET_CSS}</style>
 
       <PrintControlsPanel
-        title="Weekly Timesheet (Blank)"
-        description="Print this blank form for hand-entry. Ctrl+P or Cmd+P."
+        title="Blank Weekly Timesheet"
+        description="Prefill name and week, then print."
         backHref="/admin/trapper-hours"
         backLabel="Back to Trapper Hours"
       >
-        <div className="ctrl-hint">
-          {employeeName && <>{employeeName}<br /></>}
-          Week of {periodLabel}
+        <div className="ctrl-field" style={{ marginBottom: "8px" }}>
+          <label style={{ display: "block", fontSize: "11px", color: "#666", marginBottom: "3px" }}>
+            Employee Name
+          </label>
+          <input
+            type="text"
+            value={employeeName}
+            onChange={(e) => onNameChange(e.target.value)}
+            style={{ width: "100%", padding: "7px", border: "1px solid #ddd", borderRadius: "6px", fontSize: "13px", boxSizing: "border-box" }}
+          />
+        </div>
+        <div className="ctrl-field" style={{ marginBottom: "8px" }}>
+          <label style={{ display: "block", fontSize: "11px", color: "#666", marginBottom: "3px" }}>
+            Period Type
+          </label>
+          <div style={{ display: "flex", gap: "4px" }}>
+            <button
+              onClick={() => onPeriodTypeChange("weekly")}
+              style={{
+                flex: 1, padding: "6px", border: "1px solid #ddd", borderRadius: "6px",
+                fontSize: "12px", cursor: "pointer",
+                background: periodType === "weekly" ? "#27ae60" : "#fff",
+                color: periodType === "weekly" ? "#fff" : "#333",
+              }}
+            >
+              Weekly
+            </button>
+            <button
+              onClick={() => onPeriodTypeChange("monthly")}
+              style={{
+                flex: 1, padding: "6px", border: "1px solid #ddd", borderRadius: "6px",
+                fontSize: "12px", cursor: "pointer",
+                background: periodType === "monthly" ? "#27ae60" : "#fff",
+                color: periodType === "monthly" ? "#fff" : "#333",
+              }}
+            >
+              Monthly
+            </button>
+          </div>
+        </div>
+        <div className="ctrl-field" style={{ marginBottom: "8px" }}>
+          <label style={{ display: "block", fontSize: "11px", color: "#666", marginBottom: "3px" }}>
+            {periodType === "monthly" ? "Period Start Date" : "Week Starting (Monday)"}
+          </label>
+          <input
+            type="date"
+            value={weekStart}
+            onChange={(e) => onWeekChange(e.target.value)}
+            style={{ width: "100%", padding: "7px", border: "1px solid #ddd", borderRadius: "6px", fontSize: "13px", boxSizing: "border-box" }}
+          />
         </div>
       </PrintControlsPanel>
 
-      <div className="print-page">
-        <PrintHeader title="Weekly Timesheet" subtitle={orgName} />
+      {(() => {
+        // Split rows across pages — 22 rows on first page (has header), 28 on subsequent
+        const ROWS_PAGE_1 = 22;
+        const ROWS_OTHER = 28;
+        const pages: typeof days[] = [];
+        let remaining = [...days];
 
-        {/* Header bar */}
-        <div className="ts-header-bar">
-          <div className="ts-name">{employeeName || "________________________"}</div>
-          <div className="ts-period">Week of {periodLabel}</div>
-        </div>
+        // First page
+        pages.push(remaining.slice(0, ROWS_PAGE_1));
+        remaining = remaining.slice(ROWS_PAGE_1);
 
-        {/* Employee + Period info */}
-        <div className="ts-info-grid ts-no-break">
-          <div className="section" style={{ marginBottom: 0 }}>
-            <div className="section-title">Employee</div>
-            <EditableField
-              label="Name"
-              value={employeeName || null}
-              placeholder="Employee name"
-              style={{ marginBottom: "4px" }}
-            />
-            <EditableField
-              label="Position / Role"
-              placeholder="e.g., Trapping Coordinator"
-              style={{ marginBottom: 0 }}
-            />
-          </div>
-          <div className="section" style={{ marginBottom: 0 }}>
-            <div className="section-title">Pay Period</div>
-            <EditableField
-              label="Week Starting"
-              value={weekStart ? periodLabel : null}
-              placeholder="Week of ___________"
-              style={{ marginBottom: "4px" }}
-            />
-            <EditableField
-              label="Pay Rate"
-              placeholder="$____/hr"
-              style={{ marginBottom: 0 }}
-            />
-          </div>
-        </div>
+        // Additional pages
+        while (remaining.length > 0) {
+          pages.push(remaining.slice(0, ROWS_OTHER));
+          remaining = remaining.slice(ROWS_OTHER);
+        }
 
-        {/* Daily hours table */}
-        <div className="section ts-no-break">
-          <div className="section-title">Daily Hours Log</div>
-          <table className="ts-daily-table">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Date</th>
-                {categories.map((c) => (
-                  <th key={c}>{c}</th>
-                ))}
-                <th style={{ fontWeight: 800 }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {days.map((day) => (
-                <tr key={day.label}>
-                  <td>{day.label}</td>
-                  <td>{day.dateStr}</td>
-                  {categories.map((c) => (
-                    <td key={c} className="ts-write-cell">
-                      <input type="text" placeholder="—" />
-                    </td>
+        const totalPages = pages.length;
+        const sheetTitle = periodType === "monthly" ? "Work Sheet" : "Weekly Timesheet";
+
+        return pages.map((pageDays, pageIdx) => {
+          const isFirst = pageIdx === 0;
+          const isLast = pageIdx === totalPages - 1;
+
+          return (
+            <div className="print-page" key={pageIdx}>
+              <PrintHeader
+                title={isFirst ? sheetTitle : `${sheetTitle} (continued)`}
+                subtitle={orgName}
+                rightContent={
+                  <div style={{ textAlign: "right", fontSize: "10pt" }}>
+                    <strong>{employeeName}</strong>
+                  </div>
+                }
+              />
+
+              {isFirst && (
+                <div className="ts-header-bar">
+                  <div className="ts-name">{employeeName}</div>
+                  <div className="ts-period">{periodLabel}</div>
+                </div>
+              )}
+
+              <table className="ts-daily-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: "55px" }}>Date</th>
+                    <th>Address / Location</th>
+                    <th style={{ width: "70px" }}>Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageDays.map((day, i) => (
+                    <tr key={i}>
+                      <td>
+                        <span style={{ fontWeight: 600 }}>{day.dayNum}</span>
+                      </td>
+                      <td className="ts-write-cell">
+                        <input type="text" style={{ textAlign: "left", paddingLeft: "6px" }} />
+                      </td>
+                      <td className="ts-write-cell">
+                        <input type="text" />
+                      </td>
+                    </tr>
                   ))}
-                  <td className="ts-write-cell">
-                    <input type="text" placeholder="—" />
-                  </td>
-                </tr>
-              ))}
-              <tr className="ts-total-row">
-                <td colSpan={2}>Weekly Total</td>
-                {categories.map((c) => (
-                  <td key={c} className="ts-write-cell">
-                    <input type="text" placeholder="" />
-                  </td>
-                ))}
-                <td className="ts-write-cell" style={{ fontWeight: 800 }}>
-                  <input type="text" placeholder="" style={{ fontWeight: 800 }} />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
 
-        {/* Work summary */}
-        <div className="section ts-no-break">
-          <div className="section-title">Work Summary</div>
-          <div
-            className="ts-write-line"
-            style={{ minHeight: "0.45in", marginBottom: "6px" }}
-          >
-            <input
-              type="text"
-              placeholder="Brief description of key activities this week..."
-              style={{
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                font: "inherit",
-                width: "100%",
-                padding: "4px 0",
-              }}
-            />
-          </div>
-          <div className="ts-write-line" style={{ minHeight: "0.45in" }}>
-            <input
-              type="text"
-              style={{
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                font: "inherit",
-                width: "100%",
-                padding: "4px 0",
-              }}
-            />
-          </div>
-        </div>
+                  {/* Total row + pay + signatures on last page only */}
+                  {isLast && (
+                    <tr className="ts-total-row">
+                      <td colSpan={2} style={{ textAlign: "right", paddingRight: "12px" }}>Total Hours</td>
+                      <td className="ts-write-cell" style={{ fontWeight: 800 }}>
+                        <input type="text" style={{ fontWeight: 800 }} />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
 
-        {/* Pay calculation (staff use) */}
-        <div
-          className="staff-box ts-no-break"
-          style={{ marginTop: "8px", marginBottom: "8px" }}
-        >
-          <div className="section-title">Pay Calculation (Office Use)</div>
-          <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-            <EditableField
-              label="Total Hours"
-              placeholder="____"
-              style={{ flex: "0 0 90px" }}
-            />
-            <span style={{ fontSize: "11pt", fontWeight: 700, paddingTop: "14px" }}>×</span>
-            <EditableField
-              label="Rate"
-              placeholder="$____/hr"
-              style={{ flex: "0 0 90px" }}
-            />
-            <span style={{ fontSize: "11pt", fontWeight: 700, paddingTop: "14px" }}>=</span>
-            <EditableField
-              label="Total Pay"
-              placeholder="$________"
-              style={{ flex: "0 0 110px" }}
-            />
-            <div style={{ flex: 1 }} />
-            <EditableField
-              label="Processed by"
-              placeholder="Staff initials"
-              style={{ flex: "0 0 110px" }}
-            />
-          </div>
-        </div>
+              {/* Pay + signatures on last page */}
+              {isLast && (
+                <>
+                  <div
+                    className="staff-box ts-no-break"
+                    style={{ marginTop: "10px", marginBottom: "10px" }}
+                  >
+                    <div className="section-title">Pay Calculation (Office Use)</div>
+                    <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                      <EditableField label="Total Hours" placeholder="____" style={{ flex: "0 0 90px" }} />
+                      <span style={{ fontSize: "11pt", fontWeight: 700, paddingTop: "14px" }}>×</span>
+                      <EditableField label="Rate" placeholder="$____/hr" style={{ flex: "0 0 90px" }} />
+                      <span style={{ fontSize: "11pt", fontWeight: 700, paddingTop: "14px" }}>=</span>
+                      <EditableField label="Total Pay" placeholder="$________" style={{ flex: "0 0 110px" }} />
+                      <div style={{ flex: 1 }} />
+                      <EditableField label="Processed by" placeholder="Initials" style={{ flex: "0 0 100px" }} />
+                    </div>
+                  </div>
 
-        {/* Signatures */}
-        <div className="section ts-no-break" style={{ marginTop: "10px" }}>
-          <div className="section-title">Signatures</div>
-          <div className="ts-sig-grid">
-            <div>
-              <div className="ts-sig-label">Employee Signature</div>
-              <div className="ts-sig-line" />
-              <div className="ts-sig-date-row">
-                <span className="ts-sig-date-label">Date:</span>
-                <div className="ts-sig-date-line" />
-              </div>
+                  <div className="section ts-no-break" style={{ marginTop: "10px" }}>
+                    <div className="section-title">Signatures</div>
+                    <div className="ts-sig-grid">
+                      <div>
+                        <div className="ts-sig-label">Employee Signature</div>
+                        <div className="ts-sig-line" />
+                        <div className="ts-sig-date-row">
+                          <span className="ts-sig-date-label">Date:</span>
+                          <div className="ts-sig-date-line" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="ts-sig-label">Supervisor Signature</div>
+                        <div className="ts-sig-line" />
+                        <div className="ts-sig-date-row">
+                          <span className="ts-sig-date-label">Date:</span>
+                          <div className="ts-sig-date-line" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <PrintFooter
+                left={`${orgName} • ${sheetTitle}`}
+                right={totalPages > 1 ? `${periodLabel} — Page ${pageIdx + 1} of ${totalPages}` : periodLabel}
+              />
             </div>
-            <div>
-              <div className="ts-sig-label">Supervisor Signature</div>
-              <div className="ts-sig-line" />
-              <div className="ts-sig-date-row">
-                <span className="ts-sig-date-label">Date:</span>
-                <div className="ts-sig-date-line" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <PrintFooter
-          left={`${orgName} • Weekly Timesheet`}
-          right={`Week of ${periodLabel}`}
-        />
-      </div>
+          );
+        });
+      })()}
     </div>
   );
 }
@@ -776,8 +816,10 @@ function TimesheetPrintContent() {
   const nameParam = searchParams.get("name");
 
   // State for blank form controls
+  const periodTypeParam = searchParams.get("period_type") as "weekly" | "monthly" | null;
   const [weekStart, setWeekStart] = useState(weekStartParam || getMondayOfCurrentWeek());
   const [employeeName, setEmployeeName] = useState(nameParam || "Crystal Furtado");
+  const [periodType, setPeriodType] = useState<"weekly" | "monthly">(periodTypeParam || "weekly");
 
   // State for completed entry
   const [entry, setEntry] = useState<HoursEntry | null>(null);
@@ -819,98 +861,11 @@ function TimesheetPrintContent() {
   if (isBlank) {
     return (
       <>
-        {/* Extra controls for blank form (only on screen) */}
-        <div
-          className="print-controls"
-          style={{
-            position: "fixed",
-            right: 0,
-            top: 0,
-            width: "280px",
-            height: "100vh",
-            padding: "1.5rem",
-            background: "#fff",
-            borderLeft: "1px solid #e5e7eb",
-            zIndex: 100,
-            overflowY: "auto",
-            fontFamily: "system-ui, sans-serif",
-          }}
-        >
-          <a
-            href="/admin/trapper-hours"
-            style={{
-              display: "inline-block",
-              marginBottom: "1rem",
-              color: "#27ae60",
-              textDecoration: "none",
-              fontSize: "13px",
-            }}
-          >
-            ← Back to Trapper Hours
-          </a>
-          <h3 style={{ margin: "0 0 0.5rem", fontSize: "15px" }}>
-            Blank Weekly Timesheet
-          </h3>
-          <p style={{ fontSize: "12px", color: "#666", marginBottom: "1rem" }}>
-            Prefill name and week, then print. Ctrl+P or Cmd+P.
-          </p>
-
-          <div style={{ marginBottom: "10px" }}>
-            <label style={{ display: "block", fontSize: "11px", color: "#666", marginBottom: "3px" }}>
-              Employee Name
-            </label>
-            <input
-              type="text"
-              value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "7px",
-                border: "1px solid #ddd",
-                borderRadius: "6px",
-                fontSize: "13px",
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: "10px" }}>
-            <label style={{ display: "block", fontSize: "11px", color: "#666", marginBottom: "3px" }}>
-              Week Starting (Monday)
-            </label>
-            <input
-              type="date"
-              value={weekStart}
-              onChange={(e) => setWeekStart(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "7px",
-                border: "1px solid #ddd",
-                borderRadius: "6px",
-                fontSize: "13px",
-              }}
-            />
-          </div>
-
-          <button
-            onClick={() => window.print()}
-            style={{
-              width: "100%",
-              padding: "10px",
-              background: "#27ae60",
-              color: "#fff",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
-              marginTop: "8px",
-            }}
-          >
-            Print Timesheet
-          </button>
-        </div>
-
         <BlankTimesheetForm
+          periodType={periodType}
+          onNameChange={setEmployeeName}
+          onWeekChange={setWeekStart}
+          onPeriodTypeChange={setPeriodType}
           weekStart={weekStart}
           employeeName={employeeName}
           orgName={nameFull}
