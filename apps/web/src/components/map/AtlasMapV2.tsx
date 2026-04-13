@@ -274,12 +274,21 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   // ── Search (Step 1) ──
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  const dismissAllSelection = useCallback(() => {
+    setSelectedPin(null);
+    setSelectedPlaceId(null);
+    setSelectedPersonId(null);
+    setSelectedCatId(null);
+    setSelectedAnnotationId(null);
+  }, [setSelectedPlaceId, setSelectedPersonId, setSelectedCatId, setSelectedAnnotationId]);
+
   const search = useMapSearchV2({
     places, googlePins, volunteers, atlasPinsRef,
     map,
     onPlaceSelect: setSelectedPlaceId,
     onPersonSelect: setSelectedPersonId,
     onCatSelect: setSelectedCatId,
+    onDismissSelection: dismissAllSelection,
   });
 
   // Search history (localStorage)
@@ -421,6 +430,9 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       map?.setZoom(zoom);
     }, [map, getClusterExpansionZoom]),
     onPinSelect: useCallback((pin: AtlasPin) => {
+      // Clear any secondary drawers (person/cat) — single-slot selection model
+      setSelectedPersonId(null);
+      setSelectedCatId(null);
       // If a drawer is already open, swap directly to the new place
       if (selectedPlaceId) {
         setSelectedPlaceId(pin.id);
@@ -428,7 +440,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         // No drawer open — show InfoWindow
         setSelectedPin(pin);
       }
-    }, [selectedPlaceId]),
+    }, [selectedPlaceId, setSelectedPersonId, setSelectedCatId]),
     measureActive,
     onMeasurePoint: useCallback((latlng: { lat: number; lng: number }) => {
       setMeasurePoints(prev => [...prev, latlng]);
@@ -1428,13 +1440,12 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       />
 
       {/* ── "Return to search" chip — shows when navigated location exists and user clicked away ── */}
-      {search.navigatedLocation && (selectedPin || selectedPlaceId) && (
+      {search.navigatedLocation && (selectedPin || selectedPlaceId || selectedPersonId || selectedCatId) && (
         <button
           onClick={() => {
             map?.panTo({ lat: search.navigatedLocation!.lat, lng: search.navigatedLocation!.lng });
             map?.setZoom(Math.max(map?.getZoom() || 18, 18));
-            setSelectedPin(null);
-            setSelectedPlaceId(null);
+            dismissAllSelection();
           }}
           style={{
             position: "absolute", top: 70, left: "50%", transform: "translateX(-50%)",

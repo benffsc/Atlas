@@ -36,6 +36,8 @@ interface UseMapSearchV2Options {
   onPlaceSelect?: (placeId: string) => void;
   onPersonSelect?: (personId: string) => void;
   onCatSelect?: (catId: string) => void;
+  /** Called before any search selection to dismiss all open drawers/panels */
+  onDismissSelection?: () => void;
 }
 
 interface UseMapSearchV2Return {
@@ -67,6 +69,7 @@ export function useMapSearchV2({
   onPlaceSelect,
   onPersonSelect,
   onCatSelect,
+  onDismissSelection,
 }: UseMapSearchV2Options): UseMapSearchV2Return {
   const [query, setQuery] = useState("");
   const [localResults, setLocalResults] = useState<LocalSearchResult[]>([]);
@@ -193,19 +196,22 @@ export function useMapSearchV2({
 
   const handleLocalSelect = useCallback(
     (result: LocalSearchResult) => {
+      onDismissSelection?.();
+      setNavigatedLocation(null);
       const item = result.item as Place | GooglePin | Volunteer;
       if (item.lat && item.lng) {
         panTo(item.lat, item.lng);
-        setNavigatedLocation(null);
       }
       setQuery("");
       setShowResults(false);
     },
-    [panTo]
+    [panTo, onDismissSelection]
   );
 
   const handleAtlasSelect = useCallback(
     async (result: AtlasSearchResult) => {
+      onDismissSelection?.();
+      setNavigatedLocation(null);
       setQuery("");
       setShowResults(false);
 
@@ -272,11 +278,15 @@ export function useMapSearchV2({
         onCatSelect?.(result.entity_id);
       }
     },
-    [atlasPinsRef, panTo, onPlaceSelect, onPersonSelect, onCatSelect]
+    [atlasPinsRef, panTo, onPlaceSelect, onPersonSelect, onCatSelect, onDismissSelection]
   );
 
   const handleGoogleSelect = useCallback(
     async (prediction: PlacePrediction) => {
+      onDismissSelection?.();
+      setNavigatedLocation(null);
+      setQuery("");
+      setShowResults(false);
       try {
         const data = await fetchApi<{ place: { geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string } }>(
           `/api/places/details?place_id=${prediction.place_id}`
@@ -290,21 +300,21 @@ export function useMapSearchV2({
       } catch (err) {
         console.error("Failed to get place details:", err);
       }
-      setQuery("");
-      setShowResults(false);
     },
-    [panTo]
+    [panTo, onDismissSelection]
   );
 
   const handlePoiSelect = useCallback(
     (result: TextSearchResult) => {
+      onDismissSelection?.();
+      setNavigatedLocation(null);
       const { lat, lng } = result.geometry.location;
       setNavigatedLocation({ lat, lng, address: result.formatted_address });
       panTo(lat, lng);
       setQuery("");
       setShowResults(false);
     },
-    [panTo]
+    [panTo, onDismissSelection]
   );
 
   const clearNavigatedLocation = useCallback(() => {
