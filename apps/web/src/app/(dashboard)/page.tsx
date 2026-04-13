@@ -366,10 +366,7 @@ function HomeInner() {
           Replaces the Tier 1 inline briefing with a structured feed. */}
       <InsightsFeed stats={stats} />
 
-      {/* Impact summary — "since inception" mission-connected stats */}
-      <ImpactSummary />
-
-      {/* Year-over-year alterations chart */}
+      {/* Year-over-year impact chart — includes impact stats that react to the range slider */}
       <YearlyImpactChart />
 
       {/* KPI Cards */}
