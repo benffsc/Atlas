@@ -64,7 +64,7 @@ function renderRowHtml(row: CountyResourceRow): string {
   if (row.website_url) {
     const safeUrl = encodeURI(row.website_url);
     parts.push(
-      `<br><a href="${escapeHtml(safeUrl)}" style="color:#1a4480;">${escapeHtml(row.website_url)}</a>`
+      `<br><a href="${escapeHtml(safeUrl)}" style="color:#2563eb;">${escapeHtml(row.website_url)}</a>`
     );
   }
   return `<p style="margin:14px 0;">${parts.join("")}</p>`;
