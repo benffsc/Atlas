@@ -1196,8 +1196,14 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             collisionBehavior={CollisionBehavior.REQUIRED}
             zIndex={5}
             onClick={() => {
-              map?.panTo({ lat: search.navigatedLocation!.lat, lng: search.navigatedLocation!.lng });
-              map?.setZoom(Math.max(map.getZoom() || 18, 18));
+              const nav = search.navigatedLocation!;
+              map?.panTo({ lat: nav.lat, lng: nav.lng });
+              map?.setZoom(Math.max(map?.getZoom() || 18, 18));
+              // If this search marker matched an Atlas place, open its drawer
+              if (nav.matchedPlaceId) {
+                dismissAllSelection();
+                setSelectedPlaceId(nav.matchedPlaceId);
+              }
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>

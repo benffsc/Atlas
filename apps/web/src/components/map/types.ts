@@ -237,6 +237,8 @@ export interface NavigatedLocation {
   lat: number;
   lng: number;
   address: string;
+  /** If a nearby Atlas place was matched, its ID — enables "open drawer" from search marker */
+  matchedPlaceId?: string | null;
 }
 
 // Annotation type

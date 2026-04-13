@@ -194,6 +194,21 @@ export function useMapSearchV2({
     [map]
   );
 
+  /** Find an Atlas pin within ~111m (0.001°) of given coordinates.
+   *  See CLAUDE.md: "Google-Atlas matching: atlasPins array, 0.001° tolerance (~111m)" */
+  const findNearbyAtlasPin = useCallback(
+    (lat: number, lng: number): string | null => {
+      const TOLERANCE = 0.001;
+      const pin = atlasPinsRef.current.find(
+        (p) => p.lat && p.lng &&
+          Math.abs(p.lat - lat) < TOLERANCE &&
+          Math.abs(p.lng - lng) < TOLERANCE
+      );
+      return pin?.id || null;
+    },
+    [atlasPinsRef]
+  );
+
   const handleLocalSelect = useCallback(
     (result: LocalSearchResult) => {
       onDismissSelection?.();
@@ -202,10 +217,16 @@ export function useMapSearchV2({
       if (item.lat && item.lng) {
         panTo(item.lat, item.lng);
       }
+      // Open drawer for known entity types
+      if (result.type === "place" && (item as Place).id) {
+        onPlaceSelect?.((item as Place).id);
+      } else if (result.type === "volunteer" && (item as Volunteer).id) {
+        onPersonSelect?.((item as Volunteer).id);
+      }
       setQuery("");
       setShowResults(false);
     },
-    [panTo, onDismissSelection]
+    [panTo, onDismissSelection, onPlaceSelect, onPersonSelect]
   );
 
   const handleAtlasSelect = useCallback(
@@ -294,14 +315,21 @@ export function useMapSearchV2({
         const place = data.place;
         if (place?.geometry?.location) {
           const { lat, lng } = place.geometry.location;
-          setNavigatedLocation({ lat, lng, address: place.formatted_address || prediction.description });
           panTo(lat, lng);
+          // Try to match a nearby Atlas place — open its drawer instead of just a blue pin
+          const matchedId = findNearbyAtlasPin(lat, lng);
+          if (matchedId) {
+            setNavigatedLocation(null);
+            onPlaceSelect?.(matchedId);
+          } else {
+            setNavigatedLocation({ lat, lng, address: place.formatted_address || prediction.description, matchedPlaceId: null });
+          }
         }
       } catch (err) {
         console.error("Failed to get place details:", err);
       }
     },
-    [panTo, onDismissSelection]
+    [panTo, onDismissSelection, findNearbyAtlasPin, onPlaceSelect]
   );
 
   const handlePoiSelect = useCallback(
@@ -309,12 +337,18 @@ export function useMapSearchV2({
       onDismissSelection?.();
       setNavigatedLocation(null);
       const { lat, lng } = result.geometry.location;
-      setNavigatedLocation({ lat, lng, address: result.formatted_address });
       panTo(lat, lng);
+      // Try to match a nearby Atlas place
+      const matchedId = findNearbyAtlasPin(lat, lng);
+      if (matchedId) {
+        onPlaceSelect?.(matchedId);
+      } else {
+        setNavigatedLocation({ lat, lng, address: result.formatted_address, matchedPlaceId: null });
+      }
       setQuery("");
       setShowResults(false);
     },
-    [panTo, onDismissSelection]
+    [panTo, onDismissSelection, findNearbyAtlasPin, onPlaceSelect]
   );
 
   const clearNavigatedLocation = useCallback(() => {
