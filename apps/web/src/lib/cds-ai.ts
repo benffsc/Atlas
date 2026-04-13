@@ -418,7 +418,14 @@ export async function matchChunks(
     let matchedVia: string | null = null;
 
     // Path A: clinic_number → appointment → cat_id
+    // Two sub-paths:
+    //   A1: appointment.clinic_day_number (set by CDS-SQL propagation)
+    //   A2: clinic_day_entries.line_number (always available from master list)
+    //        → bridges to appointment via matched_appointment_id OR directly
+    let matchedEntryId: string | null = null;
+
     if (clinicNumber && !catId) {
+      // A1: Direct appointment lookup (fast path when propagation already ran)
       const r = await queryOne<{ cat_id: string; cat_name: string }>(`
         SELECT a.cat_id::text, c.name AS cat_name
         FROM ops.appointments a
@@ -433,6 +440,41 @@ export async function matchChunks(
         catId = r.cat_id;
         catName = r.cat_name;
         matchedVia = "clinic_number";
+      }
+    }
+
+    if (clinicNumber && !catId) {
+      // A2: Master list entry lookup — clinic_number IS the line_number.
+      // If the entry is already matched to an appointment, use that.
+      // If not, we still record the entry_id for staff review bridging.
+      const entry = await queryOne<{
+        entry_id: string;
+        matched_appointment_id: string | null;
+        cat_id: string | null;
+        cat_name: string | null;
+      }>(`
+        SELECT e.entry_id,
+               e.matched_appointment_id,
+               a.cat_id::text,
+               c.name AS cat_name
+        FROM ops.clinic_day_entries e
+        JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+        LEFT JOIN ops.appointments a
+          ON a.appointment_id = e.matched_appointment_id
+          AND a.merged_into_appointment_id IS NULL
+        LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+        WHERE cd.clinic_date = $1::DATE
+          AND e.line_number = $2
+        LIMIT 1
+      `, [date, clinicNumber]);
+
+      if (entry) {
+        matchedEntryId = entry.entry_id;
+        if (entry.cat_id) {
+          catId = entry.cat_id;
+          catName = entry.cat_name;
+          matchedVia = "clinic_number_via_entry";
+        }
       }
     }
 
@@ -539,11 +581,38 @@ export async function matchChunks(
             WHERE chunk_id = $2::UUID AND source_kind = 'request_media' AND segment_role = 'cat_photo'
           )
         `, [catId, chunk.chunk_id]);
+
+        // Bridge: write clinic_day_number to appointment if waiver has clinic_number
+        // and the appointment doesn't have it yet. This closes the loop —
+        // CDS-AI reading waiver photos provides the number that CDS-SQL couldn't.
+        if (clinicNumber) {
+          await queryOne(`
+            UPDATE ops.appointments
+            SET clinic_day_number = $2,
+                clinic_day_number_source = 'cds_ai_waiver'
+            WHERE cat_id = $1::UUID
+              AND appointment_date = $3::DATE
+              AND merged_into_appointment_id IS NULL
+              AND clinic_day_number IS NULL
+          `, [catId, clinicNumber, date]).catch(() => {});
+        }
       }
       log(`  #${clinicNumber || "?"} → ${catName} (via ${matchedVia}) [${agreement}]`);
     } else {
       unmatched++;
-      log(`  #${clinicNumber || "?"} ${ownerLast || "?"} — no match`);
+
+      // Even without a cat match, if we have a clinic_number and entry_id,
+      // record the waiver-to-entry link for staff review. The clinic number
+      // IS the identity — staff can resolve the match manually.
+      if (opts.apply && clinicNumber && matchedEntryId) {
+        await queryOne(`
+          UPDATE ops.evidence_stream_segments
+          SET notes = COALESCE(notes, '') || 'entry_line_number=' || $2::text
+          WHERE chunk_id = $1::UUID AND segment_role = 'waiver_photo'
+        `, [chunk.chunk_id, clinicNumber]).catch(() => {});
+      }
+
+      log(`  #${clinicNumber || "?"} ${ownerLast || "?"} — no match${matchedEntryId ? " (entry found, no appointment link)" : ""}`);
     }
 
     matchResults.push({
