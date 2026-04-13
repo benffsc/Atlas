@@ -4,34 +4,25 @@
  * FFS-1181 / FFS-1182
  *
  * ─────────────────────────────────────────────────────────────────────
- * Why this exists
+ * How the safety gates work
  * ─────────────────────────────────────────────────────────────────────
- * The legacy `out_of_county` pipeline in Atlas is *silently broken*:
- *   - The view `ops.v_pending_out_of_county_emails` selects columns
- *     (`submitter_email`, `submitter_name`, `address`) that don't
- *     match what `sendOutOfCountyEmail()` in `lib/email.ts` expects
- *     (`email`, `first_name`, `detected_county`).
- *   - The `out_of_county = TRUE` flag that the view needs is never
- *     set anywhere in the codebase.
- *   - Net result: the daily cron at /api/cron/send-emails runs and
- *     finds 0 rows every day.
  *
- * Any well-intentioned schema fix (e.g. renaming a column) could
- * re-activate the pipe overnight and silently send real emails to
- * real people. This module is the hard-stop that prevents that.
+ *   1. ENV: `EMAIL_OUT_OF_AREA_LIVE` (optional developer override)
+ *      - If set to `"false"` → hard-blocks, no DB config can override
+ *      - If set to `"true"`  → defers to DB config
+ *      - If absent (default) → defers to DB config
+ *      Developers can set this on Vercel as a kill switch, but staff
+ *      never need to touch it. The normal operating mode is "absent".
  *
- * ─────────────────────────────────────────────────────────────────────
- * Two flags must BOTH be true to send
- * ─────────────────────────────────────────────────────────────────────
- *   1. ENV: `EMAIL_OUT_OF_AREA_LIVE=true`
- *      - Requires a Vercel redeploy to flip
- *      - Guards against DB state accidentally re-activating the pipe
- *   2. DB:  `email.out_of_area.live=true`  in ops.app_config
- *      - Admin-toggleable kill switch without redeploy
- *      - Seeded `false` by default (MIG_3061)
+ *   2. DB: ops.email_flows.out_of_service_area.enabled
+ *      - Admin-toggleable via /admin/email-settings UI
+ *      - Seeded `false` by default (safe)
+ *      - This is the primary control staff use to go live
  *
- * If either is false, `assertOutOfAreaLive()` throws and the caller
- * must return HTTP 503 to the client.
+ *   3. Additional safety layers (evaluated AFTER go-live):
+ *      - email.global.dry_run  → render + log, don't send
+ *      - test_recipient_override → redirect to test address
+ *      - Per-flow dry_run → per-flow render-only mode
  *
  * ─────────────────────────────────────────────────────────────────────
  * Where this is enforced
@@ -39,13 +30,7 @@
  * - `/api/cron/send-emails` GET/POST           — blocks the daily cron
  * - `/api/emails/send-out-of-county` POST      — blocks manual sends
  * - `sendOutOfCountyEmail()` in lib/email.ts   — blocks direct calls
- *
- * ─────────────────────────────────────────────────────────────────────
- * When this gets disabled
- * ─────────────────────────────────────────────────────────────────────
- * Never automatically. Ben manually walks through the Go-Live runbook
- * (`docs/RUNBOOKS/out_of_service_area_email_golive.md`) and flips both
- * flags. See FFS-1190 for the runbook.
+ * - `sendOutOfServiceAreaEmail()` in lib/email.ts — blocks new pipeline
  */
 
 import { getServerConfig } from "@/lib/server-config";
@@ -59,19 +44,23 @@ export class OutOfAreaPipelineDisabledError extends Error {
 }
 
 /**
- * Throws if the out-of-service-area email pipeline is not explicitly
- * enabled at BOTH the env var and DB config layers.
+ * Throws if the out-of-service-area email pipeline is not enabled.
+ *
+ * Layer 1: ENV var — if explicitly set to "false", hard-blocks.
+ *          If absent or "true", defers to DB.
+ * Layer 2: DB config — ops.email_flows.enabled (admin UI toggle).
  *
  * Callers should catch this error and return HTTP 503.
  */
 export async function assertOutOfAreaLive(): Promise<void> {
-  // Layer 1: env var (requires redeploy to flip)
-  const envLive = process.env.EMAIL_OUT_OF_AREA_LIVE === "true";
-  if (!envLive) {
+  // Layer 1: env var — only blocks if explicitly set to "false".
+  // If absent (the normal case), fall through to DB config.
+  const envVal = process.env.EMAIL_OUT_OF_AREA_LIVE;
+  if (envVal === "false") {
     throw new OutOfAreaPipelineDisabledError(
-      "Out-of-service-area email pipeline is disabled until Go Live " +
-        "(env var EMAIL_OUT_OF_AREA_LIVE is not 'true'). " +
-        "See docs/RUNBOOKS/out_of_service_area_email_golive.md.",
+      "Out-of-service-area email pipeline is hard-blocked by env var " +
+        "EMAIL_OUT_OF_AREA_LIVE=false. A developer must remove or " +
+        "change this env var on the hosting platform.",
       "env"
     );
   }
@@ -86,9 +75,8 @@ export async function assertOutOfAreaLive(): Promise<void> {
 
   if (!dbLive) {
     throw new OutOfAreaPipelineDisabledError(
-      "Out-of-service-area email pipeline is disabled until Go Live " +
-        "(ops.email_flows.out_of_service_area.enabled is not true). " +
-        "See docs/RUNBOOKS/out_of_service_area_email_golive.md.",
+      "Out-of-service-area email pipeline is disabled. " +
+        "Enable it in Admin → Email Settings → Email Flows.",
       "db"
     );
   }
@@ -99,13 +87,16 @@ export async function assertOutOfAreaLive(): Promise<void> {
  */
 export async function getOutOfAreaLiveState(): Promise<{
   envLive: boolean;
+  envBlocked: boolean;
   dbLive: boolean;
   live: boolean;
 }> {
-  const envLive = process.env.EMAIL_OUT_OF_AREA_LIVE === "true";
+  const envVal = process.env.EMAIL_OUT_OF_AREA_LIVE;
+  const envBlocked = envVal === "false";
+  const envLive = !envBlocked;
   const flow = await getFlow("out_of_service_area");
   const dbLive = flow
     ? flow.enabled
     : await getServerConfig<boolean>("email.out_of_area.live", false);
-  return { envLive, dbLive, live: envLive && dbLive };
+  return { envLive, envBlocked, dbLive, live: envLive && dbLive };
 }

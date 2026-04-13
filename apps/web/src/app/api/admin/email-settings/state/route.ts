@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
           ? false
           : null,
       env_out_of_area_live: gateState.envLive,
+      env_out_of_area_blocked: gateState.envBlocked,
       gate_env_live: gateState.envLive,
       gate_db_live: gateState.dbLive,
       gate_combined_live: gateState.live,

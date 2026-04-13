@@ -50,16 +50,16 @@ export async function getTestRecipientOverride(): Promise<string | null> {
 }
 
 /**
- * Returns TRUE if BOTH the env var and DB key for out-of-area live
- * are explicitly enabled. Used internally by lib/email-safety.ts.
+ * Returns TRUE if the out-of-area pipeline is live.
  *
- * NOTE: this function returns the *combined* state. The env var alone
- * is not sufficient — the DB toggle must also be flipped via the
- * admin UI (or directly in ops.app_config).
+ * Env var is an optional developer kill switch:
+ *   - "false" → hard-blocks regardless of DB
+ *   - absent or "true" → defers to DB config
+ *
+ * DB config (admin-toggleable) is the primary control.
  */
 export async function isOutOfAreaLive(): Promise<boolean> {
-  const envLive = process.env.EMAIL_OUT_OF_AREA_LIVE === "true";
-  if (!envLive) return false;
+  if (process.env.EMAIL_OUT_OF_AREA_LIVE === "false") return false;
   return getServerConfig<boolean>("email.out_of_area.live", false);
 }
 

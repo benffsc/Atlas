@@ -424,6 +424,7 @@ interface PipelineState {
   out_of_area_live: boolean;
   env_dry_run: boolean | null;
   env_out_of_area_live: boolean;
+  env_out_of_area_blocked: boolean;
   gate_env_live: boolean;
   gate_db_live: boolean;
   gate_combined_live: boolean;
@@ -692,11 +693,11 @@ function PipelineModeCard({
             >
               Status:{" "}
               <strong>
-                {state.gate_combined_live
-                  ? "🟢 Live"
-                  : state.gate_env_live && !state.gate_db_live
-                    ? "🟡 Env on, DB off"
-                    : "🔴 Disabled"}
+                {state.env_out_of_area_blocked
+                  ? "🔴 Blocked by developer"
+                  : state.gate_combined_live
+                    ? "🟢 Live"
+                    : "🟡 Ready to enable"}
               </strong>
             </div>
             <div
@@ -720,16 +721,15 @@ function PipelineModeCard({
                 </span>
               )}
             </div>
-            {!state.env_out_of_area_live && (
+            {state.env_out_of_area_blocked && (
               <div
                 style={{
                   fontSize: "0.75rem",
-                  color: "#856404",
+                  color: "#dc3545",
                   marginTop: "0.25rem",
                 }}
               >
-                ⚠ Env var <code>EMAIL_OUT_OF_AREA_LIVE</code> must also be set
-                to <code>true</code> in Vercel for the pipeline to actually run.
+                A developer has blocked this pipeline at the hosting level. Contact your system administrator to unblock.
               </div>
             )}
           </div>
@@ -758,6 +758,7 @@ function PipelineModeCard({
               onClick={toggleGoLive}
               disabled={
                 busy ||
+                state.env_out_of_area_blocked ||
                 (!state.out_of_area_live &&
                   !state.go_live_prerequisite.ready_for_go_live)
               }
@@ -769,6 +770,7 @@ function PipelineModeCard({
                 borderRadius: 6,
                 cursor:
                   busy ||
+                  state.env_out_of_area_blocked ||
                   (!state.out_of_area_live &&
                     !state.go_live_prerequisite.ready_for_go_live)
                     ? "not-allowed"
@@ -777,6 +779,7 @@ function PipelineModeCard({
                 fontWeight: 600,
                 opacity:
                   busy ||
+                  state.env_out_of_area_blocked ||
                   (!state.out_of_area_live &&
                     !state.go_live_prerequisite.ready_for_go_live)
                     ? 0.4
@@ -784,10 +787,12 @@ function PipelineModeCard({
                 whiteSpace: "nowrap",
               }}
               title={
-                !state.go_live_prerequisite.ready_for_go_live &&
-                !state.out_of_area_live
-                  ? "Send at least one test email first"
-                  : ""
+                state.env_out_of_area_blocked
+                  ? "Pipeline is blocked by developer — contact your system administrator"
+                  : !state.go_live_prerequisite.ready_for_go_live &&
+                    !state.out_of_area_live
+                    ? "Send at least one test email first"
+                    : ""
               }
             >
               {state.out_of_area_live ? "Disable Go Live" : "Enable Go Live"}
