@@ -43,6 +43,7 @@ interface Appointment {
   cat_weight: number | null;
   microchip: string | null;
   appointment_date: string;
+  surgery_start_time: string | null;
 }
 
 interface WaiverInfo {
@@ -244,9 +245,10 @@ async function loadAppointments(clinicDate: string): Promise<Appointment[]> {
        a.cat_id,
        c.name as cat_name,
        c.sex as cat_sex,
-       cv.weight_lbs as cat_weight,
+       COALESCE(a.cat_weight_lbs, cv.weight_lbs) as cat_weight,
        ci.id_value as microchip,
-       a.appointment_date::text as appointment_date
+       a.appointment_date::text as appointment_date,
+       a.surgery_start_time::text as surgery_start_time
      FROM ops.appointments a
      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
      LEFT JOIN LATERAL (
@@ -359,6 +361,22 @@ function scoreWithinGroup(
 ): ScoredPair[] {
   const pairs: ScoredPair[] = [];
 
+  // Pre-compute ordinal positions for time_order scoring.
+  // Entries are already sorted by line_number (from query ORDER BY).
+  // Appointments sorted by surgery_start_time (null → end).
+  const apptsSorted = [...appointments].sort((a, b) => {
+    if (!a.surgery_start_time && !b.surgery_start_time) return 0;
+    if (!a.surgery_start_time) return 1;
+    if (!b.surgery_start_time) return -1;
+    return a.surgery_start_time.localeCompare(b.surgery_start_time);
+  });
+  const entryRank = new Map<string, number>();
+  const apptRank = new Map<string, number>();
+  entries.forEach((e, i) => entryRank.set(e.entry_id, i));
+  apptsSorted.forEach((a, i) => apptRank.set(a.appointment_id, i));
+
+  const groupSize = Math.max(entries.length, appointments.length);
+
   for (const entry of entries) {
     for (const appt of appointments) {
       const signals: Record<string, number> = {};
@@ -388,9 +406,15 @@ function scoreWithinGroup(
       signals.chip4 = +(chip4Score * 0.1).toFixed(3);
       score += signals.chip4;
 
-      // Surgery time order (0.05) — only useful when we have sx_end_time
-      // For now, just give a small bonus if line_number ordering is consistent
-      signals.time_order = 0;
+      // Surgery time order (0.05) — bonus if line_number rank matches
+      // surgery_start_time rank within the group. This helps disambiguate
+      // multi-cat owners: entry #1 likely maps to the earliest surgery.
+      const timeOrderScore = scoreTimeOrder(
+        entry.entry_id, appt.appointment_id,
+        entryRank, apptRank, groupSize
+      );
+      signals.time_order = +(timeOrderScore * 0.05).toFixed(3);
+      score += signals.time_order;
 
       pairs.push({
         entry_id: entry.entry_id,
@@ -410,6 +434,20 @@ function scoreCrossClient(
   waiverByAppointment: Map<string, WaiverInfo>
 ): ScoredPair[] {
   const pairs: ScoredPair[] = [];
+
+  // For cross-client, time_order is less meaningful (different owners),
+  // but still provides a small signal for sequential processing order
+  const apptsSorted = [...appointments].sort((a, b) => {
+    if (!a.surgery_start_time && !b.surgery_start_time) return 0;
+    if (!a.surgery_start_time) return 1;
+    if (!b.surgery_start_time) return -1;
+    return a.surgery_start_time.localeCompare(b.surgery_start_time);
+  });
+  const entryRank = new Map<string, number>();
+  const apptRank = new Map<string, number>();
+  entries.forEach((e, i) => entryRank.set(e.entry_id, i));
+  apptsSorted.forEach((a, i) => apptRank.set(a.appointment_id, i));
+  const groupSize = Math.max(entries.length, appointments.length);
 
   for (const entry of entries) {
     for (const appt of appointments) {
@@ -444,7 +482,13 @@ function scoreCrossClient(
       signals.chip4 = +(chip4Score * 0.1).toFixed(3);
       score += signals.chip4;
 
-      signals.time_order = 0;
+      // Time order (reduced weight in cross-client context)
+      const timeOrderScore = scoreTimeOrder(
+        entry.entry_id, appt.appointment_id,
+        entryRank, apptRank, groupSize
+      );
+      signals.time_order = +(timeOrderScore * 0.05).toFixed(3);
+      score += signals.time_order;
 
       pairs.push({
         entry_id: entry.entry_id,
@@ -507,6 +551,25 @@ function scoreWeight(
   if (diff < 1.0) return 0.7; // Close enough
   if (diff < 2.0) return 0.3; // Marginal
   return 0; // Too different
+}
+
+function scoreTimeOrder(
+  entryId: string,
+  apptId: string,
+  entryRank: Map<string, number>,
+  apptRank: Map<string, number>,
+  groupSize: number,
+): number {
+  const eRank = entryRank.get(entryId);
+  const aRank = apptRank.get(apptId);
+  if (eRank == null || aRank == null) return 0;
+  if (groupSize <= 1) return 1; // Singleton — trivially matches
+
+  // Score based on how close the ranks are (0 = perfect match, 1 = max distance)
+  const maxDist = groupSize - 1;
+  const dist = Math.abs(eRank - aRank);
+  // Perfect rank match = 1.0, off by 1 in a group of 4 = 0.67, opposite = 0
+  return maxDist > 0 ? 1 - dist / maxDist : 1;
 }
 
 function scoreChip4(
