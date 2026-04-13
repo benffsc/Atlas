@@ -107,7 +107,7 @@ export async function POST(
     }> = [];
 
     for (const file of files) {
-      if (file.status !== "pending") {
+      if (file.status === "completed" || file.status === "processing") {
         results.push({
           source_table: file.source_table,
           upload_id: file.upload_id,
@@ -177,15 +177,29 @@ export async function POST(
     let reconciliation: { date: string; newly_matched: number } | null = null;
     if (allSuccess || anySuccess) {
       try {
-        // Find appointment dates from this batch
-        const batchDates = await queryRows<{ appointment_date: string }>(
-          `SELECT DISTINCT appointment_date::text as appointment_date
-           FROM ops.appointments a
-           JOIN ops.file_uploads fu ON fu.upload_id = a.file_upload_id
-           WHERE fu.batch_id = $1
-             AND a.appointment_date IS NOT NULL`,
+        // Find appointment dates from this batch using file_uploads date range
+        // (ops.appointments has no file_upload_id column, so we derive dates
+        // from data_date_min/max set during staging)
+        const dateRange = await queryOne<{ min_date: string; max_date: string }>(
+          `SELECT MIN(data_date_min)::text as min_date, MAX(data_date_max)::text as max_date
+           FROM ops.file_uploads
+           WHERE batch_id = $1
+             AND data_date_min IS NOT NULL`,
           [batchId]
         );
+
+        const batchDates: Array<{ appointment_date: string }> = [];
+        if (dateRange?.min_date) {
+          const dates = await queryRows<{ appointment_date: string }>(
+            `SELECT DISTINCT appointment_date::text as appointment_date
+             FROM ops.appointments
+             WHERE appointment_date BETWEEN $1::date AND $2::date
+               AND merged_into_appointment_id IS NULL
+               AND appointment_date IS NOT NULL`,
+            [dateRange.min_date, dateRange.max_date]
+          );
+          batchDates.push(...dates);
+        }
 
         for (const { appointment_date } of batchDates) {
           const hasEntries = await hasClinicDayEntries(appointment_date);

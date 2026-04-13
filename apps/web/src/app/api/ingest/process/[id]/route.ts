@@ -139,7 +139,32 @@ export async function processUpload(uploadId: string, existingUpload?: FileUploa
     [uploadId]
   );
   if (!upload) throw new Error("Upload not found");
-  if (upload.status === 'processing') throw new Error("Upload is already being processed");
+
+  // Already done or in progress — return success instead of throwing.
+  // The batch processor may call processUpload on a file that was already
+  // completed by a previous run (race condition from modal double-trigger).
+  if (upload.status === 'completed') {
+    return {
+      success: true,
+      upload_id: uploadId,
+      rows_total: 0,
+      rows_inserted: 0,
+      rows_updated: 0,
+      rows_skipped: 0,
+      post_processing: { skipped: true, reason: "Already completed" },
+    };
+  }
+  if (upload.status === 'processing') {
+    return {
+      success: true,
+      upload_id: uploadId,
+      rows_total: 0,
+      rows_inserted: 0,
+      rows_updated: 0,
+      rows_skipped: 0,
+      post_processing: { skipped: true, reason: "Already being processed" },
+    };
+  }
 
   try {
     // 2. Mark as processing
@@ -330,12 +355,16 @@ export async function processUpload(uploadId: string, existingUpload?: FileUploa
       post_processing: postProcessingResults,
     };
   } catch (error) {
-    // Mark file as failed so recovery cron doesn't have to wait
+    // Mark file as failed — but ONLY if it hasn't already succeeded.
+    // A race condition (double-trigger from modal) could cause the second
+    // attempt to fail while the first already completed. Don't overwrite
+    // a 'completed' status with 'failed'.
     await query(
       `UPDATE ops.file_uploads
        SET status = 'failed', processing_phase = 'failed',
            error_message = $2, failed_at_step = 'processUpload'
-       WHERE upload_id = $1`,
+       WHERE upload_id = $1
+         AND status NOT IN ('completed', 'processing')`,
       [uploadId, error instanceof Error ? error.message : "Unknown error"]
     ).catch(() => {});
     throw error;
