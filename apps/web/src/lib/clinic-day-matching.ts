@@ -6,11 +6,12 @@
  * especially within-client-group disambiguation when one owner has multiple cats.
  *
  * Signal weights:
- *   client_name  0.40  — already established by client grouping
- *   cat_name     0.25  — fuzzy similarity on parsed_cat_name vs cat.name
+ *   client_name  0.30  — already established by client grouping
+ *   cat_name     0.20  — fuzzy similarity on parsed_cat_name vs cat.name
  *   sex          0.10  — entry F/M matches cat sex
  *   weight       0.10  — abs(entry.weight - cat_weight) < 1.0 lbs
  *   chip4        0.10  — waiver with matching last name + date has same chip4
+ *   chip_direct  0.15  — waiver chip4 matches appointment cat's microchip directly
  *   time_order   0.05  — relative surgery time ordering preserved within group
  *
  * MIG_3043 adds the columns this engine writes to.
@@ -51,6 +52,7 @@ interface WaiverInfo {
   parsed_last_name: string | null;
   parsed_last4_chip: string | null;
   matched_appointment_id: string | null;
+  matched_cat_id: string | null;
 }
 
 interface ScoredPair {
@@ -124,11 +126,18 @@ export async function runClinicDayMatching(
     return result;
   }
 
-  // 3. Build waiver chip4 lookup
+  // 3. Build waiver lookups: by appointment AND by owner last name
   const waiverByAppointment = new Map<string, WaiverInfo>();
+  const waiversByOwnerLast = new Map<string, WaiverInfo[]>();
   for (const w of waivers) {
     if (w.matched_appointment_id) {
       waiverByAppointment.set(w.matched_appointment_id, w);
+    }
+    if (w.parsed_last_name) {
+      const key = w.parsed_last_name.toLowerCase();
+      const existing = waiversByOwnerLast.get(key) || [];
+      existing.push(w);
+      waiversByOwnerLast.set(key, existing);
     }
   }
 
@@ -152,7 +161,8 @@ export async function runClinicDayMatching(
       const pairs = scoreWithinGroup(
         groupEntries,
         matchingApptGroup,
-        waiverByAppointment
+        waiverByAppointment,
+        waiversByOwnerLast
       );
       allPairs.push(...pairs);
     }
@@ -186,7 +196,8 @@ export async function runClinicDayMatching(
     const crossPairs = scoreCrossClient(
       stillUnmatched,
       stillAvailable,
-      waiverByAppointment
+      waiverByAppointment,
+      waiversByOwnerLast
     );
     crossPairs.sort((a, b) => b.score - a.score);
 
@@ -271,7 +282,8 @@ async function loadWaivers(clinicDate: string): Promise<WaiverInfo[]> {
        waiver_id,
        parsed_last_name,
        parsed_last4_chip,
-       matched_appointment_id
+       matched_appointment_id,
+       matched_cat_id::text
      FROM ops.waiver_scans
      WHERE parsed_date = $1
        AND parsed_last4_chip IS NOT NULL`,
@@ -357,7 +369,8 @@ function findMatchingClientGroup(
 function scoreWithinGroup(
   entries: ClinicDayEntry[],
   appointments: Appointment[],
-  waiverByAppointment: Map<string, WaiverInfo>
+  waiverByAppointment: Map<string, WaiverInfo>,
+  waiversByOwnerLast: Map<string, WaiverInfo[]>
 ): ScoredPair[] {
   const pairs: ScoredPair[] = [];
 
@@ -382,13 +395,13 @@ function scoreWithinGroup(
       const signals: Record<string, number> = {};
       let score = 0;
 
-      // Client name match — already established by grouping (0.40)
-      signals.client_name = 0.4;
-      score += 0.4;
+      // Client name match — already established by grouping (0.30)
+      signals.client_name = 0.3;
+      score += 0.3;
 
-      // Cat name similarity (0.25 max)
+      // Cat name similarity (0.20 max)
       const catNameScore = scoreCatName(entry.parsed_cat_name, appt.cat_name);
-      signals.cat_name = +(catNameScore * 0.25).toFixed(3);
+      signals.cat_name = +(catNameScore * 0.2).toFixed(3);
       score += signals.cat_name;
 
       // Sex match (0.10)
@@ -401,10 +414,17 @@ function scoreWithinGroup(
       signals.weight = +(weightScore * 0.1).toFixed(3);
       score += signals.weight;
 
-      // Chip4 via waiver (0.10)
+      // Chip4 via waiver already linked to appointment (0.10)
       const chip4Score = scoreChip4(entry, appt, waiverByAppointment);
       signals.chip4 = +(chip4Score * 0.1).toFixed(3);
       score += signals.chip4;
+
+      // Direct chip match: entry owner → waiver chip4 → appointment cat microchip (0.15)
+      // This bridges the "different booker" problem: master list says "Donal Machine"
+      // but ClinicHQ has "Paul Emis" — the microchip is the ground truth
+      const chipDirectScore = scoreChipDirect(entry, appt, waiversByOwnerLast);
+      signals.chip_direct = +(chipDirectScore * 0.15).toFixed(3);
+      score += signals.chip_direct;
 
       // Surgery time order (0.05) — bonus if line_number rank matches
       // surgery_start_time rank within the group. This helps disambiguate
@@ -431,7 +451,8 @@ function scoreWithinGroup(
 function scoreCrossClient(
   entries: ClinicDayEntry[],
   appointments: Appointment[],
-  waiverByAppointment: Map<string, WaiverInfo>
+  waiverByAppointment: Map<string, WaiverInfo>,
+  waiversByOwnerLast: Map<string, WaiverInfo[]>
 ): ScoredPair[] {
   const pairs: ScoredPair[] = [];
 
@@ -459,12 +480,12 @@ function scoreCrossClient(
         entry.parsed_owner_name,
         appt.client_name
       );
-      signals.client_name = +(clientScore * 0.4).toFixed(3);
+      signals.client_name = +(clientScore * 0.3).toFixed(3);
       score += signals.client_name;
 
       // Cat name
       const catNameScore = scoreCatName(entry.parsed_cat_name, appt.cat_name);
-      signals.cat_name = +(catNameScore * 0.25).toFixed(3);
+      signals.cat_name = +(catNameScore * 0.2).toFixed(3);
       score += signals.cat_name;
 
       // Sex
@@ -481,6 +502,11 @@ function scoreCrossClient(
       const chip4Score = scoreChip4(entry, appt, waiverByAppointment);
       signals.chip4 = +(chip4Score * 0.1).toFixed(3);
       score += signals.chip4;
+
+      // Direct chip match (critical for cross-client — names don't match)
+      const chipDirectScore = scoreChipDirect(entry, appt, waiversByOwnerLast);
+      signals.chip_direct = +(chipDirectScore * 0.15).toFixed(3);
+      score += signals.chip_direct;
 
       // Time order (reduced weight in cross-client context)
       const timeOrderScore = scoreTimeOrder(
@@ -504,15 +530,25 @@ function scoreCrossClient(
 
 // ── Individual signal scorers ──────────────────────────────────────────
 
+function normalizeCatName(name: string): string {
+  // Strip punctuation (G.G. → GG, Mr. Whiskers → Mr Whiskers)
+  // and collapse whitespace for consistent comparison
+  return name.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
 function scoreCatName(
   entryName: string | null,
   apptCatName: string | null
 ): number {
   if (!entryName || !apptCatName) return 0;
-  const sim = stringSimilarity(
-    entryName.toLowerCase(),
-    apptCatName.toLowerCase()
-  );
+
+  const normEntry = normalizeCatName(entryName);
+  const normAppt = normalizeCatName(apptCatName);
+
+  // Exact match after normalization (handles GG vs G.G., etc.)
+  if (normEntry === normAppt) return 1.0;
+
+  const sim = stringSimilarity(normEntry, normAppt);
   // Return 1.0 if similarity > 0.5, scaled between 0.5-1.0 range
   return sim > 0.5 ? sim : 0;
 }
@@ -570,6 +606,39 @@ function scoreTimeOrder(
   const dist = Math.abs(eRank - aRank);
   // Perfect rank match = 1.0, off by 1 in a group of 4 = 0.67, opposite = 0
   return maxDist > 0 ? 1 - dist / maxDist : 1;
+}
+
+/**
+ * Direct microchip bridge: entry owner → waiver (by owner last name) → chip4 → appointment cat's microchip.
+ * This is the key signal for "different booker" cases where the master list says "Donal Machine"
+ * but ClinicHQ has "Paul Emis". The waiver has the owner's last name AND the microchip,
+ * providing ground truth that bypasses name resolution entirely.
+ */
+function scoreChipDirect(
+  entry: ClinicDayEntry,
+  appt: Appointment,
+  waiversByOwnerLast: Map<string, WaiverInfo[]>
+): number {
+  if (!appt.microchip || !entry.parsed_owner_name) return 0;
+  const apptChip4 = appt.microchip.slice(-4);
+
+  // Extract last name from entry owner (take last word)
+  const nameParts = entry.parsed_owner_name.trim().split(/\s+/);
+  const lastName = nameParts[nameParts.length - 1].toLowerCase();
+  if (!lastName || lastName.length < 2) return 0;
+
+  // Find waivers matching this owner's last name
+  const matchingWaivers = waiversByOwnerLast.get(lastName);
+  if (!matchingWaivers) return 0;
+
+  // Check if any waiver's chip4 matches the appointment cat's microchip
+  for (const waiver of matchingWaivers) {
+    if (waiver.parsed_last4_chip === apptChip4) {
+      return 1.0; // Strong match: waiver chip confirms this entry → this appointment
+    }
+  }
+
+  return 0;
 }
 
 function scoreChip4(
