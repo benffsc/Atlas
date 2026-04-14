@@ -214,6 +214,23 @@ export default function TrapperSheetPage() {
         }
         .trapper-header .trapper-names { font-size: 11pt; font-weight: 600; }
         .trapper-header .trapper-date { font-size: 9.5pt; }
+
+        /* Bake margins into element so screen preview = print output */
+        .print-page {
+          padding: 0.40in 0.50in 0.35in !important;
+        }
+        @media print {
+          @page { margin: 0 !important; }
+          .print-page {
+            padding: 0.40in 0.50in 0.35in !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+          }
+        }
+        @media screen {
+          .print-wrapper { padding-right: 320px; }
+        }
       `}</style>
 
       {/* Print Controls */}
@@ -470,7 +487,7 @@ export default function TrapperSheetPage() {
           {data.notes && (
             <EditableTextArea value={data.notes} size="sm" style={{ marginBottom: "3px" }} />
           )}
-          <EditableTextArea placeholder="Trapper notes..." size="md" />
+          <EditableTextArea placeholder="Trapper notes..." size="lg" />
         </div>
 
         {/* Trapper Recon */}
