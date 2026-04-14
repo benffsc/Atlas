@@ -407,17 +407,21 @@ function BlankTimesheetForm({
   employeeName,
   orgName,
   periodType,
+  showDates,
   onNameChange,
   onWeekChange,
   onPeriodTypeChange,
+  onShowDatesChange,
 }: {
   weekStart: string;
   employeeName: string;
   orgName: string;
   periodType: "weekly" | "monthly";
+  showDates: boolean;
   onNameChange: (name: string) => void;
   onWeekChange: (week: string) => void;
   onPeriodTypeChange: (type: "weekly" | "monthly") => void;
+  onShowDatesChange: (show: boolean) => void;
 }) {
   const start = parseDateLocal(weekStart);
   let endDate: Date;
@@ -432,9 +436,9 @@ function BlankTimesheetForm({
   const weekEnd = toDateStr(endDate);
   const periodLabel = formatPeriodRange(weekStart, weekEnd, periodType);
 
-  // Generate all days in the period
-  const days: { date: Date; label: string; dateStr: string; dayNum: string }[] = [];
-  if (start) {
+  // Generate rows — real dates when showDates, blank rows otherwise
+  const days: { date: Date | null; label: string; dateStr: string; dayNum: string }[] = [];
+  if (showDates && start) {
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     let cursor = new Date(start);
     while (cursor <= endDate) {
@@ -447,6 +451,12 @@ function BlankTimesheetForm({
           : dayNames[cursor.getDay()],
       });
       cursor = addDays(cursor, 1);
+    }
+  } else {
+    // Blank rows — 7 for weekly, 31 for monthly
+    const rowCount = periodType === "monthly" ? 31 : 7;
+    for (let i = 0; i < rowCount; i++) {
+      days.push({ date: null, label: "", dateStr: "", dayNum: "" });
     }
   }
 
@@ -500,17 +510,28 @@ function BlankTimesheetForm({
             </button>
           </div>
         </div>
-        <div className="ctrl-field" style={{ marginBottom: "8px" }}>
-          <label style={{ display: "block", fontSize: "11px", color: "#666", marginBottom: "3px" }}>
-            {periodType === "monthly" ? "Period Start Date" : "Week Starting (Monday)"}
-          </label>
+        {showDates && (
+          <div className="ctrl-field" style={{ marginBottom: "8px" }}>
+            <label style={{ display: "block", fontSize: "11px", color: "#666", marginBottom: "3px" }}>
+              {periodType === "monthly" ? "Period Start Date" : "Week Starting (Monday)"}
+            </label>
+            <input
+              type="date"
+              value={weekStart}
+              onChange={(e) => onWeekChange(e.target.value)}
+              style={{ width: "100%", padding: "7px", border: "1px solid #ddd", borderRadius: "6px", fontSize: "13px", boxSizing: "border-box" }}
+            />
+          </div>
+        )}
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", cursor: "pointer", marginBottom: "8px" }}>
           <input
-            type="date"
-            value={weekStart}
-            onChange={(e) => onWeekChange(e.target.value)}
-            style={{ width: "100%", padding: "7px", border: "1px solid #ddd", borderRadius: "6px", fontSize: "13px", boxSizing: "border-box" }}
+            type="checkbox"
+            checked={showDates}
+            onChange={(e) => onShowDatesChange(e.target.checked)}
+            style={{ width: "16px", height: "16px" }}
           />
-        </div>
+          Pre-fill dates
+        </label>
       </PrintControlsPanel>
 
       {(() => {
@@ -552,7 +573,7 @@ function BlankTimesheetForm({
               {isFirst && (
                 <div className="ts-header-bar">
                   <div className="ts-name">{employeeName}</div>
-                  <div className="ts-period">{periodLabel}</div>
+                  <div className="ts-period">{showDates ? periodLabel : "Week of: _______________"}</div>
                 </div>
               )}
 
@@ -571,7 +592,11 @@ function BlankTimesheetForm({
                   {pageDays.map((day, i) => (
                     <tr key={i}>
                       <td>
-                        <span style={{ fontWeight: 600 }}>{day.dayNum}</span>
+                        {showDates ? (
+                          <span style={{ fontWeight: 600 }}>{day.dayNum}</span>
+                        ) : (
+                          <span style={{ color: "#bdc3c7", fontSize: "8pt" }}>&nbsp;</span>
+                        )}
                       </td>
                       <td className="ts-write-cell">
                         <input type="text" style={{ textAlign: "left", paddingLeft: "6px" }} />
@@ -623,7 +648,10 @@ function BlankTimesheetForm({
 
               <PrintFooter
                 left={`${orgName} • ${sheetTitle}`}
-                right={totalPages > 1 ? `${periodLabel} — Page ${pageIdx + 1} of ${totalPages}` : periodLabel}
+                right={showDates
+                  ? (totalPages > 1 ? `${periodLabel} — Page ${pageIdx + 1} of ${totalPages}` : periodLabel)
+                  : (totalPages > 1 ? `Page ${pageIdx + 1} of ${totalPages}` : "")
+                }
               />
             </div>
           );
@@ -835,19 +863,15 @@ function TimesheetPrintContent() {
   const [weekStart, setWeekStart] = useState(weekStartParam || getMondayOfCurrentWeek());
   const [employeeName, setEmployeeName] = useState(nameParam || "Crystal Furtado");
   const [periodType, setPeriodType] = useState<"weekly" | "monthly">(periodTypeParam || "weekly");
+  const blankParam = searchParams.get("blank");
+  const [showDates, setShowDates] = useState(blankParam !== "true");
 
   // State for completed entry
   const [entry, setEntry] = useState<HoursEntry | null>(null);
   const [loading, setLoading] = useState(!isBlank);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isBlank) {
-      // Auto-print blank form after short delay
-      const timer = setTimeout(() => window.print(), 400);
-      return () => clearTimeout(timer);
-    }
-  }, [isBlank]);
+  // Don't auto-print — let user configure name/dates/blank first
 
   useEffect(() => {
     if (!entryId || isBlank) return;
@@ -878,9 +902,11 @@ function TimesheetPrintContent() {
       <>
         <BlankTimesheetForm
           periodType={periodType}
+          showDates={showDates}
           onNameChange={setEmployeeName}
           onWeekChange={setWeekStart}
           onPeriodTypeChange={setPeriodType}
+          onShowDatesChange={setShowDates}
           weekStart={weekStart}
           employeeName={employeeName}
           orgName={nameFull}
