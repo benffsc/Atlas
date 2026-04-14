@@ -163,6 +163,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const body = await request.json();
 
+  // Resolve person_id from either direct UUID or trapper_name lookup
+  if (!body.person_id && body.trapper_name) {
+    const person = await queryOne<{ person_id: string }>(
+      `SELECT person_id FROM sot.people
+       WHERE display_name ILIKE $1
+       LIMIT 1`,
+      [body.trapper_name.trim()]
+    );
+    if (!person) {
+      throw new ApiError(`Could not find person matching "${body.trapper_name}"`, 400);
+    }
+    body.person_id = person.person_id;
+  }
+
   // Required fields
   requireField(body.person_id, "person_id");
   requireValidUUID(body.person_id, "person_id");
