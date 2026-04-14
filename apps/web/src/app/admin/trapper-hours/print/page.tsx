@@ -365,18 +365,26 @@ const TIMESHEET_CSS = `
   /* Prevent sections from splitting across pages */
   .ts-no-break { break-inside: avoid; }
 
-  /* Screen: make the page feel like a paper document */
+  /* Override PRINT_BASE_CSS: bake margins into the element so screen = print.
+     This matches the checkout slip pattern (@page margin: 0, padding on element). */
+  .print-page {
+    padding: 0.40in 0.55in 0.35in !important;
+  }
+
   @media screen {
-    .print-page {
-      padding: 0.5in 0.6in;
-      border: 1px solid #ddd;
-    }
     .print-wrapper {
       padding-right: 320px; /* offset for controls panel */
     }
   }
 
   @media print {
+    @page { margin: 0 !important; }
+    .print-page {
+      padding: 0.40in 0.55in 0.35in !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+    }
     .ts-daily-table td.ts-write-cell input::placeholder { color: transparent; }
   }
 `;
@@ -577,22 +585,6 @@ function BlankTimesheetForm({
               {/* Pay + signatures on last page */}
               {isLast && (
                 <>
-                  <div
-                    className="staff-box ts-no-break"
-                    style={{ marginTop: "10px", marginBottom: "10px" }}
-                  >
-                    <div className="section-title">Pay Calculation (Office Use)</div>
-                    <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                      <EditableField label="Total Hours" placeholder="____" style={{ flex: "0 0 90px" }} />
-                      <span style={{ fontSize: "11pt", fontWeight: 700, paddingTop: "14px" }}>×</span>
-                      <EditableField label="Rate" placeholder="$____/hr" style={{ flex: "0 0 90px" }} />
-                      <span style={{ fontSize: "11pt", fontWeight: 700, paddingTop: "14px" }}>=</span>
-                      <EditableField label="Total Pay" placeholder="$________" style={{ flex: "0 0 110px" }} />
-                      <div style={{ flex: 1 }} />
-                      <EditableField label="Processed by" placeholder="Initials" style={{ flex: "0 0 100px" }} />
-                    </div>
-                  </div>
-
                   <div className="section ts-no-break" style={{ marginTop: "10px" }}>
                     <div className="section-title">Signatures</div>
                     <div className="ts-sig-grid">
