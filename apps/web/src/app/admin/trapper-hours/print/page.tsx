@@ -185,6 +185,7 @@ const TIMESHEET_CSS = `
     border-collapse: collapse;
     font-size: 9.5pt;
     margin-bottom: 10px;
+    table-layout: fixed;
   }
   .ts-daily-table th {
     text-align: left;
