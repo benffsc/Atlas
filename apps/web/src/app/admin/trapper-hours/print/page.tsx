@@ -583,8 +583,7 @@ function BlankTimesheetForm({
               >
                 <thead>
                   <tr>
-                    <th style={{ width: "36px" }}>Day</th>
-                    <th style={{ width: "90px" }}>Date</th>
+                    <th style={{ width: "105px" }}>Date</th>
                     <th>Address / Location</th>
                     <th style={{ width: "50px" }}>Hours</th>
                   </tr>
@@ -593,21 +592,12 @@ function BlankTimesheetForm({
                   {pageDays.map((day, i) => (
                     <tr key={i}>
                       <td>
-                        {showDates ? (
-                          <span style={{ fontWeight: 600 }}>{day.dayNum}</span>
+                        {showDates && day.date ? (
+                          <span style={{ fontWeight: 600 }}>
+                            {day.dayNum} {day.date.getMonth() + 1}/{day.date.getDate()}/{day.date.getFullYear()}
+                          </span>
                         ) : (
                           <span>&nbsp;</span>
-                        )}
-                      </td>
-                      <td className="ts-write-cell">
-                        {showDates && day.date ? (
-                          <input
-                            type="text"
-                            defaultValue={`${day.date.getMonth() + 1}/${day.date.getDate()}/${day.date.getFullYear()}`}
-                            style={{ textAlign: "center", fontSize: "8.5pt" }}
-                          />
-                        ) : (
-                          <input type="text" style={{ textAlign: "center" }} />
                         )}
                       </td>
                       <td className="ts-write-cell">
@@ -622,7 +612,7 @@ function BlankTimesheetForm({
                   {/* Total row + pay + signatures on last page only */}
                   {isLast && (
                     <tr className="ts-total-row">
-                      <td colSpan={3} style={{ textAlign: "right", paddingRight: "12px" }}>Total Hours</td>
+                      <td colSpan={2} style={{ textAlign: "right", paddingRight: "12px" }}>Total Hours</td>
                       <td className="ts-write-cell" style={{ fontWeight: 800 }}>
                         <input type="text" style={{ fontWeight: 800 }} />
                       </td>
