@@ -448,7 +448,7 @@ function BlankTimesheetForm({
         dateStr: cursor.toLocaleDateString("en-US", { month: "numeric", day: "numeric" }),
         dayNum: periodType === "monthly"
           ? cursor.getDate().toString() + getSuffix(cursor.getDate())
-          : dayNames[cursor.getDay()],
+          : `${dayNames[cursor.getDay()]} ${(cursor.getMonth() + 1)}/${cursor.getDate()}/${cursor.getFullYear()}`,
       });
       cursor = addDays(cursor, 1);
     }
