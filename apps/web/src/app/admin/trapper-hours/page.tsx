@@ -316,6 +316,9 @@ function entryToFormState(entry: HoursEntry): DrawerFormState {
     total_pay: entry.total_pay,
     work_summary: entry.work_summary || "",
     notes: entry.notes || "",
+    attachment_path: entry.attachment_path || null,
+    attachment_filename: entry.attachment_filename || null,
+    attachment_mime_type: entry.attachment_mime_type || null,
   };
 }
 
