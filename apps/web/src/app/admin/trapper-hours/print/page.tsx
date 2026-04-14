@@ -156,7 +156,7 @@ const TIMESHEET_CSS = `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #166534;
+    background: #1e40af;
     color: #fff;
     padding: 5px 12px;
     border-radius: 5px;
@@ -194,14 +194,14 @@ const TIMESHEET_CSS = `
     text-transform: uppercase;
     letter-spacing: 0.3px;
     padding: 4px 6px;
-    border-bottom: 2px solid #27ae60;
-    background: #f0fdf4;
+    border-bottom: 2px solid #2563eb;
+    background: #eff6ff;
   }
   .ts-daily-table th:not(:first-child) { text-align: center; }
   .ts-daily-table td {
     padding: 0;
     border-bottom: 1px solid #bdc3c7;
-    height: 0.42in;
+    height: var(--row-height, 0.42in);
     vertical-align: bottom;
   }
   .ts-daily-table td:first-child {
@@ -232,11 +232,11 @@ const TIMESHEET_CSS = `
     padding: 4px 2px;
   }
   .ts-daily-table .ts-total-row td {
-    border-top: 2.5px solid #27ae60;
+    border-top: 2.5px solid #2563eb;
     border-bottom: none;
     font-weight: 700;
     font-size: 10pt;
-    background: #f0fdf4;
+    background: #eff6ff;
     height: 0.36in;
     vertical-align: middle;
     padding: 4px 6px;
@@ -260,7 +260,7 @@ const TIMESHEET_CSS = `
     text-transform: uppercase;
     letter-spacing: 0.3px;
     padding: 3px 8px;
-    border-bottom: 2px solid #27ae60;
+    border-bottom: 2px solid #2563eb;
   }
   .ts-hours-table th:last-child { text-align: right; }
   .ts-hours-table td {
@@ -272,7 +272,7 @@ const TIMESHEET_CSS = `
     font-variant-numeric: tabular-nums;
   }
   .ts-hours-table .ts-total-row td {
-    border-top: 2px solid #27ae60;
+    border-top: 2px solid #2563eb;
     border-bottom: none;
     font-weight: 700;
     font-size: 10pt;
@@ -289,9 +289,9 @@ const TIMESHEET_CSS = `
   .ts-pay-item {
     text-align: center;
     padding: 6px 8px;
-    background: #f0fdf4;
+    background: #eff6ff;
     border-radius: 4px;
-    border: 1px solid #86efac;
+    border: 1px solid #93c5fd;
   }
   .ts-pay-item .ts-pay-label {
     font-size: 7.5pt;
@@ -304,7 +304,7 @@ const TIMESHEET_CSS = `
   .ts-pay-item .ts-pay-value {
     font-size: 11pt;
     font-weight: 700;
-    color: #166534;
+    color: #1e40af;
   }
 
   /* Notes */
@@ -312,7 +312,7 @@ const TIMESHEET_CSS = `
     background: #f8f9fa;
     border-radius: 4px;
     padding: 6px 8px;
-    border-left: 3px solid #27ae60;
+    border-left: 3px solid #2563eb;
     font-size: 9pt;
     line-height: 1.4;
     margin-bottom: 6px;
@@ -364,6 +364,11 @@ const TIMESHEET_CSS = `
 
   /* Prevent sections from splitting across pages */
   .ts-no-break { break-inside: avoid; }
+
+  /* Override green accents from PRINT_BASE_CSS to blue brand */
+  .print-header h1 { color: #2563eb !important; }
+  .print-header { border-bottom-color: #2563eb !important; }
+  .section-title { color: #2563eb !important; border-bottom-color: #2563eb !important; }
 
   /* Override PRINT_BASE_CSS: bake margins into the element so screen = print.
      This matches the checkout slip pattern (@page margin: 0, padding on element). */
@@ -472,7 +477,7 @@ function BlankTimesheetForm({
               style={{
                 flex: 1, padding: "6px", border: "1px solid #ddd", borderRadius: "6px",
                 fontSize: "12px", cursor: "pointer",
-                background: periodType === "weekly" ? "#27ae60" : "#fff",
+                background: periodType === "weekly" ? "#2563eb" : "#fff",
                 color: periodType === "weekly" ? "#fff" : "#333",
               }}
             >
@@ -483,7 +488,7 @@ function BlankTimesheetForm({
               style={{
                 flex: 1, padding: "6px", border: "1px solid #ddd", borderRadius: "6px",
                 fontSize: "12px", cursor: "pointer",
-                background: periodType === "monthly" ? "#27ae60" : "#fff",
+                background: periodType === "monthly" ? "#2563eb" : "#fff",
                 color: periodType === "monthly" ? "#fff" : "#333",
               }}
             >
@@ -547,7 +552,10 @@ function BlankTimesheetForm({
                 </div>
               )}
 
-              <table className="ts-daily-table">
+              <table
+                className="ts-daily-table"
+                style={{ "--row-height": periodType === "weekly" && isFirst ? "0.82in" : "0.42in" } as React.CSSProperties}
+              >
                 <thead>
                   <tr>
                     <th style={{ width: "55px" }}>Date</th>
