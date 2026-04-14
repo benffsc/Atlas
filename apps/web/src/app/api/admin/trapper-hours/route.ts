@@ -205,12 +205,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       hours_total, hours_trapping, hours_admin, hours_transport,
       hours_training, hours_other, pay_type, hourly_rate,
       total_pay, notes, work_summary, status,
+      attachment_path, attachment_filename, attachment_mime_type,
       submitted_at, approved_at, created_at
     ) VALUES (
       $1, $2, $3, $4,
       $5, $6, $7, $8,
       $9, $10, $11, $12,
       $13, $14, $15, $16,
+      $17, $18, $19,
       ${submittedAt}, ${approvedAt}, NOW()
     )
     RETURNING entry_id`,
@@ -231,6 +233,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       body.notes ?? null,
       body.work_summary ?? null,
       initialStatus,
+      body.attachment_path ?? null,
+      body.attachment_filename ?? null,
+      body.attachment_mime_type ?? null,
     ]
   );
 
@@ -288,6 +293,9 @@ export const PATCH = withErrorHandling(async (request: NextRequest) => {
     notes: "notes",
     work_summary: "work_summary",
     status: "status",
+    attachment_path: "attachment_path",
+    attachment_filename: "attachment_filename",
+    attachment_mime_type: "attachment_mime_type",
   };
 
   const setClauses: string[] = [];

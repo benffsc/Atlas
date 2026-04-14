@@ -12,8 +12,10 @@
 
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createHash } from "crypto";
 import { apiSuccess } from "@/lib/api-response";
 import { withErrorHandling, ApiError } from "@/lib/api-validation";
+import { uploadFile, getPublicUrl } from "@/lib/supabase";
 
 interface ExtractedDay {
   date: string | null;       // "4/14/2026" or "Mon" or null
@@ -108,9 +110,22 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new ApiError("File too large (max 10MB)", 400);
   }
 
-  // Read file to base64
+  // Read file to buffer + base64
   const buffer = Buffer.from(await file.arrayBuffer());
   const base64 = buffer.toString("base64");
+
+  // Store the file in Supabase for future reference
+  const hash = createHash("sha256").update(buffer).digest("hex").slice(0, 8);
+  const ext = file.name.split(".").pop() || "jpg";
+  const storagePath = `timesheets/${Date.now()}_${hash}.${ext}`;
+
+  let attachmentPath: string | null = null;
+  let attachmentUrl: string | null = null;
+  const uploadResult = await uploadFile(storagePath, buffer, mimeType);
+  if (uploadResult.success) {
+    attachmentPath = uploadResult.path || storagePath;
+    attachmentUrl = uploadResult.url || getPublicUrl(storagePath);
+  }
 
   // Determine media type for Claude
   let mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" = "image/jpeg";
@@ -178,6 +193,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   return apiSuccess({
     extracted,
+    attachment: {
+      path: attachmentPath,
+      url: attachmentUrl,
+      filename: file.name,
+      mime_type: mimeType,
+    },
     usage: {
       input_tokens: response.usage.input_tokens,
       output_tokens: response.usage.output_tokens,

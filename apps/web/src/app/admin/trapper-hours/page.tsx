@@ -270,6 +270,9 @@ interface DrawerFormState {
   total_pay: number | null;
   work_summary: string;
   notes: string;
+  attachment_path: string | null;
+  attachment_filename: string | null;
+  attachment_mime_type: string | null;
 }
 
 function defaultFormState(): DrawerFormState {
@@ -290,6 +293,9 @@ function defaultFormState(): DrawerFormState {
     total_pay: null,
     work_summary: "",
     notes: "",
+    attachment_path: null,
+    attachment_filename: null,
+    attachment_mime_type: null,
   };
 }
 
@@ -329,6 +335,11 @@ function TimesheetScanner({
     period_end?: string | null;
     notes?: string | null;
     entries?: { date?: string | null; address?: string | null; hours?: number | null }[];
+  }, attachment?: {
+    path: string | null;
+    url: string | null;
+    filename: string | null;
+    mime_type: string | null;
   }) => void;
 }) {
   const [scanning, setScanning] = useState(false);
@@ -362,7 +373,8 @@ function TimesheetScanner({
       const extracted = result.data?.extracted || result.extracted;
 
       if (extracted) {
-        onExtracted(extracted);
+        const attachment = result.data?.attachment || result.attachment;
+        onExtracted(extracted, attachment);
         setScanResult(
           `Extracted ${extracted.entries?.filter((e: { hours?: number | null }) => e.hours).length || 0} days, ` +
           `${extracted.total_hours ?? 0} total hours` +
@@ -627,7 +639,16 @@ function HoursDrawer({
       {/* Scan Timesheet */}
       {!editEntry && (
         <TimesheetScanner
-          onExtracted={(data) => {
+          onExtracted={(data, attachment) => {
+            // Store attachment info
+            if (attachment?.path) {
+              setForm((prev) => ({
+                ...prev,
+                attachment_path: attachment.path,
+                attachment_filename: attachment.filename || null,
+                attachment_mime_type: attachment.mime_type || null,
+              }));
+            }
             if (data.employee_name) {
               setForm((prev) => ({ ...prev, trapper_name: data.employee_name! }));
             }
@@ -1170,7 +1191,22 @@ function TrapperHoursContent() {
               whiteSpace: "nowrap",
             }}
           >
-            Print Blank Timesheet
+            Print Blank
+          </Link>
+          <Link
+            href="/admin/trapper-hours/print/batch"
+            target="_blank"
+            style={{
+              padding: "0.45rem 0.75rem",
+              border: "1px solid var(--border-primary)",
+              borderRadius: "6px",
+              fontSize: "0.8rem",
+              color: "var(--text-secondary)",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Batch Print Weeks
           </Link>
           <Button variant="primary" icon="plus" onClick={handleOpenCreate}>
             Log Hours
