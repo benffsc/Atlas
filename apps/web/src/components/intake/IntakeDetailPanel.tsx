@@ -2020,8 +2020,8 @@ export function IntakeDetailPanel({
           </div>
         ) : ooaPreviewHtml ? (
           <iframe
-            sandbox=""
-            srcDoc={ooaPreviewHtml}
+            sandbox="allow-popups allow-popups-to-escape-sandbox"
+            srcDoc={ooaPreviewHtml.replace('<head>', '<head><base target="_blank">')}
             style={{
               width: "100%",
               height: "calc(100vh - 200px)",
