@@ -580,13 +580,13 @@ function BlankTimesheetForm({
 
               <table
                 className="ts-daily-table"
-                style={{ "--row-height": periodType === "weekly" && isFirst ? "0.82in" : "0.42in" } as React.CSSProperties}
+                style={{ "--row-height": periodType === "weekly" && isFirst ? "0.92in" : "0.42in" } as React.CSSProperties}
               >
                 <thead>
                   <tr>
-                    <th style={{ width: "105px" }}>Date</th>
+                    <th style={{ width: "120px" }}>Date</th>
                     <th>Address / Location</th>
-                    <th style={{ width: "50px" }}>Hours</th>
+                    <th style={{ width: "65px" }}>Hours</th>
                   </tr>
                 </thead>
                 <tbody>
