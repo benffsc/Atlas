@@ -257,6 +257,13 @@ function TrapperSelect({
 // Create/Edit Drawer
 // ---------------------------------------------------------------------------
 
+interface DailyEntry {
+  date: string;       // ISO date
+  dayLabel: string;   // "Mon", "Tue", etc.
+  location: string;
+  hours: number;
+}
+
 interface DrawerFormState {
   trapper_name: string;
   period_type: "weekly" | "monthly";
@@ -276,6 +283,24 @@ interface DrawerFormState {
   attachment_path: string | null;
   attachment_filename: string | null;
   attachment_mime_type: string | null;
+  daily_entries: DailyEntry[];
+}
+
+function generateDailyEntries(startDate: string, days: number = 7): DailyEntry[] {
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const entries: DailyEntry[] = [];
+  const start = new Date(startDate + "T00:00:00");
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    entries.push({
+      date: d.toISOString().split("T")[0],
+      dayLabel: dayNames[d.getDay()],
+      location: "",
+      hours: 0,
+    });
+  }
+  return entries;
 }
 
 function defaultFormState(): DrawerFormState {
@@ -299,6 +324,7 @@ function defaultFormState(): DrawerFormState {
     attachment_path: null,
     attachment_filename: null,
     attachment_mime_type: null,
+    daily_entries: generateDailyEntries(start, 7),
   };
 }
 
@@ -322,6 +348,7 @@ function entryToFormState(entry: HoursEntry): DrawerFormState {
     attachment_path: entry.attachment_path || null,
     attachment_filename: entry.attachment_filename || null,
     attachment_mime_type: entry.attachment_mime_type || null,
+    daily_entries: generateDailyEntries(entry.period_start, entry.period_type === "monthly" ? 28 : 7),
   };
 }
 
@@ -353,6 +380,36 @@ function TimesheetScanner({
   const [scanError, setScanError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Convert HEIC/non-JPEG to JPEG via canvas (Claude Vision needs JPEG/PNG/WebP)
+  const convertToJpeg = async (file: File): Promise<File> => {
+    if (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") {
+      return file;
+    }
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(file); return; }
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(url);
+            if (!blob) { resolve(file); return; }
+            resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          0.92
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Failed to load image")); };
+      img.src = url;
+    });
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -362,8 +419,11 @@ function TimesheetScanner({
     setScanError(null);
 
     try {
+      // Convert HEIC/other formats to JPEG for Claude Vision
+      const convertedFile = await convertToJpeg(file);
+
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", convertedFile);
 
       const res = await fetch("/api/admin/trapper-hours/extract", {
         method: "POST",
@@ -481,19 +541,31 @@ function HoursDrawer({
 
   // Auto-compute period_end when period_start or period_type changes
   const handlePeriodStartChange = (newStart: string) => {
+    const days = form.period_type === "weekly" ? 7 : 28;
     const newEnd =
       form.period_type === "weekly"
         ? addDays(newStart, 6)
         : getEndOfMonth(newStart);
-    setForm((prev) => ({ ...prev, period_start: newStart, period_end: newEnd }));
+    setForm((prev) => ({
+      ...prev,
+      period_start: newStart,
+      period_end: newEnd,
+      daily_entries: generateDailyEntries(newStart, days),
+    }));
   };
 
   const handlePeriodTypeChange = (newType: "weekly" | "monthly") => {
+    const days = newType === "weekly" ? 7 : 28;
     const newEnd =
       newType === "weekly"
         ? addDays(form.period_start, 6)
         : getEndOfMonth(form.period_start);
-    setForm((prev) => ({ ...prev, period_type: newType, period_end: newEnd }));
+    setForm((prev) => ({
+      ...prev,
+      period_type: newType,
+      period_end: newEnd,
+      daily_entries: generateDailyEntries(form.period_start, days),
+    }));
   };
 
   // Auto-sum category hours into total
@@ -559,6 +631,15 @@ function HoursDrawer({
       return;
     }
 
+    // Build work summary from daily entries if not manually written
+    let workSummary = form.work_summary.trim();
+    if (!workSummary) {
+      const lines = form.daily_entries
+        .filter((d) => d.location || d.hours > 0)
+        .map((d) => `${d.dayLabel}: ${d.location || "—"} (${d.hours}h)`);
+      if (lines.length > 0) workSummary = lines.join("\n");
+    }
+
     const body: Record<string, unknown> = {
       trapper_name: form.trapper_name.trim(),
       period_type: form.period_type,
@@ -573,8 +654,11 @@ function HoursDrawer({
       pay_type: form.pay_type,
       hourly_rate: form.hourly_rate,
       total_pay: form.total_pay,
-      work_summary: form.work_summary.trim() || null,
+      work_summary: workSummary || null,
       notes: form.notes.trim() || null,
+      attachment_path: form.attachment_path,
+      attachment_filename: form.attachment_filename,
+      attachment_mime_type: form.attachment_mime_type,
     };
 
     if (editEntry) {
@@ -676,19 +760,27 @@ function HoursDrawer({
             if (data.notes) {
               setForm((prev) => ({ ...prev, work_summary: data.notes! }));
             }
-            // Build work summary from daily entries
+            // Populate daily entries from AI extraction
             if (data.entries && data.entries.length > 0) {
-              const summaryLines = data.entries
-                .filter((e: { address?: string | null; hours?: number | null }) => e.address || e.hours)
-                .map((e: { date?: string | null; address?: string | null; hours?: number | null }) =>
-                  `${e.date || "?"}: ${e.address || "—"} (${e.hours ?? 0}h)`
-                );
-              if (summaryLines.length > 0) {
-                setForm((prev) => ({
+              setForm((prev) => {
+                const updated = [...prev.daily_entries];
+                data.entries!.forEach((extracted: { date?: string | null; address?: string | null; hours?: number | null }, i: number) => {
+                  if (i < updated.length) {
+                    updated[i] = {
+                      ...updated[i],
+                      location: extracted.address || "",
+                      hours: extracted.hours ?? 0,
+                    };
+                  }
+                });
+                const newTotal = updated.reduce((sum, d) => sum + d.hours, 0);
+                return {
                   ...prev,
-                  work_summary: summaryLines.join("\n"),
-                }));
-              }
+                  daily_entries: updated,
+                  hours_total: newTotal,
+                  total_pay: prev.hourly_rate ? newTotal * prev.hourly_rate : prev.total_pay,
+                };
+              });
             }
           }}
         />
@@ -750,7 +842,91 @@ function HoursDrawer({
         </div>
       </div>
 
-      {/* Divider: Hours */}
+      {/* Daily Log — day by day entry like Crystal's paper form */}
+      <div
+        style={{
+          borderTop: "1px solid var(--border, #e5e7eb)",
+          margin: "0 -1.25rem",
+          padding: "0 1.25rem",
+          paddingTop: "1rem",
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: "0.9rem", display: "block", marginBottom: "0.5rem" }}>
+          Daily Log
+        </span>
+        <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginBottom: "0.5rem" }}>
+          Enter each day&apos;s locations and hours — totals auto-calculate
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "55px 1fr 60px", gap: "0.25rem", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-tertiary)", marginBottom: "0.25rem", padding: "0 0.25rem" }}>
+          <span>Day</span>
+          <span>Location / Address</span>
+          <span style={{ textAlign: "right" }}>Hours</span>
+        </div>
+        {form.daily_entries.map((entry, idx) => (
+          <div
+            key={entry.date}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "55px 1fr 60px",
+              gap: "0.25rem",
+              marginBottom: "0.25rem",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+              {entry.dayLabel}
+            </span>
+            <input
+              type="text"
+              value={entry.location}
+              placeholder="e.g., FFSC, Berg, VCA"
+              onChange={(e) => {
+                const updated = [...form.daily_entries];
+                updated[idx] = { ...updated[idx], location: e.target.value };
+                setForm((prev) => ({ ...prev, daily_entries: updated }));
+              }}
+              style={{ ...smallInputStyle, fontSize: "0.75rem" }}
+            />
+            <input
+              type="number"
+              step="0.5"
+              min="0"
+              value={entry.hours || ""}
+              placeholder="0"
+              onChange={(e) => {
+                const updated = [...form.daily_entries];
+                updated[idx] = { ...updated[idx], hours: parseFloat(e.target.value) || 0 };
+                const newTotal = updated.reduce((sum, d) => sum + d.hours, 0);
+                setForm((prev) => ({
+                  ...prev,
+                  daily_entries: updated,
+                  hours_total: newTotal,
+                  total_pay: prev.hourly_rate ? newTotal * prev.hourly_rate : prev.total_pay,
+                }));
+              }}
+              style={{ ...smallInputStyle, fontSize: "0.75rem", textAlign: "right" }}
+            />
+          </div>
+        ))}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "55px 1fr 60px",
+            gap: "0.25rem",
+            padding: "0.35rem 0.25rem 0",
+            borderTop: "2px solid var(--primary, #2563eb)",
+            marginTop: "0.25rem",
+          }}
+        >
+          <span />
+          <span style={{ fontSize: "0.8rem", fontWeight: 700, textAlign: "right" }}>Total</span>
+          <span style={{ fontSize: "0.8rem", fontWeight: 700, textAlign: "right" }}>
+            {form.daily_entries.reduce((sum, d) => sum + d.hours, 0).toFixed(1)}
+          </span>
+        </div>
+      </div>
+
+      {/* Divider: Hours Category Breakdown (optional detail) */}
       <div
         style={{
           borderTop: "1px solid var(--border, #e5e7eb)",
