@@ -847,20 +847,46 @@ function CompletedEntryPrintout({
     entry.period_type
   );
 
-  const hoursBreakdown = [
-    { label: "Trapping", value: entry.hours_trapping },
-    { label: "Admin", value: entry.hours_admin },
-    { label: "Transport", value: entry.hours_transport },
-    { label: "Training", value: entry.hours_training },
-    { label: "Other", value: entry.hours_other },
-  ];
-
   const statusLabel =
     entry.status === "approved"
       ? "Approved"
       : entry.status === "submitted"
         ? "Submitted"
         : "Draft";
+
+  // Parse work_summary into daily rows ("Mon: FFSC, Berg (8h)" format)
+  const parsedDays: { day: string; location: string; hours: string }[] = [];
+  if (entry.work_summary) {
+    entry.work_summary.split("\n").forEach((line) => {
+      const match = line.match(/^(\w+):\s*(.*?)\s*\((\d+(?:\.\d+)?)h\)$/);
+      if (match) {
+        parsedDays.push({ day: match[1], location: match[2] || "—", hours: match[3] });
+      }
+    });
+  }
+
+  // Generate date rows from period
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const start = parseDateLocal(entry.period_start);
+  const numDays = entry.period_type === "monthly" ? 28 : 7;
+  const dateRows: { dayLabel: string; fullDate: string; location: string; hours: string }[] = [];
+
+  if (start) {
+    for (let i = 0; i < numDays; i++) {
+      const d = addDays(start, i);
+      const dayLabel = dayNames[d.getDay()];
+      const fullDate = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+      // Try to match parsed day data
+      const matched = parsedDays.find((p) => p.day === dayLabel && parsedDays.indexOf(p) === i) ||
+        parsedDays[i];
+      dateRows.push({
+        dayLabel,
+        fullDate,
+        location: matched?.location || "",
+        hours: matched?.hours || "",
+      });
+    }
+  }
 
   return (
     <div className="print-wrapper">
@@ -880,107 +906,63 @@ function CompletedEntryPrintout({
         </div>
       </PrintControlsPanel>
 
+      {/* ═══════ PAGE 1: Daily timesheet (same format as blank form) ═══════ */}
       <div className="print-page">
-        <PrintHeader title={sheetTitle} subtitle={orgName} />
+        <PrintHeader
+          title={sheetTitle}
+          subtitle={orgName}
+          rightContent={
+            <div style={{ textAlign: "right", fontSize: "10pt" }}>
+              <strong>{entry.trapper_name}</strong>
+            </div>
+          }
+        />
 
-        {/* Header bar */}
         <div className="ts-header-bar">
           <div className="ts-name">{entry.trapper_name}</div>
-          <div className="ts-status">{statusLabel}</div>
+          <div className="ts-period">{periodLabel}</div>
         </div>
 
-        {/* Employee + Period info */}
-        <div className="ts-info-grid ts-no-break">
-          <div className="section" style={{ marginBottom: 0 }}>
-            <div className="section-title">Employee</div>
-            <div style={{ marginBottom: "3px" }}>
-              <strong>{entry.trapper_name}</strong>
-              {entry.trapper_type && (
-                <span style={{ marginLeft: "8px", fontSize: "8.5pt", color: "#7f8c8d" }}>
-                  ({entry.trapper_type.replace(/_/g, " ")})
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="section" style={{ marginBottom: 0 }}>
-            <div className="section-title">Period</div>
-            <div style={{ marginBottom: "3px" }}>
-              <strong>{periodLabel}</strong>
-            </div>
-            <div style={{ fontSize: "8.5pt", color: "#555" }}>
-              {entry.period_type === "monthly" ? "Monthly" : "Weekly"} Period
-              {entry.submitted_at && <> · Submitted {formatPrintDate(entry.submitted_at)}</>}
-              {entry.approved_at && <> · Approved {formatPrintDate(entry.approved_at)}</>}
-            </div>
-          </div>
-        </div>
-
-        {/* Hours breakdown */}
-        <div className="section ts-no-break">
-          <div className="section-title">Hours Breakdown</div>
-          <table className="ts-hours-table">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Hours</th>
+        <table
+          className="ts-daily-table"
+          style={{ "--row-height": entry.period_type === "weekly" ? "0.92in" : "0.42in" } as React.CSSProperties}
+        >
+          <thead>
+            <tr>
+              <th style={{ width: "120px" }}>Date</th>
+              <th>Address / Location</th>
+              <th style={{ width: "85px" }}>Hours</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dateRows.map((row, i) => (
+              <tr key={i}>
+                <td>
+                  <span style={{ fontWeight: 600 }}>{row.dayLabel} {row.fullDate}</span>
+                </td>
+                <td className="ts-write-cell">
+                  <input
+                    type="text"
+                    defaultValue={row.location}
+                    style={{ textAlign: "left", paddingLeft: "6px" }}
+                  />
+                </td>
+                <td className="ts-write-cell">
+                  <input type="text" defaultValue={row.hours} />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {hoursBreakdown.map((row) => (
-                <tr key={row.label}>
-                  <td>{row.label}</td>
-                  <td>{formatHours(row.value)}</td>
-                </tr>
-              ))}
-              <tr className="ts-total-row">
-                <td>Total</td>
-                <td>{formatHours(entry.hours_total)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pay */}
-        <div className="section ts-no-break">
-          <div className="section-title">Pay</div>
-          <div className="ts-pay-grid">
-            <div className="ts-pay-item">
-              <div className="ts-pay-label">Pay Type</div>
-              <div className="ts-pay-value">
-                {entry.pay_type === "hourly" ? "Hourly" : entry.pay_type === "flat" ? "Flat Rate" : entry.pay_type === "stipend" ? "Stipend" : "—"}
-              </div>
-            </div>
-            <div className="ts-pay-item">
-              <div className="ts-pay-label">Rate</div>
-              <div className="ts-pay-value">
-                {entry.hourly_rate != null ? `${formatCurrency(entry.hourly_rate)}/hr` : "—"}
-              </div>
-            </div>
-            <div className="ts-pay-item">
-              <div className="ts-pay-label">Total</div>
-              <div className="ts-pay-value">{formatCurrency(entry.total_pay)}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Work summary */}
-        {entry.work_summary && (
-          <div className="section ts-no-break">
-            <div className="section-title">Work Summary</div>
-            <div className="ts-notes-box">{entry.work_summary}</div>
-          </div>
-        )}
-
-        {/* Notes */}
-        {entry.notes && (
-          <div className="section ts-no-break">
-            <div className="section-title">Notes</div>
-            <div className="ts-notes-box">{entry.notes}</div>
-          </div>
-        )}
+            ))}
+            <tr className="ts-total-row">
+              <td colSpan={2} style={{ textAlign: "right", paddingRight: "12px" }}>Total Hours</td>
+              <td style={{ textAlign: "center", fontWeight: 800 }}>
+                {formatHours(entry.hours_total)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
         {/* Signatures */}
-        <div className="section ts-no-break" style={{ marginTop: "12px" }}>
+        <div className="section ts-no-break">
           <div className="section-title">Signatures</div>
           <div className="ts-sig-grid">
             <div>
@@ -1003,8 +985,91 @@ function CompletedEntryPrintout({
         </div>
 
         <PrintFooter
-          left={`${entry.trapper_name} | ${entry.entry_id.slice(0, 8)} | ${formatPrintDate(entry.created_at)}`}
-          right="Page 1 of 1"
+          left={`${orgName} • ${sheetTitle}`}
+          right={`${periodLabel} — Page 1 of 2`}
+        />
+      </div>
+
+      {/* ═══════ PAGE 2: Pay details + notes ═══════ */}
+      <div className="print-page">
+        <PrintHeader
+          title="Pay Summary"
+          subtitle={`${entry.trapper_name} — ${periodLabel}`}
+        />
+
+        {/* Pay */}
+        <div className="section ts-no-break">
+          <div className="section-title">Pay</div>
+          <div className="ts-pay-grid">
+            <div className="ts-pay-item">
+              <div className="ts-pay-label">Total Hours</div>
+              <div className="ts-pay-value">{formatHours(entry.hours_total)}</div>
+            </div>
+            <div className="ts-pay-item">
+              <div className="ts-pay-label">Rate</div>
+              <div className="ts-pay-value">
+                {entry.hourly_rate != null ? `${formatCurrency(entry.hourly_rate)}/hr` : "—"}
+              </div>
+            </div>
+            <div className="ts-pay-item">
+              <div className="ts-pay-label">Total Pay</div>
+              <div className="ts-pay-value">{formatCurrency(entry.total_pay)}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="section ts-no-break">
+          <div className="section-title">Status</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+            <div>
+              <span style={{ fontSize: "7.5pt", fontWeight: 700, color: "#7f8c8d", textTransform: "uppercase" as const }}>Status</span>
+              <div style={{ fontWeight: 600 }}>{statusLabel}</div>
+            </div>
+            {entry.submitted_at && (
+              <div>
+                <span style={{ fontSize: "7.5pt", fontWeight: 700, color: "#7f8c8d", textTransform: "uppercase" as const }}>Submitted</span>
+                <div>{formatPrintDate(entry.submitted_at)}</div>
+              </div>
+            )}
+            {entry.approved_at && (
+              <div>
+                <span style={{ fontSize: "7.5pt", fontWeight: 700, color: "#7f8c8d", textTransform: "uppercase" as const }}>Approved</span>
+                <div>{formatPrintDate(entry.approved_at)}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Work summary */}
+        {entry.work_summary && (
+          <div className="section ts-no-break">
+            <div className="section-title">Work Summary</div>
+            <div className="ts-notes-box" style={{ whiteSpace: "pre-wrap" }}>{entry.work_summary}</div>
+          </div>
+        )}
+
+        {/* Notes */}
+        {entry.notes && (
+          <div className="section ts-no-break">
+            <div className="section-title">Notes</div>
+            <div className="ts-notes-box">{entry.notes}</div>
+          </div>
+        )}
+
+        {/* Attachment reference */}
+        {entry.attachment_filename && (
+          <div className="section ts-no-break">
+            <div className="section-title">Attached Document</div>
+            <div style={{ fontSize: "9pt", color: "#555" }}>
+              {entry.attachment_filename}
+            </div>
+          </div>
+        )}
+
+        <PrintFooter
+          left={`${entry.trapper_name} | ID: ${entry.entry_id.slice(0, 8)} | Created: ${formatPrintDate(entry.created_at)}`}
+          right={`${periodLabel} — Page 2 of 2`}
         />
       </div>
     </div>
