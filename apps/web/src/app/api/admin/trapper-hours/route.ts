@@ -133,8 +133,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const stats = await queryOne<TimeEntryStats>(
     `SELECT
       COUNT(*)::int AS total_entries,
-      COALESCE(SUM(hours_total), 0)::numeric AS total_hours,
-      COALESCE(SUM(total_pay), 0)::numeric AS total_pay,
+      COALESCE(SUM(hours_total), 0)::float8 AS total_hours,
+      COALESCE(SUM(total_pay), 0)::float8 AS total_pay,
       COUNT(*) FILTER (WHERE status = 'draft')::int AS draft_count,
       COUNT(*) FILTER (WHERE status = 'submitted')::int AS submitted_count,
       COUNT(*) FILTER (WHERE status = 'approved')::int AS approved_count
