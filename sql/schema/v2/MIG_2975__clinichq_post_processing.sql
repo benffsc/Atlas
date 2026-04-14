@@ -43,17 +43,7 @@ BEGIN
         END as altered_status,
         NULLIF(TRIM(ci.payload->>'Secondary Color'), '') as secondary_color,
         NULLIF(TRIM(ci.payload->>'Number'), '') as clinichq_animal_id,
-        CASE TRIM(oi.payload->>'Ownership')
-          WHEN 'Community Cat (Feral)' THEN 'feral'
-          WHEN 'Community Cat (Friendly)' THEN 'community'
-          WHEN 'Owned' THEN 'owned'
-          WHEN 'Foster' THEN 'foster'
-          WHEN 'Shelter' THEN 'unknown'
-          WHEN 'Misc 1' THEN 'unknown'
-          WHEN 'Misc 2' THEN 'unknown'
-          WHEN 'Misc 3' THEN 'unknown'
-          ELSE NULL
-        END as ownership_type
+        ops.map_clinichq_ownership_type(oi.payload->>'Ownership') as ownership_type
       FROM ops.staged_records ci
       LEFT JOIN ops.staged_records oi ON
         oi.source_system = 'clinichq'
@@ -194,13 +184,7 @@ BEGIN
         NULLIF(TRIM(ci.payload->>'Breed'), '') as breed,
         NULLIF(TRIM(ci.payload->>'Primary Color'), '') as color,
         NULLIF(TRIM(ci.payload->>'Secondary Color'), '') as secondary_color,
-        CASE TRIM(oi.payload->>'Ownership')
-          WHEN 'Community Cat (Feral)' THEN 'feral'
-          WHEN 'Community Cat (Friendly)' THEN 'community'
-          WHEN 'Owned' THEN 'owned'
-          WHEN 'Foster' THEN 'foster'
-          ELSE NULL
-        END as ownership_type
+        ops.map_clinichq_ownership_type(oi.payload->>'Ownership') as ownership_type
       FROM ops.staged_records ci
       LEFT JOIN ops.staged_records oi ON
         oi.source_system = 'clinichq'
@@ -514,17 +498,20 @@ BEGIN
         owner_phone = sot.norm_phone_us(COALESCE(NULLIF(sr.payload->>'Owner Phone', ''), sr.payload->>'Owner Cell Phone')),
         owner_first_name = COALESCE(NULLIF(TRIM(sr.payload->>'Owner First Name'), ''), a.owner_first_name),
         owner_last_name = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Last Name'), ''), a.owner_last_name),
-        owner_address = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Address'), ''), a.owner_address)
+        owner_address = COALESCE(NULLIF(TRIM(sr.payload->>'Owner Address'), ''), a.owner_address),
+        ownership_type = COALESCE(a.ownership_type, ops.map_clinichq_ownership_type(sr.payload->>'Ownership'))
       FROM ops.staged_records sr
       WHERE sr.source_system = 'clinichq'
         AND sr.source_table = 'owner_info'
         AND sr.file_upload_id = p_upload_id
         AND sr.payload->>'Number' = a.appointment_number
         AND (a.client_name IS NULL OR a.owner_email IS NULL OR a.owner_phone IS NULL
-             OR a.owner_first_name IS NULL OR a.owner_last_name IS NULL OR a.owner_address IS NULL)
+             OR a.owner_first_name IS NULL OR a.owner_last_name IS NULL OR a.owner_address IS NULL
+             OR a.ownership_type IS NULL)
         AND (sr.payload->>'Owner First Name' IS NOT NULL OR sr.payload->>'Owner Last Name' IS NOT NULL
              OR sr.payload->>'Owner Email' IS NOT NULL OR sr.payload->>'Owner Phone' IS NOT NULL
-             OR sr.payload->>'Owner Cell Phone' IS NOT NULL OR sr.payload->>'Owner Address' IS NOT NULL);
+             OR sr.payload->>'Owner Cell Phone' IS NOT NULL OR sr.payload->>'Owner Address' IS NOT NULL
+             OR sr.payload->>'Ownership' IS NOT NULL);
       GET DIAGNOSTICS v_count = ROW_COUNT;
       v_results := v_results || jsonb_build_object('owner_fields_backfilled', v_count);
     EXCEPTION WHEN OTHERS THEN

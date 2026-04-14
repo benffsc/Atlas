@@ -134,6 +134,51 @@ function getSuffix(day: number): string {
   }
 }
 
+function getMondayOfWeek(d: Date): Date {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  return monday;
+}
+
+interface BatchWeek {
+  start: Date;
+  end: Date;
+  label: string;
+  days: { date: Date; dayName: string; fullDate: string }[];
+}
+
+function generateBatchWeeks(fromStr: string, toStr: string): BatchWeek[] {
+  const from = parseDateLocal(fromStr);
+  const to = parseDateLocal(toStr);
+  if (!from || !to || to < from) return [];
+
+  const weeks: BatchWeek[] = [];
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let cursor = getMondayOfWeek(from);
+
+  while (cursor <= to) {
+    const weekEnd = addDays(cursor, 6);
+    const days = dayNames.map((name, i) => {
+      const d = addDays(cursor, i);
+      return {
+        date: d,
+        dayName: name,
+        fullDate: `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`,
+      };
+    });
+    weeks.push({
+      start: new Date(cursor),
+      end: weekEnd,
+      label: formatPeriodRange(toDateStr(cursor), toDateStr(weekEnd), "weekly"),
+      days,
+    });
+    cursor = addDays(cursor, 7);
+  }
+  return weeks;
+}
+
 function getMondayOfCurrentWeek(): string {
   const now = new Date();
   const day = now.getDay();
@@ -409,20 +454,28 @@ function BlankTimesheetForm({
   orgName,
   periodType,
   showDates,
+  batchMode,
+  batchEndDate,
   onNameChange,
   onWeekChange,
   onPeriodTypeChange,
   onShowDatesChange,
+  onBatchModeChange,
+  onBatchEndDateChange,
 }: {
   weekStart: string;
   employeeName: string;
   orgName: string;
   periodType: "weekly" | "monthly";
   showDates: boolean;
+  batchMode: boolean;
+  batchEndDate: string;
   onNameChange: (name: string) => void;
   onWeekChange: (week: string) => void;
   onPeriodTypeChange: (type: "weekly" | "monthly") => void;
   onShowDatesChange: (show: boolean) => void;
+  onBatchModeChange: (batch: boolean) => void;
+  onBatchEndDateChange: (date: string) => void;
 }) {
   const start = parseDateLocal(weekStart);
   let endDate: Date;
@@ -533,9 +586,120 @@ function BlankTimesheetForm({
           />
           Pre-fill dates
         </label>
+        <div style={{ borderTop: "1px solid #eee", paddingTop: "8px", marginTop: "4px" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", cursor: "pointer", marginBottom: "8px" }}>
+            <input
+              type="checkbox"
+              checked={batchMode}
+              onChange={(e) => onBatchModeChange(e.target.checked)}
+              style={{ width: "16px", height: "16px" }}
+            />
+            Batch print multiple weeks
+          </label>
+          {batchMode && (
+            <div className="ctrl-field" style={{ marginBottom: "8px" }}>
+              <label style={{ display: "block", fontSize: "11px", color: "#666", marginBottom: "3px" }}>
+                Print through
+              </label>
+              <input
+                type="date"
+                value={batchEndDate}
+                onChange={(e) => onBatchEndDateChange(e.target.value)}
+                style={{ width: "100%", padding: "7px", border: "1px solid #ddd", borderRadius: "6px", fontSize: "13px", boxSizing: "border-box" }}
+              />
+              <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                {(() => {
+                  const weeks = generateBatchWeeks(weekStart, batchEndDate);
+                  return `${weeks.length} week${weeks.length !== 1 ? "s" : ""} — one page each`;
+                })()}
+              </div>
+            </div>
+          )}
+        </div>
       </PrintControlsPanel>
 
-      {(() => {
+      {/* ── Batch mode: one page per week ── */}
+      {batchMode && (() => {
+        const batchWeeks = generateBatchWeeks(weekStart, batchEndDate);
+        return batchWeeks.map((week, wIdx) => (
+          <div className="print-page" key={wIdx}>
+            <PrintHeader
+              title="Weekly Timesheet"
+              subtitle={orgName}
+              rightContent={
+                <div style={{ textAlign: "right", fontSize: "10pt" }}>
+                  <strong>{employeeName}</strong>
+                </div>
+              }
+            />
+            <div className="ts-header-bar">
+              <div className="ts-name">{employeeName}</div>
+              <div className="ts-period">{week.label}</div>
+            </div>
+            <table
+              className="ts-daily-table"
+              style={{ "--row-height": "0.92in" } as React.CSSProperties}
+            >
+              <thead>
+                <tr>
+                  <th style={{ width: "120px" }}>Date</th>
+                  <th>Address / Location</th>
+                  <th style={{ width: "85px" }}>Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {week.days.map((day, i) => (
+                  <tr key={i}>
+                    <td>
+                      <span style={{ fontWeight: 600 }}>{day.dayName} {day.fullDate}</span>
+                    </td>
+                    <td className="ts-write-cell">
+                      <input type="text" style={{ textAlign: "left", paddingLeft: "6px" }} />
+                    </td>
+                    <td className="ts-write-cell">
+                      <input type="text" />
+                    </td>
+                  </tr>
+                ))}
+                <tr className="ts-total-row">
+                  <td colSpan={2} style={{ textAlign: "right", paddingRight: "12px" }}>Total Hours</td>
+                  <td className="ts-write-cell" style={{ fontWeight: 800 }}>
+                    <input type="text" style={{ fontWeight: 800 }} />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="section ts-no-break">
+              <div className="section-title">Signatures</div>
+              <div className="ts-sig-grid">
+                <div>
+                  <div className="ts-sig-label">Employee Signature</div>
+                  <div className="ts-sig-line" />
+                  <div className="ts-sig-date-row">
+                    <span className="ts-sig-date-label">Date:</span>
+                    <div className="ts-sig-date-line" />
+                  </div>
+                </div>
+                <div>
+                  <div className="ts-sig-label">Supervisor Signature</div>
+                  <div className="ts-sig-line" />
+                  <div className="ts-sig-date-row">
+                    <span className="ts-sig-date-label">Date:</span>
+                    <div className="ts-sig-date-line" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <PrintFooter
+              left={`${orgName} • Weekly Timesheet`}
+              right={`${week.label} — Page ${wIdx + 1} of ${batchWeeks.length}`}
+            />
+          </div>
+        ));
+      })()}
+
+      {/* ── Single page mode ── */}
+      {!batchMode && (() => {
         // Split rows across pages — 22 rows on first page (has header), 28 on subsequent
         const ROWS_PAGE_1 = 22;
         const ROWS_OTHER = 28;
@@ -868,6 +1032,11 @@ function TimesheetPrintContent() {
   const [periodType, setPeriodType] = useState<"weekly" | "monthly">(periodTypeParam || "weekly");
   const blankParam = searchParams.get("blank");
   const [showDates, setShowDates] = useState(blankParam !== "true");
+  const batchToParam = searchParams.get("batch_to");
+  const [batchMode, setBatchMode] = useState(!!batchToParam);
+  const [batchEndDate, setBatchEndDate] = useState(
+    batchToParam || toDateStr(addDays(parseDateLocal(weekStartParam || getMondayOfCurrentWeek())!, 27))
+  );
 
   // State for completed entry
   const [entry, setEntry] = useState<HoursEntry | null>(null);
@@ -906,10 +1075,14 @@ function TimesheetPrintContent() {
         <BlankTimesheetForm
           periodType={periodType}
           showDates={showDates}
+          batchMode={batchMode}
+          batchEndDate={batchEndDate}
           onNameChange={setEmployeeName}
           onWeekChange={setWeekStart}
           onPeriodTypeChange={setPeriodType}
           onShowDatesChange={setShowDates}
+          onBatchModeChange={setBatchMode}
+          onBatchEndDateChange={setBatchEndDate}
           weekStart={weekStart}
           employeeName={employeeName}
           orgName={nameFull}

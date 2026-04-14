@@ -245,8 +245,17 @@ export async function runCDS(
       phase: "4_composite",
       matched: compositeResult.newly_matched,
       details: {
+        total_entries: compositeResult.total_entries,
+        total_appointments: compositeResult.total_appointments,
         already_matched: compositeResult.already_matched,
         unmatched: compositeResult.unmatched,
+        cancelled: compositeResult.cancelled.length,
+        cancelled_entries: compositeResult.cancelled.map((c) => ({
+          line: c.line_number,
+          owner: c.parsed_owner_name,
+          number: c.appointment_number,
+          reason: c.reason,
+        })),
       },
     });
 

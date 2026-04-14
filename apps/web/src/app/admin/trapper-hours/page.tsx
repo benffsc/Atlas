@@ -1197,22 +1197,7 @@ function TrapperHoursContent() {
               whiteSpace: "nowrap",
             }}
           >
-            Print Blank
-          </Link>
-          <Link
-            href="/admin/trapper-hours/print/batch"
-            target="_blank"
-            style={{
-              padding: "0.45rem 0.75rem",
-              border: "1px solid var(--border-primary)",
-              borderRadius: "6px",
-              fontSize: "0.8rem",
-              color: "var(--text-secondary)",
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Batch Print Weeks
+            Print Timesheets
           </Link>
           <Button variant="primary" icon="plus" onClick={handleOpenCreate}>
             Log Hours
