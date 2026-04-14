@@ -1,6 +1,21 @@
 /**
  * Shared print stylesheet constants for all FFSC print documents.
- * Green brand (#27ae60), 0.3in margins, 9.5pt base font.
+ *
+ * Accent colors use CSS custom properties so individual pages can override:
+ *   --print-accent:      Main accent (default: #27ae60 green)
+ *   --print-accent-dark: Dark accent for headers/text (default: #166534)
+ *   --print-accent-bg:   Light accent background (default: #f0fdf4)
+ *   --print-accent-border: Light accent border (default: #86efac)
+ *   --print-screen-bg:   Screen preview background (default: #f0f9f4)
+ *
+ * Override in your page's <style jsx global>:
+ *   .print-wrapper {
+ *     --print-accent: #2563eb;
+ *     --print-accent-dark: #1e40af;
+ *     --print-accent-bg: #eff6ff;
+ *     --print-accent-border: #93c5fd;
+ *     --print-screen-bg: #eff6ff;
+ *   }
  *
  * Usage: interpolate into <style jsx global>{`${PRINT_BASE_CSS} ...overrides...`}</style>
  */
@@ -9,6 +24,15 @@ export const PRINT_FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2
 
 export const PRINT_BASE_CSS = `
   ${PRINT_FONT_IMPORT}
+
+  /* ── Accent color defaults (green) — override via --print-accent-* ── */
+  .print-wrapper {
+    --print-accent: #27ae60;
+    --print-accent-dark: #166534;
+    --print-accent-bg: #f0fdf4;
+    --print-accent-border: #86efac;
+    --print-screen-bg: #f0f9f4;
+  }
 
   @media print {
     @page { size: letter; margin: 0.3in; }
@@ -56,12 +80,12 @@ export const PRINT_BASE_CSS = `
     align-items: center;
     padding-bottom: 6px;
     margin-bottom: 6px;
-    border-bottom: 3px solid #27ae60;
+    border-bottom: 3px solid var(--print-accent);
   }
   .print-header h1 {
     font-size: 15pt;
     margin: 0;
-    color: #27ae60;
+    color: var(--print-accent);
   }
   .print-header .subtitle {
     font-size: 8.5pt;
@@ -95,7 +119,7 @@ export const PRINT_BASE_CSS = `
   .section { margin-bottom: 6px; }
   .section-title {
     font-size: 10pt;
-    color: #27ae60;
+    color: var(--print-accent);
     border-bottom: 1.5px solid #ecf0f1;
     padding-bottom: 2px;
     margin-bottom: 4px;
@@ -129,7 +153,7 @@ export const PRINT_BASE_CSS = `
     font-size: 9.5pt;
   }
   .field-input.prefilled {
-    background: #f0fdf4;
+    background: var(--print-accent-bg);
     color: #2c3e50;
   }
   .field-input.sm { min-height: 18px; padding: 2px 5px; }
@@ -161,16 +185,16 @@ export const PRINT_BASE_CSS = `
   .bubble {
     width: 11px;
     height: 11px;
-    border: 1.5px solid #27ae60;
+    border: 1.5px solid var(--print-accent);
     border-radius: 50%;
     background: #fff;
     flex-shrink: 0;
   }
-  .bubble.filled { background: #27ae60; }
+  .bubble.filled { background: var(--print-accent); }
   .checkbox {
     width: 11px;
     height: 11px;
-    border: 1.5px solid #27ae60;
+    border: 1.5px solid var(--print-accent);
     border-radius: 2px;
     background: #fff;
     flex-shrink: 0;
@@ -180,7 +204,7 @@ export const PRINT_BASE_CSS = `
     font-size: 8pt;
     font-weight: 700;
   }
-  .checkbox.checked { background: #27ae60; color: #fff; }
+  .checkbox.checked { background: var(--print-accent); color: #fff; }
   .checkbox.crossed { border-color: #dc2626; color: #dc2626; }
 
   /* ── Layout helpers ── */
@@ -228,19 +252,19 @@ export const PRINT_BASE_CSS = `
     border-radius: 4px;
     padding: 4px 8px;
     margin-bottom: 4px;
-    border-left: 3px solid #27ae60;
+    border-left: 3px solid var(--print-accent);
   }
 
   .info-box {
-    background: #f0fdf4;
-    border: 1.5px solid #86efac;
+    background: var(--print-accent-bg);
+    border: 1.5px solid var(--print-accent-border);
     border-radius: 5px;
     padding: 4px 8px;
     margin-bottom: 6px;
   }
   .info-box .title {
     font-weight: 600;
-    color: #166534;
+    color: var(--print-accent-dark);
     font-size: 9pt;
     margin-bottom: 3px;
   }
@@ -289,7 +313,7 @@ export const PRINT_BASE_CSS = `
 
   /* ── Screen preview ── */
   @media screen {
-    body { background: #f0f9f4 !important; }
+    body { background: var(--print-screen-bg) !important; }
     .print-wrapper { padding: 20px; }
     .print-page {
       box-shadow: 0 4px 20px rgba(0,0,0,0.1);
@@ -313,7 +337,7 @@ export const PRINT_BASE_CSS = `
     .print-controls h3 {
       margin: 0 0 12px 0;
       font-size: 14px;
-      color: #27ae60;
+      color: var(--print-accent);
     }
     .print-controls button {
       display: block;
@@ -328,12 +352,12 @@ export const PRINT_BASE_CSS = `
       transition: all 0.2s;
     }
     .print-controls .print-btn {
-      background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%);
+      background: linear-gradient(135deg, var(--print-accent) 0%, var(--print-accent-dark) 100%);
       color: #fff;
     }
     .print-controls .print-btn:hover {
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(39,174,96,0.4);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
     .print-controls .back-btn {
       background: #f0f0f0;
@@ -356,7 +380,7 @@ export const PRINT_BASE_CSS = `
     .print-controls input[type="checkbox"] {
       width: 16px;
       height: 16px;
-      accent-color: #27ae60;
+      accent-color: var(--print-accent);
     }
     .version-selector {
       display: flex;
@@ -375,9 +399,9 @@ export const PRINT_BASE_CSS = `
       transition: all 0.2s;
     }
     .version-selector button.active {
-      border-color: #27ae60;
-      background: #f0fdf4;
-      color: #166534;
+      border-color: var(--print-accent);
+      background: var(--print-accent-bg);
+      color: var(--print-accent-dark);
     }
     .version-selector button:hover:not(.active) {
       border-color: #bbb;
@@ -399,9 +423,9 @@ export const PRINT_BASE_CSS = `
       transition: all 0.2s;
     }
     .mode-selector button.active {
-      border-color: #27ae60;
-      background: #f0fdf4;
-      color: #166534;
+      border-color: var(--print-accent);
+      background: var(--print-accent-bg);
+      color: var(--print-accent-dark);
     }
   }
 `;

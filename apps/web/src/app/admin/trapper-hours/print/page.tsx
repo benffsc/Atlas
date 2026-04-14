@@ -156,7 +156,7 @@ const TIMESHEET_CSS = `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #1e40af;
+    background: var(--print-accent-dark);
     color: #fff;
     padding: 5px 12px;
     border-radius: 5px;
@@ -194,8 +194,8 @@ const TIMESHEET_CSS = `
     text-transform: uppercase;
     letter-spacing: 0.3px;
     padding: 4px 6px;
-    border-bottom: 2px solid #2563eb;
-    background: #eff6ff;
+    border-bottom: 2px solid var(--print-accent);
+    background: var(--print-accent-bg);
   }
   .ts-daily-table th:not(:first-child) { text-align: center; }
   .ts-daily-table td {
@@ -232,11 +232,11 @@ const TIMESHEET_CSS = `
     padding: 4px 2px;
   }
   .ts-daily-table .ts-total-row td {
-    border-top: 2.5px solid #2563eb;
+    border-top: 2.5px solid var(--print-accent);
     border-bottom: none;
     font-weight: 700;
     font-size: 10pt;
-    background: #eff6ff;
+    background: var(--print-accent-bg);
     height: 0.36in;
     vertical-align: middle;
     padding: 4px 6px;
@@ -260,7 +260,7 @@ const TIMESHEET_CSS = `
     text-transform: uppercase;
     letter-spacing: 0.3px;
     padding: 3px 8px;
-    border-bottom: 2px solid #2563eb;
+    border-bottom: 2px solid var(--print-accent);
   }
   .ts-hours-table th:last-child { text-align: right; }
   .ts-hours-table td {
@@ -272,7 +272,7 @@ const TIMESHEET_CSS = `
     font-variant-numeric: tabular-nums;
   }
   .ts-hours-table .ts-total-row td {
-    border-top: 2px solid #2563eb;
+    border-top: 2px solid var(--print-accent);
     border-bottom: none;
     font-weight: 700;
     font-size: 10pt;
@@ -289,9 +289,9 @@ const TIMESHEET_CSS = `
   .ts-pay-item {
     text-align: center;
     padding: 6px 8px;
-    background: #eff6ff;
+    background: var(--print-accent-bg);
     border-radius: 4px;
-    border: 1px solid #93c5fd;
+    border: 1px solid var(--print-accent-border);
   }
   .ts-pay-item .ts-pay-label {
     font-size: 7.5pt;
@@ -304,7 +304,7 @@ const TIMESHEET_CSS = `
   .ts-pay-item .ts-pay-value {
     font-size: 11pt;
     font-weight: 700;
-    color: #1e40af;
+    color: var(--print-accent-dark);
   }
 
   /* Notes */
@@ -312,7 +312,7 @@ const TIMESHEET_CSS = `
     background: #f8f9fa;
     border-radius: 4px;
     padding: 6px 8px;
-    border-left: 3px solid #2563eb;
+    border-left: 3px solid var(--print-accent);
     font-size: 9pt;
     line-height: 1.4;
     margin-bottom: 6px;
@@ -365,10 +365,14 @@ const TIMESHEET_CSS = `
   /* Prevent sections from splitting across pages */
   .ts-no-break { break-inside: avoid; }
 
-  /* Override green accents from PRINT_BASE_CSS to blue brand */
-  .print-header h1 { color: #2563eb !important; }
-  .print-header { border-bottom-color: #2563eb !important; }
-  .section-title { color: #2563eb !important; border-bottom-color: #2563eb !important; }
+  /* Blue brand accent — override shared print style variables */
+  .print-wrapper {
+    --print-accent: #2563eb;
+    --print-accent-dark: #1e40af;
+    --print-accent-bg: #eff6ff;
+    --print-accent-border: #93c5fd;
+    --print-screen-bg: #eff6ff;
+  }
 
   /* Override PRINT_BASE_CSS: bake margins into the element so screen = print.
      This matches the checkout slip pattern (@page margin: 0, padding on element). */
