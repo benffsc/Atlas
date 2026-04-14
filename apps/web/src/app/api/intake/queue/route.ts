@@ -211,7 +211,15 @@ export async function GET(request: NextRequest) {
         -- FFS-1192 — kiosk self-service appointment tags (from custom_fields)
         intake_assigned_to,
         intake_followup_needed,
-        trapping_assistance_requested
+        trapping_assistance_requested,
+        -- FFS-1187 — service area + out-of-area email state
+        service_area_status,
+        service_area_status_source,
+        service_area_status_set_at,
+        out_of_service_area_approved_at,
+        out_of_service_area_approved_by,
+        out_of_service_area_email_sent_at,
+        out_of_service_area_email_id
       FROM ops.v_intake_triage_queue
       ${whereClause}
       ORDER BY
