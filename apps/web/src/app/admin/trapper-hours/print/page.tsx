@@ -365,6 +365,17 @@ const TIMESHEET_CSS = `
   /* Prevent sections from splitting across pages */
   .ts-no-break { break-inside: avoid; }
 
+  /* Screen: make the page feel like a paper document */
+  @media screen {
+    .print-page {
+      padding: 0.5in 0.6in;
+      border: 1px solid #ddd;
+    }
+    .print-wrapper {
+      padding-right: 320px; /* offset for controls panel */
+    }
+  }
+
   @media print {
     .ts-daily-table td.ts-write-cell input::placeholder { color: transparent; }
   }
