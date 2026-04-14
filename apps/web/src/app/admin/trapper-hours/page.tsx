@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
@@ -313,6 +313,119 @@ function entryToFormState(entry: HoursEntry): DrawerFormState {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Timesheet Scanner — upload photo, extract hours via Claude Vision
+// ---------------------------------------------------------------------------
+
+function TimesheetScanner({
+  onExtracted,
+}: {
+  onExtracted: (data: {
+    employee_name?: string | null;
+    total_hours?: number | null;
+    hourly_rate?: number | null;
+    period_type?: string | null;
+    period_start?: string | null;
+    period_end?: string | null;
+    notes?: string | null;
+    entries?: { date?: string | null; address?: string | null; hours?: number | null }[];
+  }) => void;
+}) {
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setScanning(true);
+    setScanResult(null);
+    setScanError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/admin/trapper-hours/extract", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error?.message || "Extraction failed");
+      }
+
+      const result = await res.json();
+      const extracted = result.data?.extracted || result.extracted;
+
+      if (extracted) {
+        onExtracted(extracted);
+        setScanResult(
+          `Extracted ${extracted.entries?.filter((e: { hours?: number | null }) => e.hours).length || 0} days, ` +
+          `${extracted.total_hours ?? 0} total hours` +
+          (extracted.confidence ? ` (${extracted.confidence} confidence)` : "")
+        );
+      }
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Scan failed");
+    } finally {
+      setScanning(false);
+      // Reset file input so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div
+      style={{
+        marginBottom: "1rem",
+        padding: "0.75rem",
+        border: "2px dashed var(--border-primary, #d1d5db)",
+        borderRadius: "8px",
+        background: "var(--bg-secondary, #f9fafb)",
+        textAlign: "center",
+      }}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.pdf"
+        onChange={handleFileSelect}
+        style={{ display: "none" }}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        loading={scanning}
+        onClick={() => fileInputRef.current?.click()}
+        icon="camera"
+      >
+        {scanning ? "Reading timesheet..." : "Scan Handwritten Timesheet"}
+      </Button>
+      <div style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginTop: "0.35rem" }}>
+        Upload a photo or PDF — AI reads the handwriting and fills in the form
+      </div>
+      {scanResult && (
+        <div style={{ fontSize: "0.75rem", color: "var(--success-text)", marginTop: "0.35rem", fontWeight: 500 }}>
+          {scanResult}
+        </div>
+      )}
+      {scanError && (
+        <div style={{ fontSize: "0.75rem", color: "var(--danger-text, #dc2626)", marginTop: "0.35rem" }}>
+          {scanError}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Hours Drawer
+// ---------------------------------------------------------------------------
+
 function HoursDrawer({
   isOpen,
   onClose,
@@ -511,6 +624,49 @@ function HoursDrawer({
         </>
       }
     >
+      {/* Scan Timesheet */}
+      {!editEntry && (
+        <TimesheetScanner
+          onExtracted={(data) => {
+            if (data.employee_name) {
+              setForm((prev) => ({ ...prev, trapper_name: data.employee_name! }));
+            }
+            if (data.total_hours != null) {
+              setForm((prev) => ({ ...prev, hours_total: data.total_hours! }));
+            }
+            if (data.hourly_rate != null) {
+              setForm((prev) => ({ ...prev, hourly_rate: data.hourly_rate!, pay_type: "hourly" as const }));
+            }
+            if (data.period_type && data.period_type !== "unknown") {
+              setForm((prev) => ({ ...prev, period_type: data.period_type as "weekly" | "monthly" }));
+            }
+            if (data.period_start) {
+              setForm((prev) => ({ ...prev, period_start: data.period_start! }));
+            }
+            if (data.period_end) {
+              setForm((prev) => ({ ...prev, period_end: data.period_end! }));
+            }
+            if (data.notes) {
+              setForm((prev) => ({ ...prev, work_summary: data.notes! }));
+            }
+            // Build work summary from daily entries
+            if (data.entries && data.entries.length > 0) {
+              const summaryLines = data.entries
+                .filter((e: { address?: string | null; hours?: number | null }) => e.address || e.hours)
+                .map((e: { date?: string | null; address?: string | null; hours?: number | null }) =>
+                  `${e.date || "?"}: ${e.address || "—"} (${e.hours ?? 0}h)`
+                );
+              if (summaryLines.length > 0) {
+                setForm((prev) => ({
+                  ...prev,
+                  work_summary: summaryLines.join("\n"),
+                }));
+              }
+            }
+          }}
+        />
+      )}
+
       {/* Trapper Name */}
       <div style={{ marginBottom: "1rem" }}>
         <label style={labelStyle}>Trapper</label>
