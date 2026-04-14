@@ -41,6 +41,9 @@ interface HoursEntry {
   work_summary: string | null;
   created_at: string;
   updated_at: string | null;
+  attachment_path: string | null;
+  attachment_filename: string | null;
+  attachment_mime_type: string | null;
 }
 
 interface HoursResponse {
