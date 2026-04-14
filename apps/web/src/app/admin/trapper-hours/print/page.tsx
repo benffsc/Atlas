@@ -586,7 +586,7 @@ function BlankTimesheetForm({
                   <tr>
                     <th style={{ width: "120px" }}>Date</th>
                     <th>Address / Location</th>
-                    <th style={{ width: "65px" }}>Hours</th>
+                    <th style={{ width: "85px" }}>Hours</th>
                   </tr>
                 </thead>
                 <tbody>
