@@ -163,15 +163,17 @@ export function useMapSearchV2({
         const newGoogleSuggestions = googleData?.predictions || [];
         let newPoiResults: TextSearchResult[] = textData?.results || [];
 
-        const showGoogle = newAtlasResults.length < 3;
-
+        // Dedupe POI results that also appear in autocomplete
         if (newPoiResults.length > 0 && newGoogleSuggestions.length > 0) {
           const autocompletePlaceIds = new Set(newGoogleSuggestions.map((s) => s.place_id));
           newPoiResults = newPoiResults.filter((r) => !autocompletePlaceIds.has(r.place_id));
         }
 
+        // Always show Google results — users need them for exact addresses
+        // that Atlas doesn't have. The "In Beacon" section appears first and
+        // is visually distinct; Google is a complement, not a fallback.
         setAtlasResults(newAtlasResults);
-        setGoogleSuggestions(showGoogle ? newGoogleSuggestions : []);
+        setGoogleSuggestions(newGoogleSuggestions);
         setPoiResults(newPoiResults);
         setLoading(false);
       } catch {
@@ -280,13 +282,15 @@ export function useMapSearchV2({
 
       if (lat && lng) {
         panTo(lat, lng);
-        // When selecting a known place, don't show the search pin — the data pin IS the result.
-        // This prevents the blue search marker from overlaying the place pin and blocking clicks.
-        if (result.entity_type === "place") {
-          setNavigatedLocation(null);
-        } else {
-          setNavigatedLocation({ lat, lng, address: result.display_name });
-        }
+        // Always show the search marker so the user has visual confirmation
+        // of where they searched. The marker has low z-index and pointer-events:none
+        // label, so it doesn't block data pins. For Atlas places we include the
+        // matchedPlaceId so clicking the marker opens the drawer.
+        setNavigatedLocation({
+          lat, lng,
+          address: result.display_name,
+          matchedPlaceId: result.entity_type === "place" ? result.entity_id : linkedPlaceId || null,
+        });
       }
 
       if (result.entity_type === "place") {
