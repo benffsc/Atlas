@@ -63,6 +63,7 @@ export interface SendOutlookEmailParams {
   accountId: string;
   to: string;
   toName?: string;
+  cc?: string[];
   subject: string;
   bodyHtml: string;
   bodyText?: string;
@@ -207,26 +208,31 @@ async function sendViaGraph(
   toName: string | undefined,
   subject: string,
   bodyHtml: string,
-  bodyText?: string
+  bodyText?: string,
+  cc?: string[]
 ): Promise<void> {
-  const message = {
-    message: {
-      subject,
-      body: {
-        contentType: "HTML",
-        content: bodyHtml,
-      },
-      toRecipients: [
-        {
-          emailAddress: {
-            address: to,
-            name: toName || to,
-          },
-        },
-      ],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const msg: any = {
+    subject,
+    body: {
+      contentType: "HTML",
+      content: bodyHtml,
     },
-    saveToSentItems: true,
+    toRecipients: [
+      {
+        emailAddress: {
+          address: to,
+          name: toName || to,
+        },
+      },
+    ],
   };
+  if (cc && cc.length > 0) {
+    msg.ccRecipients = cc.map((email) => ({
+      emailAddress: { address: email, name: email },
+    }));
+  }
+  const message = { message: msg, saveToSentItems: true };
 
   const response = await fetch(`${GRAPH_API_URL}/me/sendMail`, {
     method: "POST",
@@ -312,33 +318,38 @@ export async function sendAsApp(params: {
   fromEmail: string;
   to: string;
   toName?: string;
+  cc?: string[];
   subject: string;
   bodyHtml: string;
   bodyText?: string;
 }): Promise<{ success: boolean; error?: string }> {
-  const { fromEmail, to, toName, subject, bodyHtml } = params;
+  const { fromEmail, to, toName, cc, subject, bodyHtml } = params;
 
   try {
     const accessToken = await getAppAccessToken();
 
-    const message = {
-      message: {
-        subject,
-        body: {
-          contentType: "HTML",
-          content: bodyHtml,
-        },
-        toRecipients: [
-          {
-            emailAddress: {
-              address: to,
-              name: toName || to,
-            },
-          },
-        ],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const msg: any = {
+      subject,
+      body: {
+        contentType: "HTML",
+        content: bodyHtml,
       },
-      saveToSentItems: true,
+      toRecipients: [
+        {
+          emailAddress: {
+            address: to,
+            name: toName || to,
+          },
+        },
+      ],
     };
+    if (cc && cc.length > 0) {
+      msg.ccRecipients = cc.map((email) => ({
+        emailAddress: { address: email, name: email },
+      }));
+    }
+    const message = { message: msg, saveToSentItems: true };
 
     // App-permission endpoint: /users/{email}/sendMail (not /me/sendMail)
     const response = await fetch(
@@ -530,14 +541,14 @@ async function getValidAccessToken(accountId: string): Promise<string> {
 export async function sendOutlookEmail(
   params: SendOutlookEmailParams
 ): Promise<SendOutlookEmailResult> {
-  const { accountId, to, toName, subject, bodyHtml, bodyText } = params;
+  const { accountId, to, toName, cc, subject, bodyHtml, bodyText } = params;
 
   try {
     // Get valid access token (refreshes if needed)
     const accessToken = await getValidAccessToken(accountId);
 
     // Send via Graph API
-    await sendViaGraph(accessToken, to, toName, subject, bodyHtml, bodyText);
+    await sendViaGraph(accessToken, to, toName, subject, bodyHtml, bodyText, cc);
 
     // Update last used timestamp
     await query(`

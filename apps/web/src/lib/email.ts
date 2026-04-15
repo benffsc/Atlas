@@ -81,6 +81,8 @@ export interface SendEmailParams {
   bodyHtmlOverride?: string;
   /** Staff-edited subject line — bypasses template subject when provided */
   subjectOverride?: string;
+  /** CC recipients — email addresses to copy on the send */
+  cc?: string[];
 }
 
 export interface SendEmailResult {
@@ -138,6 +140,7 @@ export async function sendTemplateEmail(
     flowSlug,
     bodyHtmlOverride,
     subjectOverride,
+    cc,
   } = params;
 
   try {
@@ -216,6 +219,15 @@ export async function sendTemplateEmail(
 
     // Check if this flow sends via Outlook (Microsoft Graph) instead of Resend
     const flow = flowSlug ? await getFlow(flowSlug) : null;
+
+    // Merge CC from params + flow config (comma-separated in DB)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const flowCcRaw = (flow as any)?.cc_recipients;
+    const flowCc: string[] = flowCcRaw
+      ? String(flowCcRaw).split(",").map((e: string) => e.trim()).filter(Boolean)
+      : [];
+    const mergedCc = [...new Set([...(cc || []), ...flowCc])];
+
     if (flow?.send_via === "outlook" && flow.outlook_account_email) {
       // Try app-permission path first (no OAuth dance needed — the Entra
       // app has Mail.Send application permission). Falls back to the
@@ -236,6 +248,7 @@ export async function sendTemplateEmail(
           accountId: delegatedAccount.account_id,
           to: actualRecipient,
           toName,
+          cc: mergedCc.length > 0 ? mergedCc : undefined,
           subject: actualSubject,
           bodyHtml,
           bodyText,
@@ -246,6 +259,7 @@ export async function sendTemplateEmail(
           fromEmail: flow.outlook_account_email,
           to: actualRecipient,
           toName,
+          cc: mergedCc.length > 0 ? mergedCc : undefined,
           subject: actualSubject,
           bodyHtml,
           bodyText,
