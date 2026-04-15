@@ -133,6 +133,7 @@ export function IntakeDetailPanel({
   const [ooaPreviewSubject, setOoaPreviewSubject] = useState<string | null>(null);
   const [ooaEditedHtml, setOoaEditedHtml] = useState<string | null>(null);
   const [ooaEditedSubject, setOoaEditedSubject] = useState<string | null>(null);
+  const [ooaEditedRecipient, setOoaEditedRecipient] = useState<string>("");
   const [ooaPreviewLoading, setOoaPreviewLoading] = useState(false);
   const [ooaSending, setOoaSending] = useState(false);
   const [ooaSuppressed, setOoaSuppressed] = useState(false);
@@ -303,6 +304,7 @@ export function IntakeDetailPanel({
       setOoaPreviewHtml(data.body_html);
       setOoaEditedSubject(data.subject);
       setOoaEditedHtml(data.body_html);
+      setOoaEditedRecipient(submission.email || "");
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to load preview");
       setShowOoaPreview(false);
@@ -334,6 +336,10 @@ export function IntakeDetailPanel({
           : {}),
         ...(ooaEditedSubject && ooaEditedSubject !== ooaPreviewSubject
           ? { subject_override: ooaEditedSubject }
+          : {}),
+        // Allow staff to change recipient
+        ...(ooaEditedRecipient && ooaEditedRecipient !== submission.email
+          ? { recipient_override: ooaEditedRecipient }
           : {}),
       });
 
@@ -2024,28 +2030,24 @@ export function IntakeDetailPanel({
         isOpen={showOoaPreview}
         onClose={() => setShowOoaPreview(false)}
         title="Edit & Send Email"
-        width="lg"
+        width="xl"
         footer={
-          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-            <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-              To: <strong>{submission.email}</strong>
-            </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <Button variant="secondary" onClick={() => {
-                setOoaEditedHtml(ooaPreviewHtml);
-                setOoaEditedSubject(ooaPreviewSubject);
-              }}>
-                Reset
-              </Button>
-              <Button
-                variant="primary"
-                icon="send"
-                onClick={handleOoaApprove}
-                loading={ooaSending}
-              >
-                Approve &amp; Send
-              </Button>
-            </div>
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", alignItems: "center", width: "100%" }}>
+            <Button variant="secondary" onClick={() => {
+              setOoaEditedHtml(ooaPreviewHtml);
+              setOoaEditedSubject(ooaPreviewSubject);
+              setOoaEditedRecipient(submission.email || "");
+            }}>
+              Reset
+            </Button>
+            <Button
+              variant="primary"
+              icon="send"
+              onClick={handleOoaApprove}
+              loading={ooaSending}
+            >
+              Approve &amp; Send
+            </Button>
           </div>
         }
       >
@@ -2055,32 +2057,51 @@ export function IntakeDetailPanel({
           </div>
         ) : ooaEditedHtml ? (
           <div>
-            {/* Editable subject line */}
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>
-                Subject
-              </label>
-              <input
-                type="text"
-                value={ooaEditedSubject || ""}
-                onChange={(e) => setOoaEditedSubject(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  border: "1px solid var(--border)",
-                  borderRadius: 6,
-                  fontSize: "0.9rem",
-                }}
-              />
+            {/* Recipient + Subject fields */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>
+                  To
+                </label>
+                <input
+                  type="email"
+                  value={ooaEditedRecipient}
+                  onChange={(e) => setOoaEditedRecipient(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    fontSize: "0.85rem",
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={ooaEditedSubject || ""}
+                  onChange={(e) => setOoaEditedSubject(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    fontSize: "0.85rem",
+                  }}
+                />
+              </div>
             </div>
-            {/* Editable email body — contentEditable div */}
+            {/* Editable email body */}
             <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>
-              Body <span style={{ fontWeight: 400 }}>(click to edit — works like a document)</span>
+              Body <span style={{ fontWeight: 400 }}>(click anywhere to edit)</span>
             </div>
             <div
               contentEditable
               suppressContentEditableWarning
-              onBlur={(e) => setOoaEditedHtml(e.currentTarget.innerHTML)}
+              onInput={(e) => setOoaEditedHtml(e.currentTarget.innerHTML)}
               dangerouslySetInnerHTML={{ __html: ooaEditedHtml }}
               style={{
                 border: "1px solid var(--border)",
@@ -2088,21 +2109,12 @@ export function IntakeDetailPanel({
                 padding: "24px",
                 background: "#fff",
                 minHeight: "400px",
-                maxHeight: "calc(100vh - 300px)",
                 overflowY: "auto",
                 outline: "none",
                 lineHeight: 1.55,
                 fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
                 color: "#222",
                 cursor: "text",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--primary)";
-                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(37, 99, 235, 0.15)";
-              }}
-              onBlurCapture={(e) => {
-                e.currentTarget.style.borderColor = "var(--border)";
-                e.currentTarget.style.boxShadow = "none";
               }}
             />
           </div>

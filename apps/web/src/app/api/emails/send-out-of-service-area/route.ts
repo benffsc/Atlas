@@ -34,10 +34,11 @@ export async function POST(request: NextRequest) {
     const staff = await requireAuth(request);
 
     const body = await request.json().catch(() => ({}));
-    const { submission_id, body_html_override, subject_override } = body as {
+    const { submission_id, body_html_override, subject_override, recipient_override } = body as {
       submission_id?: string;
       body_html_override?: string;
       subject_override?: string;
+      recipient_override?: string;
     };
 
     if (!submission_id) {
@@ -57,8 +58,12 @@ export async function POST(request: NextRequest) {
     const result = await sendOutOfServiceAreaEmail(
       submission_id,
       staff.staff_id,
-      body_html_override || subject_override
-        ? { bodyHtml: body_html_override, subject: subject_override }
+      (body_html_override || subject_override || recipient_override)
+        ? {
+            bodyHtml: body_html_override,
+            subject: subject_override,
+            recipientOverride: recipient_override,
+          }
         : undefined
     );
 

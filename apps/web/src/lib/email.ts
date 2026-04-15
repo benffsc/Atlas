@@ -583,7 +583,7 @@ interface OutOfServiceAreaSubmissionRow {
 export async function sendOutOfServiceAreaEmail(
   submissionId: string,
   approvedBy: string,
-  overrides?: { bodyHtml?: string; subject?: string }
+  overrides?: { bodyHtml?: string; subject?: string; recipientOverride?: string }
 ): Promise<SendEmailResult> {
   // Layer 1 — hard-fail until Go Live
   try {
@@ -664,7 +664,7 @@ export async function sendOutOfServiceAreaEmail(
 
   const result = await sendTemplateEmail({
     templateKey: "out_of_service_area",
-    to: submission.email,
+    to: overrides?.recipientOverride || submission.email,
     toName: submission.first_name || undefined,
     placeholders,
     submissionId,

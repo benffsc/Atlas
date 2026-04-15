@@ -10,13 +10,14 @@ interface ActionDrawerProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-  width?: "sm" | "md" | "lg";
+  width?: "sm" | "md" | "lg" | "xl";
 }
 
 const WIDTH_MAP = {
   sm: "360px",
   md: "480px",
   lg: "640px",
+  xl: "800px",
 } as const;
 
 /**
