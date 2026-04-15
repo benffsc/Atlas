@@ -1189,21 +1189,15 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           </AdvancedMarker>
         ))}
 
-        {/* ── Navigated location marker (Step 13) — small dot, label doesn't block nearby pins ── */}
+        {/* ── Navigated location marker (Step 13) — small dot, click to dismiss ── */}
         {search.navigatedLocation && (
           <AdvancedMarker
             position={{ lat: search.navigatedLocation.lat, lng: search.navigatedLocation.lng }}
             collisionBehavior={CollisionBehavior.REQUIRED}
-            zIndex={5}
+            zIndex={1}
             onClick={() => {
-              const nav = search.navigatedLocation!;
-              map?.panTo({ lat: nav.lat, lng: nav.lng });
-              map?.setZoom(Math.max(map?.getZoom() || 18, 18));
-              // If this search marker matched an Atlas place, open its drawer
-              if (nav.matchedPlaceId) {
-                dismissAllSelection();
-                setSelectedPlaceId(nav.matchedPlaceId);
-              }
+              // Dismiss search pin on click — reveals atlas pins underneath
+              search.clearNavigatedLocation();
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -1222,8 +1216,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                 </svg>
                 {search.navigatedLocation.address || "Searched location"}
               </div>
-              {/* Dot: small, cursor pointer, this IS the clickable part */}
-              <div style={{
+              {/* Dot: click to dismiss search pin and reveal data pins */}
+              <div title="Click to dismiss search pin" style={{
                 width: 14, height: 14, borderRadius: "50%",
                 background: "#3b82f6", border: "2px solid white",
                 boxShadow: "0 0 0 2px rgba(59,130,246,0.3), 0 1px 4px rgba(0,0,0,0.3)",
