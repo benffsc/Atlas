@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       const { token } = await createPasswordResetToken(staff.staff_id);
       const resetUrl = `${APP_URL}/reset-password?token=${token}`;
 
-      await sendTemplateEmail({
+      const emailResult = await sendTemplateEmail({
         templateKey: "password_reset_link",
         to: staff.email,
         toName: staff.display_name,
@@ -59,6 +59,15 @@ export async function POST(request: NextRequest) {
         },
         sentBy: "password_reset",
       });
+
+      // If email failed to send, clear the token so it's not burned
+      if (!emailResult.success) {
+        console.error("Reset email failed to send:", emailResult.error);
+        await queryOne(
+          `UPDATE ops.staff SET password_reset_token_hash = NULL, password_reset_expires_at = NULL WHERE staff_id = $1`,
+          [staff.staff_id]
+        );
+      }
     }
 
     // Always return success to prevent email enumeration

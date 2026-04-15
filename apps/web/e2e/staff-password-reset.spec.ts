@@ -171,9 +171,9 @@ test.describe('Forgot Password Page @workflow', () => {
 
     if (page.url().includes('/forgot-password')) {
       await expect(page.getByRole('heading', { name: 'Forgot your password?' }).first()).toBeVisible();
-      await expect(page.locator('form #email')).toBeVisible();
-      await expect(page.locator('button:has-text("Send reset link")')).toBeVisible();
-      await expect(page.locator('a:has-text("Back to sign in")')).toBeVisible();
+      await expect(page.getByLabel('Email')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
+      await expect(page.getByText('Back to sign in')).toBeVisible();
     }
   });
 
@@ -181,7 +181,7 @@ test.describe('Forgot Password Page @workflow', () => {
     await mockForgotPassword(page);
     await page.goto('/forgot-password');
 
-    await page.locator('#email').fill('jami@forgottenfelines.com');
+    await page.getByLabel('Email').fill('jami@forgottenfelines.com');
     await page.locator('button:has-text("Send reset link")').click();
 
     await expect(page.locator('text=Check your email')).toBeVisible();
@@ -193,13 +193,13 @@ test.describe('Forgot Password Page @workflow', () => {
     await mockForgotPassword(page);
     await page.goto('/forgot-password');
 
-    await page.locator('#email').fill('jami@forgottenfelines.com');
+    await page.getByLabel('Email').fill('jami@forgottenfelines.com');
     await page.locator('button:has-text("Send reset link")').click();
     await expect(page.locator('text=Check your email')).toBeVisible();
 
     await page.locator('button:has-text("Try a different email")').click();
     await expect(page.locator('#email')).toBeVisible();
-    await expect(page.locator('#email')).toHaveValue('');
+    await expect(page.getByLabel('Email')).toHaveValue('');
   });
 });
 
