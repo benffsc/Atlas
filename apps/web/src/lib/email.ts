@@ -77,6 +77,10 @@ export interface SendEmailParams {
    * the ops.email_flows row. When absent, falls through to global gates.
    */
   flowSlug?: string;
+  /** Staff-edited HTML body — bypasses template rendering when provided */
+  bodyHtmlOverride?: string;
+  /** Staff-edited subject line — bypasses template subject when provided */
+  subjectOverride?: string;
 }
 
 export interface SendEmailResult {
@@ -132,6 +136,8 @@ export async function sendTemplateEmail(
     personId,
     sentBy,
     flowSlug,
+    bodyHtmlOverride,
+    subjectOverride,
   } = params;
 
   try {
@@ -151,9 +157,9 @@ export async function sendTemplateEmail(
       ...placeholders,
     };
 
-    // Replace placeholders
-    const subject = replacePlaceholders(template.subject, mergedPlaceholders);
-    const bodyHtml = replacePlaceholders(template.body_html, mergedPlaceholders);
+    // Replace placeholders — staff overrides bypass template rendering
+    const subject = subjectOverride || replacePlaceholders(template.subject, mergedPlaceholders);
+    const bodyHtml = bodyHtmlOverride || replacePlaceholders(template.body_html, mergedPlaceholders);
     const bodyText = template.body_text
       ? replacePlaceholders(template.body_text, mergedPlaceholders)
       : undefined;
@@ -576,7 +582,8 @@ interface OutOfServiceAreaSubmissionRow {
  */
 export async function sendOutOfServiceAreaEmail(
   submissionId: string,
-  approvedBy: string
+  approvedBy: string,
+  overrides?: { bodyHtml?: string; subject?: string }
 ): Promise<SendEmailResult> {
   // Layer 1 — hard-fail until Go Live
   try {
@@ -663,6 +670,8 @@ export async function sendOutOfServiceAreaEmail(
     submissionId,
     sentBy: approvedBy || "out_of_service_area_pipeline",
     flowSlug: "out_of_service_area",
+    bodyHtmlOverride: overrides?.bodyHtml,
+    subjectOverride: overrides?.subject,
   });
 
   // Only mark as sent (and transition to redirected) on a real send.

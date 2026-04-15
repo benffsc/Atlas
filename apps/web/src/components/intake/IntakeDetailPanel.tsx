@@ -25,6 +25,7 @@ import {
 import { KITTEN_ASSESSMENT_OUTCOME_OPTIONS } from "@/lib/form-options";
 import { getKittenPriorityTier, KITTEN_PRIORITY_LABELS } from "@/lib/display-labels";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
+import { Button } from "@/components/ui/Button";
 import { OutOfServiceAreaBanner } from "@/components/intake/OutOfServiceAreaBanner";
 import { SendOutOfServiceConfirmModal } from "@/components/intake/SendOutOfServiceConfirmModal";
 import { EmailSuggestionBanner } from "@/components/intake/EmailSuggestionBanner";
@@ -130,6 +131,8 @@ export function IntakeDetailPanel({
   const [showOoaPreview, setShowOoaPreview] = useState(false);
   const [ooaPreviewHtml, setOoaPreviewHtml] = useState<string | null>(null);
   const [ooaPreviewSubject, setOoaPreviewSubject] = useState<string | null>(null);
+  const [ooaEditedHtml, setOoaEditedHtml] = useState<string | null>(null);
+  const [ooaEditedSubject, setOoaEditedSubject] = useState<string | null>(null);
   const [ooaPreviewLoading, setOoaPreviewLoading] = useState(false);
   const [ooaSending, setOoaSending] = useState(false);
   const [ooaSuppressed, setOoaSuppressed] = useState(false);
@@ -298,6 +301,8 @@ export function IntakeDetailPanel({
       }>(`/api/emails/preview-out-of-service-area?submission_id=${submission.submission_id}`);
       setOoaPreviewSubject(data.subject);
       setOoaPreviewHtml(data.body_html);
+      setOoaEditedSubject(data.subject);
+      setOoaEditedHtml(data.body_html);
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to load preview");
       setShowOoaPreview(false);
@@ -323,6 +328,13 @@ export function IntakeDetailPanel({
         dry_run: boolean;
       }>("/api/emails/send-out-of-service-area", {
         submission_id: submission.submission_id,
+        // Pass staff-edited content if they modified it in the preview editor
+        ...(ooaEditedHtml && ooaEditedHtml !== ooaPreviewHtml
+          ? { body_html_override: ooaEditedHtml }
+          : {}),
+        ...(ooaEditedSubject && ooaEditedSubject !== ooaPreviewSubject
+          ? { subject_override: ooaEditedSubject }
+          : {}),
       });
 
       toastSuccess(
@@ -2007,30 +2019,93 @@ export function IntakeDetailPanel({
         onCancel={() => setShowOoaConfirm(false)}
       />
 
-      {/* FFS-1187 — Out-of-Service-Area preview drawer */}
+      {/* FFS-1187 — Out-of-Service-Area preview/edit drawer */}
       <ActionDrawer
         isOpen={showOoaPreview}
         onClose={() => setShowOoaPreview(false)}
-        title={ooaPreviewSubject || "Email Preview"}
+        title="Edit & Send Email"
         width="lg"
+        footer={
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+            <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+              To: <strong>{submission.email}</strong>
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <Button variant="secondary" onClick={() => {
+                setOoaEditedHtml(ooaPreviewHtml);
+                setOoaEditedSubject(ooaPreviewSubject);
+              }}>
+                Reset
+              </Button>
+              <Button
+                variant="primary"
+                icon="send"
+                onClick={handleOoaApprove}
+                loading={ooaSending}
+              >
+                Approve &amp; Send
+              </Button>
+            </div>
+          </div>
+        }
       >
         {ooaPreviewLoading ? (
           <div style={{ padding: "1rem", color: "var(--text-secondary)" }}>
             Rendering preview…
           </div>
-        ) : ooaPreviewHtml ? (
-          <iframe
-            sandbox="allow-popups allow-popups-to-escape-sandbox"
-            srcDoc={ooaPreviewHtml.replace('<head>', '<head><base target="_blank">')}
-            style={{
-              width: "100%",
-              height: "calc(100vh - 200px)",
-              border: "1px solid var(--card-border)",
-              borderRadius: 6,
-              background: "#fff",
-            }}
-            title="Out-of-service-area email preview"
-          />
+        ) : ooaEditedHtml ? (
+          <div>
+            {/* Editable subject line */}
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>
+                Subject
+              </label>
+              <input
+                type="text"
+                value={ooaEditedSubject || ""}
+                onChange={(e) => setOoaEditedSubject(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem 0.75rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  fontSize: "0.9rem",
+                }}
+              />
+            </div>
+            {/* Editable email body — contentEditable div */}
+            <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>
+              Body <span style={{ fontWeight: 400 }}>(click to edit — works like a document)</span>
+            </div>
+            <div
+              contentEditable
+              suppressContentEditableWarning
+              onBlur={(e) => setOoaEditedHtml(e.currentTarget.innerHTML)}
+              dangerouslySetInnerHTML={{ __html: ooaEditedHtml }}
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "24px",
+                background: "#fff",
+                minHeight: "400px",
+                maxHeight: "calc(100vh - 300px)",
+                overflowY: "auto",
+                outline: "none",
+                lineHeight: 1.55,
+                fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+                color: "#222",
+                cursor: "text",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--primary)";
+                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(37, 99, 235, 0.15)";
+              }}
+              onBlurCapture={(e) => {
+                e.currentTarget.style.borderColor = "var(--border)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            />
+          </div>
         ) : (
           <div style={{ padding: "1rem", color: "var(--text-secondary)" }}>
             No preview available.

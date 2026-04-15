@@ -34,7 +34,11 @@ export async function POST(request: NextRequest) {
     const staff = await requireAuth(request);
 
     const body = await request.json().catch(() => ({}));
-    const { submission_id } = body as { submission_id?: string };
+    const { submission_id, body_html_override, subject_override } = body as {
+      submission_id?: string;
+      body_html_override?: string;
+      subject_override?: string;
+    };
 
     if (!submission_id) {
       return apiBadRequest("submission_id is required");
@@ -50,7 +54,13 @@ export async function POST(request: NextRequest) {
       [submission_id, staff.staff_id]
     );
 
-    const result = await sendOutOfServiceAreaEmail(submission_id, staff.staff_id);
+    const result = await sendOutOfServiceAreaEmail(
+      submission_id,
+      staff.staff_id,
+      body_html_override || subject_override
+        ? { bodyHtml: body_html_override, subject: subject_override }
+        : undefined
+    );
 
     if (!result.success) {
       // The function returns its own structured errors. Most are
