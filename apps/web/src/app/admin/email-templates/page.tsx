@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import DOMPurify from "dompurify";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { usePermission } from "@/hooks/usePermission";
 import { EmptyState } from "@/components/feedback/EmptyState";
+import { Button } from "@/components/ui/Button";
 
 interface EmailTemplate {
   template_id: string;
@@ -37,6 +38,22 @@ const COMMON_PLACEHOLDERS = [
   { key: "address", description: "Service address" },
 ];
 
+/** Extended placeholder list for the rich-text editor insert dropdown */
+const EDITOR_PLACEHOLDERS = [
+  { key: "first_name", description: "Recipient's first name" },
+  { key: "detected_county", description: "Detected county" },
+  { key: "service_area_name", description: "Service area name" },
+  { key: "brand_name", description: "Brand name (short)" },
+  { key: "brand_full_name", description: "Brand full name" },
+  { key: "org_phone", description: "Org phone number" },
+  { key: "org_email", description: "Org email address" },
+  { key: "org_address", description: "Org mailing address" },
+  { key: "org_website", description: "Org website URL" },
+  { key: "org_logo_url", description: "Org logo URL" },
+  { key: "nearest_county_resources_html", description: "Nearest county resources (HTML block)" },
+  { key: "statewide_resources_html", description: "Statewide resources (HTML block)" },
+];
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "Never";
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -47,6 +64,369 @@ function formatDate(dateStr: string | null): string {
     minute: "2-digit",
   });
 }
+
+// ---------------------------------------------------------------------------
+// RichTextEditor — contentEditable visual editor with formatting toolbar
+// ---------------------------------------------------------------------------
+
+const TOOLBAR_BTN: React.CSSProperties = {
+  padding: "0.25rem 0.5rem",
+  background: "var(--bg-secondary, #f5f5f5)",
+  border: "1px solid var(--border)",
+  borderRadius: "4px",
+  cursor: "pointer",
+  fontSize: "0.8rem",
+  lineHeight: 1,
+  fontFamily: "inherit",
+  minWidth: "1.75rem",
+  textAlign: "center",
+};
+
+const TOOLBAR_BTN_ACTIVE: React.CSSProperties = {
+  ...TOOLBAR_BTN,
+  background: "var(--primary, #0d6efd)",
+  color: "#fff",
+  borderColor: "var(--primary, #0d6efd)",
+};
+
+interface RichTextEditorProps {
+  value: string;
+  onChange: (html: string) => void;
+  onPreview: () => void;
+  label?: string;
+  required?: boolean;
+}
+
+function RichTextEditor({ value, onChange, onPreview, label, required }: RichTextEditorProps) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [showHtml, setShowHtml] = useState(false);
+  const [htmlDraft, setHtmlDraft] = useState(value);
+  const [showPlaceholderMenu, setShowPlaceholderMenu] = useState(false);
+  const placeholderBtnRef = useRef<HTMLButtonElement>(null);
+  const placeholderMenuRef = useRef<HTMLDivElement>(null);
+  // Track the last saved selection/range so we can restore it after toolbar clicks
+  const savedRangeRef = useRef<Range | null>(null);
+
+  // Sync external value into the editor when it changes (e.g. on modal open)
+  const lastExternalValue = useRef(value);
+  useEffect(() => {
+    if (value !== lastExternalValue.current) {
+      lastExternalValue.current = value;
+      setHtmlDraft(value);
+      if (editorRef.current && !showHtml) {
+        editorRef.current.innerHTML = value;
+      }
+    }
+  }, [value, showHtml]);
+
+  // Close placeholder dropdown on outside click
+  useEffect(() => {
+    if (!showPlaceholderMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        placeholderMenuRef.current &&
+        !placeholderMenuRef.current.contains(e.target as Node) &&
+        placeholderBtnRef.current &&
+        !placeholderBtnRef.current.contains(e.target as Node)
+      ) {
+        setShowPlaceholderMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showPlaceholderMenu]);
+
+  /** Read current HTML from the contentEditable div and push it to parent */
+  const syncFromEditor = useCallback(() => {
+    if (!editorRef.current) return;
+    const html = editorRef.current.innerHTML;
+    lastExternalValue.current = html;
+    setHtmlDraft(html);
+    onChange(html);
+  }, [onChange]);
+
+  /** Save selection before a toolbar button steals focus */
+  const saveSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    }
+  }, []);
+
+  /** Restore selection into the editor */
+  const restoreSelection = useCallback(() => {
+    if (!savedRangeRef.current || !editorRef.current) return;
+    editorRef.current.focus();
+    const sel = window.getSelection();
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+    }
+  }, []);
+
+  // --- Formatting commands ---
+  const execCommand = useCallback(
+    (cmd: string, val?: string) => {
+      restoreSelection();
+      document.execCommand(cmd, false, val);
+      syncFromEditor();
+    },
+    [restoreSelection, syncFromEditor],
+  );
+
+  const handleBold = () => execCommand("bold");
+  const handleItalic = () => execCommand("italic");
+
+  const handleLink = () => {
+    restoreSelection();
+    const url = prompt("Enter URL:");
+    if (url) {
+      document.execCommand("createLink", false, url);
+      syncFromEditor();
+    }
+  };
+
+  const handleHeading = () => {
+    restoreSelection();
+    // Wrap selection in an <h3> styled for email
+    document.execCommand("formatBlock", false, "h3");
+    syncFromEditor();
+  };
+
+  const handleHr = () => {
+    restoreSelection();
+    document.execCommand("insertHTML", false, "<hr>");
+    syncFromEditor();
+  };
+
+  const insertPlaceholder = (key: string) => {
+    restoreSelection();
+    document.execCommand("insertText", false, `{{${key}}}`);
+    syncFromEditor();
+    setShowPlaceholderMenu(false);
+  };
+
+  // Toggle between visual and HTML modes
+  const toggleHtmlMode = () => {
+    if (showHtml) {
+      // Switching from HTML -> visual: push htmlDraft into editor + parent
+      lastExternalValue.current = htmlDraft;
+      onChange(htmlDraft);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = htmlDraft;
+      }
+    } else {
+      // Switching from visual -> HTML: sync editor into htmlDraft
+      if (editorRef.current) {
+        setHtmlDraft(editorRef.current.innerHTML);
+      }
+    }
+    setShowHtml(!showHtml);
+  };
+
+  return (
+    <div>
+      {/* Label row */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+        <label style={{ fontWeight: 500 }}>
+          {label ?? "Email Body"} {required && <span style={{ color: "#dc3545" }}>*</span>}
+        </label>
+        <Button variant="ghost" size="sm" onClick={onPreview}>
+          Preview
+        </Button>
+      </div>
+
+      {/* Toolbar */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.25rem",
+          padding: "0.375rem 0.5rem",
+          background: "var(--section-bg, #fafafa)",
+          border: "1px solid var(--border)",
+          borderBottom: "none",
+          borderRadius: "4px 4px 0 0",
+          alignItems: "center",
+        }}
+      >
+        {/* Formatting buttons */}
+        <button
+          type="button"
+          style={TOOLBAR_BTN}
+          title="Bold"
+          onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}
+          onClick={handleBold}
+        >
+          <strong>B</strong>
+        </button>
+        <button
+          type="button"
+          style={TOOLBAR_BTN}
+          title="Italic"
+          onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}
+          onClick={handleItalic}
+        >
+          <em>I</em>
+        </button>
+        <button
+          type="button"
+          style={TOOLBAR_BTN}
+          title="Insert Link"
+          onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}
+          onClick={handleLink}
+        >
+          Link
+        </button>
+        <button
+          type="button"
+          style={TOOLBAR_BTN}
+          title="Heading (H3)"
+          onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}
+          onClick={handleHeading}
+        >
+          H3
+        </button>
+        <button
+          type="button"
+          style={TOOLBAR_BTN}
+          title="Horizontal Rule"
+          onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}
+          onClick={handleHr}
+        >
+          &mdash;
+        </button>
+
+        {/* Separator */}
+        <div style={{ width: "1px", height: "1.25rem", background: "var(--border)", margin: "0 0.25rem" }} />
+
+        {/* Insert Placeholder dropdown */}
+        <div style={{ position: "relative" }}>
+          <button
+            ref={placeholderBtnRef}
+            type="button"
+            style={showPlaceholderMenu ? TOOLBAR_BTN_ACTIVE : TOOLBAR_BTN}
+            title="Insert Placeholder"
+            onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}
+            onClick={() => setShowPlaceholderMenu((prev) => !prev)}
+          >
+            {"{{ }}"}
+          </button>
+          {showPlaceholderMenu && (
+            <div
+              ref={placeholderMenuRef}
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                background: "var(--background, #fff)",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                boxShadow: "var(--shadow-md, 0 4px 12px rgba(0,0,0,0.12))",
+                zIndex: 20,
+                width: "260px",
+                maxHeight: "280px",
+                overflowY: "auto",
+              }}
+            >
+              {EDITOR_PLACEHOLDERS.map(({ key, description }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => insertPlaceholder(key)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "0.375rem 0.75rem",
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--section-bg, #f5f5f5)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                >
+                  <code style={{ fontSize: "0.75rem", color: "var(--primary, #0d6efd)" }}>{`{{${key}}}`}</code>
+                  <span style={{ display: "block", fontSize: "0.7rem", color: "var(--muted)" }}>{description}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* View HTML toggle */}
+        <button
+          type="button"
+          style={showHtml ? TOOLBAR_BTN_ACTIVE : TOOLBAR_BTN}
+          title="Toggle raw HTML view"
+          onClick={toggleHtmlMode}
+        >
+          {showHtml ? "Visual" : "HTML"}
+        </button>
+      </div>
+
+      {/* Editor area */}
+      {showHtml ? (
+        <textarea
+          value={htmlDraft}
+          onChange={(e) => setHtmlDraft(e.target.value)}
+          onBlur={() => {
+            lastExternalValue.current = htmlDraft;
+            onChange(htmlDraft);
+          }}
+          rows={12}
+          style={{
+            width: "100%",
+            padding: "0.75rem",
+            border: "1px solid var(--border)",
+            borderTop: "none",
+            borderRadius: "0 0 4px 4px",
+            fontFamily: "monospace",
+            fontSize: "0.85rem",
+            resize: "vertical",
+            minHeight: "200px",
+          }}
+        />
+      ) : (
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={syncFromEditor}
+          onBlur={() => {
+            saveSelection();
+            syncFromEditor();
+          }}
+          onMouseUp={saveSelection}
+          onKeyUp={saveSelection}
+          dangerouslySetInnerHTML={{ __html: value }}
+          style={{
+            width: "100%",
+            minHeight: "200px",
+            padding: "0.75rem",
+            border: "1px solid var(--border)",
+            borderTop: "none",
+            borderRadius: "0 0 4px 4px",
+            outline: "none",
+            fontSize: "0.9rem",
+            lineHeight: 1.6,
+            overflowY: "auto",
+            maxHeight: "400px",
+            background: "#fff",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page component
+// ---------------------------------------------------------------------------
 
 export default function EmailTemplatesAdminPage() {
   const isAdmin = usePermission("admin.email");
@@ -232,12 +612,17 @@ export default function EmailTemplatesAdminPage() {
   const showPreview = () => {
     // Replace placeholders with sample values for preview
     let html = form.body_html;
-    COMMON_PLACEHOLDERS.forEach(({ key }) => {
+    // Use both COMMON_PLACEHOLDERS and EDITOR_PLACEHOLDERS for preview highlighting
+    const allKeys = new Set([
+      ...COMMON_PLACEHOLDERS.map((p) => p.key),
+      ...EDITOR_PLACEHOLDERS.map((p) => p.key),
+    ]);
+    allKeys.forEach((key) => {
       html = html.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), `<span style="background:#fef3c7;padding:0 2px;">[${key}]</span>`);
     });
     // Sanitize HTML to prevent XSS - only allow safe email-compatible tags
     const sanitized = DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'img'],
+      ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'img', 'hr'],
       ALLOWED_ATTR: ['href', 'src', 'alt', 'style', 'class', 'target', 'width', 'height'],
       ALLOW_DATA_ATTR: false,
     });
@@ -562,43 +947,14 @@ export default function EmailTemplatesAdminPage() {
                 </div>
               </div>
 
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
-                  <label style={{ fontWeight: 500 }}>
-                    Email Body (HTML) <span style={{ color: "#dc3545" }}>*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={showPreview}
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      background: "#e0f2fe",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    Preview
-                  </button>
-                </div>
-                <textarea
-                  value={form.body_html}
-                  onChange={(e) => setForm({ ...form, body_html: e.target.value })}
-                  rows={10}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: "1px solid var(--border)",
-                    borderRadius: "4px",
-                    fontFamily: "monospace",
-                    fontSize: "0.875rem",
-                  }}
-                  placeholder={`<p>Hi {{first_name}},</p>
-<p>Thank you for reaching out...</p>
-<p>Best regards,<br>Forgotten Felines Team</p>`}
-                />
-              </div>
+              {/* Rich-text editor replaces the raw textarea */}
+              <RichTextEditor
+                value={form.body_html}
+                onChange={(html) => setForm((prev) => ({ ...prev, body_html: html }))}
+                onPreview={showPreview}
+                label="Email Body"
+                required
+              />
 
               {previewHtml && (
                 <div>
@@ -616,35 +972,6 @@ export default function EmailTemplatesAdminPage() {
                   />
                 </div>
               )}
-
-              <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>
-                  Available Placeholders
-                </label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                  {COMMON_PLACEHOLDERS.map(({ key, description }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => {
-                        const placeholder = `{{${key}}}`;
-                        setForm({ ...form, body_html: form.body_html + placeholder });
-                      }}
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        background: "#f0f0f0",
-                        border: "1px solid var(--border)",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontSize: "0.75rem",
-                      }}
-                      title={description}
-                    >
-                      {`{{${key}}}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             <div
@@ -755,40 +1082,13 @@ export default function EmailTemplatesAdminPage() {
                 />
               </div>
 
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
-                  <label style={{ fontWeight: 500 }}>
-                    Email Body (HTML)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={showPreview}
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      background: "#e0f2fe",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    Preview
-                  </button>
-                </div>
-                <textarea
-                  value={form.body_html}
-                  onChange={(e) => setForm({ ...form, body_html: e.target.value })}
-                  rows={10}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: "1px solid var(--border)",
-                    borderRadius: "4px",
-                    fontFamily: "monospace",
-                    fontSize: "0.875rem",
-                  }}
-                />
-              </div>
+              {/* Rich-text editor replaces the raw textarea in suggest modal */}
+              <RichTextEditor
+                value={form.body_html}
+                onChange={(html) => setForm((prev) => ({ ...prev, body_html: html }))}
+                onPreview={showPreview}
+                label="Email Body"
+              />
 
               {previewHtml && (
                 <div>

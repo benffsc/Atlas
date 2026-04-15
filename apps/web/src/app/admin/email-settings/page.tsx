@@ -6,6 +6,8 @@ import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { SkeletonTable, SkeletonList } from "@/components/feedback/Skeleton";
+import { ActionDrawer } from "@/components/shared/ActionDrawer";
+import { Button } from "@/components/ui/Button";
 
 interface OutlookAccount {
   account_id: string;
@@ -822,22 +824,66 @@ interface EmailFlowRow {
   outlook_account_email: string | null;
 }
 
+interface OutlookAccount {
+  account_id: string;
+  email: string;
+  is_active: boolean;
+}
+
+function toKebabCase(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+interface CreateFlowForm {
+  display_name: string;
+  flow_slug: string;
+  description: string;
+  subject: string;
+  send_via: "outlook" | "resend";
+  outlook_account_email: string;
+  enabled: boolean;
+  dry_run: boolean;
+}
+
+const EMPTY_FORM: CreateFlowForm = {
+  display_name: "",
+  flow_slug: "",
+  description: "",
+  subject: "",
+  send_via: "outlook",
+  outlook_account_email: "",
+  enabled: false,
+  dry_run: true,
+};
+
 function EmailFlowsSection({
   onAction,
 }: {
   onAction: (text: string, type: "success" | "error") => void;
 }) {
   const [flows, setFlows] = useState<EmailFlowRow[]>([]);
+  const [accounts, setAccounts] = useState<OutlookAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Create flow drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [form, setForm] = useState<CreateFlowForm>(EMPTY_FORM);
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const reload = async () => {
     setLoading(true);
     try {
-      const data = await fetchApi<{ flows: EmailFlowRow[] }>(
-        "/api/admin/email-settings/flows"
-      );
-      setFlows(data.flows || []);
+      const [flowData, accountData] = await Promise.all([
+        fetchApi<{ flows: EmailFlowRow[] }>("/api/admin/email-settings/flows"),
+        fetchApi<{ accounts: OutlookAccount[] }>("/api/admin/email-settings/accounts").catch(() => ({ accounts: [] })),
+      ]);
+      setFlows(flowData.flows || []);
+      setAccounts(accountData.accounts || []);
     } catch (err) {
       console.error("Failed to load email flows:", err);
     } finally {
@@ -851,7 +897,7 @@ function EmailFlowsSection({
 
   const patchFlow = async (
     flowSlug: string,
-    patch: Partial<Pick<EmailFlowRow, "enabled" | "dry_run">>
+    patch: Partial<Pick<EmailFlowRow, "enabled" | "dry_run" | "send_via" | "outlook_account_email">>
   ) => {
     setBusy(flowSlug);
     try {
@@ -872,14 +918,107 @@ function EmailFlowsSection({
     }
   };
 
+  const openDrawer = () => {
+    setForm(EMPTY_FORM);
+    setSlugTouched(false);
+    setDrawerOpen(true);
+  };
+
+  const updateField = <K extends keyof CreateFlowForm>(
+    field: K,
+    value: CreateFlowForm[K]
+  ) => {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      // Auto-generate slug from display name unless user manually edited slug
+      if (field === "display_name" && !slugTouched) {
+        next.flow_slug = toKebabCase(value as string);
+      }
+      return next;
+    });
+  };
+
+  const handleCreate = async () => {
+    if (!form.display_name.trim()) {
+      onAction("Display name is required", "error");
+      return;
+    }
+    if (!form.flow_slug.trim()) {
+      onAction("Flow slug is required", "error");
+      return;
+    }
+    if (!form.subject.trim()) {
+      onAction("Template subject is required", "error");
+      return;
+    }
+    setCreating(true);
+    try {
+      await postApi("/api/admin/email-settings/flows/create", {
+        display_name: form.display_name.trim(),
+        flow_slug: form.flow_slug.trim(),
+        description: form.description.trim() || undefined,
+        subject: form.subject.trim(),
+        send_via: form.send_via,
+        outlook_account_email: form.outlook_account_email.trim() || undefined,
+        enabled: form.enabled,
+        dry_run: form.dry_run,
+      });
+      onAction(`Created flow "${form.display_name.trim()}"`, "success");
+      setDrawerOpen(false);
+      reload();
+    } catch (err) {
+      onAction(
+        err instanceof Error ? err.message : "Failed to create flow",
+        "error"
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    marginBottom: "0.25rem",
+    color: "var(--text-primary)",
+  };
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "0.5rem 0.625rem",
+    fontSize: "0.85rem",
+    border: "1px solid var(--border)",
+    borderRadius: "6px",
+    background: "var(--background)",
+    boxSizing: "border-box",
+  };
+  const fieldGap = "1rem";
+
   return (
     <div
       className="card"
       style={{ padding: "1.5rem", marginBottom: "1.5rem" }}
     >
-      <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.25rem" }}>
-        Email Flows
-      </h2>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "0.25rem",
+        }}
+      >
+        <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>
+          Email Flows
+        </h2>
+        <Button
+          variant="primary"
+          size="sm"
+          icon="plus"
+          onClick={openDrawer}
+        >
+          Create Email Type
+        </Button>
+      </div>
       <p
         style={{
           fontSize: "0.8rem",
@@ -887,15 +1026,13 @@ function EmailFlowsSection({
           margin: "0 0 1rem",
         }}
       >
-        Per-flow kill switches and dry-run knobs. New transactional flows
-        are added by inserting a row into <code>ops.email_flows</code>{" "}
-        (no code change required).
+        Per-flow kill switches and dry-run knobs.
       </p>
       {loading ? (
         <div style={{ color: "var(--text-muted)" }}>Loading…</div>
       ) : flows.length === 0 ? (
         <div style={{ color: "var(--text-muted)" }}>
-          No flows configured (MIG_3066 not applied?).
+          No flows configured yet. Click &quot;Create Email Type&quot; to add one.
         </div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -991,18 +1128,33 @@ function EmailFlowsSection({
                   <code>{f.template_key ?? "—"}</code>
                 </td>
                 <td style={{ padding: "0.75rem", fontSize: "0.8rem" }}>
-                  {f.outlook_account_email ? (
-                    <div>
-                      <div style={{ fontSize: "0.8rem" }}>{f.outlook_account_email}</div>
-                      <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
-                        via {f.send_via === "outlook" ? "Outlook" : f.send_via || "default"}
-                      </div>
-                    </div>
-                  ) : (
-                    <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                      {f.send_via === "outlook" ? "⚠ No account" : "Resend API"}
-                    </span>
-                  )}
+                  <select
+                    value={f.outlook_account_email || ""}
+                    disabled={busy === f.flow_slug}
+                    onChange={(e) => {
+                      const email = e.target.value;
+                      patchFlow(f.flow_slug, {
+                        outlook_account_email: email || null,
+                        send_via: email ? "outlook" : "resend",
+                      });
+                    }}
+                    style={{
+                      padding: "0.3rem 0.5rem",
+                      fontSize: "0.75rem",
+                      border: "1px solid var(--border)",
+                      borderRadius: 4,
+                      background: "var(--background)",
+                      cursor: "pointer",
+                      maxWidth: "200px",
+                    }}
+                  >
+                    <option value="">Resend API (default)</option>
+                    {accounts.filter(a => a.is_active).map((a) => (
+                      <option key={a.account_id} value={a.email}>
+                        {a.email} (Outlook)
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td style={{ padding: "0.75rem", fontSize: "0.8rem" }}>
                   {f.enabled ? (
@@ -1088,6 +1240,179 @@ function EmailFlowsSection({
           </tbody>
         </table>
       )}
+
+      {/* Create Email Type Drawer */}
+      <ActionDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        title="Create Email Type"
+        width="md"
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setDrawerOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={creating}
+              onClick={handleCreate}
+            >
+              Create Flow
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: fieldGap }}>
+          {/* Display Name */}
+          <div>
+            <label style={labelStyle}>
+              Display Name <span style={{ color: "#dc3545" }}>*</span>
+            </label>
+            <input
+              type="text"
+              value={form.display_name}
+              onChange={(e) => updateField("display_name", e.target.value)}
+              placeholder="e.g. Booking Confirmation"
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Flow Slug */}
+          <div>
+            <label style={labelStyle}>
+              Flow Slug <span style={{ color: "#dc3545" }}>*</span>
+            </label>
+            <input
+              type="text"
+              value={form.flow_slug}
+              onChange={(e) => {
+                setSlugTouched(true);
+                updateField("flow_slug", e.target.value);
+              }}
+              placeholder="e.g. booking-confirmation"
+              style={inputStyle}
+            />
+            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+              Auto-generated from display name. Lowercase, kebab-case. Also used as the template key.
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label style={labelStyle}>Description</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => updateField("description", e.target.value)}
+              placeholder="What this email flow does..."
+              rows={2}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+
+          {/* Template Subject */}
+          <div>
+            <label style={labelStyle}>
+              Template Subject <span style={{ color: "#dc3545" }}>*</span>
+            </label>
+            <input
+              type="text"
+              value={form.subject}
+              onChange={(e) => updateField("subject", e.target.value)}
+              placeholder="e.g. Your appointment has been scheduled"
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Send Via */}
+          <div>
+            <label style={labelStyle}>Send Via</label>
+            <select
+              value={form.send_via}
+              onChange={(e) =>
+                updateField("send_via", e.target.value as "outlook" | "resend")
+              }
+              style={inputStyle}
+            >
+              <option value="outlook">Outlook</option>
+              <option value="resend">Resend</option>
+            </select>
+          </div>
+
+          {/* Outlook Account Email — shown when send_via=outlook */}
+          {form.send_via === "outlook" && (
+            <div>
+              <label style={labelStyle}>Outlook Account Email</label>
+              <input
+                type="email"
+                value={form.outlook_account_email}
+                onChange={(e) =>
+                  updateField("outlook_account_email", e.target.value)
+                }
+                placeholder="e.g. info@forgottenfelines.com"
+                style={inputStyle}
+              />
+              <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                Must match a connected Outlook account above.
+              </div>
+            </div>
+          )}
+
+          {/* Enabled + Dry Run checkboxes */}
+          <div style={{ display: "flex", gap: "1.5rem" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(e) => updateField("enabled", e.target.checked)}
+              />
+              Enabled
+            </label>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={form.dry_run}
+                onChange={(e) => updateField("dry_run", e.target.checked)}
+              />
+              Dry Run
+            </label>
+          </div>
+
+          {/* Safety note */}
+          <div
+            style={{
+              padding: "0.75rem",
+              background: "#fffbeb",
+              border: "1px solid #fcd34d",
+              borderRadius: "6px",
+              fontSize: "0.75rem",
+              color: "#92400e",
+              lineHeight: 1.5,
+            }}
+          >
+            New flows default to <strong>disabled</strong> +{" "}
+            <strong>dry-run ON</strong> for safety. A starter HTML template
+            will be created automatically -- edit it from the{" "}
+            <strong>Email Templates</strong> page.
+          </div>
+        </div>
+      </ActionDrawer>
     </div>
   );
 }

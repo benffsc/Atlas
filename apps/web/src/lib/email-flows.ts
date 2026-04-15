@@ -93,7 +93,7 @@ export async function getFlowTestRecipient(
 export async function updateFlow(
   flowSlug: string,
   patch: Partial<
-    Pick<EmailFlow, "enabled" | "dry_run" | "test_recipient_override">
+    Pick<EmailFlow, "enabled" | "dry_run" | "test_recipient_override" | "send_via" | "outlook_account_email">
   >,
   updatedBy?: string
 ): Promise<EmailFlow | null> {
@@ -113,6 +113,14 @@ export async function updateFlow(
   if (patch.test_recipient_override !== undefined) {
     sets.push(`test_recipient_override = $${idx++}`);
     values.push(patch.test_recipient_override);
+  }
+  if (patch.send_via !== undefined) {
+    sets.push(`send_via = $${idx++}`);
+    values.push(patch.send_via);
+  }
+  if (patch.outlook_account_email !== undefined) {
+    sets.push(`outlook_account_email = $${idx++}`);
+    values.push(patch.outlook_account_email);
   }
   if (sets.length === 0) return getFlow(flowSlug);
 

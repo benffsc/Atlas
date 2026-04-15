@@ -45,11 +45,13 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { flow_slug, enabled, dry_run, test_recipient_override } = body as {
+    const { flow_slug, enabled, dry_run, test_recipient_override, send_via, outlook_account_email } = body as {
       flow_slug?: string;
       enabled?: boolean;
       dry_run?: boolean;
       test_recipient_override?: string | null;
+      send_via?: string | null;
+      outlook_account_email?: string | null;
     };
 
     if (!flow_slug || typeof flow_slug !== "string") {
@@ -95,6 +97,8 @@ export async function PATCH(request: NextRequest) {
         ...(test_recipient_override !== undefined && {
           test_recipient_override,
         }),
+        ...(send_via !== undefined && { send_via: send_via as "resend" | "outlook" }),
+        ...(outlook_account_email !== undefined && { outlook_account_email }),
       },
       session.staff_id
     );
