@@ -126,11 +126,13 @@ export function useMapClustering({
       disease_count: props.disease_count || 0,
       watch_list_count: props.watch_list_count || 0,
       needs_trapper_count: props.needs_trapper_count || 0,
+      active_request_count: props.active_request_count || 0,
     }),
     reduce: (accumulated: any, props: any) => {
       accumulated.disease_count += props.disease_count;
       accumulated.watch_list_count += props.watch_list_count;
       accumulated.needs_trapper_count += props.needs_trapper_count;
+      accumulated.active_request_count += props.active_request_count;
     },
   });
 
@@ -174,9 +176,10 @@ export function isCluster(
  * Helper to get cluster color based on aggregated properties
  */
 export function getClusterColor(feature: ClusterFeature): string {
-  const { disease_count = 0, watch_list_count = 0 } = feature.properties;
+  const { disease_count = 0, watch_list_count = 0, needs_trapper_count = 0 } = feature.properties;
 
   if (disease_count > 0) return "#ea580c"; // Disease risk - orange
+  if (needs_trapper_count > 0) return "#f97316"; // Needs trapper - orange
   if (watch_list_count > 0) return "#8b5cf6"; // Watch list - purple
   return "#3b82f6"; // Default blue
 }

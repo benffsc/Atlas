@@ -223,13 +223,15 @@ function createActivePinDOM(opts: {
 }
 
 /**
- * Cluster marker: colored circle with point count
+ * Cluster marker: colored circle with point count + optional urgency badge
  */
 function createClusterDOM(
   pointCount: number,
   color: string,
   size: number,
   fontSize: number,
+  needsTrapperCount = 0,
+  diseaseCount = 0,
 ): HTMLDivElement {
   const div = document.createElement("div");
   Object.assign(div.style, {
@@ -244,10 +246,40 @@ function createClusterDOM(
     color: "white",
     fontWeight: "700",
     fontSize: `${fontSize}px`,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+    boxShadow: diseaseCount > 0
+      ? "0 0 0 3px #dc2626, 0 2px 8px rgba(0,0,0,0.3)"
+      : "0 2px 8px rgba(0,0,0,0.3)",
     cursor: "pointer",
+    position: "relative",
   });
   div.textContent = String(pointCount);
+
+  // FFS-1256: Orange badge when cluster contains needs-trapper items
+  if (needsTrapperCount > 0) {
+    const badge = document.createElement("div");
+    Object.assign(badge.style, {
+      position: "absolute",
+      top: "-4px",
+      right: "-4px",
+      minWidth: "16px",
+      height: "16px",
+      borderRadius: "8px",
+      background: "#f97316",
+      border: "2px solid white",
+      color: "white",
+      fontSize: "9px",
+      fontWeight: "700",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0 3px",
+      lineHeight: "1",
+    });
+    badge.textContent = String(needsTrapperCount);
+    badge.title = `${needsTrapperCount} location${needsTrapperCount > 1 ? "s" : ""} need${needsTrapperCount === 1 ? "s" : ""} a trapper`;
+    div.appendChild(badge);
+  }
+
   return div;
 }
 
@@ -348,7 +380,9 @@ export function useImperativeMarkers({
           const color = getClusterColor(feature);
           const sizeClass = getClusterSizeClass(pointCount);
           const { size, fontSize } = CLUSTER_SIZE_CONFIG[sizeClass];
-          existing.marker.content = createClusterDOM(pointCount, color, size, fontSize);
+          const ntc = feature.properties.needs_trapper_count || 0;
+          const dc = feature.properties.disease_count || 0;
+          existing.marker.content = createClusterDOM(pointCount, color, size, fontSize, ntc, dc);
           continue;
         }
 
@@ -358,11 +392,13 @@ export function useImperativeMarkers({
         const sizeClass = getClusterSizeClass(pointCount);
         const { size, fontSize } = CLUSTER_SIZE_CONFIG[sizeClass];
         const clusterId = feature.properties.cluster_id;
+        const clusterNtc = feature.properties.needs_trapper_count || 0;
+        const clusterDc = feature.properties.disease_count || 0;
 
         const marker = new google.maps.marker.AdvancedMarkerElement({
           map,
           position: { lat, lng },
-          content: createClusterDOM(pointCount, color, size, fontSize),
+          content: createClusterDOM(pointCount, color, size, fontSize, clusterNtc, clusterDc),
           collisionBehavior: google.maps.CollisionBehavior.REQUIRED,
           zIndex: 10,
         });

@@ -399,6 +399,13 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   // Quantized zoom for pin rendering — prevents re-renders on fractional changes
   const quantizedZoomLevel = useMemo(() => quantizeZoom(mapZoomLevel), [mapZoomLevel]);
 
+  // FFS-1255: Attention layer — needs-trapper pins that should always be visible
+  // These render as a separate unclustered overlay so they're never hidden in clusters
+  const attentionPins = useMemo(() =>
+    atlasPins.filter(p => p.needs_trapper_count > 0),
+    [atlasPins]
+  );
+
   // Visible (unclustered) pin IDs for "Select all visible" in BulkActionBar
   const visiblePinIds = useMemo(() => {
     const ids: string[] = [];
@@ -1166,6 +1173,55 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       >
         {/* ── Clustered + individual pin markers managed imperatively via useImperativeMarkers ── */}
         {/* (no React <AdvancedMarker> components — eliminates reconciliation overhead) */}
+
+        {/* ── FFS-1255: Attention layer — needs-trapper pins always visible, never clustered ── */}
+        {atlasLayerEnabled && attentionPins.map(pin => (
+          <AdvancedMarker
+            key={`attn-${pin.id}`}
+            position={{ lat: pin.lat, lng: pin.lng }}
+            collisionBehavior={CollisionBehavior.REQUIRED_AND_HIDES_OPTIONAL}
+            zIndex={50}
+            onClick={() => {
+              setSelectedPersonId(null);
+              setSelectedCatId(null);
+              if (selectedPlaceId) {
+                setSelectedPlaceId(pin.id);
+              } else {
+                setSelectedPin(pin);
+              }
+            }}
+          >
+            <div title={`${pin.address || pin.display_name} — needs trapper`} style={{ cursor: "pointer", position: "relative" }}>
+              {/* Pulsing orange ring */}
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                border: "3px solid #f97316",
+                background: "rgba(249, 115, 22, 0.15)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                animation: "attentionPulse 2s infinite",
+              }}>
+                {/* Inner icon — small trap silhouette */}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 21h18M4 18l4-12M20 18l-4-12M8 6h8"/>
+                </svg>
+              </div>
+              {/* Count badge if multiple requests */}
+              {pin.needs_trapper_count > 1 && (
+                <div style={{
+                  position: "absolute", top: -4, right: -4,
+                  minWidth: 14, height: 14, borderRadius: 7,
+                  background: "#f97316", border: "2px solid white",
+                  color: "white", fontSize: 8, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "0 2px",
+                }}>
+                  {pin.needs_trapper_count}
+                </div>
+              )}
+            </div>
+          </AdvancedMarker>
+        ))}
+        <style>{`@keyframes attentionPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); } }`}</style>
 
         {/* ── Annotation markers (Step 13) ── */}
         {enabledLayers.atlas_all && annotations.map(ann => (
