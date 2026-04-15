@@ -9,6 +9,9 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { useToast } from "@/components/feedback/Toast";
+import { ActionDrawer } from "@/components/shared/ActionDrawer";
+import { Button } from "@/components/ui/Button";
+import DOMPurify from "dompurify";
 
 interface Staff {
   staff_id: string;
@@ -25,6 +28,18 @@ interface Staff {
   hired_date: string | null;
   source_record_id: string | null;
   ai_access_level: string | null;
+}
+
+interface StaffAuth {
+  staff_id: string;
+  display_name: string;
+  email: string | null;
+  auth_role: string;
+  is_active: boolean;
+  password_status: "set" | "default" | "not_set";
+  password_set_at: string | null;
+  last_login: string | null;
+  login_count: number;
 }
 
 const DEPARTMENTS = [
@@ -55,6 +70,7 @@ function StaffManagementContent() {
   const { addToast } = useToast();
   const { filters, setFilter, clearFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
 
+  const [viewMode, setViewMode] = useState<"directory" | "accounts">("directory");
   const [staff, setStaff] = useState<Staff[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [allRoles, setAllRoles] = useState<string[]>([]);
@@ -69,6 +85,22 @@ function StaffManagementContent() {
     is_resolved: false,
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Accounts view state
+  const [authStaff, setAuthStaff] = useState<StaffAuth[]>([]);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [sendingResetTo, setSendingResetTo] = useState<string | null>(null);
+  const [sendingLoginInfoTo, setSendingLoginInfoTo] = useState<string | null>(null);
+
+  // Email preview drawer state
+  const [emailDrawerOpen, setEmailDrawerOpen] = useState(false);
+  const [emailDrawerStaff, setEmailDrawerStaff] = useState<StaffAuth | null>(null);
+  const [emailDrawerType, setEmailDrawerType] = useState<"welcome" | "reset">("welcome");
+  const [emailPreviewLoading, setEmailPreviewLoading] = useState(false);
+  const [emailPreviewSubject, setEmailPreviewSubject] = useState("");
+  const [emailPreviewRecipient, setEmailPreviewRecipient] = useState("");
+  const emailEditorRef = useRef<HTMLDivElement>(null);
+  const [emailSending, setEmailSending] = useState(false);
 
   // Confirm dialogs
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
@@ -111,6 +143,119 @@ function StaffManagementContent() {
   useEffect(() => {
     fetchStaff();
   }, [fetchStaff]);
+
+  // Load auth data when switching to accounts view
+  const fetchAuthStaff = useCallback(async () => {
+    setAuthLoading(true);
+    try {
+      const data = await fetchApi<{ staff: StaffAuth[] }>("/api/admin/staff/auth-overview");
+      setAuthStaff(data.staff || []);
+    } catch (err) {
+      console.error("Failed to fetch auth data:", err);
+      addToast({ type: "error", message: "Failed to load account data" });
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    if (viewMode === "accounts") {
+      fetchAuthStaff();
+    }
+  }, [viewMode, fetchAuthStaff]);
+
+  const openEmailDrawer = async (s: StaffAuth, type: "welcome" | "reset") => {
+    setEmailDrawerStaff(s);
+    setEmailDrawerType(type);
+    setEmailDrawerOpen(true);
+    setEmailPreviewLoading(true);
+    setEmailPreviewSubject("");
+    setEmailPreviewRecipient(s.email || "");
+
+    try {
+      const data = await fetchApi<{
+        subject: string;
+        body_html: string;
+        recipient: { email: string | null };
+      }>(`/api/admin/staff/preview-email?staff_id=${s.staff_id}&type=${type}`);
+      setEmailPreviewSubject(data.subject);
+      setEmailPreviewRecipient(data.recipient.email || s.email || "");
+      // Set editor HTML after a tick so the ref is mounted
+      setTimeout(() => {
+        if (emailEditorRef.current) {
+          emailEditorRef.current.innerHTML = DOMPurify.sanitize(data.body_html);
+        }
+      }, 50);
+    } catch {
+      addToast({ type: "error", message: "Failed to load email preview" });
+      setEmailDrawerOpen(false);
+    } finally {
+      setEmailPreviewLoading(false);
+    }
+  };
+
+  const handleEmailSend = async () => {
+    if (!emailDrawerStaff) return;
+    setEmailSending(true);
+    try {
+      const editedHtml = emailEditorRef.current?.innerHTML || "";
+      await postApi("/api/admin/staff/send-login-info", {
+        staff_id: emailDrawerStaff.staff_id,
+        email_type: emailDrawerType,
+        recipient_override: emailPreviewRecipient,
+        subject_override: emailPreviewSubject,
+        body_html_override: editedHtml,
+      });
+      addToast({
+        type: "success",
+        message: `Email sent to ${emailPreviewRecipient}`,
+      });
+      setEmailDrawerOpen(false);
+    } catch {
+      addToast({ type: "error", message: "Failed to send email" });
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const handleSendLoginInfo = async (staffId: string, staffName: string) => {
+    setSendingLoginInfoTo(staffId);
+    try {
+      await postApi("/api/admin/staff/send-login-info", { staff_id: staffId });
+      addToast({ type: "success", message: `Login info sent to ${staffName}` });
+    } catch {
+      addToast({ type: "error", message: `Failed to send login info to ${staffName}` });
+    } finally {
+      setSendingLoginInfoTo(null);
+    }
+  };
+
+  const handleSendResetEmail = async (staffEmail: string, staffName: string) => {
+    setSendingResetTo(staffEmail);
+    try {
+      await postApi("/api/auth/forgot-password", { email: staffEmail });
+      addToast({ type: "success", message: `Reset code sent to ${staffEmail}` });
+    } catch {
+      addToast({ type: "error", message: `Failed to send reset code to ${staffName}` });
+    } finally {
+      setSendingResetTo(null);
+    }
+  };
+
+  const formatTimeAgo = (dateStr: string | null): string => {
+    if (!dateStr) return "Never";
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 30) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
 
   const handleSearchChange = useDebounce((value: string) => {
     setFilter("search", value);
@@ -271,8 +416,8 @@ function StaffManagementContent() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1 style={{ margin: 0 }}>Staff Directory</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <h1 style={{ margin: 0 }}>Staff Management</h1>
         <button
           onClick={openAdd}
           style={{
@@ -288,6 +433,143 @@ function StaffManagementContent() {
         </button>
       </div>
 
+      {/* View Toggle */}
+      <div style={{ display: "flex", gap: "0", marginBottom: "1.5rem", borderBottom: "1px solid var(--border)" }}>
+        {(["directory", "accounts"] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            style={{
+              padding: "0.5rem 1.25rem",
+              background: "transparent",
+              border: "none",
+              borderBottom: viewMode === mode ? "2px solid var(--primary)" : "2px solid transparent",
+              color: viewMode === mode ? "var(--foreground)" : "var(--text-muted)",
+              fontWeight: viewMode === mode ? 600 : 400,
+              fontSize: "0.9rem",
+              cursor: "pointer",
+              transition: "color 0.15s, border-color 0.15s",
+            }}
+          >
+            {mode === "directory" ? "Directory" : "Accounts"}
+          </button>
+        ))}
+      </div>
+
+      {/* Accounts Table View */}
+      {viewMode === "accounts" && (
+        <div>
+          {authLoading ? (
+            <SkeletonTable rows={8} columns={5} />
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid var(--border)", textAlign: "left" }}>
+                    <th style={{ padding: "0.75rem 0.5rem", fontWeight: 600 }}>Name</th>
+                    <th style={{ padding: "0.75rem 0.5rem", fontWeight: 600 }}>Email</th>
+                    <th style={{ padding: "0.75rem 0.5rem", fontWeight: 600 }}>Auth Role</th>
+                    <th style={{ padding: "0.75rem 0.5rem", fontWeight: 600 }}>Password</th>
+                    <th style={{ padding: "0.75rem 0.5rem", fontWeight: 600 }}>Last Login</th>
+                    <th style={{ padding: "0.75rem 0.5rem", fontWeight: 600, textAlign: "right" }}>Logins</th>
+                    <th style={{ padding: "0.75rem 0.5rem", fontWeight: 600 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {authStaff.map((s) => (
+                    <tr
+                      key={s.staff_id}
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                    >
+                      <td style={{ padding: "0.6rem 0.5rem", fontWeight: 500 }}>
+                        <a
+                          href={`/admin/staff/${s.staff_id}?from=staff`}
+                          style={{ color: "var(--primary)", textDecoration: "none" }}
+                        >
+                          {s.display_name}
+                        </a>
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem", color: "var(--text-muted)" }}>
+                        {s.email || "—"}
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem" }}>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "9999px",
+                            fontSize: "0.7rem",
+                            fontWeight: 500,
+                            background: s.auth_role === "admin" ? "#ede9fe" : s.auth_role === "staff" ? "#e0f2fe" : "#f0fdf4",
+                            color: s.auth_role === "admin" ? "#6d28d9" : s.auth_role === "staff" ? "#0369a1" : "#15803d",
+                          }}
+                        >
+                          {s.auth_role}
+                        </span>
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem" }}>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "9999px",
+                            fontSize: "0.7rem",
+                            fontWeight: 500,
+                            background: s.password_status === "set" ? "#dcfce7"
+                              : s.password_status === "default" ? "#fef3c7"
+                              : "#fee2e2",
+                            color: s.password_status === "set" ? "#166534"
+                              : s.password_status === "default" ? "#92400e"
+                              : "#b91c1c",
+                          }}
+                        >
+                          {s.password_status === "set" ? "Set" : s.password_status === "default" ? "Default" : "Not Set"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                        {formatTimeAgo(s.last_login)}
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem", textAlign: "right", color: "var(--text-muted)" }}>
+                        {s.login_count}
+                      </td>
+                      <td style={{ padding: "0.6rem 0.5rem" }}>
+                        {s.email && (
+                          <button
+                            onClick={() => {
+                              // Smart: never logged in → welcome, otherwise → reset
+                              const type = s.login_count === 0 ? "welcome" : "reset";
+                              openEmailDrawer(s, type);
+                            }}
+                            style={{
+                              padding: "0.25rem 0.5rem",
+                              fontSize: "0.75rem",
+                              background: s.login_count === 0 ? "var(--primary, #4291df)" : "transparent",
+                              color: s.login_count === 0 ? "#fff" : "var(--foreground)",
+                              border: s.login_count === 0 ? "none" : "1px solid var(--border)",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {s.login_count === 0 ? "Send Welcome Email" : "Send Reset Email"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {authStaff.length === 0 && (
+                <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
+                  No active staff found
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Directory View */}
+      {viewMode === "directory" && <>
       {/* Search + Filters */}
       <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
         <input
@@ -521,6 +803,8 @@ function StaffManagementContent() {
             ))}
         </div>
       )}
+
+      </>}
 
       {/* Edit Modal */}
       {editMode && selectedStaff && (
@@ -873,6 +1157,132 @@ function StaffManagementContent() {
           </div>
         </div>
       )}
+
+      {/* Email Preview & Send Drawer */}
+      <ActionDrawer
+        isOpen={emailDrawerOpen}
+        onClose={() => setEmailDrawerOpen(false)}
+        title={emailDrawerStaff ? `Email ${emailDrawerStaff.display_name}` : "Send Email"}
+        width="xl"
+        footer={
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", alignItems: "center", width: "100%" }}>
+            <Button variant="secondary" onClick={() => setEmailDrawerOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              icon="send"
+              onClick={handleEmailSend}
+              loading={emailSending}
+            >
+              Send Email
+            </Button>
+          </div>
+        }
+      >
+        {emailPreviewLoading ? (
+          <div style={{ padding: "2rem", color: "var(--text-muted)", textAlign: "center" }}>
+            Rendering preview...
+          </div>
+        ) : (
+          <div>
+            {/* Type toggle */}
+            {emailDrawerStaff && (
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+                {(["welcome", "reset"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      if (t !== emailDrawerType && emailDrawerStaff) {
+                        openEmailDrawer(emailDrawerStaff, t);
+                      }
+                    }}
+                    style={{
+                      padding: "0.35rem 0.75rem",
+                      fontSize: "0.8rem",
+                      borderRadius: "6px",
+                      border: emailDrawerType === t ? "none" : "1px solid var(--border)",
+                      background: emailDrawerType === t ? "var(--primary, #4291df)" : "transparent",
+                      color: emailDrawerType === t ? "#fff" : "var(--foreground)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {t === "welcome" ? "Welcome (Login Info)" : "Password Reset"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Recipient + Subject */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "0.25rem" }}>
+                  To
+                </label>
+                <input
+                  type="email"
+                  value={emailPreviewRecipient}
+                  onChange={(e) => setEmailPreviewRecipient(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    fontSize: "0.85rem",
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "0.25rem" }}>
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={emailPreviewSubject}
+                  onChange={(e) => setEmailPreviewSubject(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem 0.75rem",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    fontSize: "0.85rem",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Editable body */}
+            <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "0.25rem" }}>
+              Body <span style={{ fontWeight: 400 }}>(click anywhere to edit)</span>
+            </div>
+            <div
+              ref={emailEditorRef}
+              contentEditable={true}
+              suppressContentEditableWarning={true}
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "24px",
+                background: "#fff",
+                minHeight: "350px",
+                overflowY: "auto",
+                outline: "none",
+                lineHeight: 1.55,
+                fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+                color: "#222",
+                cursor: "text",
+              }}
+            />
+
+            {emailDrawerType === "reset" && (
+              <p style={{ margin: "0.75rem 0 0", fontSize: "0.8rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                Note: The code &quot;123456&quot; above is a placeholder. The actual reset code is generated
+                when the staff member uses &quot;Forgot password?&quot; on the login page.
+              </p>
+            )}
+          </div>
+        )}
+      </ActionDrawer>
 
       <ConfirmDialog
         open={showDeactivateConfirm}

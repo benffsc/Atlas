@@ -63,6 +63,8 @@ export default function StaffProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState("");
+  const [sendingResetEmail, setSendingResetEmail] = useState(false);
+  const [sendingLoginInfo, setSendingLoginInfo] = useState(false);
 
   useEffect(() => {
     fetchStaff();
@@ -97,6 +99,38 @@ export default function StaffProfilePage() {
       addToast({ type: "error", message: "Failed to save changes" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendLoginInfo = async () => {
+    if (!staff?.email) {
+      addToast({ type: "warning", message: "This staff member has no email address" });
+      return;
+    }
+    setSendingLoginInfo(true);
+    try {
+      await postApi("/api/admin/staff/send-login-info", { staff_id: staffId });
+      addToast({ type: "success", message: `Login info sent to ${staff.email}` });
+    } catch {
+      addToast({ type: "error", message: "Failed to send login info" });
+    } finally {
+      setSendingLoginInfo(false);
+    }
+  };
+
+  const handleSendResetEmail = async () => {
+    if (!staff?.email) {
+      addToast({ type: "warning", message: "This staff member has no email address" });
+      return;
+    }
+    setSendingResetEmail(true);
+    try {
+      await postApi("/api/auth/forgot-password", { email: staff.email });
+      addToast({ type: "success", message: `Reset code sent to ${staff.email}` });
+    } catch {
+      addToast({ type: "error", message: "Failed to send reset email" });
+    } finally {
+      setSendingResetEmail(false);
     }
   };
 
@@ -238,8 +272,42 @@ export default function StaffProfilePage() {
               color: "var(--foreground)",
             }}
           >
-            Reset Password
+            Set Password
           </button>
+          {staff.email && (
+            <button
+              onClick={handleSendLoginInfo}
+              disabled={sendingLoginInfo}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "var(--primary)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: sendingLoginInfo ? "not-allowed" : "pointer",
+                opacity: sendingLoginInfo ? 0.6 : 1,
+              }}
+            >
+              {sendingLoginInfo ? "Sending..." : "Send Login Info"}
+            </button>
+          )}
+          {staff.email && (
+            <button
+              onClick={handleSendResetEmail}
+              disabled={sendingResetEmail}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
+                cursor: sendingResetEmail ? "not-allowed" : "pointer",
+                color: "var(--foreground)",
+                opacity: sendingResetEmail ? 0.6 : 1,
+              }}
+            >
+              {sendingResetEmail ? "Sending..." : "Send Reset Email"}
+            </button>
+          )}
         </div>
       </div>
 

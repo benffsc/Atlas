@@ -33,6 +33,15 @@ export async function POST(request: NextRequest) {
       return apiUnauthorized(result.error || "Authentication failed");
     }
 
+    // Detect default password and flag for change
+    const defaultPassword = process.env.STAFF_DEFAULT_PASSWORD;
+    if (defaultPassword && password === defaultPassword) {
+      await queryOne(
+        `UPDATE ops.staff SET password_change_required = TRUE WHERE staff_id = $1 AND password_change_required IS DISTINCT FROM TRUE`,
+        [result.staff!.staff_id]
+      );
+    }
+
     // Check if password change is required
     const staffInfo = await queryOne<{ password_change_required: boolean }>(
       `SELECT COALESCE(password_change_required, FALSE) as password_change_required

@@ -512,6 +512,112 @@ export async function changePassword(
 }
 
 // ============================================================================
+// Password Reset (6-digit code)
+// ============================================================================
+
+const RESET_CODE_EXPIRY_MINUTES = 60;
+
+/**
+ * Generate a cryptographically secure 6-digit numeric code
+ */
+export function generateResetCode(): string {
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  const num = (bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]) >>> 0;
+  const code = (num % 900000) + 100000; // 100000–999999
+  return code.toString();
+}
+
+/**
+ * Create a password reset token for a staff member.
+ * Stores SHA-256 hash in DB, returns plaintext code.
+ */
+export async function createPasswordResetToken(
+  staffId: string
+): Promise<{ code: string; expiresAt: Date }> {
+  const code = generateResetCode();
+  const codeHash = await hashToken(code);
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + RESET_CODE_EXPIRY_MINUTES);
+
+  await queryOne(
+    `UPDATE ops.staff
+     SET password_reset_token_hash = $1,
+         password_reset_expires_at = $2
+     WHERE staff_id = $3`,
+    [codeHash, expiresAt.toISOString(), staffId]
+  );
+
+  return { code, expiresAt };
+}
+
+/**
+ * Validate a reset code for a given email.
+ * Returns staff_id on success, null on failure.
+ */
+export async function validateResetCode(
+  email: string,
+  code: string
+): Promise<{ staff_id: string; display_name: string } | null> {
+  const codeHash = await hashToken(code);
+
+  const result = await queryOne<{
+    staff_id: string;
+    display_name: string;
+  }>(
+    `SELECT staff_id, display_name
+     FROM ops.staff
+     WHERE LOWER(email) = LOWER($1)
+       AND password_reset_token_hash = $2
+       AND password_reset_expires_at > NOW()
+       AND is_active = TRUE`,
+    [email, codeHash]
+  );
+
+  return result || null;
+}
+
+/**
+ * Reset password using a validated code.
+ * Validates code → sets password → clears token → clears password_change_required.
+ */
+export async function resetPasswordWithCode(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  const staff = await validateResetCode(email, code);
+  if (!staff) {
+    return { success: false, error: "Invalid or expired reset code" };
+  }
+
+  const hash = await hashPassword(newPassword);
+
+  await queryOne(
+    `UPDATE ops.staff
+     SET password_hash = $1,
+         password_change_required = FALSE,
+         password_set_at = NOW(),
+         password_reset_token_hash = NULL,
+         password_reset_expires_at = NULL,
+         login_attempts = 0,
+         locked_until = NULL
+     WHERE staff_id = $2`,
+    [hash, staff.staff_id]
+  );
+
+  // Invalidate all existing sessions
+  await queryOne(
+    `UPDATE ops.staff_sessions
+     SET invalidated_at = NOW(), invalidation_reason = 'password_reset'
+     WHERE staff_id = $1 AND invalidated_at IS NULL`,
+    [staff.staff_id]
+  );
+
+  return { success: true };
+}
+
+// ============================================================================
 // Legacy Compatibility (from original auth.ts)
 // ============================================================================
 
