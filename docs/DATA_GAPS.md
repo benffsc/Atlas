@@ -3082,3 +3082,37 @@ Key invariant: `account_type` stays 'organization'/'site_name'. Only `resolved_p
 - `sot.find_or_create_place_deduped()` — calls find_or_create_address
 - `ops.v_map_atlas_pins` — map pins view (reads from sot.addresses)
 
+
+---
+
+## DATA_GAP_068: Google Maps KML Pin Mislinks — Wrong Nearest-Place Match
+
+**Status:** OPEN
+
+**Severity:** MEDIUM — 50 address-named Google Maps pins linked to wrong neighboring places. 9 have a better match in the DB; 41 are linked to nearest neighbor within 30-100m because the correct place didn't exist at import time.
+
+**Problem:** When Google Maps KML pins were imported, `linked_place_id` was set via nearest-place matching (`ST_DWithin`). For address-named pins (e.g., "1022 Santa Rosa Ave", "3540 Mendocino Ave"), the nearest Atlas place is sometimes a neighbor on a different street, not the pin's actual address.
+
+**Example:** "1022 Santa Rosa Ave" (Donna Best feeds cats here) was linked to "565 Barham Ave" 80m away instead of the ClinicHQ-created "1022 Santa Rosa Ave" place.
+
+**Evidence:**
+```
+174 address-named GM entries total (start with digits)
+138 linked, 36 unlinked
+50 of 138 linked to a place whose address doesn't match the pin name
+  - 15 within 30m (possibly same parcel, different address format)
+  - 12 at 30-60m (adjacent lots)
+  - 23 at 60-100m (wrong neighbor)
+  - 9 have a provably better match in the DB right now
+```
+
+**Root Cause:** Original KML import matched by proximity only, not by address text. Many correct places didn't exist yet at import time (created later by ClinicHQ ingest). The linker never re-ran after new places appeared.
+
+**Fix (proposed):**
+1. For the 9 with a provably better match: relink automatically (SQL)
+2. For the remaining 41: create places from the pin coordinates + kml_name, then relink
+3. For the 36 unlinked address-named pins: same — create place + link
+4. Add address-text matching to the GM entry linking function as a higher-priority check before distance-only matching
+
+**Related:** DATA_GAP_067 (invisible places) made this worse — some correct places existed but were invisible because of coord desync, so staff couldn't see the mismatch.
+
