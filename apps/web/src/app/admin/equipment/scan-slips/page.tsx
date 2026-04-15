@@ -71,52 +71,143 @@ export default function ScanSlipsPage() {
   const [committing, setCommitting] = useState(false);
   const [entries, setEntries] = useState<SlipEntry[]>([]);
 
-  // Handle file selection (multiple images)
+  // Handle file selection (images + PDFs)
   const handleFiles = useCallback(async (files: FileList | File[]) => {
-    const newEntries: SlipEntry[] = [];
-
     for (const file of Array.from(files)) {
-      if (!file.type.startsWith("image/")) {
-        toast.warning(`Skipped ${file.name} — not an image. Use JPEG/PNG photos of slips.`);
+      const isPdf = file.type === "application/pdf";
+      const isImage = file.type.startsWith("image/");
+
+      if (!isPdf && !isImage) {
+        toast.warning(`Skipped ${file.name} — use JPEG, PNG, or PDF.`);
         continue;
       }
 
-      const id = `slip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const dataUrl = await fileToDataUrl(file);
       const base64 = dataUrl.split(",")[1];
-      const mediaType = file.type;
 
-      const entry: SlipEntry = {
-        id,
-        imageDataUrl: dataUrl,
-        extracting: true,
-        extracted: null,
-        extractError: null,
-        person: { person_id: null, display_name: "", is_resolved: false },
-        barcode: "",
-        purpose: "",
-        depositAmount: "50",
-        checkoutDate: "",
-        appointmentDate: "",
-        address: "",
-        phone: "",
-        email: "",
-        staffName: "",
-        notes: "",
-        committed: false,
-        commitError: null,
-      };
-      newEntries.push(entry);
+      if (isPdf) {
+        // PDF: send the whole document to Claude — it handles multi-page natively
+        const placeholderId = `slip-pdf-${Date.now()}`;
+        const placeholder: SlipEntry = {
+          id: placeholderId,
+          imageDataUrl: "", // no preview for PDF
+          extracting: true,
+          extracted: null,
+          extractError: null,
+          person: { person_id: null, display_name: "", is_resolved: false },
+          barcode: "",
+          purpose: "",
+          depositAmount: "50",
+          checkoutDate: "",
+          appointmentDate: "",
+          address: "",
+          phone: "",
+          email: "",
+          staffName: "",
+          notes: "",
+          committed: false,
+          commitError: null,
+        };
+        setEntries((prev) => [...prev, placeholder]);
+        setPhase("review");
 
-      // Start extraction (don't await — let them run in parallel)
-      extractSlip(id, base64, mediaType);
-    }
-
-    setEntries((prev) => [...prev, ...newEntries]);
-    if (newEntries.length > 0) {
-      setPhase("review");
+        // Extract PDF — returns multiple slips for multi-page docs
+        extractPdf(placeholderId, base64, file.name);
+      } else {
+        // Image: one slip per image
+        const id = `slip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const entry: SlipEntry = {
+          id,
+          imageDataUrl: dataUrl,
+          extracting: true,
+          extracted: null,
+          extractError: null,
+          person: { person_id: null, display_name: "", is_resolved: false },
+          barcode: "",
+          purpose: "",
+          depositAmount: "50",
+          checkoutDate: "",
+          appointmentDate: "",
+          address: "",
+          phone: "",
+          email: "",
+          staffName: "",
+          notes: "",
+          committed: false,
+          commitError: null,
+        };
+        setEntries((prev) => [...prev, entry]);
+        setPhase("review");
+        extractSlip(id, base64, file.type);
+      }
     }
   }, [toast]);
+
+  // Extract a multi-page PDF — Claude handles all pages in one call
+  const extractPdf = async (placeholderId: string, base64: string, filename: string) => {
+    try {
+      const result = await postApi<{ slips: ExtractedSlip[]; page_count: number }>(
+        "/api/equipment/scan-slips/extract",
+        { pdf: base64 },
+      );
+      const slips = result.slips || [];
+
+      if (slips.length === 0) {
+        setEntries((prev) =>
+          prev.map((e) =>
+            e.id === placeholderId
+              ? { ...e, extracting: false, extractError: "No checkout slips found in PDF" }
+              : e,
+          ),
+        );
+        return;
+      }
+
+      // Replace the placeholder with one entry per extracted slip
+      setEntries((prev) => {
+        const without = prev.filter((e) => e.id !== placeholderId);
+        const newEntries: SlipEntry[] = slips.map((slip, i) => ({
+          id: `${placeholderId}-p${i + 1}`,
+          imageDataUrl: "", // no per-page preview for PDF
+          extracting: false,
+          extracted: slip,
+          extractError: null,
+          person: {
+            person_id: null,
+            display_name: slip.name || "",
+            is_resolved: false,
+          },
+          barcode: slip.barcode || "",
+          purpose: mapPurpose(slip.purpose),
+          depositAmount: slip.deposit || "50",
+          checkoutDate: slip.date_checked_out || "",
+          appointmentDate: slip.appointment_date || "",
+          address: slip.address || "",
+          phone: slip.phone || "",
+          email: slip.email || "",
+          staffName: slip.staff_name || "",
+          notes: [slip.notes, slip.additional_notes].filter(Boolean).join(". "),
+          committed: false,
+          commitError: null,
+        }));
+        return [...without, ...newEntries];
+      });
+
+      toast.success(`Extracted ${slips.length} slip${slips.length !== 1 ? "s" : ""} from ${filename}`);
+    } catch (err) {
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id === placeholderId
+            ? {
+                ...e,
+                extracting: false,
+                extractError: err instanceof Error ? err.message : "PDF extraction failed",
+              }
+            : e,
+        ),
+      );
+    }
+  };
 
   // Extract a single slip via the AI API
   const extractSlip = async (id: string, base64: string, mediaType: string) => {
@@ -271,7 +362,7 @@ export default function ScanSlipsPage() {
           onClick={() => {
             const input = document.createElement("input");
             input.type = "file";
-            input.accept = "image/*";
+            input.accept = "image/*,application/pdf";
             input.multiple = true;
             input.onchange = (e) => {
               const files = (e.target as HTMLInputElement).files;
@@ -300,7 +391,7 @@ export default function ScanSlipsPage() {
             Drop checkout slip photos here
           </p>
           <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: 0 }}>
-            or tap to select from camera roll · JPEG / PNG
+            or tap to select · JPEG / PNG / <strong>PDF</strong> (multi-page supported)
           </p>
         </div>
       )}
@@ -427,20 +518,38 @@ function SlipReviewCard({
           background: "var(--card-bg)",
         }}
       >
-        {/* Thumbnail */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={entry.imageDataUrl}
-          alt="Slip scan"
-          style={{
-            width: 80,
-            height: 100,
-            objectFit: "cover",
-            borderRadius: 6,
-            border: "1px solid var(--card-border)",
-            flexShrink: 0,
-          }}
-        />
+        {/* Thumbnail (image) or PDF icon (no preview) */}
+        {entry.imageDataUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={entry.imageDataUrl}
+            alt="Slip scan"
+            style={{
+              width: 80,
+              height: 100,
+              objectFit: "cover",
+              borderRadius: 6,
+              border: "1px solid var(--card-border)",
+              flexShrink: 0,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 80,
+              height: 100,
+              borderRadius: 6,
+              border: "1px solid var(--card-border)",
+              background: "var(--muted-bg, #f3f4f6)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Icon name="file-text" size={28} color="var(--muted)" />
+          </div>
+        )}
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {entry.extracting && (

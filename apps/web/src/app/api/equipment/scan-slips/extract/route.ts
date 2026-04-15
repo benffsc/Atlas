@@ -80,37 +80,62 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   const body = await request.json();
-  const { image, media_type } = body;
+  const { image, media_type, pdf, page_count } = body;
 
-  if (!image) {
-    throw new ApiError("image (base64) is required", 400);
-  }
-
-  const imageMediaType = media_type || "image/jpeg";
-  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(imageMediaType)) {
-    throw new ApiError(`Unsupported media_type: ${imageMediaType}`, 400);
+  if (!image && !pdf) {
+    throw new ApiError("image (base64) or pdf (base64) is required", 400);
   }
 
   const anthropic = new Anthropic({ apiKey });
 
+  // Build the content block — either an image or a PDF document
+  let contentBlock: Anthropic.Messages.ContentBlockParam;
+
+  if (pdf) {
+    // PDF: use Claude's native document understanding
+    // For multi-page PDFs, we ask Claude to extract ALL slips and return
+    // a JSON array (one object per slip/page)
+    contentBlock = {
+      type: "document",
+      source: {
+        type: "base64",
+        media_type: "application/pdf",
+        data: pdf,
+      },
+    } as Anthropic.Messages.ContentBlockParam;
+  } else {
+    // Image: standard vision
+    const imageMediaType = media_type || "image/jpeg";
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(imageMediaType)) {
+      throw new ApiError(`Unsupported media_type: ${imageMediaType}`, 400);
+    }
+    contentBlock = {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: imageMediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+        data: image,
+      },
+    };
+  }
+
+  // For PDFs with multiple pages, adjust the prompt to return an array
+  const isMultiPage = pdf && (page_count || 0) > 1;
+  const prompt = isMultiPage
+    ? EXTRACTION_PROMPT + `\n\nThis document has multiple pages. Each page is a separate checkout slip. Return a JSON ARRAY of slip objects — one per page. Example: [{ "confidence": 0.95, "name": "...", ... }, { "confidence": 0.90, "name": "...", ... }]`
+    : EXTRACTION_PROMPT;
+
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 1024,
+    max_tokens: isMultiPage ? 4096 : 1024,
     messages: [
       {
         role: "user",
         content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: imageMediaType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
-              data: image,
-            },
-          },
+          contentBlock,
           {
             type: "text",
-            text: EXTRACTION_PROMPT,
+            text: prompt,
           },
         ],
       },
@@ -123,15 +148,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new ApiError("No text response from Claude", 500);
   }
 
-  // Parse the JSON response
-  let slip: ExtractedSlip;
+  // Parse the JSON response — may be a single slip or an array (multi-page PDF)
+  let slips: ExtractedSlip[];
   try {
-    // Strip any markdown code fences if present
     let jsonText = textBlock.text.trim();
     if (jsonText.startsWith("```")) {
       jsonText = jsonText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
     }
-    slip = JSON.parse(jsonText);
+    const parsed = JSON.parse(jsonText);
+    slips = Array.isArray(parsed) ? parsed : [parsed];
   } catch {
     throw new ApiError(
       `Failed to parse Claude response as JSON: ${textBlock.text.slice(0, 200)}`,
@@ -139,5 +164,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  return apiSuccess({ slip });
+  // Return both formats for backward compat: { slip } for single, { slips } for multi
+  return apiSuccess({
+    slip: slips[0] || null,
+    slips,
+    page_count: slips.length,
+  });
 });
