@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, FormEvent, Suspense } from "react";
-import { useRouter } from "next/navigation";
 import { SkeletonCard } from "@/components/feedback/Skeleton";
 
 function ForgotPasswordForm() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -23,11 +21,10 @@ function ForgotPasswordForm() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await res.json();
-
       if (res.ok) {
         setSent(true);
       } else {
+        const data = await res.json();
         const msg = typeof data.error === "string" ? data.error : data.error?.message || "Something went wrong";
         setError(msg);
       }
@@ -58,41 +55,22 @@ function ForgotPasswordForm() {
               style={{ width: "220px", height: "auto", marginBottom: "0.75rem" }}
             />
           </div>
-
           <div className="card" style={{ padding: "2rem", textAlign: "center" }}>
-            <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>&#x2709;</div>
             <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.75rem" }}>
               Check your email
             </h2>
             <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
-              If <strong>{email}</strong> is registered, we sent a 6-digit code.
-              Enter it on the next page to reset your password.
+              If <strong>{email}</strong> is registered, we sent a link to reset your password.
+              The link expires in 1 hour.
             </p>
-            <button
-              onClick={() => router.push(`/reset-password?email=${encodeURIComponent(email)}`)}
-              style={{
-                width: "100%",
-                padding: "0.75rem 1rem",
-                background: "var(--primary, #4291df)",
-                color: "var(--primary-foreground, #fff)",
-                border: "none",
-                borderRadius: "6px",
-                fontSize: "1rem",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Enter reset code
-            </button>
             <button
               onClick={() => { setSent(false); setEmail(""); }}
               style={{
-                width: "100%",
                 padding: "0.5rem 1rem",
-                marginTop: "0.75rem",
                 background: "transparent",
                 color: "var(--text-muted)",
-                border: "none",
+                border: "1px solid var(--border)",
+                borderRadius: "6px",
                 fontSize: "0.875rem",
                 cursor: "pointer",
               }}
@@ -100,12 +78,8 @@ function ForgotPasswordForm() {
               Try a different email
             </button>
           </div>
-
           <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-            <a
-              href="/login"
-              style={{ fontSize: "0.875rem", color: "var(--primary, #4291df)" }}
-            >
+            <a href="/login" style={{ fontSize: "0.875rem", color: "var(--primary, #4291df)" }}>
               Back to sign in
             </a>
           </div>
@@ -136,7 +110,7 @@ function ForgotPasswordForm() {
             Forgot your password?
           </h1>
           <p className="text-muted" style={{ margin: 0 }}>
-            Enter your email and we&apos;ll send you a reset code.
+            Enter your email and we&apos;ll send you a reset link.
           </p>
         </div>
 
@@ -161,12 +135,7 @@ function ForgotPasswordForm() {
             <div style={{ marginBottom: "1.5rem" }}>
               <label
                 htmlFor="email"
-                style={{
-                  display: "block",
-                  marginBottom: "0.5rem",
-                  fontSize: "0.875rem",
-                  fontWeight: 500,
-                }}
+                style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 500 }}
               >
                 Email
               </label>
@@ -206,16 +175,13 @@ function ForgotPasswordForm() {
                 opacity: loading ? 0.7 : 1,
               }}
             >
-              {loading ? "Sending..." : "Send reset code"}
+              {loading ? "Sending..." : "Send reset link"}
             </button>
           </form>
         </div>
 
         <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-          <a
-            href="/login"
-            style={{ fontSize: "0.875rem", color: "var(--primary, #4291df)" }}
-          >
+          <a href="/login" style={{ fontSize: "0.875rem", color: "var(--primary, #4291df)" }}>
             Back to sign in
           </a>
         </div>

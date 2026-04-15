@@ -1,19 +1,47 @@
 import { NextRequest } from "next/server";
-import { resetPasswordWithCode } from "@/lib/auth";
+import { validateResetToken, resetPasswordWithToken } from "@/lib/auth";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
+
+/**
+ * GET /api/auth/reset-password?token=...
+ *
+ * Validates the token and returns staff info (for the UI to show who's resetting).
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const token = request.nextUrl.searchParams.get("token");
+    if (!token) {
+      return apiBadRequest("Token is required");
+    }
+
+    const staff = await validateResetToken(token);
+    if (!staff) {
+      return apiBadRequest("This reset link is invalid or has expired");
+    }
+
+    return apiSuccess({
+      valid: true,
+      display_name: staff.display_name,
+      email: staff.email,
+    });
+  } catch (error) {
+    console.error("Validate reset token error:", error);
+    return apiServerError("Failed to validate token");
+  }
+}
 
 /**
  * POST /api/auth/reset-password
  *
- * Validates a 6-digit reset code and sets a new password.
- * Invalidates all existing sessions for the staff member.
+ * Sets a new password using a one-time reset token.
+ * Invalidates all existing sessions.
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, code, new_password, confirm_password } = body;
+    const { token, new_password, confirm_password } = body;
 
-    if (!email || !code || !new_password || !confirm_password) {
+    if (!token || !new_password || !confirm_password) {
       return apiBadRequest("All fields are required");
     }
 
@@ -25,16 +53,10 @@ export async function POST(request: NextRequest) {
       return apiBadRequest("Password must be at least 8 characters");
     }
 
-    // Strip whitespace from code (users may copy-paste with spaces)
-    const cleanCode = code.replace(/\s/g, "");
-    if (!/^\d{6}$/.test(cleanCode)) {
-      return apiBadRequest("Reset code must be 6 digits");
-    }
-
-    const result = await resetPasswordWithCode(email, cleanCode, new_password);
+    const result = await resetPasswordWithToken(token, new_password);
 
     if (!result.success) {
-      return apiBadRequest(result.error || "Invalid or expired reset code");
+      return apiBadRequest(result.error || "Invalid or expired reset link");
     }
 
     return apiSuccess({ message: "Password has been reset successfully" });

@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { queryOne } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, createPasswordResetToken } from "@/lib/auth";
 import { getEmailTemplate } from "@/lib/email";
 import { buildOrgRenderContext } from "@/lib/email-render-context";
 import { sendAsApp } from "@/lib/outlook";
 import { apiSuccess, apiError, apiBadRequest } from "@/lib/api-response";
 import { requireValidUUID } from "@/lib/api-validation";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://atlas.forgottenfelines.com";
 
 function replacePlaceholders(
   template: string,
@@ -21,17 +23,15 @@ function replacePlaceholders(
 /**
  * POST /api/admin/staff/send-login-info
  *
- * Sends the welcome or reset email to a staff member via Outlook
- * (info@forgottenfelines.com). Admin only.
- *
- * Supports staff-edited subject/body overrides (same pattern as OOA emails).
+ * Sends a welcome or reset email to a staff member via Outlook.
+ * Generates a real one-time reset token and includes the link.
  *
  * Body: {
  *   staff_id: string,
- *   email_type?: "welcome" | "reset",  // default "welcome"
- *   recipient_override?: string,        // override To address
- *   subject_override?: string,          // staff-edited subject
- *   body_html_override?: string,        // staff-edited HTML body
+ *   email_type?: "welcome" | "reset",
+ *   recipient_override?: string,
+ *   subject_override?: string,
+ *   body_html_override?: string,
  * }
  */
 export async function POST(request: NextRequest) {
@@ -55,7 +55,6 @@ export async function POST(request: NextRequest) {
     }
     requireValidUUID(staff_id, "staff");
 
-    // Look up staff
     const staff = await queryOne<{
       staff_id: string;
       display_name: string;
@@ -68,57 +67,49 @@ export async function POST(request: NextRequest) {
       [staff_id]
     );
 
-    if (!staff) {
-      return apiError("Staff member not found", 404);
-    }
+    if (!staff) return apiError("Staff member not found", 404);
 
     const recipientEmail = recipient_override || staff.email;
-    if (!recipientEmail) {
-      return apiBadRequest("Staff member has no email address");
-    }
-    if (!staff.is_active) {
-      return apiBadRequest("Staff member is inactive");
-    }
+    if (!recipientEmail) return apiBadRequest("Staff member has no email address");
+    if (!staff.is_active) return apiBadRequest("Staff member is inactive");
 
-    // Get the Outlook sender account
+    // Get Outlook sender
     const outlookAccount = await queryOne<{ email: string }>(
       `SELECT email FROM ops.outlook_email_accounts
        WHERE email = 'info@forgottenfelines.com' AND is_active = TRUE`
     );
     if (!outlookAccount) {
-      return apiError("Outlook sender account (info@forgottenfelines.com) not configured", 500);
+      return apiError("Outlook sender (info@forgottenfelines.com) not configured", 500);
     }
 
+    // Generate a real one-time reset token
+    const { token } = await createPasswordResetToken(staff.staff_id);
+    const resetUrl = `${APP_URL}/reset-password?token=${token}`;
+
     // Determine template
-    const templateKey = email_type === "reset" ? "password_reset_code" : "staff_welcome_login";
+    const templateKey = email_type === "reset" ? "password_reset_link" : "staff_welcome_login";
     const template = await getEmailTemplate(templateKey);
     if (!template) {
       return apiError(`Email template '${templateKey}' not found`, 500);
     }
 
-    const defaultPassword = process.env.STAFF_DEFAULT_PASSWORD || "";
     const orgContext = await buildOrgRenderContext();
     const placeholders: Record<string, string> = {
       ...orgContext,
       staff_first_name: staff.first_name || staff.display_name.split(" ")[0],
       staff_name: staff.first_name || staff.display_name.split(" ")[0],
       staff_email: staff.email || recipientEmail,
-      default_password: defaultPassword,
-      login_url: "https://atlas.forgottenfelines.com/login",
-      // For reset emails the real code is generated separately —
-      // this preview placeholder only applies to welcome emails
-      reset_code: "------",
+      reset_url: resetUrl,
+      login_url: `${APP_URL}/login`,
       expiry_minutes: "60",
     };
 
-    // Use staff-edited overrides if provided, otherwise render from template
     const subject = subject_override || replacePlaceholders(template.subject, placeholders);
     const bodyHtml = body_html_override || replacePlaceholders(template.body_html, placeholders);
     const bodyText = template.body_text
       ? replacePlaceholders(template.body_text, placeholders)
       : undefined;
 
-    // Send via Outlook
     const result = await sendAsApp({
       fromEmail: outlookAccount.email,
       to: recipientEmail,
@@ -152,7 +143,7 @@ export async function POST(request: NextRequest) {
     return apiSuccess({
       message: `Email sent to ${recipientEmail}`,
       staff_name: staff.display_name,
-      email_type: email_type,
+      email_type,
     });
   } catch (error) {
     console.error("Send staff email error:", error);

@@ -4,10 +4,12 @@ import { createPasswordResetToken } from "@/lib/auth";
 import { sendTemplateEmail } from "@/lib/email";
 import { apiSuccess, apiBadRequest, apiServerError } from "@/lib/api-response";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://atlas.forgottenfelines.com";
+
 /**
  * POST /api/auth/forgot-password
  *
- * Sends a 6-digit password reset code to the staff member's email.
+ * Generates a one-time reset link and emails it to the staff member.
  * Always returns success to prevent email enumeration.
  */
 export async function POST(request: NextRequest) {
@@ -19,7 +21,6 @@ export async function POST(request: NextRequest) {
       return apiBadRequest("Email is required");
     }
 
-    // Look up staff — but always return success regardless
     const staff = await queryOne<{
       staff_id: string;
       display_name: string;
@@ -38,25 +39,22 @@ export async function POST(request: NextRequest) {
       if (staff.password_reset_expires_at) {
         const expiresAt = new Date(staff.password_reset_expires_at);
         const twoMinutesAgo = new Date();
-        // If expiry is still more than (EXPIRY - 2 min) away, a code was just issued
-        twoMinutesAgo.setMinutes(twoMinutesAgo.getMinutes() + 58); // 60 - 2 = 58 min from now
+        twoMinutesAgo.setMinutes(twoMinutesAgo.getMinutes() + 58);
         if (expiresAt > twoMinutesAgo) {
-          // Code was generated less than 2 minutes ago — don't resend
-          return apiSuccess({ message: "If that email is registered, a reset code has been sent." });
+          return apiSuccess({ message: "If that email is registered, a reset link has been sent." });
         }
       }
 
-      // Generate and store code
-      const { code } = await createPasswordResetToken(staff.staff_id);
+      const { token } = await createPasswordResetToken(staff.staff_id);
+      const resetUrl = `${APP_URL}/reset-password?token=${token}`;
 
-      // Send email
       await sendTemplateEmail({
-        templateKey: "password_reset_code",
+        templateKey: "password_reset_link",
         to: staff.email,
         toName: staff.display_name,
         placeholders: {
-          reset_code: code,
           staff_name: staff.display_name.split(" ")[0] || staff.display_name,
+          reset_url: resetUrl,
           expiry_minutes: "60",
         },
         sentBy: "password_reset",
@@ -64,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Always return success to prevent email enumeration
-    return apiSuccess({ message: "If that email is registered, a reset code has been sent." });
+    return apiSuccess({ message: "If that email is registered, a reset link has been sent." });
   } catch (error) {
     console.error("Forgot password error:", error);
     return apiServerError("Failed to process request");

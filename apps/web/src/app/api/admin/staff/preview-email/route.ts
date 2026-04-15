@@ -6,6 +6,8 @@ import { buildOrgRenderContext } from "@/lib/email-render-context";
 import { apiSuccess, apiError, apiBadRequest } from "@/lib/api-response";
 import { requireValidUUID } from "@/lib/api-validation";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://atlas.forgottenfelines.com";
+
 function replacePlaceholders(
   template: string,
   values: Record<string, string>
@@ -20,7 +22,8 @@ function replacePlaceholders(
 /**
  * GET /api/admin/staff/preview-email?staff_id=...&type=welcome|reset
  *
- * Renders a preview of the staff welcome or password reset email.
+ * Renders a preview of the staff welcome or reset email.
+ * Uses a placeholder URL for the reset link (real token generated on send).
  * Never sends, never logs. Admin only.
  */
 export async function GET(request: NextRequest) {
@@ -48,23 +51,22 @@ export async function GET(request: NextRequest) {
 
     if (!staff) return apiError("Staff not found", 404);
 
-    const templateKey = emailType === "reset" ? "password_reset_code" : "staff_welcome_login";
+    const templateKey = emailType === "reset" ? "password_reset_link" : "staff_welcome_login";
     const template = await getEmailTemplate(templateKey);
     if (!template) {
       return apiError(`Template '${templateKey}' not found or inactive`, 500);
     }
 
     const orgContext = await buildOrgRenderContext();
-    const defaultPassword = process.env.STAFF_DEFAULT_PASSWORD || "********";
 
     const placeholders: Record<string, string> = {
       ...orgContext,
       staff_first_name: staff.first_name || staff.display_name.split(" ")[0],
       staff_name: staff.first_name || staff.display_name.split(" ")[0],
       staff_email: staff.email || "",
-      default_password: defaultPassword,
-      login_url: "https://atlas.forgottenfelines.com/login",
-      reset_code: "123456",
+      // Preview placeholder — real token generated at send time
+      reset_url: `${APP_URL}/reset-password?token=PREVIEW_TOKEN`,
+      login_url: `${APP_URL}/login`,
       expiry_minutes: "60",
     };
 
