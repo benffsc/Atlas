@@ -515,7 +515,7 @@ export async function changePassword(
 // Password Reset (one-time URL token)
 // ============================================================================
 
-const RESET_TOKEN_EXPIRY_MINUTES = 60;
+const RESET_TOKEN_EXPIRY_MINUTES = 1440; // 24 hours
 
 /**
  * Create a password reset token for a staff member.

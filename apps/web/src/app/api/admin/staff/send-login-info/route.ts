@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       staff_email: staff.email || recipientEmail,
       reset_url: resetUrl,
       login_url: `${APP_URL}/login`,
-      expiry_minutes: "60",
+      expiry_minutes: "1440",
     };
 
     const subject = subject_override || replacePlaceholders(template.subject, placeholders);

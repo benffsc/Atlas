@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
       // Preview placeholder — real token generated at send time
       reset_url: `${APP_URL}/reset-password?token=PREVIEW_TOKEN`,
       login_url: `${APP_URL}/login`,
-      expiry_minutes: "60",
+      expiry_minutes: "1440",
     };
 
     const subject = replacePlaceholders(template.subject, placeholders);

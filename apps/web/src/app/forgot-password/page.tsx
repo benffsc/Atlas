@@ -61,7 +61,7 @@ function ForgotPasswordForm() {
             </h2>
             <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
               If <strong>{email}</strong> is registered, we sent a link to reset your password.
-              The link expires in 1 hour.
+              The link expires in 24 hours.
             </p>
             <button
               onClick={() => { setSent(false); setEmail(""); }}

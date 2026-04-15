@@ -186,7 +186,7 @@ test.describe('Forgot Password Page @workflow', () => {
 
     await expect(page.locator('text=Check your email')).toBeVisible();
     await expect(page.locator('text=jami@forgottenfelines.com')).toBeVisible();
-    await expect(page.locator('text=link expires in 1 hour')).toBeVisible();
+    await expect(page.locator('text=link expires in 24 hours')).toBeVisible();
   });
 
   test('try different email resets the form', async ({ page }) => {
@@ -224,7 +224,7 @@ test.describe('Reset Password Page @workflow', () => {
     await page.goto('/reset-password?token=expired-token');
 
     await expect(page.locator('text=Link expired or invalid')).toBeVisible();
-    await expect(page.locator('text=Links expire after 1 hour')).toBeVisible();
+    await expect(page.locator('text=Links expire after 24 hours')).toBeVisible();
     await expect(page.locator('a:has-text("Request a new link")')).toBeVisible();
   });
 

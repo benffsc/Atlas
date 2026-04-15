@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         placeholders: {
           staff_name: staff.display_name.split(" ")[0] || staff.display_name,
           reset_url: resetUrl,
-          expiry_minutes: "60",
+          expiry_minutes: "1440",
         },
         sentBy: "password_reset",
       });
