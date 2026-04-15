@@ -818,6 +818,8 @@ interface EmailFlowRow {
   test_recipient_override: string | null;
   suppression_scope: "global" | "per_flow" | "per_flow_per_recipient";
   suppression_days: number;
+  send_via: string | null;
+  outlook_account_email: string | null;
 }
 
 function EmailFlowsSection({
@@ -927,6 +929,16 @@ function EmailFlowsSection({
                   fontWeight: 500,
                 }}
               >
+                Sends From
+              </th>
+              <th
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  textAlign: "left",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
                 Enabled
               </th>
               <th
@@ -977,6 +989,20 @@ function EmailFlowsSection({
                 </td>
                 <td style={{ padding: "0.75rem", fontSize: "0.8rem" }}>
                   <code>{f.template_key ?? "—"}</code>
+                </td>
+                <td style={{ padding: "0.75rem", fontSize: "0.8rem" }}>
+                  {f.outlook_account_email ? (
+                    <div>
+                      <div style={{ fontSize: "0.8rem" }}>{f.outlook_account_email}</div>
+                      <div style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+                        via {f.send_via === "outlook" ? "Outlook" : f.send_via || "default"}
+                      </div>
+                    </div>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                      {f.send_via === "outlook" ? "⚠ No account" : "Resend API"}
+                    </span>
+                  )}
                 </td>
                 <td style={{ padding: "0.75rem", fontSize: "0.8rem" }}>
                   {f.enabled ? (

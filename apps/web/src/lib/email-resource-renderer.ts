@@ -102,9 +102,15 @@ export async function renderCountyResources(
   const countyRows = rows.filter((r) => r.county_served === targetCounty);
   const statewideRows = rows.filter((r) => r.county_served === "statewide");
 
-  const countyHtml = countyRows.length
-    ? countyRows.map(renderRowHtml).join("\n")
-    : `<p style="margin:14px 0;color:#888;font-style:italic;">No county-specific resources are currently listed for ${escapeHtml(targetCounty)} County.</p>`;
+  // If no county-specific resources, try nearby counties as a helpful fallback
+  let countyHtml: string;
+  if (countyRows.length) {
+    countyHtml = countyRows.map(renderRowHtml).join("\n");
+  } else {
+    // No specific resources for this county — show a friendly message
+    // with the statewide directories emphasized more prominently
+    countyHtml = `<p style="margin:14px 0;color:#555;">We don't have specific contacts in ${escapeHtml(targetCounty)} County yet, but the statewide directories below can help you find low-cost spay/neuter and TNR services in your area.</p>`;
+  }
 
   const statewideHtml = statewideRows.length
     ? statewideRows.map(renderRowHtml).join("\n")
