@@ -57,13 +57,15 @@ interface HoursResponse {
 // ---------------------------------------------------------------------------
 
 function parseDateLocal(dateStr: string): Date | null {
-  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  // Extract YYYY-MM-DD from any format (handles "2026-04-06", "2026-04-06T00:00:00.000Z", etc.)
+  const match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (match) {
-    const [, y, m, d] = match;
-    return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
   }
-  const date = new Date(dateStr);
-  return isNaN(date.getTime()) ? null : date;
+  // Fallback: parse as local date components to avoid timezone shifts
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 function toDateStr(d: Date): string {
