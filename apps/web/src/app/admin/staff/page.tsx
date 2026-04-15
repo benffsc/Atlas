@@ -548,39 +548,37 @@ function StaffManagementContent() {
                         {s.login_count}
                       </td>
                       <td style={{ padding: "0.6rem 0.5rem" }}>
-                        {s.email && s.login_count === 0 && (
-                          <button
-                            onClick={() => openEmailDrawer(s, "welcome")}
-                            style={{
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.75rem",
-                              background: "var(--primary, #4291df)",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            Send Welcome Email
-                          </button>
-                        )}
-                        {s.email && s.login_count > 0 && (
-                          <button
-                            onClick={() => handleSendResetEmail(s.email!, s.display_name)}
-                            disabled={sendingResetTo === s.email}
-                            style={{
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.75rem",
-                              background: "transparent",
-                              color: "var(--foreground)",
-                              border: "1px solid var(--border)",
-                              borderRadius: "4px",
-                              cursor: sendingResetTo === s.email ? "not-allowed" : "pointer",
-                              opacity: sendingResetTo === s.email ? 0.6 : 1,
-                            }}
-                          >
-                            {sendingResetTo === s.email ? "Sending..." : "Send Password Reset"}
-                          </button>
+                        {s.email && (
+                          <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
+                            <button
+                              onClick={() => openEmailDrawer(s, "welcome")}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.75rem",
+                                background: s.login_count === 0 ? "var(--primary, #4291df)" : "transparent",
+                                color: s.login_count === 0 ? "#fff" : "var(--foreground)",
+                                border: s.login_count === 0 ? "none" : "1px solid var(--border)",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Welcome Email
+                            </button>
+                            <button
+                              onClick={() => openEmailDrawer(s, "reset")}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.75rem",
+                                background: "transparent",
+                                color: "var(--foreground)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Reset Password
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -1215,6 +1213,33 @@ function StaffManagementContent() {
           </div>
         ) : (
           <div>
+            {/* Template type toggle */}
+            {emailDrawerStaff && (
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+                {(["welcome", "reset"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => {
+                      if (t !== emailDrawerType && emailDrawerStaff) {
+                        openEmailDrawer(emailDrawerStaff, t);
+                      }
+                    }}
+                    style={{
+                      padding: "0.35rem 0.75rem",
+                      fontSize: "0.8rem",
+                      borderRadius: "6px",
+                      border: emailDrawerType === t ? "none" : "1px solid var(--border)",
+                      background: emailDrawerType === t ? "var(--primary, #4291df)" : "transparent",
+                      color: emailDrawerType === t ? "#fff" : "var(--foreground)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {t === "welcome" ? "Welcome" : "Password Reset"}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Recipient + Subject */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
               <div>

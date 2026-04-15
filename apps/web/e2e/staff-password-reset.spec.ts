@@ -333,20 +333,19 @@ test.describe('Staff Accounts Table @workflow', () => {
     await expect(benRow.locator('span', { hasText: /^Set$/ })).toBeVisible();
   });
 
-  test('shows "Send Welcome Email" for staff who never logged in', async ({ page }) => {
+  test('shows both Welcome Email and Reset Password buttons for all staff', async ({ page }) => {
     await navigateTo(page, '/admin/staff');
     await page.locator('button:has-text("Accounts")').click();
 
+    // Jami (never logged in) has both buttons
     const jamiRow = page.locator('tr', { has: page.locator('text=Jami Knuthson') });
-    await expect(jamiRow.locator('button:has-text("Send Welcome Email")')).toBeVisible();
-  });
+    await expect(jamiRow.locator('button:has-text("Welcome Email")')).toBeVisible();
+    await expect(jamiRow.locator('button:has-text("Reset Password")')).toBeVisible();
 
-  test('shows "Send Password Reset" for staff who have logged in', async ({ page }) => {
-    await navigateTo(page, '/admin/staff');
-    await page.locator('button:has-text("Accounts")').click();
-
+    // Ben (has logged in) also has both buttons
     const benRow = page.locator('tr', { has: page.locator('text=Ben Mis') });
-    await expect(benRow.locator('button:has-text("Send Password Reset")')).toBeVisible();
+    await expect(benRow.locator('button:has-text("Welcome Email")')).toBeVisible();
+    await expect(benRow.locator('button:has-text("Reset Password")')).toBeVisible();
   });
 
   test('welcome email button opens preview drawer', async ({ page }) => {
@@ -355,7 +354,7 @@ test.describe('Staff Accounts Table @workflow', () => {
     await page.locator('button:has-text("Accounts")').click();
 
     const jamiRow = page.locator('tr', { has: page.locator('text=Jami Knuthson') });
-    await jamiRow.locator('button:has-text("Send Welcome Email")').click();
+    await jamiRow.locator('button:has-text("Welcome Email")').click();
 
     // Drawer opens with editable fields
     await expect(page.locator('text=Email Jami Knuthson')).toBeVisible();
@@ -371,7 +370,7 @@ test.describe('Staff Accounts Table @workflow', () => {
     await page.locator('button:has-text("Accounts")').click();
 
     const jamiRow = page.locator('tr', { has: page.locator('text=Jami Knuthson') });
-    await jamiRow.locator('button:has-text("Send Welcome Email")').click();
+    await jamiRow.locator('button:has-text("Welcome Email")').click();
 
     await expect(page.locator('text=Email Jami Knuthson')).toBeVisible();
     await page.locator('button:has-text("Send Email")').click();
