@@ -3036,3 +3036,49 @@ Key invariant: `account_type` stays 'organization'/'site_name'. Only `resolved_p
 3. **Review queue:** Staff reviews extracted entities at `/admin/notes-review` (future Sub 4)
 
 ---
+
+---
+
+## DATA_GAP_067: Address Coordinate Desync — Places Invisible on Map
+
+**Status:** IN PROGRESS
+
+**Severity:** HIGH — 594 cats across 110 places invisible on map. Top sites: Bodega Hwy (158 cats), 18266 State Hwy 128 Calistoga (122 cats), 500 Mecham Rd Petaluma (59 cats).
+
+**Problem:** The map pins view (`ops.v_map_atlas_pins`) reads coordinates from `sot.addresses.latitude/longitude`, NOT from `sot.places.location` geometry. When addresses lack coordinates but their linked places have geometry (or vice versa), those places are invisible on the map.
+
+**Three-layer gap:**
+
+| Layer | Gap | Impact |
+|-------|-----|--------|
+| **Create** | `find_or_create_address()` dedup-matches an existing address and returns its ID without backfilling NULL coords, even when the caller provides lat/lng | Addresses created early (without geocoding) never get coords filled in |
+| **Sync** | No trigger propagates coordinates between `sot.places.location` and `sot.addresses.latitude/longitude` | Place geometry and address coords drift apart permanently |
+| **Read** | Map view uses `sot.addresses` coords exclusively via JOIN, filtering `a.latitude IS NOT NULL` | Places with geometry but address-no-coords are invisible |
+
+**Root Cause:** ClinicHQ ingest creates places from client names (e.g., "1022 Santa Rosa Ave. FFSC"). `find_or_create_place_deduped()` creates both place and address. Later geocoding adds geometry to the place, but the already-existing address record is never updated because `find_or_create_address()` returns early on dedup match.
+
+**Evidence:**
+```sql
+-- Before fix (2026-04-15): 530 addresses had NULL coords despite linked place having geometry
+-- After Phase 1 backfill: 527 fixed, 116 remain (both place and address lack coords)
+-- Reverse gap: 88 places had no geometry despite address having coords — also fixed
+-- Still invisible: 110 places with cats (594 cats total), all have geocodable address text
+```
+
+**Fix (multi-phase):**
+
+1. **DONE — Backfill Phase 1**: Propagated place geometry → address lat/lng for 527 addresses. Propagated address coords → place geometry for 88 places. +619 pins now visible on map.
+
+2. **TODO — Pipeline fix**: `find_or_create_address()` must update existing address coords when dedup-match has NULL coords and caller provides lat/lng. Prevents future desync.
+
+3. **TODO — Sync trigger**: Unidirectional trigger `sot.places` → `sot.addresses` to propagate coords on place geometry update (gap-fill only, never overwrite manually-set coords).
+
+4. **TODO — Geocode remaining 116**: These addresses have text but no coordinates anywhere. Need Google Geocoding API batch pass.
+
+5. **TODO — Monitoring view**: `ops.v_address_geocoding_health` to detect future desync.
+
+**Key Files:**
+- `sot.find_or_create_address()` — must update coords on dedup match
+- `sot.find_or_create_place_deduped()` — calls find_or_create_address
+- `ops.v_map_atlas_pins` — map pins view (reads from sot.addresses)
+
