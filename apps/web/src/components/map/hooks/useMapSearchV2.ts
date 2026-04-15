@@ -320,13 +320,12 @@ export function useMapSearchV2({
         if (place?.geometry?.location) {
           const { lat, lng } = place.geometry.location;
           panTo(lat, lng);
-          // Try to match a nearby Atlas place — open its drawer instead of just a blue pin
+          // Always show the search pin as visual anchor
           const matchedId = findNearbyAtlasPin(lat, lng);
+          setNavigatedLocation({ lat, lng, address: place.formatted_address || prediction.description, matchedPlaceId: matchedId });
+          // Also open drawer if we matched an Atlas place
           if (matchedId) {
-            setNavigatedLocation(null);
             onPlaceSelect?.(matchedId);
-          } else {
-            setNavigatedLocation({ lat, lng, address: place.formatted_address || prediction.description, matchedPlaceId: null });
           }
         }
       } catch (err) {
@@ -342,12 +341,11 @@ export function useMapSearchV2({
       setNavigatedLocation(null);
       const { lat, lng } = result.geometry.location;
       panTo(lat, lng);
-      // Try to match a nearby Atlas place
+      // Always show search pin + open drawer if Atlas match found
       const matchedId = findNearbyAtlasPin(lat, lng);
+      setNavigatedLocation({ lat, lng, address: result.formatted_address, matchedPlaceId: matchedId });
       if (matchedId) {
         onPlaceSelect?.(matchedId);
-      } else {
-        setNavigatedLocation({ lat, lng, address: result.formatted_address, matchedPlaceId: null });
       }
       setQuery("");
       setShowResults(false);
