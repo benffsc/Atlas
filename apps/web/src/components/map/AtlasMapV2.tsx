@@ -1371,10 +1371,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             searchQuery={search.query}
             selectedIndex={searchHighlight}
             onSelectedIndexChange={setSearchHighlight}
-            onSearchSelect={(r) => { search.handleLocalSelect(r); if (search.query.length >= 3) addToSearchHistory(search.query); setSearchHighlight(-1); }}
-            onAtlasSearchSelect={(r) => { search.handleAtlasSelect(r); if (search.query.length >= 3) addToSearchHistory(search.query); setSearchHighlight(-1); }}
-            onGooglePlaceSelect={(p) => { search.handleGoogleSelect(p); setSearchHighlight(-1); }}
-            onPoiSelect={(r) => { search.handlePoiSelect(r); setSearchHighlight(-1); }}
+            onSearchSelect={(r) => { const q = search.query; search.handleLocalSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onAtlasSearchSelect={(r) => { const q = search.query; search.handleAtlasSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onGooglePlaceSelect={(p) => { const q = search.query; search.handleGoogleSelect(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onPoiSelect={(r) => { const q = search.query; search.handlePoiSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
             onStreetView={handleStreetViewFromSearch}
             onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
           />
@@ -1399,10 +1399,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             searchQuery={search.query}
             selectedIndex={searchHighlight}
             onSelectedIndexChange={setSearchHighlight}
-            onSearchSelect={(r) => { search.handleLocalSelect(r); if (search.query.length >= 3) addToSearchHistory(search.query); setSearchHighlight(-1); }}
-            onAtlasSearchSelect={(r) => { search.handleAtlasSelect(r); if (search.query.length >= 3) addToSearchHistory(search.query); setSearchHighlight(-1); }}
-            onGooglePlaceSelect={(p) => { search.handleGoogleSelect(p); setSearchHighlight(-1); }}
-            onPoiSelect={(r) => { search.handlePoiSelect(r); setSearchHighlight(-1); }}
+            onSearchSelect={(r) => { const q = search.query; search.handleLocalSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onAtlasSearchSelect={(r) => { const q = search.query; search.handleAtlasSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onGooglePlaceSelect={(p) => { const q = search.query; search.handleGoogleSelect(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onPoiSelect={(r) => { const q = search.query; search.handlePoiSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
             onStreetView={handleStreetViewFromSearch}
             onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
           />
