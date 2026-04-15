@@ -238,6 +238,16 @@ export async function GET(request: NextRequest) {
                   cacheKey,
                 ]
               );
+              // Set county from cache if available
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const cachedCounty = (cached as any).county;
+              if (cachedCounty) {
+                await queryOne(
+                  `UPDATE ops.intake_submissions SET county = $2, updated_at = NOW()
+                   WHERE submission_id = $1 AND (county IS NULL OR county = '')`,
+                  [sub.submission_id, cachedCounty]
+                ).catch(() => {});
+              }
               intakeSuccess++;
             } else {
               await queryOne(
@@ -261,10 +271,38 @@ export async function GET(request: NextRequest) {
             const { lat, lng } = data.results[0].geometry.location;
             const googleFormattedAddress = data.results[0].formatted_address;
 
+            // Extract county from Google's address_components
+            const components = data.results[0].address_components || [];
+            const countyComponent = components.find(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (c: any) => c.types?.includes("administrative_area_level_2")
+            );
+            const countyName = countyComponent?.long_name
+              ? countyComponent.long_name.replace(/ County$/i, "")
+              : null;
+
             await queryOne(
               "SELECT ops.record_intake_geocoding_result($1, 'ok', $2, $3, $4, NULL, $5)",
               [sub.submission_id, lat, lng, googleFormattedAddress, cacheKey]
             );
+
+            // Set county if we got one and submission doesn't have one yet
+            if (countyName) {
+              await queryOne(
+                `UPDATE ops.intake_submissions
+                   SET county = $2, updated_at = NOW()
+                 WHERE submission_id = $1 AND (county IS NULL OR county = '')`,
+                [sub.submission_id, countyName]
+              );
+              // Also cache the county for future hits
+              if (cacheKey) {
+                await queryOne(
+                  `UPDATE ops.geocode_cache SET county = $2 WHERE address_norm = $1`,
+                  [cacheKey, countyName]
+                ).catch(() => {});
+              }
+            }
+
             intakeSuccess++;
           } else if (data.status === "ZERO_RESULTS") {
             await queryOne(
