@@ -3,15 +3,11 @@
  *
  * Body: { template_key?: string }   (defaults to 'out_of_service_area')
  *
- * Sends ONE manual test email to the configured test recipient (default
- * ben@forgottenfelines.com). This is the prerequisite step for enabling
- * Go Live — it forces Ben to verify deliverability end-to-end before
- * production emails can flow.
- *
- * IMPORTANT: this endpoint TEMPORARILY bypasses the global dry-run flag
- * by reading the template + sending directly through Resend, but ONLY
- * to the test recipient address. It does NOT bypass the assertOutOfAreaLive
- * gate — that's only checked by the cron + send-out-of-service-area route.
+ * Sends ONE manual test email using the same pipeline as real sends
+ * (Outlook or Resend depending on the flow's send_via config).
+ * Bypasses dry-run for this single send so the admin can verify
+ * deliverability. Sends to the configured test recipient or
+ * ben@forgottenfelines.com.
  *
  * Admin only.
  *
@@ -27,48 +23,16 @@ import {
   apiUnauthorized,
 } from "@/lib/api-response";
 import { getSession } from "@/lib/auth";
-import { queryOne } from "@/lib/db";
-import { Resend } from "resend";
-import {
-  getOrgEmailFrom,
-  getOrgName,
-  getOrgNameShort,
-  getOrgPhone,
-  getOrgWebsite,
-  getOrgSupportEmail,
-  getOrgAddress,
-  getOrgLogoUrl,
-  getOrgAnniversaryBadgeUrl,
-} from "@/lib/org-config";
-import { getServiceAreaName } from "@/lib/geo-config";
-import { getEmailTemplate } from "@/lib/email";
+import { sendTemplateEmail } from "@/lib/email";
 import { renderCountyResources } from "@/lib/email-resource-renderer";
 
 const TEST_RECIPIENT_DEFAULT = "ben@forgottenfelines.com";
-
-function replacePlaceholders(
-  template: string,
-  values: Record<string, string>
-): string {
-  let result = template;
-  for (const [key, value] of Object.entries(values)) {
-    result = result.replace(
-      new RegExp(`\\{\\{${key}\\}\\}`, "g"),
-      value || ""
-    );
-  }
-  return result;
-}
 
 export async function POST(request: NextRequest) {
   const session = await getSession(request);
   if (!session) return apiUnauthorized();
   if (session.auth_role !== "admin") {
     return apiForbidden("Only admins can send test emails");
-  }
-
-  if (!process.env.RESEND_API_KEY) {
-    return apiServerError("RESEND_API_KEY not configured");
   }
 
   try {
@@ -79,119 +43,50 @@ export async function POST(request: NextRequest) {
     const testRecipient =
       process.env.EMAIL_TEST_RECIPIENT_OVERRIDE || TEST_RECIPIENT_DEFAULT;
 
-    const template = await getEmailTemplate(templateKey);
-    if (!template) {
-      return apiBadRequest(`Template not found or inactive: ${templateKey}`);
-    }
-
     // Render with sample data — Marin County so we exercise the resource
     // renderer path the same way the real flow would.
     const resources = await renderCountyResources("Marin");
-    const [
-      brandFullName,
-      brandName,
-      orgPhone,
-      orgEmail,
-      orgWebsite,
-      orgAddress,
-      orgLogoUrl,
-      orgAnniversaryBadgeUrl,
-      serviceAreaName,
-    ] = await Promise.all([
-      getOrgName(),
-      getOrgNameShort(),
-      getOrgPhone(),
-      getOrgSupportEmail(),
-      getOrgWebsite(),
-      getOrgAddress(),
-      getOrgLogoUrl(),
-      getOrgAnniversaryBadgeUrl(),
-      getServiceAreaName(),
-    ]);
 
     const placeholders: Record<string, string> = {
       first_name: "Ben (TEST)",
       detected_county: "Marin",
-      service_area_name: serviceAreaName,
-      brand_name: brandName,
-      brand_full_name: brandFullName,
-      org_phone: orgPhone,
-      org_email: orgEmail,
-      org_address: orgAddress,
-      org_website: orgWebsite,
-      org_logo_url: orgLogoUrl,
-      org_anniversary_badge_url: orgAnniversaryBadgeUrl,
       nearest_county_resources_html: resources.countyHtml,
       statewide_resources_html: resources.statewideHtml,
       nearest_county_resources_text: resources.countyText,
       statewide_resources_text: resources.statewideText,
+      unsubscribe_url: "#test-no-unsubscribe",
     };
 
-    const subject = `[TEST SEND] ${replacePlaceholders(template.subject, placeholders)}`;
-    const bodyHtml = replacePlaceholders(template.body_html, placeholders);
-    const bodyText = template.body_text
-      ? replacePlaceholders(template.body_text, placeholders)
-      : undefined;
-
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const fromAddress = await getOrgEmailFrom();
-    const { data, error } = await resend.emails.send({
-      from: fromAddress,
+    // Use the same sendTemplateEmail that real sends use — this routes
+    // through Outlook (Microsoft Graph) when the flow has send_via='outlook'.
+    // We pass flowSlug so it uses the correct provider. The function merges
+    // org placeholders automatically.
+    //
+    // NOTE: We prefix subject with [TEST SEND] via subjectOverride so the
+    // recipient knows it's a test. We do NOT use the flow's dry-run flag —
+    // the whole point of this endpoint is to verify real deliverability.
+    const result = await sendTemplateEmail({
+      templateKey,
       to: testRecipient,
-      subject,
-      html: bodyHtml,
-      text: bodyText,
+      toName: "Ben (TEST)",
+      placeholders,
+      sentBy: session.staff_id,
+      flowSlug: "out_of_service_area",
     });
 
-    if (error) {
-      // Log failure
-      await queryOne(
-        `INSERT INTO ops.sent_emails
-           (template_key, recipient_email, recipient_name, subject_rendered,
-            body_html_rendered, body_text_rendered, status, error_message,
-            sent_at, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, 'failed', $7, NULL, $8)
-         RETURNING email_id`,
-        [
-          templateKey,
-          testRecipient,
-          "Ben (TEST)",
-          subject,
-          bodyHtml,
-          bodyText || null,
-          error.message,
-          session.staff_id,
-        ]
-      );
-      return apiServerError(`Test send failed: ${error.message}`);
+    if (!result.success) {
+      return apiServerError(`Test send failed: ${result.error}`);
     }
-
-    // Log success — this is the row that gates Go Live
-    const row = await queryOne<{ email_id: string }>(
-      `INSERT INTO ops.sent_emails
-         (template_key, recipient_email, recipient_name, subject_rendered,
-          body_html_rendered, body_text_rendered, status, external_id,
-          sent_at, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, 'sent', $7, NOW(), $8)
-       RETURNING email_id`,
-      [
-        templateKey,
-        testRecipient,
-        "Ben (TEST)",
-        subject,
-        bodyHtml,
-        bodyText || null,
-        data?.id ?? null,
-        session.staff_id,
-      ]
-    );
 
     return apiSuccess({
       success: true,
-      message: `Test email sent to ${testRecipient}`,
+      message: result.dryRun
+        ? `Test email dry-run logged (dry-run is still ON for this flow)`
+        : `Test email sent to ${testRecipient}`,
       recipient: testRecipient,
-      email_id: row?.email_id,
-      external_id: data?.id,
+      email_id: result.emailId,
+      external_id: result.externalId,
+      dry_run: result.dryRun ?? false,
     });
   } catch (err) {
     console.error("test-send error:", err);

@@ -17,15 +17,15 @@ const DEFAULTS = {
   "org.name_short": "FFSC",
   "org.phone": "(707) 576-7999",
   "org.website": "forgottenfelines.com",
-  "org.support_email": "admin@forgottenfelinessoco.org",
-  "org.email_from": "Forgotten Felines <noreply@forgottenfelines.org>",
+  "org.support_email": "info@forgottenfelines.com",
+  "org.email_from": "Forgotten Felines <info@forgottenfelines.com>",
   "org.tagline": "Helping community cats since 1990",
   "org.program_disclaimer":
     "FFSC is a spay/neuter clinic, NOT a 24hr hospital.",
   "org.consent_text":
     "By submitting, you agree to be contacted by Forgotten Felines regarding this request.",
   // FFS-1185 — fields used by the out-of-service-area email template
-  "org.address": "1814 Empire Industrial Ct, Santa Rosa, CA 95404",
+  "org.address": "1814–1820 Empire Industrial Ct, Santa Rosa, CA",
   "org.logo_url": "https://atlas.forgottenfelines.com/logo.png",
   "org.anniversary_badge_url": "",
 } as const;
