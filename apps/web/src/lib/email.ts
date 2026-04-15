@@ -221,10 +221,8 @@ export async function sendTemplateEmail(
     const flow = flowSlug ? await getFlow(flowSlug) : null;
 
     // Merge CC from params + flow config (comma-separated in DB)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const flowCcRaw = (flow as any)?.cc_recipients;
-    const flowCc: string[] = flowCcRaw
-      ? String(flowCcRaw).split(",").map((e: string) => e.trim()).filter(Boolean)
+    const flowCc: string[] = flow?.cc_recipients
+      ? flow.cc_recipients.split(",").map((e) => e.trim()).filter(Boolean)
       : [];
     const mergedCc = [...new Set([...(cc || []), ...flowCc])];
 

@@ -30,6 +30,7 @@ export interface EmailFlow {
   suppression_days: number;
   send_via: "resend" | "outlook";
   outlook_account_email: string | null;
+  cc_recipients: string | null;
 }
 
 /** Fetch the row for a flow, or null if it doesn't exist. */
@@ -38,7 +39,7 @@ export async function getFlow(flowSlug: string): Promise<EmailFlow | null> {
     `SELECT flow_slug, display_name, description, template_key,
             enabled, dry_run, test_recipient_override,
             suppression_scope, suppression_days,
-            send_via, outlook_account_email
+            send_via, outlook_account_email, cc_recipients
        FROM ops.email_flows
       WHERE flow_slug = $1`,
     [flowSlug]
@@ -136,7 +137,7 @@ export async function updateFlow(
       RETURNING flow_slug, display_name, description, template_key,
                 enabled, dry_run, test_recipient_override,
                 suppression_scope, suppression_days,
-            send_via, outlook_account_email`,
+            send_via, outlook_account_email, cc_recipients`,
     values
   );
 }
@@ -148,7 +149,7 @@ export async function listFlows(): Promise<EmailFlow[]> {
     `SELECT flow_slug, display_name, description, template_key,
             enabled, dry_run, test_recipient_override,
             suppression_scope, suppression_days,
-            send_via, outlook_account_email
+            send_via, outlook_account_email, cc_recipients
        FROM ops.email_flows
       ORDER BY display_name`
   );
