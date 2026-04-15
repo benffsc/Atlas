@@ -221,9 +221,11 @@ export function OutOfServiceAreaBanner({
             Outside Service Area
           </div>
           <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-            Detected county:{" "}
-            <strong>{submission.county || "unknown"}</strong>. This submission
-            is outside the FFSC service area.
+            {submission.county ? (
+              <>Detected county: <strong>{submission.county}</strong>. This submission is outside the FFSC service area.</>
+            ) : (
+              <>This submission is outside the FFSC service area. County could not be determined — check the address.</>
+            )}
           </div>
           {submission.out_of_service_area_approved_at && (
             <div
