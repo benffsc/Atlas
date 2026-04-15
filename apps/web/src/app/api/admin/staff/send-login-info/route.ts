@@ -105,7 +105,11 @@ export async function POST(request: NextRequest) {
     };
 
     const subject = subject_override || replacePlaceholders(template.subject, placeholders);
-    const bodyHtml = body_html_override || replacePlaceholders(template.body_html, placeholders);
+    // If admin edited the body, the preview had PREVIEW_TOKEN — replace it with the real URL
+    let bodyHtml = body_html_override || replacePlaceholders(template.body_html, placeholders);
+    if (body_html_override) {
+      bodyHtml = bodyHtml.replace(/PREVIEW_TOKEN/g, token);
+    }
     const bodyText = template.body_text
       ? replacePlaceholders(template.body_text, placeholders)
       : undefined;
