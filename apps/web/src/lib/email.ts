@@ -662,8 +662,10 @@ export async function sendOutOfServiceAreaEmail(
     first_name: submission.first_name || "there",
     detected_county: submission.county || "your area",
     nearest_county_resources_html: resources.countyHtml,
+    nearby_resources_html: resources.nearbyHtml,
     statewide_resources_html: resources.statewideHtml,
     nearest_county_resources_text: resources.countyText,
+    nearby_resources_text: resources.nearbyText,
     statewide_resources_text: resources.statewideText,
     unsubscribe_url: unsubscribeUrl,
   };

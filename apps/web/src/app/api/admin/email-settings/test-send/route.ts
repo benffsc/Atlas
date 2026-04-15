@@ -51,8 +51,10 @@ export async function POST(request: NextRequest) {
       first_name: "Ben (TEST)",
       detected_county: "Marin",
       nearest_county_resources_html: resources.countyHtml,
+      nearby_resources_html: resources.nearbyHtml,
       statewide_resources_html: resources.statewideHtml,
       nearest_county_resources_text: resources.countyText,
+      nearby_resources_text: resources.nearbyText,
       statewide_resources_text: resources.statewideText,
       unsubscribe_url: "#test-no-unsubscribe",
     };
