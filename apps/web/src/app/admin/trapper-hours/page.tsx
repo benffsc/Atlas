@@ -751,20 +751,34 @@ function HoursDrawer({
             if (data.period_type && data.period_type !== "unknown") {
               setForm((prev) => ({ ...prev, period_type: data.period_type as "weekly" | "monthly" }));
             }
-            if (data.period_start) {
-              setForm((prev) => ({ ...prev, period_start: data.period_start! }));
-            }
-            if (data.period_end) {
-              setForm((prev) => ({ ...prev, period_end: data.period_end! }));
-            }
-            if (data.notes) {
-              setForm((prev) => ({ ...prev, work_summary: data.notes! }));
-            }
-            // Populate daily entries from AI extraction
-            if (data.entries && data.entries.length > 0) {
-              setForm((prev) => {
-                const updated = [...prev.daily_entries];
-                data.entries!.forEach((extracted: { date?: string | null; address?: string | null; hours?: number | null }, i: number) => {
+            // Apply dates, daily entries, and notes in one batch update
+            setForm((prev) => {
+              // Normalize date to ISO format
+              const normalizeDate = (d: string): string => {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+                const parsed = new Date(d);
+                if (!isNaN(parsed.getTime())) {
+                  return parsed.toISOString().split("T")[0];
+                }
+                return d;
+              };
+
+              let next = { ...prev };
+
+              // Set period dates
+              if (data.period_start) {
+                const isoStart = normalizeDate(data.period_start);
+                const numDays = (data.period_type === "monthly") ? 28 : 7;
+                const isoEnd = data.period_end ? normalizeDate(data.period_end) : addDays(isoStart, numDays - 1);
+                next.period_start = isoStart;
+                next.period_end = isoEnd;
+                next.daily_entries = generateDailyEntries(isoStart, numDays);
+              }
+
+              // Populate daily entries from AI extraction
+              if (data.entries && data.entries.length > 0) {
+                const updated = [...next.daily_entries];
+                data.entries.forEach((extracted: { date?: string | null; address?: string | null; hours?: number | null }, i: number) => {
                   if (i < updated.length) {
                     updated[i] = {
                       ...updated[i],
@@ -774,14 +788,17 @@ function HoursDrawer({
                   }
                 });
                 const newTotal = updated.reduce((sum, d) => sum + d.hours, 0);
-                return {
-                  ...prev,
-                  daily_entries: updated,
-                  hours_total: newTotal,
-                  total_pay: prev.hourly_rate ? newTotal * prev.hourly_rate : prev.total_pay,
-                };
-              });
-            }
+                next.daily_entries = updated;
+                next.hours_total = newTotal;
+                if (next.hourly_rate) {
+                  next.total_pay = Math.round(newTotal * next.hourly_rate * 100) / 100;
+                }
+              }
+
+              if (data.notes) next.work_summary = data.notes;
+
+              return next;
+            });
           }}
         />
       )}
