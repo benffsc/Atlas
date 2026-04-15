@@ -320,19 +320,16 @@ export function useMapSearchV2({
         if (place?.geometry?.location) {
           const { lat, lng } = place.geometry.location;
           panTo(lat, lng);
-          // Always show the search pin as visual anchor
-          const matchedId = findNearbyAtlasPin(lat, lng);
-          setNavigatedLocation({ lat, lng, address: place.formatted_address || prediction.description, matchedPlaceId: matchedId });
-          // Also open drawer if we matched an Atlas place
-          if (matchedId) {
-            onPlaceSelect?.(matchedId);
-          }
+          // Show search pin as visual anchor — don't auto-open drawers.
+          // Nearby Atlas pins are visible at zoom 18; user clicks the one they want.
+          // Auto-opening a "nearby" match is misleading when it's a different address.
+          setNavigatedLocation({ lat, lng, address: place.formatted_address || prediction.description });
         }
       } catch (err) {
         console.error("Failed to get place details:", err);
       }
     },
-    [panTo, onDismissSelection, findNearbyAtlasPin, onPlaceSelect]
+    [panTo, onDismissSelection]
   );
 
   const handlePoiSelect = useCallback(
@@ -341,16 +338,12 @@ export function useMapSearchV2({
       setNavigatedLocation(null);
       const { lat, lng } = result.geometry.location;
       panTo(lat, lng);
-      // Always show search pin + open drawer if Atlas match found
-      const matchedId = findNearbyAtlasPin(lat, lng);
-      setNavigatedLocation({ lat, lng, address: result.formatted_address, matchedPlaceId: matchedId });
-      if (matchedId) {
-        onPlaceSelect?.(matchedId);
-      }
+      // Show search pin — don't auto-open nearby drawers (misleading)
+      setNavigatedLocation({ lat, lng, address: result.formatted_address });
       setQuery("");
       setShowResults(false);
     },
-    [panTo, onDismissSelection, findNearbyAtlasPin, onPlaceSelect]
+    [panTo, onDismissSelection]
   );
 
   const clearNavigatedLocation = useCallback(() => {
