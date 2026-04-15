@@ -10,6 +10,7 @@ function ResetPasswordForm() {
   const token = searchParams.get("token") || "";
 
   const [staffName, setStaffName] = useState("");
+  const [staffEmail, setStaffEmail] = useState("");
   const [validating, setValidating] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -31,6 +32,7 @@ function ResetPasswordForm() {
         if (data.success && data.data?.valid) {
           setTokenValid(true);
           setStaffName(data.data.display_name || "");
+          setStaffEmail(data.data.email || "");
         }
       })
       .catch(() => {})
@@ -64,8 +66,26 @@ function ResetPasswordForm() {
 
       const data = await res.json();
       if (res.ok && data.success) {
+        // Auto-login with the new password
+        if (staffEmail) {
+          try {
+            const loginRes = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: staffEmail, password: newPassword }),
+            });
+            const loginData = await loginRes.json();
+            if (loginData.success) {
+              setSuccess(true);
+              setTimeout(() => { window.location.href = "/"; }, 1500);
+              return;
+            }
+          } catch {
+            // Auto-login failed — fall through to manual login redirect
+          }
+        }
         setSuccess(true);
-        setTimeout(() => router.push("/login"), 2000);
+        setTimeout(() => { window.location.href = "/login"; }, 2000);
       } else {
         const msg = typeof data.error === "string" ? data.error : data.error?.message || "Failed to reset password";
         setError(msg);
@@ -92,7 +112,7 @@ function ResetPasswordForm() {
       >
         <div style={{ width: "100%", maxWidth: "400px", textAlign: "center" }}>
           <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>Password Updated!</div>
-          <p style={{ color: "var(--text-muted)" }}>Redirecting to sign in...</p>
+          <p style={{ color: "var(--text-muted)" }}>Signing you in...</p>
         </div>
       </div>
     );
@@ -206,6 +226,20 @@ function ResetPasswordForm() {
                 {error}
               </div>
             )}
+
+            {/* Hidden email field — lets the browser's password manager
+                know which account this password belongs to, triggering
+                the "Save password?" prompt on submit */}
+            <input
+              type="email"
+              name="username"
+              autoComplete="username"
+              value={staffEmail}
+              readOnly
+              tabIndex={-1}
+              aria-hidden="true"
+              style={{ position: "absolute", opacity: 0, height: 0, width: 0, overflow: "hidden" }}
+            />
 
             <div style={{ marginBottom: "1.25rem" }}>
               <label

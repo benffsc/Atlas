@@ -173,7 +173,7 @@ test.describe('Forgot Password Page @workflow', () => {
       await expect(page.getByRole('heading', { name: 'Forgot your password?' }).first()).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
-      await expect(page.getByText('Back to sign in')).toBeVisible();
+      await expect(page.getByText('Back to sign in').first()).toBeVisible();
     }
   });
 
