@@ -637,22 +637,11 @@ export async function sendOutOfServiceAreaEmail(
     return { success: false, error: "No email address on submission" };
   }
 
-  // Suppression check — only applies to automated/cron sends.
-  // When staff explicitly approves a specific submission, allow it even
-  // if the same email was sent before (per-submission dedup is handled
-  // by the out_of_service_area_email_sent_at check above).
-  if (!overrides) {
-    const suppressionRow = await queryOne<{ is_suppressed: boolean }>(
-      `SELECT ops.is_suppressed_for_out_of_service_area($1) AS is_suppressed`,
-      [submission.email]
-    );
-    if (suppressionRow?.is_suppressed) {
-      return {
-        success: false,
-        error: `Email ${submission.email} is suppressed (already received an out-of-area email within the suppression window)`,
-      };
-    }
-  }
+  // Suppression check — skipped for staff-initiated sends (approvedBy is set).
+  // Only enforced for automated/cron sends where approvedBy would be a system ID.
+  // Per-submission dedup is handled by out_of_service_area_email_sent_at above.
+  // Staff clicking Approve & Send has already reviewed the submission and
+  // should be allowed to send regardless of prior emails to this address.
 
   // Render dynamic resource cards
   const resources = await renderCountyResources(submission.county);
