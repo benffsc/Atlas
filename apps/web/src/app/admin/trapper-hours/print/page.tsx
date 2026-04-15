@@ -115,15 +115,6 @@ function formatPeriodRange(start: string, end: string, periodType: string): stri
   return `${startFmt} – ${endFmt}, ${e.getFullYear()}`;
 }
 
-function formatCurrency(amount: number | null): string {
-  if (amount == null) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
 function formatHours(val: number | null | undefined): string {
   if (val == null || val === 0) return "0.0";
   return val.toFixed(1);
@@ -1009,90 +1000,7 @@ function CompletedEntryPrintout({
 
         <PrintFooter
           left={`${orgName} • ${sheetTitle}`}
-          right={`${periodLabel} — Page 1 of 2`}
-        />
-      </div>
-
-      {/* ═══════ PAGE 2: Pay details + notes ═══════ */}
-      <div className="print-page">
-        <PrintHeader
-          title="Pay Summary"
-          subtitle={`${entry.trapper_name} — ${periodLabel}`}
-        />
-
-        {/* Pay */}
-        <div className="section ts-no-break">
-          <div className="section-title">Pay</div>
-          <div className="ts-pay-grid">
-            <div className="ts-pay-item">
-              <div className="ts-pay-label">Total Hours</div>
-              <div className="ts-pay-value">{formatHours(entry.hours_total)}</div>
-            </div>
-            <div className="ts-pay-item">
-              <div className="ts-pay-label">Rate</div>
-              <div className="ts-pay-value">
-                {entry.hourly_rate != null ? `${formatCurrency(entry.hourly_rate)}/hr` : "—"}
-              </div>
-            </div>
-            <div className="ts-pay-item">
-              <div className="ts-pay-label">Total Pay</div>
-              <div className="ts-pay-value">{formatCurrency(entry.total_pay)}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Status */}
-        <div className="section ts-no-break">
-          <div className="section-title">Status</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
-            <div>
-              <span style={{ fontSize: "7.5pt", fontWeight: 700, color: "#7f8c8d", textTransform: "uppercase" as const }}>Status</span>
-              <div style={{ fontWeight: 600 }}>{statusLabel}</div>
-            </div>
-            {entry.submitted_at && (
-              <div>
-                <span style={{ fontSize: "7.5pt", fontWeight: 700, color: "#7f8c8d", textTransform: "uppercase" as const }}>Submitted</span>
-                <div>{formatPrintDate(entry.submitted_at)}</div>
-              </div>
-            )}
-            {entry.approved_at && (
-              <div>
-                <span style={{ fontSize: "7.5pt", fontWeight: 700, color: "#7f8c8d", textTransform: "uppercase" as const }}>Approved</span>
-                <div>{formatPrintDate(entry.approved_at)}</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Work summary */}
-        {entry.work_summary && (
-          <div className="section ts-no-break">
-            <div className="section-title">Work Summary</div>
-            <div className="ts-notes-box" style={{ whiteSpace: "pre-wrap" }}>{entry.work_summary}</div>
-          </div>
-        )}
-
-        {/* Notes */}
-        {entry.notes && (
-          <div className="section ts-no-break">
-            <div className="section-title">Notes</div>
-            <div className="ts-notes-box">{entry.notes}</div>
-          </div>
-        )}
-
-        {/* Attachment reference */}
-        {entry.attachment_filename && (
-          <div className="section ts-no-break">
-            <div className="section-title">Attached Document</div>
-            <div style={{ fontSize: "9pt", color: "#555" }}>
-              {entry.attachment_filename}
-            </div>
-          </div>
-        )}
-
-        <PrintFooter
-          left={`${entry.trapper_name} | ID: ${entry.entry_id.slice(0, 8)} | Created: ${formatPrintDate(entry.created_at)}`}
-          right={`${periodLabel} — Page 2 of 2`}
+          right={periodLabel}
         />
       </div>
     </div>

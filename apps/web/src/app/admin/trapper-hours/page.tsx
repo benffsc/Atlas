@@ -71,15 +71,6 @@ interface HoursResponse {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatCurrency(amount: number | null): string {
-  if (amount == null) return "--";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
 function formatPeriod(entry: HoursEntry): string {
   const start = parseDateLocal(entry.period_start);
   const end = parseDateLocal(entry.period_end);
@@ -275,9 +266,6 @@ interface DrawerFormState {
   hours_transport: number;
   hours_training: number;
   hours_other: number;
-  pay_type: "hourly" | "flat" | "stipend";
-  hourly_rate: number | null;
-  total_pay: number | null;
   work_summary: string;
   notes: string;
   attachment_path: string | null;
@@ -316,9 +304,6 @@ function defaultFormState(): DrawerFormState {
     hours_transport: 0,
     hours_training: 0,
     hours_other: 0,
-    pay_type: "hourly",
-    hourly_rate: 20,
-    total_pay: null,
     work_summary: "",
     notes: "",
     attachment_path: null,
@@ -340,9 +325,6 @@ function entryToFormState(entry: HoursEntry): DrawerFormState {
     hours_transport: entry.hours_transport,
     hours_training: entry.hours_training,
     hours_other: entry.hours_other,
-    pay_type: entry.pay_type,
-    hourly_rate: entry.hourly_rate,
-    total_pay: entry.total_pay,
     work_summary: entry.work_summary || "",
     notes: entry.notes || "",
     attachment_path: entry.attachment_path || null,
@@ -518,23 +500,14 @@ function HoursDrawer({
   const { success: toastSuccess, error: toastError } = useToast();
   const [form, setForm] = useState<DrawerFormState>(defaultFormState);
   const [submitting, setSubmitting] = useState(false);
-  const [payOverride, setPayOverride] = useState(false);
 
   // Reset form when drawer opens
   useEffect(() => {
     if (isOpen) {
       if (editEntry) {
         setForm(entryToFormState(editEntry));
-        // If the existing total_pay doesn't match rate * hours, it was overridden
-        if (editEntry.pay_type === "hourly" && editEntry.hourly_rate != null) {
-          const calc = editEntry.hours_total * editEntry.hourly_rate;
-          setPayOverride(editEntry.total_pay !== calc);
-        } else {
-          setPayOverride(true);
-        }
       } else {
         setForm(defaultFormState());
-        setPayOverride(false);
       }
     }
   }, [isOpen, editEntry]);
@@ -578,47 +551,13 @@ function HoursDrawer({
         next.hours_transport +
         next.hours_training +
         next.hours_other;
-      // Auto-calculate pay if hourly and not overridden
-      if (!payOverride && next.pay_type === "hourly" && next.hourly_rate != null) {
-        next.total_pay = Math.round(next.hours_total * next.hourly_rate * 100) / 100;
-      }
       return next;
     });
   };
 
-  // When total hours changed directly, recalc pay
+  // When total hours changed directly
   const handleTotalHoursChange = (val: number) => {
-    setForm((prev) => {
-      const next = { ...prev, hours_total: val };
-      if (!payOverride && next.pay_type === "hourly" && next.hourly_rate != null) {
-        next.total_pay = Math.round(val * next.hourly_rate * 100) / 100;
-      }
-      return next;
-    });
-  };
-
-  // When rate changes, recalc pay
-  const handleRateChange = (val: number | null) => {
-    setForm((prev) => {
-      const next = { ...prev, hourly_rate: val };
-      if (!payOverride && val != null && next.pay_type === "hourly") {
-        next.total_pay = Math.round(next.hours_total * val * 100) / 100;
-      }
-      return next;
-    });
-  };
-
-  const handlePayTypeChange = (val: "hourly" | "flat" | "stipend") => {
-    setForm((prev) => {
-      const next = { ...prev, pay_type: val };
-      if (val === "hourly" && next.hourly_rate != null) {
-        setPayOverride(false);
-        next.total_pay = Math.round(next.hours_total * next.hourly_rate * 100) / 100;
-      } else {
-        setPayOverride(true);
-      }
-      return next;
-    });
+    setForm((prev) => ({ ...prev, hours_total: val }));
   };
 
   const handleSubmit = async () => {
@@ -651,9 +590,6 @@ function HoursDrawer({
       hours_transport: form.hours_transport,
       hours_training: form.hours_training,
       hours_other: form.hours_other,
-      pay_type: form.pay_type,
-      hourly_rate: form.hourly_rate,
-      total_pay: form.total_pay,
       work_summary: workSummary || null,
       notes: form.notes.trim() || null,
       attachment_path: form.attachment_path,
@@ -745,9 +681,6 @@ function HoursDrawer({
             if (data.total_hours != null) {
               setForm((prev) => ({ ...prev, hours_total: data.total_hours! }));
             }
-            if (data.hourly_rate != null) {
-              setForm((prev) => ({ ...prev, hourly_rate: data.hourly_rate!, pay_type: "hourly" as const }));
-            }
             if (data.period_type && data.period_type !== "unknown") {
               setForm((prev) => ({ ...prev, period_type: data.period_type as "weekly" | "monthly" }));
             }
@@ -790,9 +723,6 @@ function HoursDrawer({
                 const newTotal = updated.reduce((sum, d) => sum + d.hours, 0);
                 next.daily_entries = updated;
                 next.hours_total = newTotal;
-                if (next.hourly_rate) {
-                  next.total_pay = Math.round(newTotal * next.hourly_rate * 100) / 100;
-                }
               }
 
               if (data.notes) next.work_summary = data.notes;
@@ -918,7 +848,6 @@ function HoursDrawer({
                   ...prev,
                   daily_entries: updated,
                   hours_total: newTotal,
-                  total_pay: prev.hourly_rate ? newTotal * prev.hourly_rate : prev.total_pay,
                 }));
               }}
               style={{ ...smallInputStyle, fontSize: "0.75rem", textAlign: "right" }}
@@ -1002,106 +931,6 @@ function HoursDrawer({
               />
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Divider: Pay */}
-      <div
-        style={{
-          borderTop: "1px solid var(--border, #e5e7eb)",
-          margin: "1rem -1.25rem 0",
-          padding: "0 1.25rem",
-          paddingTop: "1rem",
-        }}
-      >
-        <span style={{ fontWeight: 600, fontSize: "0.9rem", display: "block", marginBottom: "0.75rem" }}>
-          Pay
-        </span>
-
-        {/* Pay Type */}
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label style={labelStyle}>Pay Type</label>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            {(["hourly", "flat", "stipend"] as const).map((pt) => (
-              <Button
-                key={pt}
-                variant={form.pay_type === pt ? "primary" : "outline"}
-                size="sm"
-                onClick={() => handlePayTypeChange(pt)}
-              >
-                {pt.charAt(0).toUpperCase() + pt.slice(1)}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        {/* Rate + Total */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
-          {form.pay_type === "hourly" && (
-            <div>
-              <label style={labelStyle}>Hourly Rate ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.hourly_rate ?? ""}
-                onChange={(e) => handleRateChange(e.target.value ? parseFloat(e.target.value) : null)}
-                style={inputStyle}
-                placeholder="20.00"
-              />
-            </div>
-          )}
-          <div style={form.pay_type !== "hourly" ? { gridColumn: "1 / -1" } : undefined}>
-            <label style={labelStyle}>
-              Total Pay ($)
-              {form.pay_type === "hourly" && !payOverride && (
-                <span style={{ fontWeight: 400, color: "var(--text-tertiary)", marginLeft: "0.25rem" }}>
-                  (auto)
-                </span>
-              )}
-            </label>
-            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.total_pay ?? ""}
-                onChange={(e) => {
-                  setPayOverride(true);
-                  setForm((prev) => ({
-                    ...prev,
-                    total_pay: e.target.value ? parseFloat(e.target.value) : null,
-                  }));
-                }}
-                style={inputStyle}
-                placeholder="0.00"
-              />
-              {payOverride && form.pay_type === "hourly" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPayOverride(false);
-                    if (form.hourly_rate != null) {
-                      setForm((prev) => ({
-                        ...prev,
-                        total_pay: Math.round(prev.hours_total * (prev.hourly_rate ?? 0) * 100) / 100,
-                      }));
-                    }
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "0.7rem",
-                    color: "var(--primary)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Reset to auto
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1222,19 +1051,6 @@ function EntryRow({
           {entry.hours_total}h
         </div>
         <HoursBreakdown entry={entry} />
-      </td>
-
-      {/* Pay */}
-      <td
-        style={{
-          padding: "0.75rem 1rem",
-          fontSize: "0.875rem",
-          fontWeight: 500,
-          color: "var(--foreground)",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {formatCurrency(entry.total_pay)}
       </td>
 
       {/* Status */}
@@ -1423,11 +1239,6 @@ function TrapperHoursContent() {
             value={stats.submitted_count}
             accentColor="var(--warning-text)"
           />
-          <StatCard
-            label="Total Pay"
-            value={formatCurrency(stats.total_pay)}
-            accentColor="var(--success-text)"
-          />
         </div>
       )}
 
@@ -1515,7 +1326,6 @@ function TrapperHoursContent() {
                     <th style={thStyle}>Period</th>
                     <th style={thStyle}>Trapper</th>
                     <th style={thStyle}>Hours</th>
-                    <th style={thStyle}>Pay</th>
                     <th style={thStyle}>Status</th>
                     <th style={thStyle}></th>
                     <th style={{ ...thStyle, width: "40px" }}></th>
