@@ -857,31 +857,49 @@ function CompletedEntryPrintout({
         ? "Submitted"
         : "Draft";
 
-  // Parse work_summary into daily rows ("Mon: FFSC, Berg (8h)" format)
+  // Parse work_summary into daily rows
+  // Supports: "Mon: FFSC, Berg, VCA (8h)" and "Mon: FFSC, Berg, VCA — 8"
   const parsedDays: { day: string; location: string; hours: string }[] = [];
   if (entry.work_summary) {
     entry.work_summary.split("\n").forEach((line) => {
-      const match = line.match(/^(\w+):\s*(.*?)\s*\((\d+(?:\.\d+)?)h\)$/);
-      if (match) {
-        parsedDays.push({ day: match[1], location: match[2] || "—", hours: match[3] });
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      // Format 1: "Mon: locations (8h)"
+      const m1 = trimmed.match(/^(\w{3}):\s*(.*?)\s*\((\d+(?:\.\d+)?)h\)$/);
+      if (m1) {
+        parsedDays.push({ day: m1[1], location: m1[2] || "", hours: m1[3] });
+        return;
+      }
+      // Format 2: "Mon: locations — 8" or "Mon: locations - 8"
+      const m2 = trimmed.match(/^(\w{3}):\s*(.*?)\s*[—\-]\s*(\d+(?:\.\d+)?)\s*$/);
+      if (m2) {
+        parsedDays.push({ day: m2[1], location: m2[2] || "", hours: m2[3] });
+        return;
+      }
+      // Format 3: "Mon: locations" (no hours)
+      const m3 = trimmed.match(/^(\w{3}):\s*(.+)$/);
+      if (m3) {
+        parsedDays.push({ day: m3[1], location: m3[2] || "", hours: "" });
       }
     });
   }
 
-  // Generate date rows from period
+  // Generate date rows from period, matching parsed days by day name
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const start = parseDateLocal(entry.period_start);
   const numDays = entry.period_type === "monthly" ? 28 : 7;
   const dateRows: { dayLabel: string; fullDate: string; location: string; hours: string }[] = [];
+  const usedParsed = new Set<number>();
 
   if (start) {
     for (let i = 0; i < numDays; i++) {
       const d = addDays(start, i);
       const dayLabel = dayNames[d.getDay()];
       const fullDate = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
-      // Try to match parsed day data
-      const matched = parsedDays.find((p) => p.day === dayLabel && parsedDays.indexOf(p) === i) ||
-        parsedDays[i];
+      // Find first unused parsed entry matching this day name
+      const matchIdx = parsedDays.findIndex((p, idx) => p.day === dayLabel && !usedParsed.has(idx));
+      const matched = matchIdx >= 0 ? parsedDays[matchIdx] : null;
+      if (matchIdx >= 0) usedParsed.add(matchIdx);
       dateRows.push({
         dayLabel,
         fullDate,
