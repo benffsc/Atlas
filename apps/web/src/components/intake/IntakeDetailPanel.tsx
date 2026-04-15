@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { formatPhone, isValidPhone, extractPhone, extractPhones } from "@/lib/formatters";
@@ -134,13 +134,8 @@ export function IntakeDetailPanel({
   const [ooaEditedSubject, setOoaEditedSubject] = useState<string | null>(null);
   const [ooaEditedRecipient, setOoaEditedRecipient] = useState<string>("");
   const [ooaPreviewLoading, setOoaPreviewLoading] = useState(false);
-  // Use ref for contentEditable HTML to avoid React re-render cursor reset
+  // Ref for contentEditable — never use state for innerHTML (causes cursor reset)
   const ooaEditorRef = useRef<HTMLDivElement>(null);
-  const ooaEditedHtmlRef = useRef<string | null>(null);
-  const getOoaEditedHtml = useCallback(() => {
-    if (ooaEditorRef.current) return ooaEditorRef.current.innerHTML;
-    return ooaEditedHtmlRef.current;
-  }, []);
   const [ooaSending, setOoaSending] = useState(false);
   const [ooaSuppressed, setOoaSuppressed] = useState(false);
 
@@ -309,8 +304,13 @@ export function IntakeDetailPanel({
       setOoaPreviewSubject(data.subject);
       setOoaPreviewHtml(data.body_html);
       setOoaEditedSubject(data.subject);
-      ooaEditedHtmlRef.current = data.body_html;
       setOoaEditedRecipient(submission.email || "");
+      // Set editor content after a tick so the DOM element exists
+      setTimeout(() => {
+        if (ooaEditorRef.current) {
+          ooaEditorRef.current.innerHTML = data.body_html;
+        }
+      }, 50);
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to load preview");
       setShowOoaPreview(false);
@@ -337,12 +337,9 @@ export function IntakeDetailPanel({
       }>("/api/emails/send-out-of-service-area", {
         submission_id: submission.submission_id,
         // Pass staff-edited content if they modified it in the preview editor
-        ...(() => {
-          const editedHtml = getOoaEditedHtml();
-          return editedHtml && editedHtml !== ooaPreviewHtml
-            ? { body_html_override: editedHtml }
-            : {};
-        })(),
+        ...(ooaEditorRef.current && ooaEditorRef.current.innerHTML !== ooaPreviewHtml
+          ? { body_html_override: ooaEditorRef.current.innerHTML }
+          : {}),
         ...(ooaEditedSubject && ooaEditedSubject !== ooaPreviewSubject
           ? { subject_override: ooaEditedSubject }
           : {}),
@@ -2043,7 +2040,6 @@ export function IntakeDetailPanel({
         footer={
           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", alignItems: "center", width: "100%" }}>
             <Button variant="secondary" onClick={() => {
-              ooaEditedHtmlRef.current = ooaPreviewHtml;
               if (ooaEditorRef.current && ooaPreviewHtml) {
                 ooaEditorRef.current.innerHTML = ooaPreviewHtml;
               }
@@ -2067,7 +2063,7 @@ export function IntakeDetailPanel({
           <div style={{ padding: "1rem", color: "var(--text-secondary)" }}>
             Rendering preview…
           </div>
-        ) : ooaEditedHtmlRef.current ? (
+        ) : ooaPreviewHtml ? (
           <div>
             {/* Recipient + Subject fields */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
@@ -2111,15 +2107,9 @@ export function IntakeDetailPanel({
               Body <span style={{ fontWeight: 400 }}>(click anywhere to edit)</span>
             </div>
             <div
-              ref={(el) => {
-                // Set innerHTML once when the ref is first attached — no React re-renders
-                if (el && !ooaEditorRef.current && ooaEditedHtmlRef.current) {
-                  el.innerHTML = ooaEditedHtmlRef.current;
-                }
-                (ooaEditorRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-              }}
-              contentEditable
-              suppressContentEditableWarning
+              ref={ooaEditorRef}
+              contentEditable={true}
+              suppressContentEditableWarning={true}
               style={{
                 border: "1px solid var(--border)",
                 borderRadius: 6,
