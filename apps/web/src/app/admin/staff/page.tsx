@@ -199,18 +199,33 @@ function StaffManagementContent() {
     setEmailSending(true);
     try {
       const editedHtml = emailEditorRef.current?.innerHTML || "";
-      await postApi("/api/admin/staff/send-login-info", {
+      const result = await postApi<{
+        message: string;
+        send_failed?: boolean;
+        reset_url?: string;
+      }>("/api/admin/staff/send-login-info", {
         staff_id: emailDrawerStaff.staff_id,
         email_type: emailDrawerType,
         recipient_override: emailPreviewRecipient,
         subject_override: emailPreviewSubject,
         body_html_override: editedHtml,
       });
-      addToast({
-        type: "success",
-        message: `Email sent to ${emailPreviewRecipient}`,
-      });
-      setEmailDrawerOpen(false);
+
+      if (result.send_failed && result.reset_url) {
+        // Email delivery failed — show link for manual testing
+        setEmailDrawerOpen(false);
+        addToast({
+          type: "warning",
+          message: `Email delivery failed — reset link: ${result.reset_url}`,
+          duration: 30000,
+        });
+      } else {
+        addToast({
+          type: "success",
+          message: `Email sent to ${emailPreviewRecipient}`,
+        });
+        setEmailDrawerOpen(false);
+      }
     } catch {
       addToast({ type: "error", message: "Failed to send email" });
     } finally {

@@ -65,6 +65,7 @@ export default function StaffProfilePage() {
   const [passwordMessage, setPasswordMessage] = useState("");
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
   const [sendingLoginInfo, setSendingLoginInfo] = useState(false);
+  const [testResetUrl, setTestResetUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStaff();
@@ -102,17 +103,33 @@ export default function StaffProfilePage() {
     }
   };
 
-  const handleSendLoginInfo = async () => {
+  const handleSendLoginInfo = async (emailType: "welcome" | "reset" = "welcome") => {
     if (!staff?.email) {
       addToast({ type: "warning", message: "This staff member has no email address" });
       return;
     }
     setSendingLoginInfo(true);
     try {
-      await postApi("/api/admin/staff/send-login-info", { staff_id: staffId });
-      addToast({ type: "success", message: `Login info sent to ${staff.email}` });
+      const result = await postApi<{
+        message: string;
+        send_failed?: boolean;
+        reset_url?: string;
+      }>("/api/admin/staff/send-login-info", { staff_id: staffId, email_type: emailType });
+
+      if (result.send_failed && result.reset_url) {
+        // Email delivery failed but token was generated — show link for manual testing
+        addToast({
+          type: "warning",
+          message: `Email delivery failed. Reset link generated — copy from below.`,
+          duration: 15000,
+        });
+        setTestResetUrl(result.reset_url);
+      } else {
+        addToast({ type: "success", message: result.message || `Email sent to ${staff.email}` });
+        setTestResetUrl(null);
+      }
     } catch {
-      addToast({ type: "error", message: "Failed to send login info" });
+      addToast({ type: "error", message: "Failed to send email" });
     } finally {
       setSendingLoginInfo(false);
     }
@@ -276,7 +293,7 @@ export default function StaffProfilePage() {
           </button>
           {staff.email && (
             <button
-              onClick={handleSendLoginInfo}
+              onClick={() => handleSendLoginInfo("welcome")}
               disabled={sendingLoginInfo}
               style={{
                 padding: "0.5rem 1rem",
@@ -573,7 +590,75 @@ export default function StaffProfilePage() {
         </section>
       </div>
 
-      {/* Breadcrumbs at top are sufficient — no bottom back link needed */}
+        {/* Test Reset Link (shown after send-login-info, especially when email delivery fails) */}
+        {testResetUrl && (
+          <section
+            style={{
+              background: "#fffbeb",
+              border: "1px solid #f59e0b",
+              borderRadius: "12px",
+              padding: "1.5rem",
+            }}
+          >
+            <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem", color: "#92400e" }}>
+              Test Reset Link
+            </h2>
+            <p style={{ fontSize: "0.85rem", color: "#92400e", marginBottom: "0.75rem" }}>
+              Email delivery may have failed, but the reset link is live. Open it to test the password reset flow:
+            </p>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+              <a
+                href={testResetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "#1a4480",
+                  color: "#fff",
+                  borderRadius: "6px",
+                  textDecoration: "none",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                }}
+              >
+                Open Reset Link
+              </a>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(testResetUrl);
+                  addToast({ type: "success", message: "Reset link copied!" });
+                }}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "transparent",
+                  border: "1px solid #f59e0b",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  color: "#92400e",
+                }}
+              >
+                Copy Link
+              </button>
+              <button
+                onClick={() => setTestResetUrl(null)}
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  color: "#92400e",
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+            <p style={{ fontSize: "0.75rem", color: "#b45309", marginTop: "0.5rem", wordBreak: "break-all" }}>
+              {testResetUrl}
+            </p>
+          </section>
+        )}
 
       {/* Password Reset Modal */}
       {showPasswordModal && (

@@ -124,12 +124,14 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.success) {
-      // Clear the token so it's not burned on a failed send
-      await queryOne(
-        `UPDATE ops.staff SET password_reset_token_hash = NULL, password_reset_expires_at = NULL WHERE staff_id = $1`,
-        [staff.staff_id]
-      );
-      return apiError(`Failed to send: ${result.error}`, 500);
+      // Don't clear token — return the URL so admin can test the link directly
+      return apiSuccess({
+        message: `Email delivery failed (${result.error}), but the reset link was generated. Copy it to test manually.`,
+        staff_name: staff.display_name,
+        email_type,
+        send_failed: true,
+        reset_url: resetUrl,
+      });
     }
 
     // Log it
