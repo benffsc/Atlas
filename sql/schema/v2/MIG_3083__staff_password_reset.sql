@@ -3,6 +3,7 @@
 -- Adds missing columns for password reset (already referenced in code),
 -- flags staff who have never logged in as needing password change,
 -- and seeds email templates for welcome + reset links.
+-- Email template styling matches the OOA template (MIG_3060).
 
 -- ============================================================================
 -- 1. Add missing columns (already referenced in change-password + reset-staff routes)
@@ -13,7 +14,6 @@ ALTER TABLE ops.staff
   ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT,
   ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ;
 
--- Index for token lookup during reset validation
 CREATE INDEX IF NOT EXISTS idx_staff_reset_token
   ON ops.staff(password_reset_token_hash)
   WHERE password_reset_token_hash IS NOT NULL;
@@ -30,7 +30,7 @@ WHERE is_active = TRUE
   AND password_change_required IS DISTINCT FROM TRUE;
 
 -- ============================================================================
--- 3. Seed email templates
+-- 3. Seed email templates (styling matches OOA template from MIG_3060)
 -- ============================================================================
 
 -- Welcome email — sent to new staff with a one-time "set your password" link
@@ -40,9 +40,9 @@ VALUES (
   'Staff Welcome — Set Password',
   'Sent to new staff. Contains a one-time link to set their password.',
   'Welcome to {{org_name_short}} Beacon — set your password',
-  E'<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">\n<img src="{{org_logo_url}}" alt="{{org_name_short}}" style="width: 140px; margin-bottom: 1.5rem;" />\n<h2 style="margin: 0 0 1rem;">Hi {{staff_first_name}},</h2>\n<p>Your Beacon account is set up and ready to go. Click the button below to set your password and log in:</p>\n<div style="text-align: center; margin: 2rem 0;">\n<a href="{{reset_url}}" style="display: inline-block; padding: 0.85rem 2rem; background: #4291df; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 1.05rem;">Set your password</a>\n</div>\n<p style="color: #6b7280; font-size: 0.85rem;">This link expires in {{expiry_minutes}} minutes. If it expires, go to <a href="{{login_url}}" style="color: #4291df;">{{login_url}}</a> and click <strong>Forgot password?</strong> to get a new one.</p>\n<p style="color: #6b7280; font-size: 0.85rem; margin-top: 1.5rem;">Questions? Reply to this email or reach out to your supervisor.</p>\n<p style="color: #6b7280; font-size: 0.85rem;">\u2014 {{brand_full_name}}</p>\n</div>',
-  E'Hi {{staff_first_name}},\n\nYour Beacon account is set up. Click the link below to set your password:\n\n{{reset_url}}\n\nThis link expires in {{expiry_minutes}} minutes.\n\nIf it expires, go to {{login_url}} and click "Forgot password?" to get a new one.\n\nQuestions? Reply to this email.\n\n\u2014 {{brand_full_name}}',
-  ARRAY['staff_first_name', 'reset_url', 'login_url', 'expiry_minutes', 'org_name_short', 'org_logo_url', 'brand_full_name'],
+  E'<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"><title>Welcome to Beacon</title></head>\n<body style="font-family: Arial, Helvetica, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; color: #333; line-height: 1.5;">\n\n  <div style="text-align: center; margin-bottom: 24px;">\n    <img src="{{org_logo_url}}" alt="{{brand_full_name}}" style="max-width: 220px; height: auto;">\n  </div>\n\n  <p style="font-size: 16px;">Hi {{staff_first_name}},</p>\n\n  <p>Your Beacon account is set up and ready to go. Click the button below to set your password and log in for the first time:</p>\n\n  <div style="text-align: center; margin: 28px 0;">\n    <a href="{{reset_url}}" style="display: inline-block; padding: 14px 32px; background: #1a4480; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Set your password</a>\n  </div>\n\n  <p style="font-size: 13px; color: #666;">This link expires in {{expiry_minutes}} minutes. If it expires, go to <a href="{{login_url}}" style="color: #1a4480;">{{login_url}}</a> and click <strong>Forgot password?</strong> to get a new one.</p>\n\n  <p style="font-size: 13px; color: #666;">Questions? Reply to this email or reach out to your supervisor.</p>\n\n  <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;">\n\n  <div style="font-size: 12px; color: #888; text-align: center;">\n    <strong>{{brand_full_name}}</strong><br>\n    {{org_address}}<br>\n    {{org_phone}} &middot; <a href="https://{{org_website}}" style="color: #1a4480;">{{org_website}}</a>\n  </div>\n\n</body>\n</html>',
+  E'Hi {{staff_first_name}},\n\nYour Beacon account is set up. Click the link below to set your password:\n\n{{reset_url}}\n\nThis link expires in {{expiry_minutes}} minutes.\n\nIf it expires, go to {{login_url}} and click "Forgot password?" to get a new one.\n\nQuestions? Reply to this email.\n\n---\n{{brand_full_name}}\n{{org_address}}\n{{org_phone}} - {{org_website}}',
+  ARRAY['staff_first_name', 'reset_url', 'login_url', 'expiry_minutes', 'org_name_short', 'org_logo_url', 'brand_full_name', 'org_address', 'org_phone', 'org_website'],
   TRUE
 ) ON CONFLICT (template_key) DO UPDATE SET
   name = EXCLUDED.name,
@@ -60,9 +60,9 @@ VALUES (
   'Password Reset Link',
   'Sent when staff use Forgot Password or admin triggers a reset. Contains a one-time link valid for 60 minutes.',
   'Reset your {{org_name_short}} password',
-  E'<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">\n<h2>Password Reset</h2>\n<p>Hi {{staff_name}},</p>\n<p>Click the button below to reset your password:</p>\n<div style="text-align: center; margin: 2rem 0;">\n<a href="{{reset_url}}" style="display: inline-block; padding: 0.85rem 2rem; background: #4291df; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 1.05rem;">Reset your password</a>\n</div>\n<p style="color: #6b7280; font-size: 0.85rem;">This link expires in {{expiry_minutes}} minutes.</p>\n<p style="color: #6b7280; font-size: 0.85rem;">If you didn''t request this, you can ignore this email.</p>\n<p style="color: #6b7280; font-size: 0.85rem; margin-top: 2rem;">\u2014 {{org_name_short}}</p>\n</div>',
-  E'Hi {{staff_name}},\n\nReset your password:\n\n{{reset_url}}\n\nThis link expires in {{expiry_minutes}} minutes.\n\nIf you didn''t request this, ignore this email.\n\n\u2014 {{org_name_short}}',
-  ARRAY['reset_url', 'staff_name', 'expiry_minutes', 'org_name_short'],
+  E'<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"><title>Password Reset</title></head>\n<body style="font-family: Arial, Helvetica, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; color: #333; line-height: 1.5;">\n\n  <div style="text-align: center; margin-bottom: 24px;">\n    <img src="{{org_logo_url}}" alt="{{org_name_short}}" style="max-width: 220px; height: auto;">\n  </div>\n\n  <p style="font-size: 16px;">Hi {{staff_name}},</p>\n\n  <p>We received a request to reset your password. Click the button below to choose a new one:</p>\n\n  <div style="text-align: center; margin: 28px 0;">\n    <a href="{{reset_url}}" style="display: inline-block; padding: 14px 32px; background: #1a4480; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Reset your password</a>\n  </div>\n\n  <p style="font-size: 13px; color: #666;">This link expires in {{expiry_minutes}} minutes. If it expires, go to the login page and click <strong>Forgot password?</strong> to get a new one.</p>\n\n  <p style="font-size: 13px; color: #666;">If you didn''t request this, you can safely ignore this email — your password won''t change.</p>\n\n  <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;">\n\n  <div style="font-size: 12px; color: #888; text-align: center;">\n    <strong>{{brand_full_name}}</strong><br>\n    {{org_address}}<br>\n    {{org_phone}} &middot; <a href="https://{{org_website}}" style="color: #1a4480;">{{org_website}}</a>\n  </div>\n\n</body>\n</html>',
+  E'Hi {{staff_name}},\n\nWe received a request to reset your password. Click the link below:\n\n{{reset_url}}\n\nThis link expires in {{expiry_minutes}} minutes.\n\nIf you didn''t request this, ignore this email.\n\n---\n{{brand_full_name}}\n{{org_address}}\n{{org_phone}} - {{org_website}}',
+  ARRAY['reset_url', 'staff_name', 'expiry_minutes', 'org_name_short', 'org_logo_url', 'brand_full_name', 'org_address', 'org_phone', 'org_website'],
   TRUE
 ) ON CONFLICT (template_key) DO UPDATE SET
   name = EXCLUDED.name,
