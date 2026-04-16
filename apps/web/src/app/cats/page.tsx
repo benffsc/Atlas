@@ -12,7 +12,7 @@ import type { CatDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { CatPreviewContent } from "@/components/preview/CatPreviewContent";
-import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup } from "@/components/filters";
+import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup, ActiveFilterTags } from "@/components/filters";
 import { DataTable, useDataTable } from "@/components/data-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
 
@@ -285,6 +285,29 @@ function CatsPageContent() {
           <option value="true">Deceased only</option>
         </select>
       </FilterBar>
+
+      <ActiveFilterTags
+        filters={filters}
+        defaults={FILTER_DEFAULTS}
+        labels={{
+          sex: "Sex",
+          altered: "Altered",
+          has_place: "Location",
+          has_origin: "Origin",
+          partner_org: "Partner Org",
+          disease: "Disease",
+          condition: "Condition",
+          is_deceased: "Deceased",
+        }}
+        valueLabels={{
+          altered: { spayed: "Spayed", neutered: "Neutered", intact: "Intact" },
+          disease: { felv: "FeLV", fiv: "FIV" },
+          partner_org: { SCAS: "SCAS", FFSC: "FFSC", RPAS: "RPAS", MH: "Marin Humane" },
+        }}
+        exclude={["q", "page", "pageSize", "sort", "sortDir", "selected", "has_origin"]}
+        onRemove={(key) => setFilter(key as keyof typeof FILTER_DEFAULTS, FILTER_DEFAULTS[key as keyof typeof FILTER_DEFAULTS])}
+        onClearAll={clearFilters}
+      />
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
 

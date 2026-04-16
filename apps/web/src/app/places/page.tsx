@@ -13,7 +13,7 @@ import type { PlaceDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { PlacePreviewContent } from "@/components/preview/PlacePreviewContent";
-import { FilterBar, FilterDivider, SearchInput } from "@/components/filters";
+import { FilterBar, FilterDivider, SearchInput, ActiveFilterTags } from "@/components/filters";
 import { DataTable, useDataTable } from "@/components/data-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
 
@@ -262,6 +262,23 @@ function PlacesPageContent() {
           <option value="false">Not on watch list</option>
         </select>
       </FilterBar>
+
+      <ActiveFilterTags
+        filters={filters}
+        defaults={FILTER_DEFAULTS}
+        labels={{
+          kind: "Type",
+          has_cats: "Has Cats",
+          disease_risk: "Disease Risk",
+          watch_list: "Watch List",
+        }}
+        valueLabels={{
+          disease_risk: { felv: "FeLV", fiv: "FIV" },
+        }}
+        exclude={["q", "page", "pageSize", "sortDir", "selected"]}
+        onRemove={(key) => setFilter(key as keyof typeof FILTER_DEFAULTS, FILTER_DEFAULTS[key as keyof typeof FILTER_DEFAULTS])}
+        onClearAll={clearFilters}
+      />
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
 
