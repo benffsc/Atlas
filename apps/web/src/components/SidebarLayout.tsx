@@ -231,10 +231,13 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
                       textDecoration: "none",
                       position: "relative",
                       transition: "background 150ms ease, color 150ms ease",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                      minWidth: 0,
                     }}
                   >
-                    {item.icon && <Icon name={item.icon} size={isCollapsed ? 20 : 18} />}
-                    {!isCollapsed && item.label}
+                    {item.icon && <span style={{ flexShrink: 0, display: "inline-flex" }}><Icon name={item.icon} size={isCollapsed ? 20 : 18} /></span>}
+                    {!isCollapsed && <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span>}
                     {item.badge != null && item.badge > 0 && (
                       <span style={{
                         marginLeft: isCollapsed ? "0" : "auto",
