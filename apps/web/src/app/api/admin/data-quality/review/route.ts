@@ -148,9 +148,9 @@ export async function PATCH(request: NextRequest) {
         return apiBadRequest(`Merge not safe: ${safeCheck.reason}`);
       }
 
-      // Perform merge
+      // Perform merge — merge_person_into(loser, winner, reason, changed_by)
       await query(
-        `SELECT sot.merge_people($1, $2)`,
+        `SELECT sot.merge_person_into($1, $2, 'data_quality_review', NULL)`,
         [person_id, merge_target_id]
       );
 

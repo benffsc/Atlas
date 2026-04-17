@@ -49,8 +49,8 @@ export async function PATCH(
         lat: number | null;
         lng: number | null;
       }>(
-        `SELECT place_id, formatted_address, address_id,
-                ST_Y(geometry::geometry) as lat, ST_X(geometry::geometry) as lng
+        `SELECT place_id, formatted_address, sot_address_id AS address_id,
+                ST_Y(location::geometry) as lat, ST_X(location::geometry) as lng
          FROM sot.places WHERE place_id = $1 AND merged_into_place_id IS NULL`,
         [body.place_id]
       );

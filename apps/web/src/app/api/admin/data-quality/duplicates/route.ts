@@ -83,83 +83,50 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, canonical_id, duplicate_id, dry_run } = body;
 
-    // Merge single duplicate
+    // Merge single duplicate — merge_person_into(loser, winner, reason, changed_by)
     if (action === "merge_one" && canonical_id && duplicate_id) {
-      const result = await queryOne<{ merge_duplicate_person: object }>(
-        `SELECT sot.merge_duplicate_person($1, $2, 'manual_admin_merge') as result`,
-        [canonical_id, duplicate_id]
+      await queryOne(
+        `SELECT sot.merge_person_into($1, $2, 'manual_admin_merge', NULL)`,
+        [duplicate_id, canonical_id]
       );
 
       return apiSuccess({
         action: "merge_one",
-        result: result?.merge_duplicate_person,
+        merged: { loser: duplicate_id, winner: canonical_id },
       });
     }
 
     // Batch merge all email duplicates
+    // NOTE: sot.merge_email_duplicates() does not exist yet. Gracefully error.
     if (action === "merge_all_email") {
-      const isDryRun = dry_run !== false; // Default to dry run for safety
-
-      const result = await queryOne<{
-        emails_found: number;
-        people_to_merge: number;
-        merges_executed: number;
-        errors: number;
-        sample_merges: object;
-      }>(
-        `SELECT * FROM sot.merge_email_duplicates($1)`,
-        [isDryRun]
-      );
-
-      return apiSuccess({
-        action: "merge_all_email",
-        dry_run: isDryRun,
-        ...result,
-      });
+      return apiBadRequest("Batch email dedup is not yet implemented. Use merge_one to merge individual duplicates.");
     }
 
     // Batch clean garbage names
+    // NOTE: ops.clean_garbage_names() exists but batch mode needs verification
     if (action === "clean_names") {
-      const isDryRun = dry_run !== false; // Default to dry run for safety
-
-      const result = await queryOne<{
-        names_found: number;
-        names_cleaned: number;
-        names_unchanged: number;
-        errors: number;
-        sample_changes: object;
-      }>(
-        `SELECT * FROM ops.clean_garbage_names($1)`,
-        [isDryRun]
-      );
-
-      return apiSuccess({
-        action: "clean_names",
-        dry_run: isDryRun,
-        ...result,
-      });
+      const isDryRun = dry_run !== false;
+      try {
+        const result = await queryOne<{
+          names_found: number;
+          names_cleaned: number;
+          names_unchanged: number;
+          errors: number;
+          sample_changes: object;
+        }>(
+          `SELECT * FROM ops.clean_garbage_names($1)`,
+          [isDryRun]
+        );
+        return apiSuccess({ action: "clean_names", dry_run: isDryRun, ...result });
+      } catch {
+        return apiBadRequest("Batch name cleanup function is not available. Run manually via SQL.");
+      }
     }
 
     // Batch merge phone duplicates (same name only)
+    // NOTE: sot.merge_phone_duplicates() does not exist yet. Gracefully error.
     if (action === "merge_all_phone") {
-      const isDryRun = dry_run !== false; // Default to dry run for safety
-
-      const result = await queryOne<{
-        phones_found: number;
-        people_to_merge: number;
-        merges_executed: number;
-        errors: number;
-        sample_merges: object;
-      }>(
-        `SELECT * FROM sot.merge_phone_duplicates($1)`,
-        [isDryRun]
-      );
-
-      return apiSuccess({
-        action: "merge_all_phone",
-        dry_run: isDryRun,
-        ...result,
-      });
+      return apiBadRequest("Batch phone dedup is not yet implemented. Use merge_one to merge individual duplicates.");
     }
 
     return apiBadRequest("Invalid action. Use: merge_one, merge_all_email, merge_all_phone, clean_names");
