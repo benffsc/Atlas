@@ -64,6 +64,8 @@ export function LogSiteVisitModal({
   const [eartipsSeen, setEartipsSeen] = useState<number | "">("");
   const [timeOfDay, setTimeOfDay] = useState("");
   const [atFeedingStation, setAtFeedingStation] = useState(false);
+  const [kittensSeen, setKittensSeen] = useState<number | "">("");
+  const [newUnfamiliarCats, setNewUnfamiliarCats] = useState<number | "">("");
   const [notes, setNotes] = useState("");
 
   // Full mode fields (shown when mode === 'full')
@@ -91,6 +93,8 @@ export function LogSiteVisitModal({
       setEartipsSeen("");
       setTimeOfDay("");
       setAtFeedingStation(false);
+      setKittensSeen("");
+      setNewUnfamiliarCats("");
       setNotes("");
       setVisitDate(new Date().toISOString().split("T")[0]);
       setArrivalTime("");
@@ -144,6 +148,8 @@ export function LogSiteVisitModal({
         eartipped_seen: Number(eartipsSeen),
         time_of_day: timeOfDay || null,
         is_at_feeding_station: atFeedingStation,
+        kittens_seen: kittensSeen === "" ? null : Number(kittensSeen),
+        new_unfamiliar_cats: newUnfamiliarCats === "" ? null : Number(newUnfamiliarCats),
         notes: notes.trim() || null,
         // Full fields (only if in full mode)
         ...(mode === "full" && {
@@ -432,6 +438,38 @@ export function LogSiteVisitModal({
                 />
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "4px" }}>
                   Already fixed (left ear tip)
+                </div>
+              </div>
+            </div>
+
+            {/* Population Signals */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+              <div>
+                <label style={labelStyle}>Kittens Seen</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={kittensSeen}
+                  onChange={(e) => setKittensSeen(e.target.value === "" ? "" : parseInt(e.target.value))}
+                  style={inputStyle}
+                  placeholder="0"
+                />
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "4px" }}>
+                  Indicates breeding activity
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>New / Unfamiliar Cats</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newUnfamiliarCats}
+                  onChange={(e) => setNewUnfamiliarCats(e.target.value === "" ? "" : parseInt(e.target.value))}
+                  style={inputStyle}
+                  placeholder="0"
+                />
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "4px" }}>
+                  Cats you haven&apos;t seen here before
                 </div>
               </div>
             </div>

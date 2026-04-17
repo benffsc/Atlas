@@ -178,7 +178,11 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
   const sectionElements = (
     <>
       {/* TNR Progress Bar — the most important visual */}
-      <TnrProgressBar fixed={r.linked_cat_count ?? 0} estimated={r.estimated_cat_count} />
+      <TnrProgressBar
+        fixed={r.linked_cat_count ?? 0}
+        total={r.total_cats_reported ?? r.colony_size_estimate ?? null}
+        remaining={r.estimated_cat_count}
+      />
 
       {/* Expand/Collapse All toggle */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.5rem" }}>

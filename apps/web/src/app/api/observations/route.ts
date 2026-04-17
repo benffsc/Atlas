@@ -25,6 +25,8 @@ interface SiteObservation {
   unknown_sex_seen: number | null;
   sex_counts_are_estimates: boolean;
   is_at_feeding_station: boolean | null;
+  kittens_seen: number | null;
+  new_unfamiliar_cats: number | null;
   weather_conditions: string | null;
   confidence: string;
   notes: string | null;
@@ -110,6 +112,8 @@ export async function GET(request: NextRequest) {
         o.unknown_sex_seen,
         o.sex_counts_are_estimates,
         o.is_at_feeding_station,
+        o.kittens_seen,
+        o.new_unfamiliar_cats,
         o.weather_conditions,
         o.confidence,
         o.notes,
@@ -174,6 +178,8 @@ export async function POST(request: NextRequest) {
       unknown_sex_seen,
       sex_counts_are_estimates,
       is_at_feeding_station,
+      kittens_seen,
+      new_unfamiliar_cats,
       weather_conditions,
       confidence,
       notes,
@@ -263,6 +269,8 @@ export async function POST(request: NextRequest) {
         unknown_sex_seen,
         sex_counts_are_estimates,
         is_at_feeding_station,
+        kittens_seen,
+        new_unfamiliar_cats,
         weather_conditions,
         confidence,
         notes,
@@ -275,7 +283,7 @@ export async function POST(request: NextRequest) {
         is_final_visit,
         equipment_used,
         source_system
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, 'atlas_ui')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, 'atlas_ui')
       RETURNING observation_id, created_at
       `,
       [
@@ -299,6 +307,8 @@ export async function POST(request: NextRequest) {
         unknown_sex_seen ?? null,
         sex_counts_are_estimates ?? true,
         is_at_feeding_station ?? null,
+        kittens_seen ?? null,
+        new_unfamiliar_cats ?? null,
         weather_conditions || null,
         confidence || "medium",
         notes || null,

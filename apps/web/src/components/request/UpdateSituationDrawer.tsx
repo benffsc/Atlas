@@ -22,6 +22,8 @@ interface UpdateSituationDrawerProps {
   isOpen: boolean;
   requestId: string;
   request: RequestDetail;
+  /** Clinic-verified altered count (read-only display) */
+  fixedCount?: number;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -73,6 +75,7 @@ export function UpdateSituationDrawer({
   isOpen,
   requestId,
   request,
+  fixedCount = 0,
   onClose,
   onSuccess,
 }: UpdateSituationDrawerProps) {
@@ -443,26 +446,56 @@ export function UpdateSituationDrawer({
           <ToggleChip label="Emergency" value={isEmergency} onChange={setIsEmergency} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
-          <div>
-            <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.2rem" }}>Cats Needing TNR</label>
-            <input
-              type="number"
-              value={catCount}
-              onChange={(e) => setCatCount(e.target.value)}
-              min={0}
-              style={{ width: "100%", padding: "0.4rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.85rem" }}
-            />
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
           <div>
             <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.2rem" }}>Total Cats at Location</label>
             <input
               type="number"
               value={totalCats}
-              onChange={(e) => setTotalCats(e.target.value)}
+              onChange={(e) => {
+                setTotalCats(e.target.value);
+                // Auto-calculate remaining: total - fixed
+                const newTotal = parseInt(e.target.value);
+                if (!isNaN(newTotal)) {
+                  setCatCount(String(Math.max(0, newTotal - fixedCount)));
+                }
+              }}
               min={0}
               style={{ width: "100%", padding: "0.4rem 0.5rem", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.85rem" }}
             />
+          </div>
+          <div>
+            <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.2rem", color: "var(--text-muted)" }}>Confirmed Fixed</label>
+            <div
+              style={{
+                padding: "0.4rem 0.5rem",
+                borderRadius: "6px",
+                border: "1px solid var(--border)",
+                fontSize: "0.85rem",
+                background: "var(--section-bg, #f9fafb)",
+                color: "var(--text-muted)",
+              }}
+            >
+              {fixedCount}
+            </div>
+            <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: "0.15rem" }}>From clinic records</div>
+          </div>
+          <div>
+            <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.2rem", color: "var(--text-muted)" }}>Remaining</label>
+            <div
+              style={{
+                padding: "0.4rem 0.5rem",
+                borderRadius: "6px",
+                border: "1px solid var(--border)",
+                fontSize: "0.85rem",
+                background: "var(--section-bg, #f9fafb)",
+                color: catCount && parseInt(catCount) > 0 ? "var(--warning-text, #92400e)" : "var(--success-text, #166534)",
+                fontWeight: 600,
+              }}
+            >
+              {catCount || "0"}
+            </div>
+            <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginTop: "0.15rem" }}>Auto-calculated</div>
           </div>
         </div>
 

@@ -1272,6 +1272,7 @@ export default function RequestDetailPage() {
         isOpen={showSituation}
         requestId={requestId}
         request={request}
+        fixedCount={request.colony_verified_altered ?? request.linked_cat_count ?? 0}
         onClose={() => setShowSituation(false)}
         onSuccess={() => { setShowSituation(false); refreshRequest(); fetchJournalEntries(); }}
       />

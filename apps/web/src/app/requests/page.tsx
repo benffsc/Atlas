@@ -663,7 +663,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
           {/* TNR Progress mini-bar */}
           {request.estimated_cat_count != null && request.estimated_cat_count > 0 && (
             <div style={{ marginTop: "6px" }}>
-              <TnrProgressBar fixed={0} estimated={request.estimated_cat_count} compact />
+              <TnrProgressBar fixed={0} total={null} remaining={request.estimated_cat_count} compact />
             </div>
           )}
         </div>
