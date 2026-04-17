@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
@@ -49,6 +49,24 @@ export function HeroCheckinCard({
   });
   const [transferring, setTransferring] = useState(false);
 
+  // Two-tap confirmation to prevent accidental check-ins (Tom Byrne incident 2026-04-16)
+  const [confirmingCheckin, setConfirmingCheckin] = useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleCheckinTap = () => {
+    if (!confirmingCheckin) {
+      // First tap: show "tap again to confirm" state
+      setConfirmingCheckin(true);
+      // Auto-reset after 3 seconds if they don't confirm
+      confirmTimerRef.current = setTimeout(() => setConfirmingCheckin(false), 3000);
+    } else {
+      // Second tap: execute
+      clearTimeout(confirmTimerRef.current);
+      setConfirmingCheckin(false);
+      handleCheckin();
+    }
+  };
+
   const colors = getCustodyStyle("checked_out");
 
   const handleCheckin = async () => {
@@ -71,7 +89,7 @@ export function HeroCheckinCard({
             });
           },
         },
-        duration: 5000,
+        duration: 10000,
       });
 
       onComplete();
@@ -120,7 +138,7 @@ export function HeroCheckinCard({
               });
             },
           },
-          duration: 5000,
+          duration: 10000,
         },
       );
 
@@ -158,26 +176,29 @@ export function HeroCheckinCard({
         </p>
       </div>
 
-      {/* Primary action */}
+      {/* Primary action — two-tap to prevent accidental check-ins */}
       <Button
         variant="primary"
         size="lg"
-        icon="log-in"
+        icon={confirmingCheckin ? "alert-circle" : "log-in"}
         fullWidth
         loading={loading}
-        onClick={handleCheckin}
+        onClick={handleCheckinTap}
         disabled={showTransfer}
         style={{
           minHeight: "56px",
           borderRadius: "12px",
-          background: "var(--success-text, #16a34a)",
+          background: confirmingCheckin
+            ? "var(--warning-text, #d97706)"
+            : "var(--success-text, #16a34a)",
           color: "#fff",
           border: "1px solid transparent",
           fontSize: "1.05rem",
           fontWeight: 600,
+          transition: "background 150ms ease",
         }}
       >
-        Check In
+        {confirmingCheckin ? "Tap again to confirm check-in" : "Check In"}
       </Button>
 
       {/* Secondary action — transfer to different person */}
