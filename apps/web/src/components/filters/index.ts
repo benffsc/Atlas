@@ -1,5 +1,6 @@
 export { FilterBar } from "./FilterBar";
 export { FilterDivider } from "./FilterDivider";
+export { FilterDrawer, FilterDrawerSection } from "./FilterDrawer";
 export { FilterTag, ActiveFilterTags } from "./FilterTag";
 export { SearchInput } from "./SearchInput";
 export { ToggleButtonGroup } from "./ToggleButtonGroup";

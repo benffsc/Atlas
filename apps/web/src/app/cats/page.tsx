@@ -12,7 +12,8 @@ import type { CatDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { CatPreviewContent } from "@/components/preview/CatPreviewContent";
-import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup, ActiveFilterTags } from "@/components/filters";
+import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup, ActiveFilterTags, FilterDrawer, FilterDrawerSection } from "@/components/filters";
+import { Button } from "@/components/ui/Button";
 import { DataTable, useDataTable } from "@/components/data-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
 
@@ -173,6 +174,11 @@ function CatsPageContent() {
     useDataTable(filters, setFilters, { defaultPageSize: 25, defaultSort: "quality", defaultSortDir: "desc" });
 
   const [searchInput, setSearchInput] = useState(filters.q);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+
+  // Count active advanced filters (excludes search, pagination, sort)
+  const advancedFilterKeys = ["has_place", "partner_org", "disease", "condition", "is_deceased"] as const;
+  const activeAdvancedCount = advancedFilterKeys.filter(k => filters[k] && filters[k] !== FILTER_DEFAULTS[k]).length;
 
   const { items: cats, total, loading, error } = useListData<Cat>({
     endpoint: "/api/cats",
@@ -253,37 +259,14 @@ function CatsPageContent() {
           aria-label="Filter by altered status"
         />
         <FilterDivider />
-        {/* Multi-option filters stay as selects */}
-        <select value={filters.has_place} onChange={(e) => setFilters({ has_place: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">All locations</option>
-          <option value="true">Has location</option>
-          <option value="false">No location</option>
-        </select>
-        <select value={filters.partner_org} onChange={(e) => setFilters({ partner_org: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">All sources</option>
-          <option value="SCAS">From SCAS</option>
-          <option value="FFSC">FFSC linked</option>
-          <option value="RPAS">From Rohnert Park</option>
-          <option value="MH">From Marin Humane</option>
-        </select>
-        <select value={filters.disease} onChange={(e) => setFilters({ disease: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">All diseases</option>
-          <option value="felv">FeLV+</option>
-          <option value="fiv">FIV+</option>
-        </select>
-        <select value={filters.condition} onChange={(e) => setFilters({ condition: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">All conditions</option>
-          <option value="pregnant">Pregnant</option>
-          <option value="lactating">Lactating</option>
-          <option value="uri">URI</option>
-          <option value="fleas">Fleas</option>
-          <option value="ear_mites">Ear Mites</option>
-        </select>
-        <select value={filters.is_deceased} onChange={(e) => setFilters({ is_deceased: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">Living & Deceased</option>
-          <option value="false">Living only</option>
-          <option value="true">Deceased only</option>
-        </select>
+        <Button
+          variant={activeAdvancedCount > 0 ? "primary" : "secondary"}
+          size="sm"
+          icon="sliders-horizontal"
+          onClick={() => setFilterDrawerOpen(true)}
+        >
+          Filters{activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ""}
+        </Button>
       </FilterBar>
 
       <ActiveFilterTags
@@ -308,6 +291,54 @@ function CatsPageContent() {
         onRemove={(key) => setFilter(key as keyof typeof FILTER_DEFAULTS, FILTER_DEFAULTS[key as keyof typeof FILTER_DEFAULTS])}
         onClearAll={clearFilters}
       />
+
+      <FilterDrawer
+        isOpen={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        onClear={clearFilters}
+        activeCount={activeAdvancedCount}
+      >
+        <FilterDrawerSection label="Location">
+          <select value={filters.has_place} onChange={(e) => setFilters({ has_place: e.target.value, page: "0" })} style={selectStyle}>
+            <option value="">All locations</option>
+            <option value="true">Has location</option>
+            <option value="false">No location</option>
+          </select>
+        </FilterDrawerSection>
+        <FilterDrawerSection label="Source">
+          <select value={filters.partner_org} onChange={(e) => setFilters({ partner_org: e.target.value, page: "0" })} style={selectStyle}>
+            <option value="">All sources</option>
+            <option value="SCAS">From SCAS</option>
+            <option value="FFSC">FFSC linked</option>
+            <option value="RPAS">From Rohnert Park</option>
+            <option value="MH">From Marin Humane</option>
+          </select>
+        </FilterDrawerSection>
+        <FilterDrawerSection label="Disease">
+          <select value={filters.disease} onChange={(e) => setFilters({ disease: e.target.value, page: "0" })} style={selectStyle}>
+            <option value="">All diseases</option>
+            <option value="felv">FeLV+</option>
+            <option value="fiv">FIV+</option>
+          </select>
+        </FilterDrawerSection>
+        <FilterDrawerSection label="Condition">
+          <select value={filters.condition} onChange={(e) => setFilters({ condition: e.target.value, page: "0" })} style={selectStyle}>
+            <option value="">All conditions</option>
+            <option value="pregnant">Pregnant</option>
+            <option value="lactating">Lactating</option>
+            <option value="uri">URI</option>
+            <option value="fleas">Fleas</option>
+            <option value="ear_mites">Ear Mites</option>
+          </select>
+        </FilterDrawerSection>
+        <FilterDrawerSection label="Status">
+          <select value={filters.is_deceased} onChange={(e) => setFilters({ is_deceased: e.target.value, page: "0" })} style={selectStyle}>
+            <option value="">Living & Deceased</option>
+            <option value="false">Living only</option>
+            <option value="true">Deceased only</option>
+          </select>
+        </FilterDrawerSection>
+      </FilterDrawer>
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
 

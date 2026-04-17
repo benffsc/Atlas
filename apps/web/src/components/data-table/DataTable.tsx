@@ -20,7 +20,7 @@ function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number })
       {Array.from({ length: rows }, (_, r) => (
         <tr key={r}>
           {Array.from({ length: columns }, (_, c) => (
-            <td key={c} style={{ padding: "0.75rem 0.5rem" }}>
+            <td key={c}>
               <div
                 style={{
                   height: "0.875rem",
@@ -55,6 +55,7 @@ export function DataTable<TData>({
   onRowClick,
   getRowStyle,
   renderCard,
+  density = "default",
   loading,
   emptyState,
   hasActiveFilters,
@@ -135,7 +136,7 @@ export function DataTable<TData>({
 
   return (
     <div>
-      <div className="table-container">
+      <div className={`table-container${density === "compact" ? " table-compact" : ""}`}>
         <table aria-label={ariaLabel} style={{ width: "100%" }}>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (

@@ -35,6 +35,10 @@ export interface DataTableProps<TData> {
   // Mobile card fallback
   renderCard?: (row: TData, opts: { isSelected: boolean; onClick: () => void }) => ReactNode;
 
+  // Density (FFS-1260, Dom Design)
+  /** Row density: "default" (auto) or "compact" (38px rows) */
+  density?: "default" | "compact";
+
   // Loading/Empty
   loading?: boolean;
   emptyState?: ReactNode;

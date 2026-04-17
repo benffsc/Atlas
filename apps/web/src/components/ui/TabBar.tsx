@@ -35,7 +35,8 @@ interface TabBarProps {
  * ```
  */
 export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProps) {
-  const padding = size === "sm" ? "0.35rem 0.75rem" : size === "lg" ? "0.75rem 1.5rem" : "0.5rem 1rem";
+  const height = size === "sm" ? "var(--control-height-sm)" : size === "lg" ? "var(--control-height-lg)" : "var(--control-height)";
+  const padding = size === "sm" ? "0 0.75rem" : size === "lg" ? "0 1.5rem" : "0 1rem";
   const fontSize = size === "sm" ? "0.8rem" : size === "lg" ? "1rem" : "0.9rem";
 
   return (
@@ -58,6 +59,7 @@ export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProp
             data-testid={`tab-${tab.id}`}
             onClick={() => onTabChange(tab.id)}
             style={{
+              height,
               padding,
               fontSize,
               fontWeight: 600,

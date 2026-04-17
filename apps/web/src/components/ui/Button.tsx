@@ -19,9 +19,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const SIZE_STYLES: Record<ButtonSize, React.CSSProperties> = {
-  sm: { padding: "0.25rem 0.625rem", fontSize: "0.8rem", gap: "0.375rem", borderRadius: "5px" },
-  md: { padding: "0.5rem 1rem", fontSize: "0.875rem", gap: "0.5rem", borderRadius: "6px" },
-  lg: { padding: "0.625rem 1.25rem", fontSize: "1rem", gap: "0.5rem", borderRadius: "8px" },
+  sm: { height: "var(--control-height-sm)", padding: "0 0.625rem", fontSize: "0.8rem", gap: "0.375rem", borderRadius: "5px" },
+  md: { height: "var(--control-height)", padding: "0 1rem", fontSize: "0.875rem", gap: "0.5rem", borderRadius: "6px" },
+  lg: { height: "var(--control-height-lg)", padding: "0 1.25rem", fontSize: "1rem", gap: "0.5rem", borderRadius: "8px" },
 };
 
 const VARIANT_STYLES: Record<ButtonVariant, React.CSSProperties> = {

@@ -61,6 +61,7 @@ import {
   TrendingUp,
   ScanBarcode,
   List,
+  SlidersHorizontal,
   PackagePlus,
   Camera,
   X,
@@ -203,6 +204,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   // Kiosk
   "scan-barcode": ScanBarcode,
   list: List,
+  "sliders-horizontal": SlidersHorizontal,
   "package-plus": PackagePlus,
   camera: Camera,
   x: X,

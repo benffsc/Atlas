@@ -22,8 +22,8 @@ interface ToggleButtonGroupProps {
 }
 
 const sizeStyles = {
-  sm: { padding: "0.25rem 0.625rem", fontSize: TYPOGRAPHY.size.xs },
-  md: { padding: "0.375rem 0.75rem", fontSize: TYPOGRAPHY.size.sm },
+  sm: { padding: "0 0.625rem", fontSize: TYPOGRAPHY.size.xs, height: "var(--control-height-sm)" },
+  md: { padding: "0 0.75rem", fontSize: TYPOGRAPHY.size.sm, height: "var(--control-height)" },
 } as const;
 
 export function ToggleButtonGroup({

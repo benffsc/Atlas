@@ -62,6 +62,11 @@
   --tab-badge-inactive-bg: #d1d5db;
   --tab-badge-inactive-text: #4b5563;
 
+  /* Control height scale (FFS-1258, Dom Design) */
+  --control-height-sm: 28px;
+  --control-height: 36px;
+  --control-height-lg: 44px;
+
   /* Layout dimensions */
   --topbar-height: 56px;
 
@@ -449,9 +454,30 @@ table {
 
 th,
 td {
-  padding: 0.75rem 1rem;
+  padding: var(--table-cell-padding, 0.75rem 1rem);
   text-align: left;
   border-bottom: 1px solid var(--border);
+}
+
+.table-compact {
+  --table-cell-padding: 0.375rem 0.75rem;
+}
+
+/* FFS-1263: Frozen columns for horizontal scroll tables */
+.table-scroll-x th:first-child,
+.table-scroll-x td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--background, #fff);
+}
+
+.table-scroll-x th:last-child,
+.table-scroll-x td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--background, #fff);
 }
 
 th {

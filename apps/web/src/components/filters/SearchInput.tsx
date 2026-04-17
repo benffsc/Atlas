@@ -13,8 +13,8 @@ interface SearchInputProps {
 }
 
 const sizeStyles = {
-  sm: { padding: "0.3rem 0.75rem", fontSize: TYPOGRAPHY.size.xs, height: "1.875rem" },
-  md: { padding: "0.375rem 0.875rem", fontSize: TYPOGRAPHY.size.sm, height: "2.25rem" },
+  sm: { padding: "0 0.75rem", fontSize: TYPOGRAPHY.size.xs, height: "var(--control-height-sm)" },
+  md: { padding: "0 0.875rem", fontSize: TYPOGRAPHY.size.sm, height: "var(--control-height)" },
 } as const;
 
 export function SearchInput({
