@@ -13,7 +13,10 @@ import type { PlaceDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { PlacePreviewContent } from "@/components/preview/PlacePreviewContent";
-import { FilterBar, FilterDivider, SearchInput, ActiveFilterTags } from "@/components/filters";
+import { FilterBar, FilterDivider, SearchInput, ActiveFilterTags, FilterDrawer, FilterDrawerSection } from "@/components/filters";
+import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
 
@@ -182,6 +185,9 @@ function PlacesPageContent() {
     useDataTable(filters, setFilters, { defaultPageSize: 25 });
 
   const [searchInput, setSearchInput] = useState(filters.q);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const advancedFilterKeys = ["has_cats", "disease_risk", "watch_list"] as const;
+  const activeAdvancedCount = advancedFilterKeys.filter(k => filters[k] && filters[k] !== FILTER_DEFAULTS[k]).length;
 
   const { items: places, total, loading, error } = useListData<Place>({
     endpoint: "/api/places",
@@ -221,12 +227,14 @@ function PlacesPageContent() {
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ margin: 0 }}>Places</h1>
-        <a href="/places/new" className="btn btn-primary" style={{ textDecoration: "none" }}>
-          + New Place
-        </a>
-      </div>
+      <PageHeader
+        title="Places"
+        actions={
+          <Button variant="primary" size="sm" icon="plus" onClick={() => window.location.href = "/places/new"}>
+            New Place
+          </Button>
+        }
+      />
 
       <FilterBar showClear={!isDefault} onClear={clearFilters}>
         <SearchInput
@@ -236,32 +244,56 @@ function PlacesPageContent() {
           placeholder="Search by address, locality..."
         />
         <FilterDivider />
-        <select value={filters.kind} onChange={(e) => setFilters({ kind: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">All types</option>
-          <option value="residential_house">Residential House</option>
-          <option value="apartment_unit">Apartment Unit</option>
-          <option value="apartment_building">Apartment Building</option>
-          <option value="business">Business</option>
-          <option value="clinic">Clinic</option>
-          <option value="outdoor_site">Outdoor Site</option>
-          <option value="neighborhood">Neighborhood</option>
-        </select>
-        <select value={filters.has_cats} onChange={(e) => setFilters({ has_cats: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">All places</option>
-          <option value="true">Has cats</option>
-          <option value="false">No cats</option>
-        </select>
-        <select value={filters.disease_risk} onChange={(e) => setFilters({ disease_risk: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">All risk levels</option>
-          <option value="felv">FeLV risk</option>
-          <option value="fiv">FIV risk</option>
-        </select>
-        <select value={filters.watch_list} onChange={(e) => setFilters({ watch_list: e.target.value, page: "0" })} style={selectStyle}>
-          <option value="">All watch status</option>
-          <option value="true">On watch list</option>
-          <option value="false">Not on watch list</option>
-        </select>
+        <Select
+          value={filters.kind}
+          onChange={(v) => setFilters({ kind: v, page: "0" })}
+          placeholder="All types"
+          options={[
+            { value: "residential_house", label: "Residential House" },
+            { value: "apartment_unit", label: "Apartment Unit" },
+            { value: "apartment_building", label: "Apartment Building" },
+            { value: "business", label: "Business" },
+            { value: "clinic", label: "Clinic" },
+            { value: "outdoor_site", label: "Outdoor Site" },
+            { value: "neighborhood", label: "Neighborhood" },
+          ]}
+        />
+        <FilterDivider />
+        <Button
+          variant={activeAdvancedCount > 0 ? "primary" : "secondary"}
+          size="sm"
+          icon="sliders-horizontal"
+          onClick={() => setFilterDrawerOpen(true)}
+        >
+          Filters{activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ""}
+        </Button>
       </FilterBar>
+
+      <FilterDrawer
+        isOpen={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        onClear={clearFilters}
+        activeCount={activeAdvancedCount}
+      >
+        <FilterDrawerSection label="Cat Activity">
+          <Select value={filters.has_cats} onChange={(v) => setFilters({ has_cats: v, page: "0" })} placeholder="All places" fullWidth options={[
+            { value: "true", label: "Has cats" },
+            { value: "false", label: "No cats" },
+          ]} />
+        </FilterDrawerSection>
+        <FilterDrawerSection label="Disease Risk">
+          <Select value={filters.disease_risk} onChange={(v) => setFilters({ disease_risk: v, page: "0" })} placeholder="All risk levels" fullWidth options={[
+            { value: "felv", label: "FeLV risk" },
+            { value: "fiv", label: "FIV risk" },
+          ]} />
+        </FilterDrawerSection>
+        <FilterDrawerSection label="Watch List">
+          <Select value={filters.watch_list} onChange={(v) => setFilters({ watch_list: v, page: "0" })} placeholder="All watch status" fullWidth options={[
+            { value: "true", label: "On watch list" },
+            { value: "false", label: "Not on watch list" },
+          ]} />
+        </FilterDrawerSection>
+      </FilterDrawer>
 
       <ActiveFilterTags
         filters={filters}
@@ -365,15 +397,6 @@ function PlacesPageContent() {
   );
 }
 
-const selectStyle = {
-  padding: "0.3rem 0.5rem",
-  fontSize: "0.75rem",
-  border: "1px solid var(--border, #e5e7eb)",
-  borderRadius: "9999px",
-  background: "var(--card-bg, #fff)",
-  color: "var(--text-primary, #111827)",
-  cursor: "pointer",
-} as const;
 
 export default function PlacesPage() {
   return (

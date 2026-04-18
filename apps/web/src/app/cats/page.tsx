@@ -14,6 +14,8 @@ import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { CatPreviewContent } from "@/components/preview/CatPreviewContent";
 import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup, ActiveFilterTags, FilterDrawer, FilterDrawerSection } from "@/components/filters";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
 
@@ -218,9 +220,7 @@ function CatsPageContent() {
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ margin: 0 }}>Cats</h1>
-      </div>
+      <PageHeader title="Cats" />
 
       <FilterBar showClear={!isDefault} onClear={clearFilters}>
         <SearchInput
@@ -299,44 +299,39 @@ function CatsPageContent() {
         activeCount={activeAdvancedCount}
       >
         <FilterDrawerSection label="Location">
-          <select value={filters.has_place} onChange={(e) => setFilters({ has_place: e.target.value, page: "0" })} style={selectStyle}>
-            <option value="">All locations</option>
-            <option value="true">Has location</option>
-            <option value="false">No location</option>
-          </select>
+          <Select value={filters.has_place} onChange={(v) => setFilters({ has_place: v, page: "0" })} placeholder="All locations" fullWidth options={[
+            { value: "true", label: "Has location" },
+            { value: "false", label: "No location" },
+          ]} />
         </FilterDrawerSection>
         <FilterDrawerSection label="Source">
-          <select value={filters.partner_org} onChange={(e) => setFilters({ partner_org: e.target.value, page: "0" })} style={selectStyle}>
-            <option value="">All sources</option>
-            <option value="SCAS">From SCAS</option>
-            <option value="FFSC">FFSC linked</option>
-            <option value="RPAS">From Rohnert Park</option>
-            <option value="MH">From Marin Humane</option>
-          </select>
+          <Select value={filters.partner_org} onChange={(v) => setFilters({ partner_org: v, page: "0" })} placeholder="All sources" fullWidth options={[
+            { value: "SCAS", label: "From SCAS" },
+            { value: "FFSC", label: "FFSC linked" },
+            { value: "RPAS", label: "From Rohnert Park" },
+            { value: "MH", label: "From Marin Humane" },
+          ]} />
         </FilterDrawerSection>
         <FilterDrawerSection label="Disease">
-          <select value={filters.disease} onChange={(e) => setFilters({ disease: e.target.value, page: "0" })} style={selectStyle}>
-            <option value="">All diseases</option>
-            <option value="felv">FeLV+</option>
-            <option value="fiv">FIV+</option>
-          </select>
+          <Select value={filters.disease} onChange={(v) => setFilters({ disease: v, page: "0" })} placeholder="All diseases" fullWidth options={[
+            { value: "felv", label: "FeLV+" },
+            { value: "fiv", label: "FIV+" },
+          ]} />
         </FilterDrawerSection>
         <FilterDrawerSection label="Condition">
-          <select value={filters.condition} onChange={(e) => setFilters({ condition: e.target.value, page: "0" })} style={selectStyle}>
-            <option value="">All conditions</option>
-            <option value="pregnant">Pregnant</option>
-            <option value="lactating">Lactating</option>
-            <option value="uri">URI</option>
-            <option value="fleas">Fleas</option>
-            <option value="ear_mites">Ear Mites</option>
-          </select>
+          <Select value={filters.condition} onChange={(v) => setFilters({ condition: v, page: "0" })} placeholder="All conditions" fullWidth options={[
+            { value: "pregnant", label: "Pregnant" },
+            { value: "lactating", label: "Lactating" },
+            { value: "uri", label: "URI" },
+            { value: "fleas", label: "Fleas" },
+            { value: "ear_mites", label: "Ear Mites" },
+          ]} />
         </FilterDrawerSection>
         <FilterDrawerSection label="Status">
-          <select value={filters.is_deceased} onChange={(e) => setFilters({ is_deceased: e.target.value, page: "0" })} style={selectStyle}>
-            <option value="">Living & Deceased</option>
-            <option value="false">Living only</option>
-            <option value="true">Deceased only</option>
-          </select>
+          <Select value={filters.is_deceased} onChange={(v) => setFilters({ is_deceased: v, page: "0" })} placeholder="Living & Deceased" fullWidth options={[
+            { value: "false", label: "Living only" },
+            { value: "true", label: "Deceased only" },
+          ]} />
         </FilterDrawerSection>
       </FilterDrawer>
 
@@ -412,15 +407,6 @@ function CatsPageContent() {
   );
 }
 
-const selectStyle = {
-  padding: "0.3rem 0.5rem",
-  fontSize: "0.75rem",
-  border: "1px solid var(--border, #e5e7eb)",
-  borderRadius: "9999px",
-  background: "var(--card-bg, #fff)",
-  color: "var(--text-primary, #111827)",
-  cursor: "pointer",
-} as const;
 
 export default function CatsPage() {
   return (

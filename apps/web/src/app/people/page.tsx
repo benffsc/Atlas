@@ -12,7 +12,9 @@ import EntityPreview from "@/components/search/EntityPreview";
 import { CreatePersonModal } from "@/components/modals";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { PersonPreviewContent } from "@/components/preview/PersonPreviewContent";
-import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
+import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider, ActiveFilterTags } from "@/components/filters";
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
@@ -206,24 +208,14 @@ function PeoplePageContent() {
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1 style={{ margin: 0 }}>People</h1>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          style={{
-            fontSize: "0.875rem",
-            background: "var(--primary, #2563eb)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "4px",
-            padding: "0.35rem 0.75rem",
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          + New Person
-        </button>
-      </div>
+      <PageHeader
+        title="People"
+        actions={
+          <Button variant="primary" size="sm" icon="plus" onClick={() => setShowCreateModal(true)}>
+            New Person
+          </Button>
+        }
+      />
 
       <CreatePersonModal
         isOpen={showCreateModal}
@@ -249,6 +241,16 @@ function PeoplePageContent() {
           aria-label="Search depth"
         />
       </FilterBar>
+
+      <ActiveFilterTags
+        filters={filters}
+        defaults={FILTER_DEFAULTS}
+        labels={{ deep: "Search Mode" }}
+        valueLabels={{ deep: { true: "Deep Search" } }}
+        exclude={["q", "page", "pageSize", "sortDir", "selected"]}
+        onRemove={(key) => setFilter(key as keyof typeof FILTER_DEFAULTS, FILTER_DEFAULTS[key as keyof typeof FILTER_DEFAULTS])}
+        onClearAll={clearFilters}
+      />
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
 
