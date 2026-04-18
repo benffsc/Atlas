@@ -289,21 +289,12 @@ export async function GET(request: NextRequest) {
   try {
     const results: Record<string, SyncResult> = {};
     let totalApiRequests = 0;
+    const TIME_BUDGET_MS = 240_000; // 240s of 300s max — leave 60s for processing
 
-    // Sync in order: people first (for identity resolution), then animals, then events
-    if (!syncType || syncType === "people") {
-      console.error("[SL-SYNC] Syncing people...");
-      results.people = await syncEndpoint(
-        "/people",
-        "people",
-        "people",
-        "Internal-ID",
-        "LastUpdatedUnixTime",
-        incremental
-      );
-      totalApiRequests += results.people.apiRequests;
-    }
-
+    // Sync animals FIRST — they have a working incremental watermark and are fast.
+    // People sync has a NULL watermark (ShelterLuv people records lack LastUpdatedUnixTime)
+    // which causes a full refetch every run. Doing people second prevents them from
+    // starving animal sync of time budget.
     if (!syncType || syncType === "animals") {
       console.error("[SL-SYNC] Syncing animals...");
       results.animals = await syncEndpoint(
@@ -315,6 +306,23 @@ export async function GET(request: NextRequest) {
         incremental
       );
       totalApiRequests += results.animals.apiRequests;
+    }
+
+    // Only sync people if we have time budget remaining
+    const elapsedAfterAnimals = Date.now() - startTime;
+    if ((!syncType || syncType === "people") && elapsedAfterAnimals < TIME_BUDGET_MS) {
+      console.error("[SL-SYNC] Syncing people...");
+      results.people = await syncEndpoint(
+        "/people",
+        "people",
+        "people",
+        "Internal-ID",
+        "LastUpdatedUnixTime",
+        incremental
+      );
+      totalApiRequests += results.people.apiRequests;
+    } else if (!syncType && elapsedAfterAnimals >= TIME_BUDGET_MS) {
+      console.error("[SL-SYNC] Skipping people sync — time budget exhausted");
     }
 
     if (!syncType || syncType === "events") {
@@ -336,33 +344,12 @@ export async function GET(request: NextRequest) {
 
     // Process staged records through Data Engine processors
     // Always process unprocessed records (catches backfills + resets)
+    // Process animals FIRST (fast, critical for cat identity), then people
     const processing: Record<string, unknown> = {};
 
-    // Process people first (identity resolution)
-    if (!syncType || syncType === "people") {
-      const unprocessedPeople = await queryOne<{ count: number }>(
-        `SELECT COUNT(*)::int as count FROM ops.staged_records
-         WHERE source_system = 'shelterluv' AND source_table = 'people'
-           AND is_processed IS NOT TRUE`
-      );
-      if (unprocessedPeople && unprocessedPeople.count > 0) {
-        console.error(`[SL-SYNC] Processing ${unprocessedPeople.count} people through Data Engine...`);
-        const peopleResult = await queryOne<{
-          records_processed: number;
-          people_created: number;
-          people_updated: number;
-          errors: number;
-        }>(
-          `SELECT * FROM ops.process_shelterluv_people_batch($1)`,
-          [500]
-        );
-        processing.people = peopleResult;
-      }
-    }
-
-    // Process animals (creates cats + detects fosters)
+    // Process animals first (creates cats + detects fosters)
     if (!syncType || syncType === "animals") {
-      const animalBatchSize = 100;
+      const animalBatchSize = 500;
       const unprocessedAnimals = await queryRows<{ id: string }>(
         `SELECT id::text FROM ops.staged_records
          WHERE source_system = 'shelterluv'
@@ -384,9 +371,42 @@ export async function GET(request: NextRequest) {
             animalsProcessed++;
           } catch (err) {
             console.error("Error processing animal:", animal.id, err);
+            // Mark as processed with error so it doesn't block the queue forever
+            try {
+              await execute(
+                `UPDATE ops.staged_records SET is_processed = TRUE, processing_error = $2, updated_at = NOW()
+                 WHERE id = $1::uuid`,
+                [animal.id, err instanceof Error ? err.message : String(err)]
+              );
+            } catch (writebackErr) {
+              console.error("Failed to write back error for animal:", animal.id, writebackErr);
+            }
           }
         }
         processing.animals = { processed: animalsProcessed };
+      }
+    }
+
+    // Process people (identity resolution) — after animals so they don't starve the queue
+    const elapsedAfterAnimalProcessing = Date.now() - startTime;
+    if ((!syncType || syncType === "people") && elapsedAfterAnimalProcessing < TIME_BUDGET_MS) {
+      const unprocessedPeople = await queryOne<{ count: number }>(
+        `SELECT COUNT(*)::int as count FROM ops.staged_records
+         WHERE source_system = 'shelterluv' AND source_table = 'people'
+           AND is_processed IS NOT TRUE`
+      );
+      if (unprocessedPeople && unprocessedPeople.count > 0) {
+        console.error(`[SL-SYNC] Processing ${unprocessedPeople.count} people through Data Engine...`);
+        const peopleResult = await queryOne<{
+          records_processed: number;
+          people_created: number;
+          people_updated: number;
+          errors: number;
+        }>(
+          `SELECT * FROM ops.process_shelterluv_people_batch($1)`,
+          [500]
+        );
+        processing.people = peopleResult;
       }
     }
 
