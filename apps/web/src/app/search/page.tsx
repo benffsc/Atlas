@@ -6,8 +6,8 @@ import { fetchApi } from "@/lib/api-client";
 import { EntityPreview } from "@/components/search";
 import { GroupedSearchResult } from "@/components/search";
 import { formatPhone } from "@/lib/formatters";
-import { SkeletonTable } from "@/components/feedback/Skeleton";
-import { EmptySearchResults, EmptyState } from "@/components/feedback/EmptyState";
+import { SkeletonTable, SkeletonList } from "@/components/feedback/Skeleton";
+import { EmptySearchResults, EmptyState, ErrorState } from "@/components/feedback/EmptyState";
 import {
   MATCH_REASON_LABELS,
   SOURCE_TABLE_LABELS,
@@ -256,9 +256,9 @@ function SearchContent() {
         )}
       </form>
 
-      {loading && <div className="loading">Searching...</div>}
+      {loading && <SkeletonList items={5} showAvatar />}
 
-      {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
+      {error && <ErrorState title="Search failed" description={error} />}
 
       {!loading && !error && data && (
         <>

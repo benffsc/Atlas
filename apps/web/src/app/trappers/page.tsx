@@ -16,6 +16,7 @@ import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/comp
 import { Pagination } from "@/components/ui/Pagination";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/feedback/EmptyState";
+import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface AssignedRequest {
   request_id: string;
@@ -1127,7 +1128,7 @@ function TrappersPageInner() {
         />
       )}
 
-      {loading && <div className="loading">Loading trappers...</div>}
+      {loading && <SkeletonList items={8} showAvatar />}
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
 

@@ -257,6 +257,7 @@ function PeoplePageContent() {
       <DataTable<Person>
         columns={personColumns}
         data={people}
+        density="compact"
         getRowId={(row) => row.person_id}
         total={total}
         pageIndex={pageIndex}

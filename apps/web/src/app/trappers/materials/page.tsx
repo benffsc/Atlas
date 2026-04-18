@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
+import { EmptyList, EmptySearchResults, ErrorState } from "@/components/feedback/EmptyState";
 
 interface EducationMaterial {
   material_id: string;
@@ -218,20 +220,18 @@ export default function TrapperMaterialsPage() {
       />
 
       {/* Loading */}
-      {loading && <div className="loading">Loading materials...</div>}
+      {loading && <SkeletonList items={6} />}
 
       {/* Error */}
-      {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
+      {error && <ErrorState title="Failed to load materials" description={error} />}
 
       {/* Content */}
       {!loading && !error && data && (
         <>
           {filteredMaterials.length === 0 ? (
-            <div className="empty">
-              {searchTerm
-                ? "No materials match your search."
-                : "No materials available yet."}
-            </div>
+            searchTerm
+              ? <EmptySearchResults query={searchTerm} onClear={() => setSearchTerm("")} />
+              : <EmptyList entityName="materials" />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
               {Object.entries(materialsByCategory).map(([category, materials]) => {

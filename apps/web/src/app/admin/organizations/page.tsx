@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { formatRelativeTime } from "@/lib/formatters";
 import { StatCard } from "@/components/ui/StatCard";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { EmptyList } from "@/components/feedback/EmptyState";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 
@@ -170,9 +171,7 @@ export default function OrganizationsPage() {
           <SkeletonTable rows={5} columns={3} />
         </div>
       ) : orgs.length === 0 ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>
-          No organizations found
-        </div>
+        <EmptyList entityName="organizations" />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
           {Object.entries(grouped).map(([type, typeOrgs]) => (

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
+import { SkeletonList } from "@/components/feedback/Skeleton";
+import { EmptyList, EmptySearchResults, ErrorState } from "@/components/feedback/EmptyState";
 import { LogObservationModal } from "@/components/modals";
 import { StatCard } from "@/components/ui/StatCard";
 
@@ -206,10 +208,10 @@ export default function TrapperObservationsPage() {
       </div>
 
       {/* Loading */}
-      {loading && <div className="loading">Loading observation data...</div>}
+      {loading && <SkeletonList items={5} />}
 
       {/* Error */}
-      {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
+      {error && <ErrorState title="Failed to load observations" description={error} />}
 
       {/* Content */}
       {!loading && !error && data && (
@@ -217,11 +219,9 @@ export default function TrapperObservationsPage() {
           {viewMode === "sites" ? (
             <>
               {sortedSites.length === 0 ? (
-                <div className="empty">
-                  {searchTerm
-                    ? "No sites match your search."
-                    : "No active site assignments found."}
-                </div>
+                searchTerm
+                  ? <EmptySearchResults query={searchTerm} onClear={() => setSearchTerm("")} />
+                  : <EmptyList entityName="site assignments" />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   {sortedSites.map((site) => {
@@ -337,7 +337,7 @@ export default function TrapperObservationsPage() {
             /* Recent Observations View */
             <>
               {data.recent_observations.length === 0 ? (
-                <div className="empty">No observations recorded yet.</div>
+                <EmptyList entityName="observations" />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {data.recent_observations.map((obs) => (

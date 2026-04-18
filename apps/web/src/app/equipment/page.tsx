@@ -18,6 +18,7 @@ import type { VEquipmentInventoryRow, EquipmentStatsRow } from "@/lib/types/view
 import { getCustodyStyle, getConditionStyle, getCategoryStyle } from "@/lib/equipment-styles";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { EmptyList } from "@/components/feedback/EmptyState";
 
 // Category → fallback icon for items without photos
 const CATEGORY_ICONS: Record<string, string> = {
@@ -167,7 +168,7 @@ function GroupedEquipmentView({
   };
 
   if (groups.length === 0) {
-    return <div style={{ padding: "2rem", textAlign: "center", color: "var(--muted)" }}>No equipment found</div>;
+    return <EmptyList entityName="equipment" />;
   }
 
   return (
@@ -668,6 +669,7 @@ function EquipmentPageContent() {
           <DataTable
             columns={columns}
             data={equipment}
+            density="compact"
             getRowId={(row) => row.equipment_id}
             total={total}
             pageIndex={pageIndex}

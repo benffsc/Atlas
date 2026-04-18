@@ -18,6 +18,7 @@ import { Select } from "@/components/ui/Select";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface Cat {
   cat_id: string;
@@ -222,6 +223,13 @@ function CatsPageContent() {
     >
       <PageHeader title="Cats" />
 
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <StatCard label="Total Cats" value={loading ? "..." : total} />
+        {!isDefault && !loading && (
+          <StatCard label="Showing" value={cats.length} subtitle={`of ${total} matching`} />
+        )}
+      </div>
+
       <FilterBar showClear={!isDefault} onClear={clearFilters}>
         <SearchInput
           value={searchInput}
@@ -341,6 +349,7 @@ function CatsPageContent() {
         <DataTable<Cat>
           columns={catColumns}
           data={cats}
+          density="compact"
           getRowId={(cat) => cat.cat_id}
           total={total}
           pageIndex={pageIndex}

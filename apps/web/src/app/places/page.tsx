@@ -19,6 +19,7 @@ import { Select } from "@/components/ui/Select";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface Place {
   place_id: string;
@@ -236,6 +237,13 @@ function PlacesPageContent() {
         }
       />
 
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <StatCard label="Total Places" value={loading ? "..." : total} />
+        {!isDefault && !loading && (
+          <StatCard label="Showing" value={places.length} subtitle={`of ${total} matching`} />
+        )}
+      </div>
+
       <FilterBar showClear={!isDefault} onClear={clearFilters}>
         <SearchInput
           value={searchInput}
@@ -318,6 +326,7 @@ function PlacesPageContent() {
         <DataTable<Place>
           columns={placeColumns}
           data={places}
+          density="compact"
           getRowId={(place) => place.place_id}
           total={total}
           pageIndex={pageIndex}

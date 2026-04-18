@@ -8,7 +8,8 @@ import { formatPhone } from "@/lib/formatters";
 import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup } from "@/components/filters";
 import { StatCard } from "@/components/ui/StatCard";
 import { DataTable, DataTablePagination, useDataTable } from "@/components/data-table";
-import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { SkeletonTable, SkeletonList } from "@/components/feedback/Skeleton";
+import { EmptyFilteredResults } from "@/components/feedback/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { FosterPreviewContent } from "@/components/preview/FosterPreviewContent";
@@ -319,11 +320,9 @@ function FosterRosterContent() {
       {filters.view === "cards" ? (
         <>
           {loading ? (
-            <div className="loading" style={{ padding: "3rem", textAlign: "center" }}>Loading fosters...</div>
+            <SkeletonList items={6} showAvatar />
           ) : fosters.length === 0 ? (
-            <div className="empty" style={{ padding: "3rem", textAlign: "center" }}>
-              <p className="text-muted">No fosters found matching your filters.</p>
-            </div>
+            <EmptyFilteredResults onClearFilters={clearFilters} />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "0.75rem" }}>
               {fosters.map((f) => <FosterCard key={f.person_id} foster={f} />)}
@@ -342,6 +341,7 @@ function FosterRosterContent() {
         <DataTable<Foster>
           columns={fosterColumns}
           data={fosters}
+          density="compact"
           getRowId={(f) => f.person_id}
           total={total}
           pageIndex={pageIndex}

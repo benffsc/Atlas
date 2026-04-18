@@ -27,6 +27,7 @@ import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider, ActiveFilterT
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { StatCard } from "@/components/ui/StatCard";
 
 interface Request {
   request_id: string;
@@ -1115,6 +1116,24 @@ function RequestsPageContent() {
           </>
         }
       />
+
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <StatCard
+          label="Total"
+          value={requestCounts.new + requestCounts.working + requestCounts.paused + requestCounts.completed}
+        />
+        <StatCard
+          label="Needs Trapper"
+          value={requestCounts.needs_trapper}
+          accentColor={requestCounts.needs_trapper > 0 ? "var(--warning, #f59e0b)" : undefined}
+        />
+        <StatCard
+          label="Urgent"
+          value={requestCounts.urgent}
+          accentColor={requestCounts.urgent > 0 ? "var(--danger, #dc2626)" : undefined}
+          valueColor={requestCounts.urgent > 0 ? "var(--danger, #dc2626)" : undefined}
+        />
+      </div>
 
       {/* Row 1: Status Segmented Control (FFS-166) */}
       <StatusSegmentedControl

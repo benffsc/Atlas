@@ -996,6 +996,7 @@ function IntakeQueueContent() {
           ) : (
             /* Table layout — DataTable (FFS-674) */
             <DataTable
+              density="compact"
               columns={getIntakeColumns({
                 selectedIds,
                 onToggleSelect: toggleSelect,
