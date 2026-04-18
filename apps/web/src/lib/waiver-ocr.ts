@@ -33,6 +33,7 @@ export interface WaiverOCRResult {
   felv_fiv: string | null;
   vet_initials: string | null;
   notes: string | null;
+  waiver_color: string | null;  // "blue" = foster, "white" = regular
 }
 
 export interface ProcessResult {
@@ -52,6 +53,7 @@ const OCR_PROMPT = `Extract ALL structured data from this veterinary clinic waiv
 - ALL microchip numbers (PetLink stickers, handwritten, printed - could be multiple)
 - Owner info, cat info, procedures, notes
 - Any handwritten corrections or cross-outs
+- The form color/paper color (blue = foster cat, white = regular)
 
 Return ONLY valid JSON:
 {
@@ -70,7 +72,8 @@ Return ONLY valid JSON:
   "vaccines": ["<list>"],
   "felv_fiv": "<positive/negative/not_tested or null>",
   "vet_initials": "<string or null>",
-  "notes": "<any handwritten notes, corrections, or cross-outs>"
+  "notes": "<any handwritten notes, corrections, or cross-outs>",
+  "waiver_color": "<blue or white or unknown>"
 }`;
 
 const OCR_MODEL = "claude-haiku-4-5-20251001";
@@ -135,6 +138,7 @@ export async function extractWaiverOCR(
     felv_fiv: parsed.felv_fiv ?? null,
     vet_initials: parsed.vet_initials ?? null,
     notes: parsed.notes ?? null,
+    waiver_color: parsed.waiver_color ?? null,
   };
 }
 
