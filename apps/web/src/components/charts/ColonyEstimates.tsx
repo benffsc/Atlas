@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
-import { ColonySourcesBreakdown } from "@/components/charts";
+import { ColonySourcesBreakdown, KalmanEstimateChart } from "@/components/charts";
 import { EcologyMethodologyPanel } from "@/components/admin";
 import { useToast } from "@/components/feedback/Toast";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
@@ -818,6 +818,11 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
             )}
           </div>
         </div>
+      )}
+
+      {/* Kalman Estimate History Chart (MIG_3087) */}
+      {kalman && kalman.observation_count >= 2 && (
+        <KalmanEstimateChart placeId={placeId} />
       )}
 
       {/* Ecology-Based Estimation Info */}

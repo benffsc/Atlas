@@ -12,3 +12,4 @@ export { PopulationTrendChart } from './PopulationTrendChart';
 export { PopulationEstimateCard } from './PopulationEstimateCard';
 export { TemporalTrendChart } from './TemporalTrendChart';
 export { YoYComparisonChart } from './YoYComparisonChart';
+export { KalmanEstimateChart } from './KalmanEstimateChart';
