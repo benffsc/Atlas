@@ -813,6 +813,20 @@ export async function runCdsAi(
     }
   }
 
+  // Auto-set hero photos for newly matched cats (FFS-1239)
+  if (opts.apply && matchResult.matched > 0) {
+    try {
+      const heroResult = await queryRows<{ cat_id: string; media_id: string; score: number }>(
+        `SELECT cat_id::text, media_id::text, score FROM ops.auto_set_hero_photos(NULL)`
+      );
+      if (heroResult.length > 0) {
+        log(`Auto-hero: set ${heroResult.length} cat hero photos`);
+      }
+    } catch (err) {
+      log(`Auto-hero failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // Run waiver cross-reference audit after matching
   let audit: AuditSummary | undefined;
   if (opts.apply && matchResult.matched > 0) {

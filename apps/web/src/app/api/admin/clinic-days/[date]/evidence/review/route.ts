@@ -217,6 +217,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           )
         `, [chunk_id, chunk.matched_cat_id]);
 
+        // Auto-set hero photo if this cat doesn't have one (FFS-1239)
+        try {
+          await queryOne(
+            `SELECT * FROM ops.auto_set_hero_photos($1::UUID)`,
+            [chunk.matched_cat_id]
+          );
+        } catch { /* non-fatal */ }
+
         return apiSuccess({ action: "approved", chunk_id });
       }
 
