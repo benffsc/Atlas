@@ -8,6 +8,9 @@ import {
   downloadFile,
 } from "@/lib/sharepoint";
 import { parseWaiverFilename } from "@/lib/waiver-filename-parser";
+import { processWaiverOCR } from "@/lib/waiver-ocr";
+import { runCDS } from "@/lib/cds";
+import Anthropic from "@anthropic-ai/sdk";
 import { createHash } from "crypto";
 
 // SharePoint Waiver Sync Cron Job
@@ -110,6 +113,11 @@ export async function GET(request: NextRequest) {
     filesDownloaded: 0,
     filesParsed: 0,
     filesMatched: 0,
+    ocrProcessed: 0,
+    ocrMatched: 0,
+    ocrCdnSet: 0,
+    ocrErrors: 0,
+    cdsTriggered: 0,
     errors: 0,
     budgetReached: false,
   };
@@ -349,6 +357,22 @@ export async function GET(request: NextRequest) {
             );
 
             folderSynced++;
+
+            // OCR: process waiver immediately if API key available
+            if (waiverId && process.env.ANTHROPIC_API_KEY) {
+              try {
+                const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+                const ocrResult = await processWaiverOCR(waiverId, anthropic, (msg) => log.push(`    OCR: ${msg}`));
+                if (ocrResult.success && ocrResult.ocr_result) {
+                  stats.ocrProcessed++;
+                  if (ocrResult.matched_cat_id) stats.ocrMatched++;
+                  if (ocrResult.cdn_set) stats.ocrCdnSet++;
+                }
+              } catch (ocrErr) {
+                stats.ocrErrors++;
+                log.push(`    OCR error for ${pdfFile.name}: ${ocrErr instanceof Error ? ocrErr.message : String(ocrErr)}`);
+              }
+            }
           } catch (err) {
             log.push(`    ERROR processing ${pdfFile.name}: ${err instanceof Error ? err.message : String(err)}`);
             stats.errors++;
@@ -390,6 +414,26 @@ export async function GET(request: NextRequest) {
         if (stats.budgetReached) break;
       }
       if (stats.budgetReached) break;
+    }
+
+    // Trigger CDS for dates that got new OCR data
+    if (stats.ocrCdnSet > 0) {
+      const affectedDates = await queryRows<{ parsed_date: string }>(
+        `SELECT DISTINCT parsed_date::text AS parsed_date
+         FROM ops.waiver_scans
+         WHERE ocr_processed_at >= NOW() - INTERVAL '1 hour'
+           AND ocr_clinic_number IS NOT NULL
+           AND parsed_date IS NOT NULL`
+      );
+      for (const { parsed_date } of affectedDates) {
+        try {
+          await runCDS(parsed_date, "import");
+          stats.cdsTriggered++;
+          log.push(`  CDS triggered for ${parsed_date}`);
+        } catch (cdsErr) {
+          log.push(`  CDS error for ${parsed_date}: ${cdsErr instanceof Error ? cdsErr.message : String(cdsErr)}`);
+        }
+      }
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);

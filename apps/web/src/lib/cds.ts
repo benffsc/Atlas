@@ -52,6 +52,9 @@ interface CDSWaiver {
   parsed_last4_chip: string | null;
   parsed_date: string | null;
   matched_appointment_id: string | null;
+  ocr_clinic_number: number | null;
+  ocr_microchip: string | null;
+  ocr_status: string | null;
 }
 
 interface CDSConfig {
@@ -164,6 +167,19 @@ export async function runCDS(
         phases,
       });
     }
+
+    // ── Phase 0.25: Waiver OCR CDN Bridge ─────────────────────────────
+    // For waivers with OCR-extracted clinic_number and matched appointments,
+    // bridge the CDN directly (waiver = irrefutable proof).
+    const ocrBridged = await runWaiverOCRBridge(clinicDate, waivers);
+    phases.push({
+      phase: "0.25_waiver_ocr_bridge",
+      matched: ocrBridged,
+      details: {
+        waivers_with_ocr: waivers.filter((w) => w.ocr_status === "extracted").length,
+        waivers_with_cdn: waivers.filter((w) => w.ocr_clinic_number != null).length,
+      },
+    });
 
     // ── Phase 0.5: Appointment Dedup ────────────────────────────────
     // Detect duplicate appointments (same chip, same date) created by the
@@ -532,6 +548,46 @@ async function dedupeAppointments(clinicDate: string): Promise<DedupResult> {
       pairs,
     },
   };
+}
+
+// ── Phase 0.25: Waiver OCR CDN Bridge ──────────────────────────────
+
+/**
+ * For waivers with OCR-extracted clinic_number AND matched appointments,
+ * bridge the CDN directly. Waiver = irrefutable proof: if the waiver says
+ * clinic number Y and matches cat X, then appointment for cat X gets CDN Y.
+ *
+ * Priority: waiver_ocr(80) > master_list(60) but < manual(100).
+ */
+async function runWaiverOCRBridge(
+  clinicDate: string,
+  waivers: CDSWaiver[]
+): Promise<number> {
+  const ocrWaivers = waivers.filter(
+    (w) => w.ocr_status === "extracted" && w.ocr_clinic_number != null && w.matched_appointment_id != null
+  );
+
+  if (ocrWaivers.length === 0) return 0;
+
+  let bridged = 0;
+
+  for (const w of ocrWaivers) {
+    const result = await queryOne<{ set_clinic_day_number: boolean }>(
+      `SELECT ops.set_clinic_day_number(
+         $1::UUID,
+         $2::INTEGER,
+         'waiver_ocr'::ops.clinic_day_number_source,
+         NULL
+       )`,
+      [w.matched_appointment_id, w.ocr_clinic_number]
+    );
+
+    if (result?.set_clinic_day_number) {
+      bridged++;
+    }
+  }
+
+  return bridged;
 }
 
 // ── Phase 1.5: Shelter ID Bridge ────────────────────────────────────
@@ -1480,10 +1536,11 @@ async function loadWaivers(clinicDate: string): Promise<CDSWaiver[]> {
     `SELECT
        waiver_id, parsed_last_name, parsed_last4_chip,
        parsed_date::text AS parsed_date,
-       matched_appointment_id
+       matched_appointment_id,
+       ocr_clinic_number, ocr_microchip, ocr_status
      FROM ops.waiver_scans
      WHERE parsed_date = $1
-       AND parsed_last4_chip IS NOT NULL`,
+       AND (parsed_last4_chip IS NOT NULL OR ocr_microchip IS NOT NULL)`,
     [clinicDate]
   );
 }

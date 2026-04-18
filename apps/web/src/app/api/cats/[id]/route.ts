@@ -618,7 +618,21 @@ export const GET = withErrorHandling(async (
       ORDER BY adoption_date DESC LIMIT 1
     `;
 
-    const [clinicHistory, vitals, conditions, tests, procedures, appointments, stakeholders, originPlaceRows, enhancedClinicHistory, fieldSourcesRows, adoptionRows] = await Promise.all([
+    // Waiver data (FFS-1287: CDS V2 waiver OCR ground truth)
+    const waiverSql = `
+      SELECT ws.waiver_id, ws.file_upload_id,
+             ws.ocr_clinic_number, ws.parsed_date::TEXT AS parsed_date,
+             ws.ocr_cat_name, ws.ocr_sex, ws.ocr_weight_lbs,
+             ws.ocr_owner_last_name, ws.ocr_microchip,
+             ws.match_method, ws.match_confidence,
+             ws.ocr_status
+      FROM ops.waiver_scans ws
+      WHERE ws.matched_cat_id = $1
+      ORDER BY ws.parsed_date DESC NULLS LAST
+      LIMIT 1
+    `;
+
+    const [clinicHistory, vitals, conditions, tests, procedures, appointments, stakeholders, originPlaceRows, enhancedClinicHistory, fieldSourcesRows, adoptionRows, waiverRows] = await Promise.all([
       safeQueryRows<ClinicAppointment>(clinicHistorySql, [id]),
       safeQueryRows<CatVital>(vitalsSql, [id]),
       safeQueryRows<CatCondition>(conditionsSql, [id]),
@@ -642,6 +656,7 @@ export const GET = withErrorHandling(async (
       safeQueryRows<EnhancedClinicAppointment>(enhancedClinicHistorySql, [id]),
       safeQueryRows<CatFieldSources>(fieldSourcesSql, [id]),
       safeQueryRows<AdoptionContext>(adoptionContextSql, [id]),
+      safeQueryRows<Record<string, unknown>>(waiverSql, [id]),
     ]);
 
     // Extract field sources from result
@@ -672,6 +687,8 @@ export const GET = withErrorHandling(async (
       field_source_count: fieldSourcesData?.source_count || 0,
       // Adoption context (MIG_3005)
       adoption_context: adoptionRows[0] || null,
+      // Waiver data (FFS-1287: CDS V2)
+      latest_waiver: waiverRows[0] || null,
     });
 });
 
