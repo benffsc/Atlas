@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
 import { formatRelativeTime } from "@/lib/formatters";
 import { StatCard } from "@/components/ui/StatCard";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
@@ -99,43 +101,20 @@ export default function OrganizationsPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Organizations</h1>
-          <p style={{ margin: "0.25rem 0 0", color: "var(--muted)", fontSize: "0.875rem" }}>
-            External partner organizations (shelters, rescues, clinics, community groups)
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          <Link
-            href="/admin/departments"
-            style={{
-              padding: "0.5rem 1rem",
-              fontSize: "0.875rem",
-              color: "var(--muted)",
-              textDecoration: "none",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-            }}
-          >
-            FFSC Departments →
-          </Link>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            style={{
-              padding: "0.5rem 1rem",
-              fontSize: "0.875rem",
-              background: "var(--primary)",
-              color: "var(--primary-foreground)",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-            }}
-          >
-            + Add Organization
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Organizations"
+        subtitle="External partner organizations (shelters, rescues, clinics, community groups)"
+        actions={
+          <>
+            <Link href="/admin/departments" style={{ textDecoration: "none" }}>
+              <Button variant="outline" size="sm">FFSC Departments →</Button>
+            </Link>
+            <Button icon="plus" onClick={() => setShowCreateModal(true)}>
+              Add Organization
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats Row */}
       {stats && (

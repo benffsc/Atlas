@@ -9,6 +9,7 @@ import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup } from "@/comp
 import { StatCard } from "@/components/ui/StatCard";
 import { DataTable, DataTablePagination, useDataTable } from "@/components/data-table";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { FosterPreviewContent } from "@/components/preview/FosterPreviewContent";
 
@@ -254,14 +255,10 @@ function FosterRosterContent() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem" }}>Foster Roster</h1>
-          <p className="text-muted" style={{ margin: "0.25rem 0 0 0", fontSize: "0.875rem" }}>
-            VolunteerHub-sourced foster parents. {aggregates ? `${aggregates.total_fosters} total.` : ""}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Foster Roster"
+        subtitle={`VolunteerHub-sourced foster parents.${aggregates ? ` ${aggregates.total_fosters} total.` : ""}`}
+      />
 
       {/* Stats */}
       {aggregates && (

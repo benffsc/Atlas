@@ -23,8 +23,10 @@ import { RequestPreviewContent } from "@/components/preview/RequestPreviewConten
 import { Icon } from "@/components/ui/Icon";
 import { TnrProgressBar } from "@/components/ui/TnrProgressBar";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
-import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
+import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider, ActiveFilterTags } from "@/components/filters";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Button } from "@/components/ui/Button";
 
 interface Request {
   request_id: string;
@@ -898,7 +900,7 @@ const FILTER_DEFAULTS = {
 
 function RequestsPageContent() {
   const { addToast } = useToast();
-  const { filters, setFilter, setFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
+  const { filters, setFilter, setFilters, clearFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
   const isMobile = useIsMobile();
 
   const [requests, setRequests] = useState<Request[]>([]);
@@ -1097,49 +1099,22 @@ function RequestsPageContent() {
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1>Requests</h1>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <a
-            href="/intake/call-sheet"
-            style={{
-              padding: "0.5rem 1rem",
-              background: COLORS.primary,
-              color: "#fff",
-              borderRadius: "6px",
-              textDecoration: "none",
-              fontSize: "0.9rem",
-            }}
-          >
-            Enter Call Sheet
-          </a>
-          <a
-            href="/requests/print"
-            style={{
-              padding: "0.5rem 1rem",
-              background: COLORS.successDark,
-              color: "#fff",
-              borderRadius: "6px",
-              textDecoration: "none",
-              fontSize: "0.9rem",
-            }}
-          >
-            Print TNR Call Sheet
-          </a>
-          <a
-            href="/requests/new"
-            style={{
-              padding: "0.5rem 1rem",
-              background: "var(--foreground)",
-              color: "var(--background)",
-              borderRadius: "6px",
-              textDecoration: "none",
-            }}
-          >
-            + New Request
-          </a>
-        </div>
-      </div>
+      <PageHeader
+        title="Requests"
+        actions={
+          <>
+            <Button variant="primary" size="sm" onClick={() => window.location.href = "/intake/call-sheet"}>
+              Enter Call Sheet
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => window.location.href = "/requests/print"}>
+              Print TNR Call Sheet
+            </Button>
+            <Button variant="primary" size="sm" icon="plus" onClick={() => window.location.href = "/requests/new"}>
+              New Request
+            </Button>
+          </>
+        }
+      />
 
       {/* Row 1: Status Segmented Control (FFS-166) */}
       <StatusSegmentedControl
@@ -1260,6 +1235,20 @@ function RequestsPageContent() {
           </button>
         </div>
       </FilterBar>
+
+      <ActiveFilterTags
+        filters={filters}
+        defaults={FILTER_DEFAULTS}
+        labels={{
+          status: "Status",
+          trapper: "Trapper",
+          priority: "Priority",
+          kittens: "Kittens",
+        }}
+        exclude={["q", "sort", "view", "selected", "showArchived"]}
+        onRemove={(key) => setFilter(key as keyof typeof FILTER_DEFAULTS, FILTER_DEFAULTS[key as keyof typeof FILTER_DEFAULTS])}
+        onClearAll={clearFilters}
+      />
 
       {/* Bulk Action Bar */}
       {selectedIds.size > 0 && (
