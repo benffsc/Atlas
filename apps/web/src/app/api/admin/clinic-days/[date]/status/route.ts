@@ -8,6 +8,7 @@ import {
   apiServerError,
 } from "@/lib/api-response";
 import { getLatestCDSRun } from "@/lib/cds";
+import { loadCancelledEntries } from "@/lib/cds-metrics";
 
 interface RouteParams {
   params: Promise<{ date: string }>;
@@ -179,8 +180,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       (matching?.matched_low ?? 0) +
       (matching?.matched_manual ?? 0);
 
-    // CDS run info + method breakdown + pending suggestions
-    const [cdsRun, cdsMethods, cdsSuggestions] = await Promise.all([
+    // CDS run info + method breakdown + pending suggestions + cancelled entries
+    const [cdsRun, cdsMethods, cdsSuggestions, cancelledEntries] = await Promise.all([
       getLatestCDSRun(date),
       queryOne<{
         sql_owner_name: number;
@@ -219,6 +220,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
            AND e.cds_method = 'cds_suggestion'`,
         [date]
       ),
+      loadCancelledEntries(date),
     ]);
 
     return apiSuccess({
@@ -293,6 +295,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           : null,
         pending_suggestions: cdsSuggestions?.count ?? 0,
         method_breakdown: cdsMethods ?? {},
+        cancelled_entries: cancelledEntries,
       },
     });
   } catch (error) {

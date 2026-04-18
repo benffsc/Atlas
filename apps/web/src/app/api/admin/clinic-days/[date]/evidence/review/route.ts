@@ -207,15 +207,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           WHERE chunk_id = $1::UUID
         `, [chunk_id, session.display_name]);
 
-        // Also update request_media
+        // Also update request_media — set cat_id so photos appear on cat profiles
         await queryOne(`
           UPDATE ops.request_media
-          SET cat_identification_confidence = 'high'
+          SET cat_id = $2::UUID, cat_identification_confidence = 'high'
           WHERE media_id IN (
             SELECT source_ref_id FROM ops.evidence_stream_segments
             WHERE chunk_id = $1::UUID AND source_kind = 'request_media' AND segment_role = 'cat_photo'
           )
-        `, [chunk_id]);
+        `, [chunk_id, chunk.matched_cat_id]);
 
         return apiSuccess({ action: "approved", chunk_id });
       }

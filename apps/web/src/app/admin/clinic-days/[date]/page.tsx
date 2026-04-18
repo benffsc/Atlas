@@ -14,6 +14,7 @@ import {
 import { EvidencePoolSummary } from "@/components/clinic/EvidencePoolSummary";
 import { EvidenceReviewPanel } from "@/components/clinic/EvidenceReviewPanel";
 import { ClinicDayEvidenceUpload } from "@/components/clinic/ClinicDayEvidenceUpload";
+import { BatchEvidenceUpload } from "@/components/clinic/BatchEvidenceUpload";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -95,6 +96,12 @@ interface StatusData {
     } | null;
     pending_suggestions: number;
     method_breakdown: CDSMethodBreakdown;
+    cancelled_entries: Array<{
+      line_number: number;
+      parsed_owner_name: string | null;
+      appointment_number: string | null;
+      reason: string;
+    }>;
   };
 }
 
@@ -129,7 +136,7 @@ export default function ClinicDayHubPage() {
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"status" | "roster" | "evidence">("status");
-  const [manualPhotoMode, setManualPhotoMode] = useState(false);
+  const [evidenceMode, setEvidenceMode] = useState<"phone" | "batch" | "manual">("phone");
 
   // Import state
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -147,6 +154,9 @@ export default function ClinicDayHubPage() {
 
   // Evidence refresh key — forces EvidenceReviewPanel remount after CDS-AI classify
   const [evidenceRefreshKey, setEvidenceRefreshKey] = useState(0);
+
+  // Cancelled entries collapsible
+  const [cancelledExpanded, setCancelledExpanded] = useState(false);
 
   // MIG_3050: Inline data quality health badge
   const [health, setHealth] = useState<{
@@ -750,6 +760,100 @@ export default function ClinicDayHubPage() {
               </div>
             )}
 
+            {/* Cancelled surgeries (from CDS phase_results) */}
+            {(status?.cds?.cancelled_entries?.length ?? 0) > 0 && (
+              <div className="card" style={{
+                borderLeft: "3px solid var(--warning-text)",
+              }}>
+                <button
+                  onClick={() => setCancelledExpanded((v) => !v)}
+                  style={{
+                    all: "unset",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    width: "100%",
+                  }}
+                >
+                  <span style={{
+                    fontSize: "0.7rem",
+                    color: "var(--muted)",
+                    transition: "transform 0.2s",
+                    transform: cancelledExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                  }}>
+                    &#9654;
+                  </span>
+                  <h3 style={{ margin: 0, fontSize: "0.95rem" }}>
+                    Cancelled Surgeries ({status!.cds!.cancelled_entries.length})
+                  </h3>
+                  <span style={{
+                    fontSize: "0.75rem",
+                    color: "var(--muted)",
+                    marginLeft: "auto",
+                  }}>
+                    Not counted in unmatched
+                  </span>
+                </button>
+                {cancelledExpanded && (
+                  <div style={{ marginTop: "12px" }}>
+                    {status!.cds!.cancelled_entries.map((entry) => (
+                      <div
+                        key={entry.line_number}
+                        style={{
+                          padding: "8px 12px",
+                          background: "var(--section-bg)",
+                          borderRadius: "6px",
+                          marginBottom: "6px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        <span style={{
+                          fontWeight: 600,
+                          fontFamily: "monospace",
+                          minWidth: "28px",
+                        }}>
+                          #{entry.line_number}
+                        </span>
+                        <span style={{ flex: 1 }}>
+                          {entry.parsed_owner_name || "Unknown"}
+                        </span>
+                        {entry.appointment_number && (
+                          <span style={{
+                            fontFamily: "monospace",
+                            fontSize: "0.8rem",
+                            color: "var(--muted)",
+                          }}>
+                            {entry.appointment_number}
+                          </span>
+                        )}
+                        <span style={{
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontSize: "0.7rem",
+                          fontWeight: 600,
+                          background: entry.reason === "sx_cancelled"
+                            ? "var(--warning-bg)"
+                            : "var(--section-bg)",
+                          color: entry.reason === "sx_cancelled"
+                            ? "var(--warning-text)"
+                            : "var(--muted)",
+                          border: entry.reason !== "sx_cancelled"
+                            ? "1px solid var(--card-border)"
+                            : "none",
+                        }}>
+                          {entry.reason === "sx_cancelled" ? "cancelled" : entry.reason.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* CDS Suggestions (pending review) */}
             {(status?.cds?.pending_suggestions ?? 0) > 0 && (
               <div className="card" style={{ borderLeft: "3px solid var(--warning-text)" }}>
@@ -1014,28 +1118,33 @@ export default function ClinicDayHubPage() {
         {/* Evidence Tab — Upload + Pipeline Progress + Review */}
         {activeTab === "evidence" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {/* Manual Mode toggle */}
+            {/* Upload mode toggle */}
             <div style={{
               display: "flex",
               justifyContent: "flex-end",
+              gap: "8px",
             }}>
-              <button
-                onClick={() => setManualPhotoMode((v) => !v)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--muted)",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                  textDecoration: "underline",
-                  padding: 0,
-                }}
-              >
-                {manualPhotoMode ? "Switch to AI Mode" : "Manual Mode"}
-              </button>
+              {(["phone", "batch", "manual"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setEvidenceMode(mode)}
+                  style={{
+                    background: evidenceMode === mode ? "var(--primary)" : "none",
+                    color: evidenceMode === mode ? "#fff" : "var(--muted)",
+                    border: evidenceMode === mode ? "none" : "1px solid var(--card-border)",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                    padding: "4px 10px",
+                    borderRadius: "4px",
+                    fontWeight: evidenceMode === mode ? 600 : 400,
+                  }}
+                >
+                  {mode === "phone" ? "Phone" : mode === "batch" ? "Batch" : "Manual"}
+                </button>
+              ))}
             </div>
 
-            {manualPhotoMode ? (
+            {evidenceMode === "manual" ? (
               /* Manual Mode — original ClinicDayPhotoStrip for fallback */
               <div className="card">
                 <ClinicDayPhotoStrip
@@ -1045,8 +1154,24 @@ export default function ClinicDayHubPage() {
                   uploading={uploadingPhotos}
                 />
               </div>
+            ) : evidenceMode === "batch" ? (
+              /* Batch Mode — Desktop folder upload */
+              <>
+                <BatchEvidenceUpload
+                  clinicDate={date}
+                  onUploadComplete={() => {
+                    loadStatus();
+                    setEvidenceRefreshKey((k) => k + 1);
+                  }}
+                  onClassifyComplete={() => {
+                    loadStatus();
+                    setEvidenceRefreshKey((k) => k + 1);
+                  }}
+                />
+                <EvidenceReviewPanel key={evidenceRefreshKey} date={date} />
+              </>
             ) : (
-              /* AI Mode — Upload + CDS-AI pipeline */
+              /* Phone Mode — Mobile-friendly upload */
               <>
                 <ClinicDayEvidenceUpload
                   clinicDate={date}

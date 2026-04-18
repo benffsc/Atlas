@@ -64,6 +64,7 @@ export interface CdsAiRunResult {
   elapsed_ms: number;
   stopped_early: boolean;
   audit?: AuditSummary;
+  date_validation?: DateValidation;
 }
 
 export interface CdsAiOptions {
@@ -585,15 +586,21 @@ export async function matchChunks(
         // Bridge: write clinic_day_number to appointment if waiver has clinic_number
         // and the appointment doesn't have it yet. This closes the loop —
         // CDS-AI reading waiver photos provides the number that CDS-SQL couldn't.
+        // Routes through ops.set_clinic_day_number() for manual override protection
+        // + audit logging (MIG_3052). FFS-1153: eliminates last direct UPDATE path.
         if (clinicNumber) {
           await queryOne(`
-            UPDATE ops.appointments
-            SET clinic_day_number = $2,
-                clinic_day_number_source = 'cds_ai_waiver'
-            WHERE cat_id = $1::UUID
-              AND appointment_date = $3::DATE
-              AND merged_into_appointment_id IS NULL
-              AND clinic_day_number IS NULL
+            SELECT ops.set_clinic_day_number(
+              a.appointment_id,
+              $2::INTEGER,
+              'cds_propagation'::ops.clinic_day_number_source,
+              NULL
+            )
+            FROM ops.appointments a
+            WHERE a.cat_id = $1::UUID
+              AND a.appointment_date = $3::DATE
+              AND a.merged_into_appointment_id IS NULL
+              AND a.clinic_day_number IS NULL
           `, [catId, clinicNumber, date]).catch(() => {});
         }
       }
@@ -627,6 +634,68 @@ export async function matchChunks(
   }
 
   return { matched, unmatched, results: matchResults };
+}
+
+// ── SharePoint waiver cross-reference ───────────────────────
+
+/**
+ * After matching photo-waiver chunks to cats, cross-reference each
+ * matched chunk with the corresponding SharePoint waiver (ops.waiver_scans).
+ *
+ * SharePoint waivers are the COMPLETED, SCANNED, CLEAR versions.
+ * Photo waivers are quick snapshots. Linking them enables:
+ * - Validation: photo extraction vs SharePoint filename agreement
+ * - Enrichment: fill gaps in photo OCR from SharePoint parsed data
+ * - Review UI: "View clean waiver" link next to photo waiver
+ */
+async function crossRefSharePointWaivers(
+  date: string,
+  matchResults: MatchResult[],
+  opts: CdsAiOptions,
+): Promise<{ linked: number; missing: number }> {
+  const log = opts.log ?? console.log;
+  let linked = 0;
+  let missing = 0;
+
+  const matched = matchResults.filter((r) => r.cat_id);
+
+  for (const result of matched) {
+    // Find SharePoint waiver for this cat on this date
+    const spWaiver = await queryOne<{
+      waiver_id: string;
+      parsed_last_name: string | null;
+      parsed_last4_chip: string | null;
+      file_upload_id: string;
+    }>(`
+      SELECT w.waiver_id::text, w.parsed_last_name, w.parsed_last4_chip,
+             w.file_upload_id::text
+      FROM ops.waiver_scans w
+      WHERE w.matched_cat_id = $1::UUID
+        AND w.parsed_date = $2::DATE
+      LIMIT 1
+    `, [result.cat_id, date]);
+
+    if (!spWaiver) {
+      missing++;
+      continue;
+    }
+
+    // Store the cross-reference in the chunk's waiver segment notes
+    await queryOne(`
+      UPDATE ops.evidence_stream_segments
+      SET notes = COALESCE(notes, '') ||
+        CASE WHEN notes IS NOT NULL AND notes != '' THEN ' | ' ELSE '' END ||
+        'sp_waiver_id=' || $2::text
+      WHERE chunk_id = $1::UUID
+        AND segment_role = 'waiver_photo'
+    `, [result.chunk_id, spWaiver.waiver_id]);
+
+    linked++;
+
+    log(`  #${result.clinic_number || "?"} ${result.cat_name} → SharePoint waiver linked (${spWaiver.parsed_last_name || "?"}/${spWaiver.parsed_last4_chip || "?"})`);
+  }
+
+  return { linked, missing };
 }
 
 // ── Full pipeline ───────────────────────────────────────────
@@ -733,6 +802,17 @@ export async function runCdsAi(
   const agreements = matchResult.results.filter((r) => r.agreement === "AGREE").length;
   const disagreements = matchResult.results.filter((r) => r.agreement === "DISAGREE").length;
 
+  // Cross-reference matched chunks with SharePoint waivers
+  if (opts.apply && matchResult.matched > 0) {
+    try {
+      log(`\nCross-referencing with SharePoint waivers...`);
+      const xrefResult = await crossRefSharePointWaivers(date, matchResult.results, opts);
+      log(`SharePoint cross-ref: ${xrefResult.linked} linked, ${xrefResult.missing} no SharePoint waiver`);
+    } catch (err) {
+      log(`SharePoint cross-ref failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   // Run waiver cross-reference audit after matching
   let audit: AuditSummary | undefined;
   if (opts.apply && matchResult.matched > 0) {
@@ -743,6 +823,17 @@ export async function runCdsAi(
     } catch (err) {
       log(`Audit failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  // Validate clinic dates from classified waivers
+  let dateValidation: DateValidation | undefined;
+  try {
+    dateValidation = await validateClinicDates(date);
+    if (dateValidation.mismatches > 0) {
+      log(`Date mismatch: ${dateValidation.mismatches} waivers show different date (consensus: ${dateValidation.consensus_date || "none"})`);
+    }
+  } catch (err) {
+    log(`Date validation failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return {
@@ -760,7 +851,104 @@ export async function runCdsAi(
     elapsed_ms: Date.now() - startTime,
     stopped_early: stoppedEarly,
     audit,
+    date_validation: dateValidation,
   };
+}
+
+// ── Date validation ─────────────────────────────────────────
+
+export interface DateValidation {
+  waiver_dates: string[];
+  expected: string;
+  mismatches: number;
+  consensus_date: string | null;
+}
+
+/**
+ * After CDS-AI classifies waivers, compare the Surgery Date field
+ * extracted from waivers against the expected clinic date.
+ * Warns staff if camera clock offset caused photos to land on the wrong date.
+ */
+export async function validateClinicDates(date: string): Promise<DateValidation> {
+  const waivers = await queryRows<{ extracted_data: Record<string, unknown> | null }>(`
+    SELECT s.extracted_data
+    FROM ops.evidence_stream_segments s
+    WHERE s.clinic_date = $1::DATE
+      AND s.segment_role = 'waiver_photo'
+      AND s.extracted_data IS NOT NULL
+      AND s.extracted_data->>'date' IS NOT NULL
+  `, [date]);
+
+  const waiverDates: string[] = [];
+  for (const w of waivers) {
+    const raw = w.extracted_data?.date as string | undefined;
+    if (!raw) continue;
+    const normalized = normalizeWaiverDate(raw);
+    if (normalized) waiverDates.push(normalized);
+  }
+
+  // Count mismatches against expected date
+  const expectedNorm = date; // YYYY-MM-DD
+  let mismatches = 0;
+  const dateCounts = new Map<string, number>();
+
+  for (const d of waiverDates) {
+    if (d !== expectedNorm) mismatches++;
+    dateCounts.set(d, (dateCounts.get(d) || 0) + 1);
+  }
+
+  // Find consensus date (most common)
+  let consensusDate: string | null = null;
+  let maxCount = 0;
+  for (const [d, count] of dateCounts) {
+    if (count > maxCount) {
+      maxCount = count;
+      consensusDate = d;
+    }
+  }
+
+  return {
+    waiver_dates: [...new Set(waiverDates)],
+    expected: expectedNorm,
+    mismatches,
+    consensus_date: consensusDate !== expectedNorm ? consensusDate : null,
+  };
+}
+
+/**
+ * Parse a variety of date formats from handwritten waivers into YYYY-MM-DD.
+ * Handles: "3/18/26", "03/18/2026", "March 18, 2026", "3-18-26", etc.
+ */
+function normalizeWaiverDate(raw: string): string | null {
+  // Try MM/DD/YY or MM/DD/YYYY or MM-DD-YY or MM-DD-YYYY
+  const slashMatch = raw.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})$/);
+  if (slashMatch) {
+    const month = parseInt(slashMatch[1], 10);
+    const day = parseInt(slashMatch[2], 10);
+    let year = parseInt(slashMatch[3], 10);
+    if (year < 100) year += 2000;
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+
+  // Try "Month DD, YYYY" or "Month DD YYYY"
+  const monthNames: Record<string, number> = {
+    january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+    july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+  };
+  const wordMatch = raw.match(/^(\w+)\s+(\d{1,2}),?\s+(\d{2,4})$/i);
+  if (wordMatch) {
+    const month = monthNames[wordMatch[1].toLowerCase()];
+    const day = parseInt(wordMatch[2], 10);
+    let year = parseInt(wordMatch[3], 10);
+    if (year < 100) year += 2000;
+    if (month && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+
+  return null;
 }
 
 // ── Find dates with pending work ────────────────────────────

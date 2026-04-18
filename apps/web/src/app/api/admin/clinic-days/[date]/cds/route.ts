@@ -58,6 +58,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         agreements: result.agreements,
         disagreements: result.disagreements,
         elapsed_ms: result.elapsed_ms,
+        date_validation: result.date_validation,
       });
     }
 

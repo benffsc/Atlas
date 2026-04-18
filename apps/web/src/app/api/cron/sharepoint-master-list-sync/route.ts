@@ -55,11 +55,14 @@ const SHAREPOINT_DRIVE_ID = (process.env.SHAREPOINT_DRIVE_ID || "").trim();
 // enough to drain a 35-file backlog in 2 days.
 const MAX_FILES_PER_RUN = 5;
 
-// Build list of {Year} Completed Master List folders to scan.
-// Always scan current year + previous year to catch any late uploads.
+// Build list of folders to scan for master list files.
+// Staff drop new files in the parent "Master Numbered Forms" folder before
+// they get sorted into year subfolders. Scan parent first (newest files),
+// then current + previous year subfolders for any we missed.
 function getMasterListFolders(): string[] {
   const currentYear = new Date().getFullYear();
   return [
+    `Spay Neuter Clinics/Master Numbered Forms`,
     `Spay Neuter Clinics/Master Numbered Forms/${currentYear} Completed Master List`,
     `Spay Neuter Clinics/Master Numbered Forms/${currentYear - 1} Completed Master List`,
   ];
@@ -164,7 +167,10 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        if (parsed.isTemplate) {
+        // Only skip true templates (no date extracted). Staff sometimes name
+        // real files "Template" (e.g., "Master List Template April 8, 2026.xlsx").
+        // If a date was successfully parsed, treat it as real data.
+        if (parsed.isTemplate && !parsed.date) {
           stats.filesSkippedTemplate++;
           log.push(`  SKIP template: ${file.name}`);
           fileResults.push({ filename: file.name, date: parsed.date, status: "skipped_template" });
