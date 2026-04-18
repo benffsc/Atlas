@@ -300,6 +300,7 @@ export async function GET(request: NextRequest) {
           SELECT COUNT(DISTINCT cpr.cat_id)
           FROM sot.cat_place cpr
           WHERE cpr.place_id = p.place_id
+            AND COALESCE(cpr.presence_status, 'unknown') != 'departed'
         ), 0)::INT as cat_count,
         -- V2: Uses sot.person_place instead of sot.person_place_relationships
         COALESCE((

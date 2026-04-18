@@ -145,6 +145,7 @@ export async function GET(
         SELECT place_id, COUNT(DISTINCT cat_id) AS cat_count
         FROM sot.cat_place
         WHERE place_id = $1
+          AND COALESCE(presence_status, 'unknown') != 'departed'
         GROUP BY place_id
       ) cc ON cc.place_id = p.place_id
       LEFT JOIN (

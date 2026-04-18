@@ -64,13 +64,13 @@ export async function GET(request: NextRequest) {
         p.display_name,
         p.formatted_address,
         p.place_kind::TEXT,
-        (SELECT COUNT(*) FROM sot.cat_place WHERE place_id = p.place_id)::INT as cat_count,
+        (SELECT COUNT(*) FROM sot.cat_place WHERE place_id = p.place_id AND COALESCE(presence_status, 'unknown') != 'departed')::INT as cat_count,
         (SELECT COUNT(*) FROM ops.requests WHERE place_id = p.place_id AND merged_into_request_id IS NULL)::INT as request_count
       FROM sot.places p
       WHERE sot.normalize_address(p.formatted_address) = sot.normalize_address($1)
         AND p.merged_into_place_id IS NULL
       ORDER BY
-        (SELECT COUNT(*) FROM sot.cat_place WHERE place_id = p.place_id) +
+        (SELECT COUNT(*) FROM sot.cat_place WHERE place_id = p.place_id AND COALESCE(presence_status, 'unknown') != 'departed') +
         (SELECT COUNT(*) FROM ops.requests WHERE place_id = p.place_id AND merged_into_request_id IS NULL) DESC
       LIMIT 5`,
       [address]

@@ -184,6 +184,7 @@ export async function GET(
             SELECT COUNT(DISTINCT cp.cat_id)
             FROM sot.cat_place cp
             WHERE cp.place_id = p.place_id
+              AND COALESCE(cp.presence_status, 'unknown') != 'departed'
           ), 0)::INT as cat_count,
           EXISTS (
             SELECT 1 FROM ops.requests r
