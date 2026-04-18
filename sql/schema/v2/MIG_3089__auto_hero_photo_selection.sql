@@ -56,14 +56,14 @@ BEGIN
         -- Prefer cat_photo role from evidence segments (0.40)
         CASE WHEN EXISTS (
           SELECT 1 FROM ops.evidence_stream_segments ess
-          WHERE ess.source_ref_id = rm.media_id::text
+          WHERE ess.source_ref_id = rm.media_id
             AND ess.segment_role = 'cat_photo'
         ) THEN 0.40 ELSE 0.10 END
         +
         -- Penalize waiver/barcode/discard photos heavily
         CASE WHEN EXISTS (
           SELECT 1 FROM ops.evidence_stream_segments ess
-          WHERE ess.source_ref_id = rm.media_id::text
+          WHERE ess.source_ref_id = rm.media_id
             AND ess.segment_role IN ('waiver_photo', 'microchip_barcode', 'discard')
         ) THEN -0.50 ELSE 0.00 END
         +
