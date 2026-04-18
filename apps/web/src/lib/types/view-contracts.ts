@@ -889,6 +889,56 @@ export interface VCallSheetItemsDetailRow {
 }
 
 // =============================================================================
+// KALMAN POPULATION ESTIMATION (MIG_3087)
+// =============================================================================
+
+/**
+ * Contract for sot.place_population_state
+ * @see sql/schema/v2/MIG_3087__cats_kalman_filter.sql
+ * @route /api/places/[id]/colony-estimates
+ */
+export interface VPlacePopulationState {
+  place_id: string;
+  estimate: number;
+  variance: number;
+  last_observation_date: string | null;
+  last_source_type: string | null;
+  observation_count: number;
+  floor_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Extended colony status with Kalman CI columns
+ * @see sql/schema/v2/MIG_3087__cats_kalman_filter.sql
+ * @route /api/requests/[id] (colony summary)
+ */
+export interface VPlaceColonyStatus {
+  place_id: string;
+  display_name: string;
+  formatted_address: string | null;
+  colony_size_estimate: number | null;
+  estimation_method: string;
+  estimate_confidence: number | null;
+  estimated_at: string | null;
+  total_cats: number;
+  verified_altered_count: number;
+  estimated_work_remaining: number;
+  alteration_rate_pct: number;
+  has_override: boolean;
+  colony_override_note: string | null;
+  active_request_count: number;
+  is_colony_site: boolean;
+  // Kalman CI columns (MIG_3087)
+  ci_lower: number | null;
+  ci_upper: number | null;
+  confidence_level: string | null;
+  kalman_observation_count: number | null;
+  kalman_variance: number | null;
+}
+
+// =============================================================================
 // HELPER TYPES
 // =============================================================================
 

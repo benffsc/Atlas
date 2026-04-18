@@ -67,12 +67,25 @@ interface ColonyClassification {
   allows_clustering: boolean;
 }
 
+interface KalmanEstimate {
+  estimate: number;
+  variance: number;
+  last_observation_date: string | null;
+  last_source_type: string | null;
+  observation_count: number;
+  floor_count: number;
+  ci_lower: number | null;
+  ci_upper: number | null;
+  confidence_level: string | null;
+}
+
 interface ColonyEstimatesResponse {
   place_id: string;
   estimates: ColonyEstimate[];
   status: ColonyStatus;
   ecology: EcologyStats;
   classification?: ColonyClassification;
+  kalman?: KalmanEstimate | null;
   has_data: boolean;
 }
 
@@ -267,7 +280,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
     );
   }
 
-  const { status, estimates, ecology, classification } = data;
+  const { status, estimates, ecology, classification, kalman } = data;
 
   // For individual_cats classification, use authoritative count and skip ecology stats
   const isIndividualCats = classification?.type === "individual_cats";
@@ -720,6 +733,89 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Kalman Population Estimate (MIG_3087) */}
+      {kalman && kalman.observation_count > 0 && (
+        <div
+          style={{
+            background: "var(--section-bg)",
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
+            padding: "0.75rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <strong style={{ fontSize: "0.85rem", color: "var(--foreground)" }}>Population Estimate</strong>
+            <span
+              style={{
+                padding: "0.15rem 0.4rem",
+                background: kalman.confidence_level === "high"
+                  ? "var(--success-bg)"
+                  : kalman.confidence_level === "medium"
+                    ? "var(--warning-bg)"
+                    : "var(--danger-bg)",
+                color: kalman.confidence_level === "high"
+                  ? "var(--success-text)"
+                  : kalman.confidence_level === "medium"
+                    ? "var(--warning-text)"
+                    : "var(--danger-text)",
+                borderRadius: "4px",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                textTransform: "capitalize",
+              }}
+            >
+              {kalman.confidence_level} confidence
+            </span>
+          </div>
+          <div style={{ fontSize: "1.1rem", fontWeight: "bold", color: "var(--foreground)", marginBottom: "0.25rem" }}>
+            ~{Math.round(kalman.estimate)} cats
+            {kalman.ci_lower !== null && kalman.ci_upper !== null && (
+              <span style={{ fontSize: "0.85rem", fontWeight: "normal", color: "var(--text-secondary)", marginLeft: "0.5rem" }}>
+                ({kalman.ci_lower}&ndash;{kalman.ci_upper})
+              </span>
+            )}
+          </div>
+          {/* Progress bar: floor / estimate */}
+          {kalman.floor_count > 0 && Math.round(kalman.estimate) > 0 && (
+            <div style={{ marginBottom: "0.5rem" }}>
+              <div
+                style={{
+                  width: "100%",
+                  height: "6px",
+                  background: "var(--border)",
+                  borderRadius: "3px",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${Math.min(100, Math.round((kalman.floor_count / Math.round(kalman.estimate)) * 100))}%`,
+                    height: "100%",
+                    background: "var(--success-text)",
+                    borderRadius: "3px",
+                    transition: "width 0.3s ease",
+                  }}
+                />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: "var(--text-secondary)", marginTop: "0.15rem" }}>
+                <span>{kalman.floor_count} verified altered</span>
+                <span>{Math.max(0, Math.round(kalman.estimate) - kalman.floor_count)} remaining</span>
+              </div>
+            </div>
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+            <span>{kalman.observation_count} observation{kalman.observation_count !== 1 ? "s" : ""} fused</span>
+            {kalman.last_source_type && (
+              <span>Last: {kalman.last_source_type.replace(/_/g, " ")}</span>
+            )}
+            {kalman.last_observation_date && (
+              <span>{new Date(kalman.last_observation_date).toLocaleDateString()}</span>
+            )}
           </div>
         </div>
       )}

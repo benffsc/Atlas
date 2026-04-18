@@ -174,6 +174,51 @@ export async function GET(
       // Continue without ecology stats
     }
 
+    // Get Kalman population state (MIG_3087)
+    let kalmanState: {
+      estimate: number;
+      variance: number;
+      last_observation_date: string | null;
+      last_source_type: string | null;
+      observation_count: number;
+      floor_count: number;
+      ci_lower: number | null;
+      ci_upper: number | null;
+      confidence_level: string | null;
+    } | null = null;
+    try {
+      kalmanState = await queryOne<{
+        estimate: number;
+        variance: number;
+        last_observation_date: string | null;
+        last_source_type: string | null;
+        observation_count: number;
+        floor_count: number;
+        ci_lower: number | null;
+        ci_upper: number | null;
+        confidence_level: string | null;
+      }>(`
+        SELECT
+          pps.estimate,
+          pps.variance,
+          pps.last_observation_date,
+          pps.last_source_type,
+          pps.observation_count,
+          pps.floor_count,
+          GREATEST(pps.floor_count, FLOOR(pps.estimate - 1.96 * SQRT(pps.variance)))::INTEGER AS ci_lower,
+          CEIL(pps.estimate + 1.96 * SQRT(pps.variance))::INTEGER AS ci_upper,
+          CASE
+            WHEN pps.variance <= 5 THEN 'high'
+            WHEN pps.variance <= 20 THEN 'medium'
+            ELSE 'low'
+          END AS confidence_level
+        FROM sot.place_population_state pps
+        WHERE pps.place_id = $1
+      `, [id]);
+    } catch (kalmanError) {
+      console.warn("Could not fetch Kalman state (table may not exist):", kalmanError);
+    }
+
     // Map source types to display labels
     const sourceLabels: Record<string, string> = {
       post_clinic_survey: "Project 75 Survey",
@@ -231,7 +276,9 @@ export async function GET(
         authoritative_count_reason: placeColony?.authoritative_count_reason || null,
         allows_clustering: placeColony?.allows_clustering ?? true,
       },
-      has_data: estimates.length > 0 || (status && status.colony_size_estimate > 0) || (ecology && ecology.a_known > 0),
+      // Kalman population filter state (MIG_3087)
+      kalman: kalmanState || null,
+      has_data: estimates.length > 0 || (status && status.colony_size_estimate > 0) || (ecology && ecology.a_known > 0) || kalmanState !== null,
     });
   } catch (error) {
     console.error("Error fetching colony estimates:", error);

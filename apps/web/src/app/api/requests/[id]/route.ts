@@ -1165,6 +1165,21 @@ export async function PATCH(
       }
     }
 
+    // Feed total_cats_reported into Kalman population filter
+    if (body.total_cats_reported !== undefined && body.total_cats_reported !== null && body.total_cats_reported > 0) {
+      try {
+        const placeForKalman = current.place_id;
+        if (placeForKalman) {
+          await queryOne(
+            `SELECT * FROM sot.update_population_estimate($1, $2, $3, $4, $5)`,
+            [placeForKalman, body.total_cats_reported, 'trapping_request', new Date().toISOString().split("T")[0], 'request:' + id]
+          );
+        }
+      } catch (kalmanErr) {
+        console.warn("Kalman population update failed (non-blocking):", kalmanErr);
+      }
+    }
+
     // Enrich trigger-inserted status history row with changed_by and reason (FFS-636)
     if (body.status !== undefined && body.status !== current.status && result) {
       try {

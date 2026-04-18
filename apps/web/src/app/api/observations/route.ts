@@ -360,6 +360,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Feed observation into Kalman population filter
+    if (effectivePlaceId && cats_seen_total !== null && cats_seen_total !== undefined && cats_seen_total > 0) {
+      try {
+        const kalmanSourceMap: Record<string, string> = {
+          trapper_field: 'trapper_site_visit',
+          staff_phone_call: 'staff_observation',
+          client_report: 'intake_form',
+          requester_update: 'intake_form',
+          admin_entry: 'staff_observation',
+        };
+        const kalmanSource = kalmanSourceMap[effectiveObserverType] || 'staff_observation';
+
+        await queryOne(
+          `SELECT * FROM sot.update_population_estimate($1, $2, $3, $4, $5)`,
+          [effectivePlaceId, cats_seen_total, kalmanSource,
+           observation_date || new Date().toISOString().split("T")[0],
+           'observation:' + observation.observation_id]
+        );
+      } catch (kalmanErr) {
+        console.warn("Kalman population update failed (non-blocking):", kalmanErr);
+      }
+    }
+
     // Get latest colony estimate for this place
     let latestEstimate = null;
     if (effectivePlaceId) {
