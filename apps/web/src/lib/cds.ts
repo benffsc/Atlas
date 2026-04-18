@@ -207,10 +207,23 @@ export async function runCDS(
     });
 
     // ── Phase 1: SQL Deterministic ──────────────────────────────────
-    // Clear non-manual matches first (for rematch), then run SQL passes
+    // For "rematch": clear all non-manual matches and re-score from scratch.
+    // For "import": only clear entries affected by data changes (delta mode).
+    // For "manual": no clear, just score unmatched entries.
 
+    let cleared = 0;
     if (triggeredBy === "rematch") {
-      await clearAutoMatches(clinicDate);
+      cleared = await clearAutoMatches(clinicDate);
+    } else if (triggeredBy === "import" && (changesSinceLastRun?.event_count ?? 0) > 0) {
+      cleared = await clearAffectedMatches(clinicDate);
+    }
+
+    if (cleared > 0) {
+      phases.push({
+        phase: "0.75_clear",
+        matched: 0,
+        details: { cleared, mode: triggeredBy === "rematch" ? "full" : "delta" },
+      });
     }
 
     const sqlPasses = await queryRows<{
@@ -601,6 +614,59 @@ async function runWaiverOCRBridge(
   }
 
   return bridged;
+}
+
+// ── Delta clear: only clear entries affected by data changes ────────
+
+/**
+ * Clear only entries whose matched appointment was affected by a data change
+ * since the last CDS run. Uses ops.cds_audit_events to identify affected
+ * appointments (merged, CDN changed, etc.).
+ *
+ * FFS-1235: Delta-based re-matching instead of full clear.
+ */
+async function clearAffectedMatches(clinicDate: string): Promise<number> {
+  // Find appointment IDs that changed since last CDS run
+  const result = await queryOne<{ cleared: number }>(
+    `WITH last_run AS (
+       SELECT completed_at
+       FROM ops.cds_runs
+       WHERE clinic_date = $1 AND completed_at IS NOT NULL
+       ORDER BY completed_at DESC LIMIT 1
+     ),
+     affected_appts AS (
+       SELECT DISTINCT e.entity_id::uuid AS appointment_id
+       FROM ops.cds_audit_events e
+       WHERE e.clinic_date = $1
+         AND e.entity_type = 'appointment'
+         AND e.event_type IN ('appointment_merged', 'cdn_changed')
+         AND e.created_at > COALESCE((SELECT completed_at FROM last_run), '1970-01-01')
+     ),
+     cleared AS (
+       UPDATE ops.clinic_day_entries e
+       SET matched_appointment_id = NULL,
+           match_confidence = NULL,
+           match_reason = NULL,
+           match_score = NULL,
+           match_signals = NULL,
+           matched_at = NULL,
+           appointment_id = NULL,
+           cat_id = NULL,
+           cds_run_id = NULL,
+           cds_method = NULL
+       FROM ops.clinic_days cd
+       WHERE cd.clinic_day_id = e.clinic_day_id
+         AND cd.clinic_date = $1
+         AND e.matched_appointment_id IN (SELECT appointment_id FROM affected_appts)
+         AND e.match_confidence != 'manual'
+         AND e.verified_at IS NULL
+       RETURNING 1
+     )
+     SELECT COUNT(*)::int AS cleared FROM cleared`,
+    [clinicDate]
+  );
+
+  return result?.cleared ?? 0;
 }
 
 // ── Phase 1.5: Shelter ID Bridge ────────────────────────────────────
