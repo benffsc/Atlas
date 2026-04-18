@@ -121,6 +121,17 @@ export async function runCDS(
   const runId = run!.run_id;
 
   try {
+    // ── Phase -1: Check for changes since last run ────────────────
+    // Query ops.cds_audit_events for data changes since last CDS run.
+    // Informational for now — full delta matching is FFS-1235.
+    let changesSinceLastRun: { event_count: number; event_types: string[] } | null = null;
+    try {
+      changesSinceLastRun = await queryOne<{ event_count: number; event_types: string[] }>(
+        `SELECT event_count::int, event_types FROM ops.cds_changes_since_last_run($1)`,
+        [clinicDate]
+      );
+    } catch { /* table may not exist yet, non-fatal */ }
+
     // ── Phase 0: Data Assembly ──────────────────────────────────────
 
     const [entries, appointments, waivers] = await Promise.all([
@@ -151,6 +162,8 @@ export async function runCDS(
         waivers: waivers.length,
         manual: manualCount,
         has_weights: hasWeights,
+        changes_since_last_run: changesSinceLastRun?.event_count ?? 0,
+        change_types: changesSinceLastRun?.event_types ?? [],
       },
     });
 
