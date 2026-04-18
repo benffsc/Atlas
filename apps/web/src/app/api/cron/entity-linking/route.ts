@@ -443,6 +443,27 @@ async function runPhase2(startTime: number) {
     console.warn("Disease status computation skipped:", e instanceof Error ? e.message : "Unknown");
   }
 
+  // Step 7: Update cat_place presence from ShelterLuv lifecycle events (MIG_3091/FFS-1280)
+  try {
+    const step7 = await queryOne<{
+      cats_processed: number;
+      departures_set: number;
+      returns_confirmed: number;
+      already_departed: number;
+      staff_overrides_skipped: number;
+    }>("SELECT * FROM sot.update_cat_place_from_lifecycle_events()");
+
+    if (step7) {
+      phaseResult.step7_cats_processed = step7.cats_processed;
+      phaseResult.step7_departures_set = step7.departures_set;
+      phaseResult.step7_returns_confirmed = step7.returns_confirmed;
+      phaseResult.step7_staff_overrides_skipped = step7.staff_overrides_skipped;
+    }
+  } catch (e) {
+    phaseResult.step7_error = e instanceof Error ? e.message : "Unknown";
+    warnings.push("step7_presence_update failed");
+  }
+
   if (warnings.length > 0) phaseResult.warnings = warnings;
   phaseResult.status = warnings.length > 0 ? "partial_failure" : "completed";
 
