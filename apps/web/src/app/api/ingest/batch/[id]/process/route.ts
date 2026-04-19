@@ -4,6 +4,7 @@ import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } f
 import { isValidUUID } from "@/lib/validation";
 import { processUpload } from "@/app/api/ingest/process/[id]/route";
 import { runClinicDayMatching, hasClinicDayEntries } from "@/lib/clinic-day-matching";
+import { runCDS } from "@/lib/cds";
 
 interface BatchStatus {
   batch_id: string;
@@ -175,6 +176,7 @@ export async function POST(
     // MIG_3043: Auto-reconcile clinic day matching when ClinicHQ data arrives
     // If master list was imported before ClinicHQ, re-run matching now
     let reconciliation: { date: string; newly_matched: number } | null = null;
+    const batchDates: Array<{ appointment_date: string }> = [];
     if (allSuccess || anySuccess) {
       try {
         // Find appointment dates from this batch using file_uploads date range
@@ -187,8 +189,6 @@ export async function POST(
              AND data_date_min IS NOT NULL`,
           [batchId]
         );
-
-        const batchDates: Array<{ appointment_date: string }> = [];
         if (dateRange?.min_date) {
           const dates = await queryRows<{ appointment_date: string }>(
             `SELECT DISTINCT appointment_date::text as appointment_date
@@ -225,6 +225,25 @@ export async function POST(
       }
     }
 
+    // FFS-1295: Auto-trigger full CDS pipeline for affected dates
+    // Runs waiver OCR CDN bridge + all SQL passes + propagation
+    let cdsResults: Array<{ date: string; matched: number }> = [];
+    if ((allSuccess || anySuccess) && batchDates.length > 0) {
+      try {
+        for (const { appointment_date } of batchDates) {
+          const hasEntries = await hasClinicDayEntries(appointment_date);
+          if (hasEntries) {
+            const cdsResult = await runCDS(appointment_date, "import");
+            if (cdsResult.matched_after > 0) {
+              cdsResults.push({ date: appointment_date, matched: cdsResult.matched_after });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[BATCH] CDS trigger error (non-fatal):", err);
+      }
+    }
+
     return apiSuccess({
       batch_id: batchId,
       success: allSuccess,
@@ -233,6 +252,7 @@ export async function POST(
       files_failed: results.filter((r) => !r.success).length,
       results,
       reconciliation,
+      cds_triggered: cdsResults.length > 0 ? cdsResults : undefined,
       orphans_logged: orphansLogged,
       message: allSuccess
         ? "All 3 files processed successfully"
