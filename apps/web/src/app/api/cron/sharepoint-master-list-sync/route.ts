@@ -229,7 +229,7 @@ export async function GET(request: NextRequest) {
             enteredBy: null, // cron-driven, no staff session
             sourceSystem: "master_list_sharepoint_sync",
             skipIfExists: true,
-            skipCDS: true,
+            skipCDS: false,
           });
 
           // Mark file_uploads completed
@@ -264,6 +264,33 @@ export async function GET(request: NextRequest) {
 
           if (result.status === "ok") {
             stats.imported++;
+
+            // Bridge waiver OCR CDNs for this date (if waivers have been OCR'd)
+            try {
+              const bridged = await queryOne<{ count: number }>(`
+                WITH bridged AS (
+                  SELECT ops.set_clinic_day_number(
+                    ws.matched_appointment_id,
+                    ws.ocr_clinic_number,
+                    'waiver_ocr'::ops.clinic_day_number_source,
+                    NULL
+                  ) AS result
+                  FROM ops.waiver_scans ws
+                  JOIN ops.appointments a ON a.appointment_id = ws.matched_appointment_id
+                  WHERE ws.parsed_date = $1::DATE
+                    AND ws.ocr_clinic_number IS NOT NULL
+                    AND ws.matched_appointment_id IS NOT NULL
+                    AND a.merged_into_appointment_id IS NULL
+                    AND (a.clinic_day_number IS NULL OR a.clinic_day_number != ws.ocr_clinic_number)
+                    AND NOT COALESCE(a.manually_overridden_fields @> ARRAY['clinic_day_number'], false)
+                )
+                SELECT COUNT(*) FILTER (WHERE result = true)::int AS count FROM bridged
+              `, [parsed.date]);
+              if ((bridged?.count ?? 0) > 0) {
+                log.push(`    Waiver OCR bridged ${bridged!.count} CDNs`);
+              }
+            } catch { /* non-fatal */ }
+
             fileResults.push({
               filename: file.name,
               date: parsed.date,

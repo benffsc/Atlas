@@ -202,9 +202,11 @@ export function parseMasterList(workbook: xlsx.WorkBook): ParseResult {
     const lineNum = row[colIndex.num];
     const clientName = String(row[colIndex.clientName] || "").trim();
 
-    // Skip empty rows or summary rows
+    // Skip empty rows, summary rows, or header echo rows
     if (!clientName || !lineNum) continue;
     if (isNaN(parseInt(String(lineNum)))) continue;
+    // Skip rows where "Client Name" column literally says "Client Name" (header row repeated in data)
+    if (clientName.toLowerCase() === "client name") continue;
 
     const fValue = String(row[colIndex.F] || "").trim();
     const mValue = String(row[colIndex.M] || "").trim();
