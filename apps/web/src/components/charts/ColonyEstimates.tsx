@@ -67,6 +67,15 @@ interface ColonyClassification {
   allows_clustering: boolean;
 }
 
+interface CatFreshness {
+  raw_floor: number;
+  weighted_floor: number;
+  current_count: number;
+  recent_count: number;
+  stale_count: number;
+  historical_count: number;
+}
+
 interface KalmanEstimate {
   estimate: number;
   variance: number;
@@ -86,6 +95,7 @@ interface ColonyEstimatesResponse {
   ecology: EcologyStats;
   classification?: ColonyClassification;
   kalman?: KalmanEstimate | null;
+  freshness?: CatFreshness | null;
   has_data: boolean;
 }
 
@@ -280,7 +290,7 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
     );
   }
 
-  const { status, estimates, ecology, classification, kalman } = data;
+  const { status, estimates, ecology, classification, kalman, freshness } = data;
 
   // For individual_cats classification, use authoritative count and skip ecology stats
   const isIndividualCats = classification?.type === "individual_cats";
@@ -817,6 +827,28 @@ export function ColonyEstimates({ placeId }: ColonyEstimatesProps) {
               <span>{new Date(kalman.last_observation_date).toLocaleDateString()}</span>
             )}
           </div>
+          {/* Cat Freshness Breakdown (MIG_3094) */}
+          {freshness && freshness.raw_floor > 0 && freshness.raw_floor !== Math.ceil(Number(freshness.weighted_floor)) && (
+            <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "var(--warning-bg)", borderRadius: "6px", fontSize: "0.75rem" }}>
+              <div style={{ color: "var(--warning-text)", fontWeight: 600, marginBottom: "0.25rem" }}>
+                Attrition Adjusted: {freshness.raw_floor} verified → ~{Math.ceil(Number(freshness.weighted_floor))} likely still here
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", color: "var(--text-secondary)" }}>
+                {freshness.current_count > 0 && (
+                  <span style={{ color: "var(--success-text)" }}>{freshness.current_count} current (&lt;90d)</span>
+                )}
+                {freshness.recent_count > 0 && (
+                  <span>{freshness.recent_count} recent (&lt;1yr)</span>
+                )}
+                {freshness.stale_count > 0 && (
+                  <span style={{ color: "var(--warning-text)" }}>{freshness.stale_count} aging (1-3yr)</span>
+                )}
+                {freshness.historical_count > 0 && (
+                  <span style={{ color: "var(--danger-text)" }}>{freshness.historical_count} historical (3yr+)</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

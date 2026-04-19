@@ -219,6 +219,28 @@ export async function GET(
       console.warn("Could not fetch Kalman state (table may not exist):", kalmanError);
     }
 
+    // Get cat freshness breakdown (MIG_3094)
+    let freshness: {
+      raw_floor: number;
+      weighted_floor: number;
+      current_count: number;
+      recent_count: number;
+      stale_count: number;
+      historical_count: number;
+    } | null = null;
+    try {
+      freshness = await queryOne<{
+        raw_floor: number;
+        weighted_floor: number;
+        current_count: number;
+        recent_count: number;
+        stale_count: number;
+        historical_count: number;
+      }>(`SELECT * FROM sot.get_attrition_weighted_floor($1)`, [id]);
+    } catch (freshnessError) {
+      console.warn("Could not fetch freshness breakdown (function may not exist):", freshnessError);
+    }
+
     // Map source types to display labels
     const sourceLabels: Record<string, string> = {
       post_clinic_survey: "Project 75 Survey",
@@ -278,6 +300,8 @@ export async function GET(
       },
       // Kalman population filter state (MIG_3087)
       kalman: kalmanState || null,
+      // Cat freshness breakdown (MIG_3094)
+      freshness: freshness || null,
       has_data: estimates.length > 0 || (status && status.colony_size_estimate > 0) || (ecology && ecology.a_known > 0) || kalmanState !== null,
     });
   } catch (error) {
