@@ -48,10 +48,36 @@ async function execute(sql: string, params: unknown[] = []): Promise<void> {
 
 const OCR_MODEL = "claude-haiku-4-5-20251001";
 
-const OCR_PROMPT = `Extract ALL structured data from this veterinary clinic waiver form. Look for:
-- The big clinic number (usually top-right, handwritten or stamped)
-- ALL microchip numbers (PetLink stickers, handwritten, printed - could be multiple)
+// ── Chip Normalization (same as waiver-ocr.ts) ─────────────
+
+const CHIP_SUBS: Record<string, string> = {
+  O: "0", o: "0", I: "1", i: "1", l: "1",
+  S: "5", s: "5", B: "8", b: "8", Z: "2", z: "2",
+  G: "6", g: "6", T: "7", t: "7", A: "4",
+};
+
+function normalizeChip(raw: string): string | null {
+  let cleaned = raw.replace(/[\s\-._​\u200B]/g, "");
+  cleaned = cleaned.split("").map((ch) => CHIP_SUBS[ch] ?? ch).join("");
+  const digitsOnly = cleaned.replace(/[^0-9]/g, "");
+  if (digitsOnly.length < 9 || digitsOnly.length > 16) return null;
+  return digitsOnly;
+}
+
+const OCR_PROMPT = `Extract ALL structured data from this veterinary clinic waiver form.
+
+MICROCHIP INSTRUCTIONS (critical — read carefully):
+- PetLink microchip stickers show a 15-digit number, usually starting with 981020, 985113, or 900
+- The number is ONLY digits (0-9). If you see what looks like a letter, it's a misread digit:
+  O = 0, I = 1, l = 1, S = 5, B = 8, Z = 2, G = 6, T = 7, A = 4 (in digit context)
+- Read each digit carefully. Spaces in the printed number are formatting, not part of the value
+- There may be MULTIPLE chips: a PetLink sticker (new) AND a handwritten pre-existing chip
+- Return the raw digits only, no spaces or dashes
+
+OTHER FIELDS:
+- The big clinic number (usually top-right, handwritten or stamped, 1-3 digits)
 - Owner info, cat info, procedures, notes
+- Weight in pounds (to 2 decimal places)
 - Any handwritten corrections or cross-outs
 
 Return ONLY valid JSON:
@@ -242,11 +268,12 @@ async function main() {
       apiCalls++;
       stats.extracted++;
 
-      // Pick primary chip
-      const primaryChip =
-        ocr.microchip_numbers
-          .filter((c) => c && c.length >= 9)
-          .sort((a, b) => b.length - a.length)[0] || null;
+      // Pick primary chip (normalize OCR errors: O→0, I→1, strip spaces, etc.)
+      const normalizedChips = ocr.microchip_numbers
+        .map(normalizeChip)
+        .filter((c): c is string => c !== null);
+      const primaryChip = normalizedChips
+        .sort((a, b) => b.length - a.length)[0] || null;
       const chipLast4 = primaryChip ? primaryChip.slice(-4) : ocr.microchip_last4;
 
       // Store OCR results
@@ -281,13 +308,12 @@ async function main() {
         ]
       );
 
-      // Match cat via full chip
+      // Match cat via normalized chip (full match first)
       let matchedCatId: string | null = null;
       let matchedApptId: string | null = null;
       let matchMethod: string | null = null;
 
-      const chipsToTry = ocr.microchip_numbers.filter((c) => c && c.length >= 9);
-      for (const chip of chipsToTry) {
+      for (const chip of normalizedChips) {
         const catMatch = await queryOne<{ cat_id: string; appointment_id: string | null }>(
           `SELECT ci.cat_id,
                   (SELECT a.appointment_id

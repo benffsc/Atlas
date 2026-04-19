@@ -48,10 +48,20 @@ export interface ProcessResult {
 
 // ── OCR Prompt ──────────────────────────────────────────────
 
-const OCR_PROMPT = `Extract ALL structured data from this veterinary clinic waiver form. Look for:
-- The big clinic number (usually top-right, handwritten or stamped)
-- ALL microchip numbers (PetLink stickers, handwritten, printed - could be multiple)
+const OCR_PROMPT = `Extract ALL structured data from this veterinary clinic waiver form.
+
+MICROCHIP INSTRUCTIONS (critical — read carefully):
+- PetLink microchip stickers show a 15-digit number, usually starting with 981020, 985113, or 900
+- The number is ONLY digits (0-9). If you see what looks like a letter, it's a misread digit:
+  O = 0, I = 1, l = 1, S = 5, B = 8, Z = 2, G = 6, T = 7, A = 4 (in digit context)
+- Read each digit carefully. Spaces in the printed number are formatting, not part of the value
+- There may be MULTIPLE chips: a PetLink sticker (new) AND a handwritten pre-existing chip
+- Return the raw digits only, no spaces or dashes
+
+OTHER FIELDS:
+- The big clinic number (usually top-right, handwritten or stamped, 1-3 digits)
 - Owner info, cat info, procedures, notes
+- Weight in pounds (to 2 decimal places)
 - Any handwritten corrections or cross-outs
 - The form color/paper color (blue = foster cat, white = regular)
 
@@ -65,7 +75,7 @@ Return ONLY valid JSON:
   "description": "<breed/color or null>",
   "sex": "<M or F or null>",
   "weight_lbs": <number or null>,
-  "microchip_numbers": ["<all chip numbers visible>"],
+  "microchip_numbers": ["<all chip numbers visible, digits only, no spaces>"],
   "microchip_last4": "<last 4 digits or null>",
   "spay_or_neuter": "<spay or neuter or null>",
   "ear_tip": "<left/right/both/none or null>",
@@ -77,6 +87,200 @@ Return ONLY valid JSON:
 }`;
 
 const OCR_MODEL = "claude-haiku-4-5-20251001";
+
+// ── Chip Normalization ──────────────────────────────────────
+
+/** Common OCR letter→digit substitutions for PetLink microchips */
+const CHIP_SUBS: Record<string, string> = {
+  O: "0", o: "0",
+  I: "1", i: "1", l: "1",
+  S: "5", s: "5",
+  B: "8", b: "8",
+  Z: "2", z: "2",
+  G: "6", g: "6",
+  T: "7", t: "7",
+  A: "4", // only in digit context (PetLink is all digits)
+};
+
+/**
+ * Normalize an OCR'd microchip: strip whitespace/punctuation,
+ * apply common letter→digit OCR corrections.
+ * Returns null if result isn't a plausible chip (< 9 digits).
+ */
+export function normalizeChip(raw: string): string | null {
+  // Strip spaces, dashes, dots, underscores, zero-width chars
+  let cleaned = raw.replace(/[\s\-._​\u200B]/g, "");
+
+  // Apply letter→digit substitutions
+  cleaned = cleaned
+    .split("")
+    .map((ch) => CHIP_SUBS[ch] ?? ch)
+    .join("");
+
+  // Strip any remaining non-digits
+  const digitsOnly = cleaned.replace(/[^0-9]/g, "");
+
+  // PetLink chips are 15 digits; some older chips are 9-10
+  if (digitsOnly.length < 9 || digitsOnly.length > 16) return null;
+
+  return digitsOnly;
+}
+
+// ── Composite Matching ──────────────────────────────────────
+
+interface CandidateAppointment {
+  appointment_id: string;
+  cat_id: string;
+  microchip: string | null;
+  cat_name: string | null;
+  cat_sex: string | null;
+  cat_color: string | null;
+  cat_breed: string | null;
+  client_name: string | null;
+  weight_lbs: number | null;
+}
+
+interface MatchScore {
+  appointment_id: string;
+  cat_id: string;
+  score: number;
+  signals: Record<string, number>;
+  method: string;
+}
+
+/**
+ * Score a waiver against a candidate appointment using ALL available signals.
+ * Returns 0.0–1.0 composite score.
+ */
+function scoreWaiverMatch(
+  ocr: WaiverOCRResult,
+  candidate: CandidateAppointment,
+  filenameLast4: string | null
+): MatchScore {
+  const signals: Record<string, number> = {};
+  let totalWeight = 0;
+
+  // 1. Chip match (0.30 weight)
+  const chipWeight = 0.30;
+  totalWeight += chipWeight;
+  if (candidate.microchip) {
+    const normalizedChips = ocr.microchip_numbers
+      .map(normalizeChip)
+      .filter((c): c is string => c !== null);
+
+    if (normalizedChips.includes(candidate.microchip)) {
+      signals.chip = chipWeight; // exact full match
+    } else {
+      const candidateLast4 = candidate.microchip.slice(-4);
+      // Check OCR last4
+      const ocrLast4s = normalizedChips.map((c) => c.slice(-4));
+      if (ocrLast4s.includes(candidateLast4)) {
+        signals.chip = chipWeight * 0.85; // last4 from OCR
+      } else if (filenameLast4 && candidateLast4 === filenameLast4) {
+        signals.chip = chipWeight * 0.80; // last4 from filename
+      } else {
+        signals.chip = 0;
+      }
+    }
+  } else {
+    signals.chip = 0;
+  }
+
+  // 2. Weight match (0.25 weight — near-unique per clinic day)
+  const weightWeight = 0.25;
+  totalWeight += weightWeight;
+  if (ocr.weight_lbs && candidate.weight_lbs && ocr.weight_lbs > 0 && candidate.weight_lbs > 0) {
+    const diff = Math.abs(ocr.weight_lbs - candidate.weight_lbs);
+    if (diff < 0.1) {
+      signals.weight = weightWeight; // exact match (within rounding)
+    } else if (diff < 0.5) {
+      signals.weight = weightWeight * 0.8; // close
+    } else if (diff < 2.0) {
+      signals.weight = weightWeight * 0.3; // plausible (scale variance)
+    } else {
+      signals.weight = 0;
+    }
+  } else {
+    // No weight data — don't penalize, just skip this signal
+    totalWeight -= weightWeight;
+  }
+
+  // 3. Sex match (0.10 weight)
+  const sexWeight = 0.10;
+  totalWeight += sexWeight;
+  if (ocr.sex && candidate.cat_sex) {
+    const ocrSex = ocr.sex.toUpperCase().charAt(0);
+    const catSex = candidate.cat_sex.toUpperCase().charAt(0);
+    signals.sex = ocrSex === catSex ? sexWeight : 0;
+  } else {
+    totalWeight -= sexWeight;
+  }
+
+  // 4. Description/color/breed match (0.15 weight)
+  const descWeight = 0.15;
+  totalWeight += descWeight;
+  if (ocr.description && (candidate.cat_color || candidate.cat_breed)) {
+    const descLower = ocr.description.toLowerCase();
+    const colorMatch = candidate.cat_color && descLower.includes(candidate.cat_color.toLowerCase());
+    const breedMatch = candidate.cat_breed && descLower.includes(candidate.cat_breed.toLowerCase().replace("domestic ", "d"));
+    if (colorMatch && breedMatch) {
+      signals.description = descWeight;
+    } else if (colorMatch || breedMatch) {
+      signals.description = descWeight * 0.6;
+    } else {
+      signals.description = 0;
+    }
+  } else {
+    totalWeight -= descWeight;
+  }
+
+  // 5. Owner name match (0.15 weight)
+  const ownerWeight = 0.15;
+  totalWeight += ownerWeight;
+  if (ocr.owner_last_name && candidate.client_name) {
+    const ocrOwner = ocr.owner_last_name.toLowerCase();
+    const clientLower = candidate.client_name.toLowerCase();
+    if (clientLower.includes(ocrOwner) || ocrOwner.includes(clientLower.split(" ").pop() || "")) {
+      signals.owner = ownerWeight;
+    } else {
+      signals.owner = 0;
+    }
+  } else {
+    totalWeight -= ownerWeight;
+  }
+
+  // 6. Cat name match (0.05 weight)
+  const nameWeight = 0.05;
+  totalWeight += nameWeight;
+  if (ocr.cat_name && candidate.cat_name) {
+    const ocrName = ocr.cat_name.toLowerCase();
+    const catName = candidate.cat_name.toLowerCase();
+    if (catName.includes(ocrName) || ocrName.includes(catName)) {
+      signals.cat_name = nameWeight;
+    } else {
+      signals.cat_name = 0;
+    }
+  } else {
+    totalWeight -= nameWeight;
+  }
+
+  // Normalize score to 0.0-1.0 based on signals that actually had data
+  const rawScore = Object.values(signals).reduce((a, b) => a + b, 0);
+  const normalizedScore = totalWeight > 0 ? rawScore / totalWeight : 0;
+
+  // Determine method label
+  let method = "composite";
+  if (signals.chip >= chipWeight * 0.99) method = "ocr_chip_full";
+  else if (signals.chip >= chipWeight * 0.79) method = "ocr_chip_last4";
+
+  return {
+    appointment_id: candidate.appointment_id,
+    cat_id: candidate.cat_id,
+    score: Math.round(normalizedScore * 100) / 100,
+    signals,
+    method,
+  };
+}
 
 // ── Core Functions ──────────────────────────────────────────
 
@@ -288,73 +492,98 @@ export async function processWaiverOCR(
     ]
   );
 
-  // 4. Match waiver → cat via full chip
+  // 4. Match waiver → cat via composite scoring
+  // Load ALL candidate appointments on this date, then score each
   let matchedCatId: string | null = waiver.matched_cat_id;
   let matchedApptId: string | null = waiver.matched_appointment_id;
   let matchMethod: string | null = null;
+  let matchConfidence: number = 0;
 
-  // Try each OCR chip (full match first)
-  const chipsToTry = ocrResult.microchip_numbers.filter(
-    (c) => c && c.length >= 9
-  );
+  if (waiver.parsed_date) {
+    // First try: deterministic chip match (normalized)
+    const normalizedChips = ocrResult.microchip_numbers
+      .map(normalizeChip)
+      .filter((c): c is string => c !== null);
 
-  for (const chip of chipsToTry) {
-    const catMatch = await queryOne<{
-      cat_id: string;
-      appointment_id: string | null;
-    }>(
-      `SELECT ci.cat_id,
-              (SELECT a.appointment_id
-               FROM ops.appointments a
-               WHERE a.cat_id = ci.cat_id
-                 AND a.appointment_date = $2
-                 AND a.merged_into_appointment_id IS NULL
-               ORDER BY a.created_at DESC LIMIT 1
-              ) AS appointment_id
-       FROM sot.cat_identifiers ci
-       JOIN sot.cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
-       WHERE ci.id_type = 'microchip' AND ci.id_value = $1
-       LIMIT 1`,
-      [chip, waiver.parsed_date]
-    );
+    for (const chip of normalizedChips) {
+      const catMatch = await queryOne<{
+        cat_id: string;
+        appointment_id: string | null;
+      }>(
+        `SELECT ci.cat_id,
+                (SELECT a.appointment_id
+                 FROM ops.appointments a
+                 WHERE a.cat_id = ci.cat_id
+                   AND a.appointment_date = $2
+                   AND a.merged_into_appointment_id IS NULL
+                 ORDER BY a.created_at DESC LIMIT 1
+                ) AS appointment_id
+         FROM sot.cat_identifiers ci
+         JOIN sot.cats c ON c.cat_id = ci.cat_id AND c.merged_into_cat_id IS NULL
+         WHERE ci.id_type = 'microchip' AND ci.id_value = $1
+         LIMIT 1`,
+        [chip, waiver.parsed_date]
+      );
 
-    if (catMatch) {
-      matchedCatId = catMatch.cat_id;
-      matchedApptId = catMatch.appointment_id;
-      matchMethod = "ocr_chip_full";
-      break;
+      if (catMatch) {
+        matchedCatId = catMatch.cat_id;
+        matchedApptId = catMatch.appointment_id;
+        matchMethod = "ocr_chip_full";
+        matchConfidence = 1.0;
+        break;
+      }
+    }
+
+    // Second try: composite scoring against all candidates on this date
+    if (!matchedCatId) {
+      const candidates = await queryRows<CandidateAppointment>(
+        `SELECT a.appointment_id, a.cat_id::text, c.microchip,
+                c.name AS cat_name, c.sex AS cat_sex,
+                COALESCE(c.primary_color, c.color) AS cat_color,
+                c.breed AS cat_breed,
+                a.client_name,
+                (SELECT cv.weight_lbs FROM ops.cat_vitals cv
+                 WHERE cv.cat_id = a.cat_id AND cv.weight_lbs IS NOT NULL
+                   AND cv.weight_lbs < 50
+                 ORDER BY cv.recorded_at DESC LIMIT 1
+                ) AS weight_lbs
+         FROM ops.appointments a
+         JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+         WHERE a.appointment_date = $1
+           AND a.merged_into_appointment_id IS NULL
+           AND a.cat_id IS NOT NULL`,
+        [waiver.parsed_date]
+      );
+
+      if (candidates.length > 0) {
+        const scores = candidates.map((c) =>
+          scoreWaiverMatch(ocrResult, c, waiver.parsed_last4_chip)
+        );
+
+        // Sort by score descending
+        scores.sort((a, b) => b.score - a.score);
+
+        const best = scores[0];
+        const second = scores[1];
+
+        // Accept if: score >= 0.60 AND (no runner-up OR clear margin)
+        const margin = second ? best.score - second.score : 1.0;
+        if (best.score >= 0.60 && margin >= 0.10) {
+          matchedCatId = best.cat_id;
+          matchedApptId = best.appointment_id;
+          matchMethod = best.method;
+          matchConfidence = best.score;
+        }
+      }
     }
   }
 
-  // Fallback: last4 + date (same logic as filename matching but from OCR)
-  if (!matchedCatId && chipLast4 && waiver.parsed_date) {
-    const last4Match = await queryOne<{
-      cat_id: string;
-      appointment_id: string;
-    }>(
-      `SELECT a.cat_id, a.appointment_id
-       FROM ops.appointments a
-       JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
-       WHERE c.microchip IS NOT NULL
-         AND RIGHT(c.microchip, 4) = $1
-         AND a.appointment_date = $2
-         AND a.merged_into_appointment_id IS NULL
-       ORDER BY a.created_at DESC LIMIT 1`,
-      [chipLast4, waiver.parsed_date]
-    );
-
-    if (last4Match) {
-      matchedCatId = last4Match.cat_id;
-      matchedApptId = last4Match.appointment_id;
-      matchMethod = "ocr_chip_last4";
-    }
-  }
-
-  // Update match if OCR found a better one (full chip > last4 from filename)
+  // Update match
   if (matchedCatId && matchMethod) {
     const shouldUpdate =
       !waiver.matched_cat_id ||
-      matchMethod === "ocr_chip_full";
+      matchMethod === "ocr_chip_full" ||
+      matchConfidence > (waiver.matched_cat_id ? 0.95 : 0);
 
     if (shouldUpdate) {
       await execute(
@@ -362,9 +591,9 @@ export async function processWaiverOCR(
            matched_cat_id = $2,
            matched_appointment_id = $3,
            match_method = $4,
-           match_confidence = CASE WHEN $4 = 'ocr_chip_full' THEN 1.00 ELSE 0.95 END
+           match_confidence = $5
          WHERE waiver_id = $1`,
-        [waiverId, matchedCatId, matchedApptId, matchMethod]
+        [waiverId, matchedCatId, matchedApptId, matchMethod, matchConfidence]
       );
     }
   }
