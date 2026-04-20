@@ -300,7 +300,8 @@ export default function ClinicDaysPage() {
       (e.appointment_number || "").toLowerCase().includes(q) ||
       (e.cat_color || "").toLowerCase().includes(q) ||
       (e.cat_breed || "").toLowerCase().includes(q) ||
-      (e.raw_client_name || "").toLowerCase().includes(q)
+      (e.raw_client_name || "").toLowerCase().includes(q) ||
+      (e.weight_lbs != null && String(e.weight_lbs).includes(q))
     );
   });
 
@@ -506,7 +507,7 @@ export default function ClinicDaysPage() {
         }}>
           <input
             type="text"
-            placeholder="Search #, name, chip, owner, address, color..."
+            placeholder="Search #, name, chip, weight, owner, address..."
             value={rosterSearch}
             onChange={(e) => setRosterSearch(e.target.value)}
             style={{
