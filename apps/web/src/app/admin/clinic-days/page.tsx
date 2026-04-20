@@ -113,7 +113,7 @@ export default function ClinicDaysPage() {
   useEffect(() => {
     if (!drawerEntry?.cat_id) { setDrawerPhotos([]); return; }
     fetchApi<{ media: Array<{ media_id: string; storage_path: string }> }>(
-      `/api/media?entity_type=cat&entity_id=${drawerEntry.cat_id}&limit=20`
+      `/api/media?cat_id=${drawerEntry.cat_id}`
     ).then(d => setDrawerPhotos(d.media || [])).catch(() => setDrawerPhotos([]));
   }, [drawerEntry?.cat_id]);
 
