@@ -125,13 +125,16 @@ interface CatSearchResult {
 }
 
 // Clinic type config
-const CLINIC_TYPES = {
+const CLINIC_TYPES: Record<string, { label: string; color: string; bg: string }> = {
   regular: { label: "Regular", color: "var(--primary)", bg: "var(--primary-bg)" },
+  weekday_clinic: { label: "Weekday", color: "var(--primary)", bg: "var(--primary-bg)" },
+  sunday_clinic: { label: "Sunday", color: "var(--info-text)", bg: "var(--info-bg)" },
   tame_only: { label: "Tame Only", color: "var(--warning-text)", bg: "var(--warning-bg)" },
   mass_trapping: { label: "Mass Trapping", color: "var(--success-text)", bg: "var(--success-bg)" },
   emergency: { label: "Emergency", color: "var(--danger-text)", bg: "var(--danger-bg)" },
   mobile: { label: "Mobile", color: "var(--info-text)", bg: "var(--info-bg)" },
 };
+const DEFAULT_CLINIC_TYPE = { label: "Clinic", color: "var(--muted)", bg: "var(--section-bg)" };
 
 // Helper to convert ClinicDayCat to CatCardData
 function toCatCardData(cat: ClinicDayCat): CatCardData {
@@ -793,7 +796,7 @@ export default function ClinicDaysPage() {
                   if (!item) return <div key={i} />;
                   const clinicDay = getClinicDayForDate(item.date);
                   const isSelected = item.date === selectedDate;
-                  const typeConfig = clinicDay ? CLINIC_TYPES[clinicDay.clinic_type] : null;
+                  const typeConfig = clinicDay ? (CLINIC_TYPES[clinicDay.clinic_type] || DEFAULT_CLINIC_TYPE) : null;
 
                   return (
                     <button
@@ -848,7 +851,7 @@ export default function ClinicDaysPage() {
               <h4 style={{ marginTop: "16px", marginBottom: "8px" }}>Recent Clinic Days</h4>
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "400px", overflowY: "auto" }}>
                 {clinicDays.slice(0, 20).map((day) => {
-                  const typeConfig = CLINIC_TYPES[day.clinic_type];
+                  const typeConfig = CLINIC_TYPES[day.clinic_type] || DEFAULT_CLINIC_TYPE;
                   return (
                     <button
                       key={day.clinic_day_id}
@@ -914,12 +917,12 @@ export default function ClinicDaysPage() {
                         padding: "4px 10px",
                         fontSize: "0.75rem",
                         fontWeight: 600,
-                        background: CLINIC_TYPES[selectedDay.clinic_type].bg,
-                        color: CLINIC_TYPES[selectedDay.clinic_type].color,
+                        background: (CLINIC_TYPES[selectedDay.clinic_type] || DEFAULT_CLINIC_TYPE).bg,
+                        color: (CLINIC_TYPES[selectedDay.clinic_type] || DEFAULT_CLINIC_TYPE).color,
                         borderRadius: "4px",
                       }}
                     >
-                      {CLINIC_TYPES[selectedDay.clinic_type].label}
+                      {(CLINIC_TYPES[selectedDay.clinic_type] || DEFAULT_CLINIC_TYPE).label}
                     </span>
                   )}
                 </h2>
