@@ -37,8 +37,13 @@ export async function GET(
     cat_name: string | null;
     microchip: string | null;
     cat_sex: string | null;
+    cat_color: string | null;
+    cat_breed: string | null;
     weight_lbs: number | null;
     clinic_day_number: number | null;
+    appointment_number: string | null;
+    client_name: string | null;
+    client_address: string | null;
     photo_count: number;
     has_hero: boolean;
   }>(`
@@ -55,11 +60,16 @@ export async function GET(
       c.name AS cat_name,
       c.microchip,
       c.sex AS cat_sex,
+      COALESCE(c.primary_color, c.color) AS cat_color,
+      c.breed AS cat_breed,
       (SELECT cv.weight_lbs FROM ops.cat_vitals cv
        WHERE cv.cat_id = a.cat_id AND cv.weight_lbs IS NOT NULL AND cv.weight_lbs < 50
        ORDER BY cv.recorded_at DESC LIMIT 1
       ) AS weight_lbs,
       a.clinic_day_number,
+      a.appointment_number,
+      a.client_name,
+      COALESCE(a.owner_address, pl.formatted_address) AS client_address,
       COALESCE((SELECT COUNT(*) FROM ops.request_media rm
         WHERE rm.cat_id = a.cat_id AND NOT rm.is_archived), 0)::int AS photo_count,
       COALESCE((SELECT bool_or(rm.is_hero) FROM ops.request_media rm
@@ -69,6 +79,8 @@ export async function GET(
     LEFT JOIN ops.appointments a ON a.appointment_id = e.matched_appointment_id
       AND a.merged_into_appointment_id IS NULL
     LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+    LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id)
+      AND pl.merged_into_place_id IS NULL
     WHERE cd.clinic_date = $1
     ORDER BY e.line_number
   `, [date]);

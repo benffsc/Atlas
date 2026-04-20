@@ -31,8 +31,13 @@ interface RosterEntry {
   cat_name: string | null;
   microchip: string | null;
   cat_sex: string | null;
+  cat_color: string | null;
+  cat_breed: string | null;
   weight_lbs: number | null;
   clinic_day_number: number | null;
+  appointment_number: string | null;
+  client_name: string | null;
+  client_address: string | null;
   photo_count: number;
   has_hero: boolean;
 }
@@ -261,7 +266,13 @@ export default function ClinicDaysPage() {
       (e.cat_name || "").toLowerCase().includes(q) ||
       (e.parsed_cat_name || "").toLowerCase().includes(q) ||
       (e.parsed_owner_name || "").toLowerCase().includes(q) ||
-      (e.microchip || "").includes(q)
+      (e.client_name || "").toLowerCase().includes(q) ||
+      (e.client_address || "").toLowerCase().includes(q) ||
+      (e.microchip || "").includes(q) ||
+      (e.appointment_number || "").toLowerCase().includes(q) ||
+      (e.cat_color || "").toLowerCase().includes(q) ||
+      (e.cat_breed || "").toLowerCase().includes(q) ||
+      (e.raw_client_name || "").toLowerCase().includes(q)
     );
   });
 
@@ -467,7 +478,7 @@ export default function ClinicDaysPage() {
         }}>
           <input
             type="text"
-            placeholder="Filter by #, name, chip..."
+            placeholder="Search #, name, chip, owner, address, color..."
             value={rosterSearch}
             onChange={(e) => setRosterSearch(e.target.value)}
             style={{
@@ -576,9 +587,12 @@ export default function ClinicDaysPage() {
                     {entry.cat_sex === "Female" ? <span style={{ color: "var(--danger-text)" }}>F</span> : null}
                     {entry.cat_sex === "Male" ? <span style={{ color: "var(--info-text)" }}>M</span> : null}
                     {entry.weight_lbs && <span>{entry.weight_lbs} lbs</span>}
+                    {(entry.cat_color || entry.cat_breed) && (
+                      <span>{[entry.cat_breed, entry.cat_color].filter(Boolean).join(" ")}</span>
+                    )}
                     {entry.microchip && <span>...{entry.microchip.slice(-4)}</span>}
-                    {entry.parsed_owner_name && entry.cat_name && (
-                      <span>{entry.parsed_owner_name}</span>
+                    {(entry.client_name || entry.parsed_owner_name) && (
+                      <span>{entry.client_name || entry.parsed_owner_name}</span>
                     )}
                   </div>
                 </div>
@@ -709,17 +723,18 @@ export default function ClinicDaysPage() {
               </div>
             </div>
 
-            {/* Clinic day info */}
+            {/* Appointment info */}
             <div>
               <h3 style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Clinic Day Info
+                Appointment
               </h3>
-              <div style={{ fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div><strong>Owner:</strong> {drawerEntry.parsed_owner_name || drawerEntry.raw_client_name || "—"}</div>
-                <div><strong>ML Line:</strong> #{drawerEntry.line_number}</div>
-                {drawerEntry.clinic_day_number && <div><strong>CDN:</strong> #{drawerEntry.clinic_day_number}</div>}
+              <div style={{ fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "5px" }}>
+                {drawerEntry.appointment_number && <div><strong>Appt #:</strong> {drawerEntry.appointment_number}</div>}
+                <div><strong>Booked as:</strong> {drawerEntry.client_name || drawerEntry.parsed_owner_name || "—"}</div>
+                {drawerEntry.client_address && <div><strong>Address:</strong> {drawerEntry.client_address}</div>}
+                <div><strong>ML Line:</strong> #{drawerEntry.line_number}{drawerEntry.clinic_day_number ? ` (CDN #${drawerEntry.clinic_day_number})` : ""}</div>
                 <div><strong>Match:</strong> {drawerEntry.match_confidence || "unmatched"}</div>
-                <div><strong>Photos:</strong> {drawerEntry.photo_count}</div>
+                <div><strong>Photos:</strong> {drawerEntry.photo_count}{drawerEntry.has_hero ? " (hero set)" : ""}</div>
               </div>
             </div>
 
