@@ -96,6 +96,10 @@ export default function ClinicDaysPage() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Cat photos in drawer
+  const [drawerPhotos, setDrawerPhotos] = useState<Array<{ media_id: string; storage_path: string }>>([]);
+  const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null);
+
   // Admin actions
   const [showAdmin, setShowAdmin] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -104,6 +108,14 @@ export default function ClinicDaysPage() {
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const { addToast } = useToast();
+
+  // ── Load photos for drawer cat ────────────────────────────────────
+  useEffect(() => {
+    if (!drawerEntry?.cat_id) { setDrawerPhotos([]); return; }
+    fetchApi<{ media: Array<{ media_id: string; storage_path: string }> }>(
+      `/api/media?entity_type=cat&entity_id=${drawerEntry.cat_id}&limit=20`
+    ).then(d => setDrawerPhotos(d.media || [])).catch(() => setDrawerPhotos([]));
+  }, [drawerEntry?.cat_id]);
 
   // ── Load clinic days list ──────────────────────────────────────────
 
@@ -852,6 +864,57 @@ export default function ClinicDaysPage() {
                   }}
                   title="Waiver PDF"
                 />
+              </div>
+            )}
+
+            {/* Photos */}
+            {drawerPhotos.length > 0 && (
+              <div>
+                <h3 style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Photos ({drawerPhotos.length})
+                </h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: "6px" }}>
+                  {drawerPhotos.map(photo => (
+                    <div key={photo.media_id} style={{ position: "relative" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo.storage_path}
+                        alt=""
+                        style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "6px", border: "1px solid var(--card-border)" }}
+                      />
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!confirm("Remove this photo?")) return;
+                          setDeletingPhoto(photo.media_id);
+                          try {
+                            await fetch(`/api/media/${photo.media_id}`, { method: "DELETE" });
+                            setDrawerPhotos(prev => prev.filter(p => p.media_id !== photo.media_id));
+                            addToast({ type: "success", message: "Photo removed" });
+                            // Refresh roster photo counts
+                            const data = await fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`);
+                            setRoster(data.roster || []);
+                          } catch {
+                            addToast({ type: "error", message: "Failed to remove" });
+                          }
+                          setDeletingPhoto(null);
+                        }}
+                        disabled={deletingPhoto === photo.media_id}
+                        style={{
+                          position: "absolute", top: "3px", right: "3px",
+                          all: "unset", cursor: "pointer",
+                          background: "rgba(0,0,0,0.6)", color: "#fff",
+                          width: "18px", height: "18px", borderRadius: "50%",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: "0.6rem",
+                        }}
+                        title="Remove photo"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
