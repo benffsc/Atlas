@@ -522,6 +522,7 @@ function IntakeQueueContent() {
           { id: "scheduled", label: "Scheduled" },
           { id: "completed", label: "Completed" },
           { id: "all", label: "All" },
+          { id: "closed", label: "Closed" },
         ]}
         activeTab={activeTab}
         onTabChange={(id) => setActiveTab(id as TabType)}

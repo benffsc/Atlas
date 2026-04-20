@@ -210,4 +210,4 @@ export const URGENT_DOWNGRADE_REASONS = [
   },
 ];
 
-export type TabType = "active" | "scheduled" | "completed" | "all";
+export type TabType = "active" | "scheduled" | "completed" | "all" | "closed";

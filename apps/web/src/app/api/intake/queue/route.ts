@@ -115,8 +115,11 @@ export async function GET(request: NextRequest) {
         OR submission_status IN ('new', 'in_progress', 'scheduled')
       )`);
     } else if (mode === "all") {
-      // "All Submissions" tab: Everything except archived
-      // View already filters out archived
+      // "All Submissions" tab: everything except closed/archived
+      conditions.push(`submission_status NOT IN ('closed', 'archived')`)
+    } else if (mode === "closed") {
+      // "Closed" tab: Only closed/archived/redirected submissions
+      conditions.push(`submission_status IN ('closed', 'archived', 'redirected')`)
     } else if (mode === "legacy") {
       // Legacy filter (backward compat)
       conditions.push(`is_legacy = TRUE`);
