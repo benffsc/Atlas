@@ -46,6 +46,7 @@ export async function GET(
     client_address: string | null;
     photo_count: number;
     has_hero: boolean;
+    photo_url: string | null;
   }>(`
     SELECT
       e.line_number,
@@ -73,7 +74,13 @@ export async function GET(
       COALESCE((SELECT COUNT(*) FROM ops.request_media rm
         WHERE rm.cat_id = a.cat_id AND NOT rm.is_archived), 0)::int AS photo_count,
       COALESCE((SELECT bool_or(rm.is_hero) FROM ops.request_media rm
-        WHERE rm.cat_id = a.cat_id AND NOT rm.is_archived), false) AS has_hero
+        WHERE rm.cat_id = a.cat_id AND NOT rm.is_archived), false) AS has_hero,
+      COALESCE(
+        (SELECT rm.storage_path FROM ops.request_media rm
+         WHERE rm.cat_id = a.cat_id AND NOT rm.is_archived
+         ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC LIMIT 1),
+        c.photo_url
+      ) AS photo_url
     FROM ops.clinic_day_entries e
     JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
     LEFT JOIN ops.appointments a ON a.appointment_id = e.matched_appointment_id
@@ -85,10 +92,57 @@ export async function GET(
     ORDER BY e.line_number
   `, [date]);
 
+  // Also find cats with appointments on this date but NOT linked to any ML entry
+  const unlinked = await queryRows<{
+    cat_id: string;
+    cat_name: string | null;
+    microchip: string | null;
+    cat_sex: string | null;
+    cat_color: string | null;
+    cat_breed: string | null;
+    appointment_number: string | null;
+    client_name: string | null;
+    clinic_day_number: number | null;
+    photo_url: string | null;
+    photo_count: number;
+  }>(`
+    SELECT
+      a.cat_id::text,
+      c.name AS cat_name,
+      c.microchip,
+      c.sex AS cat_sex,
+      COALESCE(c.primary_color, c.color) AS cat_color,
+      c.breed AS cat_breed,
+      a.appointment_number,
+      a.client_name,
+      a.clinic_day_number,
+      COALESCE(
+        (SELECT rm.storage_path FROM ops.request_media rm
+         WHERE rm.cat_id = a.cat_id AND NOT rm.is_archived
+         ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC LIMIT 1),
+        c.photo_url
+      ) AS photo_url,
+      COALESCE((SELECT COUNT(*) FROM ops.request_media rm
+        WHERE rm.cat_id = a.cat_id AND NOT rm.is_archived), 0)::int AS photo_count
+    FROM ops.appointments a
+    JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+    WHERE a.appointment_date = $1
+      AND a.merged_into_appointment_id IS NULL
+      AND a.cat_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM ops.clinic_day_entries e
+        JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+        WHERE cd.clinic_date = $1 AND e.matched_appointment_id = a.appointment_id
+      )
+    ORDER BY a.appointment_number NULLS LAST
+  `, [date]);
+
   return apiSuccess({
     date,
     entries: roster.length,
     matched: roster.filter(r => r.cat_id).length,
+    unlinked_count: unlinked.length,
     roster,
+    unlinked,
   });
 }

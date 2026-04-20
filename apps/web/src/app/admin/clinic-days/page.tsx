@@ -40,6 +40,7 @@ interface RosterEntry {
   client_address: string | null;
   photo_count: number;
   has_hero: boolean;
+  photo_url: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -75,6 +76,12 @@ export default function ClinicDaysPage() {
 
   // Roster
   const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [unlinkedCats, setUnlinkedCats] = useState<Array<{
+    cat_id: string; cat_name: string | null; microchip: string | null;
+    cat_sex: string | null; cat_color: string | null; cat_breed: string | null;
+    appointment_number: string | null; client_name: string | null;
+    clinic_day_number: number | null; photo_url: string | null; photo_count: number;
+  }>>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
 
@@ -119,9 +126,10 @@ export default function ClinicDaysPage() {
     setRoster([]);
     setDrawerEntry(null);
     setRosterSearch("");
-    fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`)
+    fetchApi<{ roster: RosterEntry[]; unlinked: typeof unlinkedCats }>(`/api/admin/clinic-days/${selectedDate}/roster`)
       .then((data) => {
         setRoster(data.roster || []);
+        setUnlinkedCats(data.unlinked || []);
         setRosterLoading(false);
       })
       .catch(() => setRosterLoading(false));
@@ -290,7 +298,7 @@ export default function ClinicDaysPage() {
   }
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "16px 20px" }}>
+    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "16px 20px" }}>
 
       {/* ── Header: date strip ── */}
       <div style={{ marginBottom: "20px" }}>
@@ -544,9 +552,13 @@ export default function ClinicDaysPage() {
         </div>
       )}
 
-      {/* ── Roster cards ── */}
+      {/* ── Roster grid ── */}
       {filtered.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gap: "8px",
+        }}>
           {filtered.map(entry => {
             const isTarget = uploadTarget?.entry_id === entry.entry_id;
             return (
@@ -554,63 +566,39 @@ export default function ClinicDaysPage() {
                 key={entry.entry_id}
                 onClick={() => setDrawerEntry(entry)}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "10px 14px",
                   borderRadius: "10px",
                   background: isTarget ? "var(--primary-bg)" : "var(--card-bg)",
                   border: `1px solid ${isTarget ? "var(--primary)" : "var(--card-border)"}`,
-                  borderLeft: `4px solid ${entry.cat_id ? "var(--success-text)" : "var(--warning-text)"}`,
+                  borderTop: `3px solid ${entry.cat_id ? "var(--success-text)" : "var(--warning-text)"}`,
                   cursor: "pointer",
-                  transition: "background 0.1s, box-shadow 0.1s",
+                  overflow: "hidden",
+                  transition: "box-shadow 0.15s",
                 }}
               >
-                {/* CDN # */}
+                {/* Photo + CDN overlay */}
                 <div style={{
-                  fontWeight: 700,
-                  fontFamily: "monospace",
-                  fontSize: "1.15rem",
-                  minWidth: "36px",
-                  textAlign: "center",
-                  color: entry.cat_id ? "var(--foreground)" : "var(--muted)",
+                  height: "120px",
+                  background: entry.photo_url ? `url(${entry.photo_url}) center/cover` : "var(--section-bg)",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  padding: "8px",
+                  position: "relative",
                 }}>
-                  {entry.clinic_day_number || entry.line_number}
-                </div>
+                  {/* CDN badge */}
+                  <span style={{
+                    fontWeight: 700,
+                    fontFamily: "monospace",
+                    fontSize: "1.1rem",
+                    background: "rgba(0,0,0,0.65)",
+                    color: "#fff",
+                    padding: "2px 8px",
+                    borderRadius: "6px",
+                  }}>
+                    #{entry.clinic_day_number || entry.line_number}
+                  </span>
 
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>
-                    {entry.cat_name || entry.parsed_cat_name || entry.parsed_owner_name || "Unknown"}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                    {entry.cat_sex === "Female" ? <span style={{ color: "var(--danger-text)" }}>F</span> : null}
-                    {entry.cat_sex === "Male" ? <span style={{ color: "var(--info-text)" }}>M</span> : null}
-                    {entry.weight_lbs && <span>{entry.weight_lbs} lbs</span>}
-                    {(entry.cat_color || entry.cat_breed) && (
-                      <span>{[entry.cat_breed, entry.cat_color].filter(Boolean).join(" ")}</span>
-                    )}
-                    {entry.microchip && <span>...{entry.microchip.slice(-4)}</span>}
-                    {(entry.client_name || entry.parsed_owner_name) && (
-                      <span>{entry.client_name || entry.parsed_owner_name}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Photo badge + upload button */}
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  {entry.photo_count > 0 && (
-                    <span style={{
-                      fontSize: "0.65rem",
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      background: "var(--success-bg)",
-                      color: "var(--success-text)",
-                      fontWeight: 600,
-                    }}>
-                      {entry.photo_count}
-                    </span>
-                  )}
+                  {/* Upload button */}
                   {entry.cat_id && (
                     <button
                       onClick={(e) => {
@@ -621,19 +609,52 @@ export default function ClinicDaysPage() {
                       style={{
                         all: "unset",
                         cursor: "pointer",
-                        padding: "6px 8px",
+                        padding: "4px 8px",
                         borderRadius: "6px",
-                        fontSize: "1rem",
-                        lineHeight: 1,
-                        background: isTarget ? "var(--primary)" : "var(--section-bg)",
-                        color: isTarget ? "#fff" : "var(--muted)",
-                        transition: "background 0.1s",
+                        fontSize: "0.9rem",
+                        background: isTarget ? "var(--primary)" : "rgba(255,255,255,0.85)",
+                        color: isTarget ? "#fff" : "var(--foreground)",
                       }}
-                      title="Upload photo (or click then paste)"
+                      title="Upload photo"
                     >
-                      📷
+                      📷{entry.photo_count > 0 ? ` ${entry.photo_count}` : ""}
                     </button>
                   )}
+
+                  {/* No photo placeholder */}
+                  {!entry.photo_url && (
+                    <div style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--muted)",
+                      fontSize: "2rem",
+                      opacity: 0.3,
+                      pointerEvents: "none",
+                    }}>
+                      🐱
+                    </div>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div style={{ padding: "8px 10px" }}>
+                  <div style={{ fontWeight: 500, fontSize: "0.85rem", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {entry.cat_name || entry.parsed_cat_name || entry.parsed_owner_name || "Unknown"}
+                  </div>
+                  <div style={{ fontSize: "0.7rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {[
+                      entry.cat_sex === "Female" ? "F" : entry.cat_sex === "Male" ? "M" : null,
+                      entry.weight_lbs ? `${entry.weight_lbs}lbs` : null,
+                      entry.cat_color,
+                      entry.microchip ? `...${entry.microchip.slice(-4)}` : null,
+                    ].filter(Boolean).join(" · ")}
+                  </div>
+                  <div style={{ fontSize: "0.7rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {entry.client_name || entry.parsed_owner_name || ""}
+                  </div>
                 </div>
               </div>
             );
@@ -661,6 +682,75 @@ export default function ClinicDaysPage() {
                 <span style={{ fontFamily: "monospace", minWidth: "28px" }}>#{e.line_number}</span>
                 <span style={{ flex: 1 }}>{e.parsed_owner_name || "Unknown"}</span>
                 <span style={{ fontSize: "0.7rem" }}>{e.cancellation_reason?.replace(/_/g, " ")}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* ── Unlinked cats (appointments without ML entry) ── */}
+      {unlinkedCats.length > 0 && (
+        <details style={{ marginTop: "12px" }}>
+          <summary style={{
+            fontSize: "0.8rem",
+            color: "var(--warning-text)",
+            cursor: "pointer",
+            padding: "6px 0",
+            fontWeight: 500,
+          }}>
+            {unlinkedCats.length} cats without master list entry
+          </summary>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: "6px",
+            marginTop: "8px",
+          }}>
+            {unlinkedCats.map(cat => (
+              <div key={cat.cat_id} style={{
+                borderRadius: "8px",
+                background: "var(--card-bg)",
+                border: "1px solid var(--card-border)",
+                borderTop: "3px solid var(--warning-text)",
+                overflow: "hidden",
+              }}>
+                <div style={{
+                  height: "80px",
+                  background: cat.photo_url ? `url(${cat.photo_url}) center/cover` : "var(--section-bg)",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  padding: "6px",
+                }}>
+                  {cat.clinic_day_number && (
+                    <span style={{
+                      fontFamily: "monospace", fontWeight: 700, fontSize: "0.9rem",
+                      background: "rgba(0,0,0,0.65)", color: "#fff",
+                      padding: "2px 6px", borderRadius: "4px",
+                    }}>
+                      #{cat.clinic_day_number}
+                    </span>
+                  )}
+                  {cat.appointment_number && (
+                    <span style={{
+                      fontSize: "0.65rem", background: "rgba(0,0,0,0.5)", color: "#fff",
+                      padding: "2px 6px", borderRadius: "4px",
+                    }}>
+                      {cat.appointment_number}
+                    </span>
+                  )}
+                </div>
+                <div style={{ padding: "6px 8px" }}>
+                  <div style={{ fontWeight: 500, fontSize: "0.8rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {cat.cat_name || "Unknown"}
+                  </div>
+                  <div style={{ fontSize: "0.65rem", color: "var(--muted)" }}>
+                    {[cat.cat_sex === "Female" ? "F" : cat.cat_sex === "Male" ? "M" : null, cat.cat_color, cat.microchip ? `...${cat.microchip.slice(-4)}` : null].filter(Boolean).join(" · ")}
+                  </div>
+                  <div style={{ fontSize: "0.65rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {cat.client_name || ""}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
