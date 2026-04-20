@@ -146,6 +146,7 @@ export default function ClinicDaysPage() {
     }
     setUploading(true);
     let count = 0;
+    let lastError = "";
     for (const file of files) {
       try {
         const fd = new FormData();
@@ -156,17 +157,31 @@ export default function ClinicDaysPage() {
         fd.append("cat_identification_confidence", "confirmed");
         fd.append("caption", `Clinic ${selectedDate} #${entry.clinic_day_number || entry.line_number}`);
         const r = await fetch("/api/media/upload", { method: "POST", body: fd });
-        if (r.ok) count++;
-      } catch { /* continue */ }
+        if (r.ok) {
+          count++;
+        } else {
+          const err = await r.json().catch(() => ({ error: { message: r.statusText } }));
+          lastError = err?.error?.message || err?.message || r.statusText;
+          console.error("[upload] Failed:", lastError);
+        }
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : "Upload failed";
+        console.error("[upload] Exception:", lastError);
+      }
     }
     if (count > 0) {
       addToast({ type: "success", message: `${count} photo${count > 1 ? "s" : ""} uploaded` });
       // Refresh roster to update photo counts
-      const data = await fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`);
-      setRoster(data.roster || []);
+      try {
+        const data = await fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`);
+        setRoster(data.roster || []);
+      } catch { /* non-fatal */ }
+    } else if (lastError) {
+      addToast({ type: "error", message: `Upload failed: ${lastError}` });
     }
     setUploading(false);
     setUploadTarget(null);
+    setStagedFiles([]);
   }, [selectedDate, addToast]);
 
   // Paste support — stages files into modal
