@@ -206,6 +206,8 @@ export async function GET(request: NextRequest) {
             OR EXISTS (SELECT 1 FROM sot.cat_identifiers ci WHERE ci.cat_id = c.cat_id AND ci.id_type = 'clinichq_animal_id' AND ci.id_value ILIKE $1)
             -- Also search microchip directly on sot.cats table
             OR c.microchip ILIKE $1
+            -- Search by clinic day number (e.g., "#5" or just "5")
+            OR (fa.clinic_day_number IS NOT NULL AND fa.clinic_day_number::TEXT = REGEXP_REPLACE(TRIM(BOTH '%' FROM $1), '^#', ''))
             -- Search owner names via EXISTS to avoid join duplicates
             -- V2: Uses sot.person_cat (not sot.person_cat_relationships)
             OR EXISTS (

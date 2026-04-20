@@ -309,7 +309,7 @@ export default function ClinicDaysPage() {
       .catch(() => { /* fire-and-forget: place dropdown is non-critical */ });
   }, []);
 
-  // Load selected day
+  // Load selected day (entries only — gallery loaded on-demand)
   useEffect(() => {
     if (selectedDate) {
       fetchApi<{ clinic_day: ClinicDay | null; entries: ClinicDayEntry[] }>(`/api/admin/clinic-days/${selectedDate}`)
@@ -322,7 +322,15 @@ export default function ClinicDaysPage() {
           setEntries([]);
         });
 
-      // Load cat gallery data
+      // Clear stale cat gallery when date changes (load on-demand via tab switch)
+      setClinicCats([]);
+      setLoadingCats(false);
+    }
+  }, [selectedDate]);
+
+  // Load cat gallery only when Gallery tab is selected (lazy)
+  useEffect(() => {
+    if (selectedDate && activeTab === "gallery" && clinicCats.length === 0) {
       setLoadingCats(true);
       fetchApi<{ cats: ClinicDayCat[]; total_cats: number; chipped_count: number; unchipped_count: number; unlinked_count: number }>(`/api/admin/clinic-days/${selectedDate}/cats`, { cache: 'no-store' })
         .then((data) => {
@@ -337,7 +345,7 @@ export default function ClinicDaysPage() {
         })
         .catch(() => setLoadingCats(false));
     }
-  }, [selectedDate]);
+  }, [selectedDate, activeTab]);
 
   // Load comparison data
   const loadComparison = async () => {
@@ -1461,7 +1469,7 @@ export default function ClinicDaysPage() {
             <div className="card">
               <h3 style={{ marginTop: 0, marginBottom: "16px" }}>Upload Cat Photos</h3>
               <p style={{ color: "var(--muted)", marginBottom: "20px" }}>
-                Search for a cat by name, microchip, ClinicHQ ID, or owner name, then upload photos.
+                Search by clinic day # (e.g. &quot;5&quot; or &quot;#5&quot;), cat name, microchip, or owner name.
               </p>
 
               {/* Success message */}
@@ -1490,7 +1498,7 @@ export default function ClinicDaysPage() {
                       type="text"
                       value={uploadSearchQuery}
                       onChange={(e) => handleUploadSearch(e.target.value)}
-                      placeholder="Search by cat name, microchip, CHQ ID, or owner name..."
+                      placeholder="Search by #, name, chip, or owner..."
                       style={{
                         width: "100%",
                         padding: "12px 16px",
