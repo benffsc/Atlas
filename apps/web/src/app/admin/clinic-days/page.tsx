@@ -170,7 +170,7 @@ export default function ClinicDaysPage() {
         fd.append("entity_id", entry.cat_id);
         fd.append("media_type", "cat_photo");
         fd.append("cat_identification_confidence", "confirmed");
-        fd.append("caption", `Clinic ${selectedDate} #${entry.clinic_day_number || entry.line_number}`);
+        fd.append("caption", `Clinic ${selectedDate} #${entry.line_number}`);
         const r = await fetch("/api/media/upload", { method: "POST", body: fd });
         if (r.ok) {
           count++;
@@ -302,7 +302,7 @@ export default function ClinicDaysPage() {
     if (!rosterSearch) return true;
     const q = rosterSearch.toLowerCase().replace(/^#/, "");
     return (
-      String(e.clinic_day_number || e.line_number).includes(q) ||
+      String(e.line_number).includes(q) ||
       (e.cat_name || "").toLowerCase().includes(q) ||
       (e.parsed_cat_name || "").toLowerCase().includes(q) ||
       (e.parsed_owner_name || "").toLowerCase().includes(q) ||
@@ -609,7 +609,7 @@ export default function ClinicDaysPage() {
                     padding: "2px 8px",
                     borderRadius: "6px",
                   }}>
-                    #{entry.clinic_day_number || entry.line_number}
+                    #{entry.line_number}
                   </span>
 
                   {/* Upload button */}
@@ -811,7 +811,7 @@ export default function ClinicDaysPage() {
             {/* Drawer header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0, fontSize: "1.1rem" }}>
-                #{drawerEntry.clinic_day_number || drawerEntry.line_number}
+                #{drawerEntry.line_number}
               </h2>
               <button onClick={() => setDrawerEntry(null)} style={{ all: "unset", cursor: "pointer", fontSize: "1.2rem", padding: "4px" }}>✕</button>
             </div>
