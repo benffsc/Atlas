@@ -168,13 +168,19 @@ export function SubmissionsSection({ entityType, entityId }: SubmissionsSectionP
         {filteredSubmissions.map((submission) => (
           <div
             key={submission.submission_id}
+            onClick={() => window.open(`/intake/queue?open=${submission.submission_id}`, "_blank")}
             style={{
               padding: "1rem",
               background: "var(--card-bg, #f8f9fa)",
               borderRadius: "8px",
               border: `1px solid ${submission.is_legacy ? "#ffc107" : "#198754"}`,
               borderLeftWidth: "3px",
+              cursor: "pointer",
+              transition: "box-shadow 0.15s",
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
+            title="Click to view in intake queue"
           >
             {/* Header row */}
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
