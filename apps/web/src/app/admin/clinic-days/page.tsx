@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { fetchApi } from "@/lib/api-client";
+import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { SkeletonText } from "@/components/feedback/Skeleton";
+import { BatchEvidenceUpload } from "@/components/clinic/BatchEvidenceUpload";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -79,6 +80,13 @@ export default function ClinicDaysPage() {
   const [uploadTarget, setUploadTarget] = useState<RosterEntry | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Admin actions
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [rematching, setRematching] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const { addToast } = useToast();
 
@@ -165,6 +173,53 @@ export default function ClinicDaysPage() {
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
   }, [uploadTarget, uploadPhotos]);
+
+  // ── Admin: Import master list ────────────────────────────────────
+
+  const handleImport = async () => {
+    if (!importFile || !selectedDate) return;
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", importFile);
+      const response = await fetch(`/api/admin/clinic-days/${selectedDate}/import`, {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error?.message || "Import failed");
+      const data = result.data || result;
+      addToast({ type: "success", message: `Imported ${data.imported} entries, ${data.matched} matched` });
+      setImportFile(null);
+      // Reload roster
+      const r = await fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`);
+      setRoster(r.roster || []);
+    } catch (err) {
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Import failed" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // ── Admin: Re-run CDS matching ─────────────────────────────────
+
+  const handleRematch = async () => {
+    if (!selectedDate) return;
+    setRematching(true);
+    try {
+      const data = await postApi<{
+        before: { matched: number; unmatched: number };
+        after: { matched: number; unmatched: number };
+      }>(`/api/admin/clinic-days/${selectedDate}/rematch`, {});
+      addToast({ type: "success", message: `CDS: ${data.before?.matched ?? "?"} → ${data.after?.matched ?? "?"} matched` });
+      const r = await fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`);
+      setRoster(r.roster || []);
+    } catch (err) {
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Rematch failed" });
+    } finally {
+      setRematching(false);
+    }
+  };
 
   // ── Filter roster ──────────────────────────────────────────────────
 
@@ -284,21 +339,83 @@ export default function ClinicDaysPage() {
             )}
           </div>
 
-          {/* Quick actions */}
-          <div style={{ display: "flex", gap: "6px" }}>
-            <a
-              href={`/admin/clinic-days/${selectedDate}`}
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--primary)",
-                textDecoration: "none",
-                padding: "6px 10px",
-                borderRadius: "6px",
-                border: "1px solid var(--card-border)",
-              }}
-            >
-              Details & CDS
-            </a>
+          {/* Admin toggle */}
+          <button
+            onClick={() => setShowAdmin(!showAdmin)}
+            style={{
+              all: "unset",
+              cursor: "pointer",
+              fontSize: "0.75rem",
+              color: showAdmin ? "var(--primary)" : "var(--muted)",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              border: `1px solid ${showAdmin ? "var(--primary)" : "var(--card-border)"}`,
+              background: showAdmin ? "var(--primary-bg)" : "transparent",
+            }}
+          >
+            Admin Tools {showAdmin ? "▾" : "▸"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Admin tools (collapsible) ── */}
+      {showAdmin && selectedDate && (
+        <div style={{
+          background: "var(--section-bg)",
+          borderRadius: "10px",
+          padding: "14px",
+          marginBottom: "12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+        }}>
+          {/* Import Master List */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 500, minWidth: "100px" }}>Import ML:</span>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              style={{ fontSize: "0.8rem", flex: 1, minWidth: "150px" }}
+            />
+            <Button size="sm" onClick={handleImport} loading={importing} disabled={!importFile}>
+              Import
+            </Button>
+          </div>
+
+          {/* Re-match CDS */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 500, minWidth: "100px" }}>CDS:</span>
+            <Button size="sm" variant="secondary" onClick={handleRematch} loading={rematching}>
+              Re-match All
+            </Button>
+            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+              {activeEntries.filter(e => e.cat_id).length}/{activeEntries.length} matched
+            </span>
+          </div>
+
+          {/* Bulk Photo Upload */}
+          <div>
+            <details>
+              <summary style={{ fontSize: "0.8rem", fontWeight: 500, cursor: "pointer" }}>
+                Bulk Photo Upload (drag folder of clinic day photos)
+              </summary>
+              <div style={{ marginTop: "8px" }}>
+                <BatchEvidenceUpload
+                  clinicDate={selectedDate}
+                  onUploadComplete={() => {
+                    // Refresh roster photo counts
+                    fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`)
+                      .then(d => setRoster(d.roster || []));
+                  }}
+                  onClassifyComplete={() => {
+                    fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`)
+                      .then(d => setRoster(d.roster || []));
+                  }}
+                />
+              </div>
+            </details>
           </div>
         </div>
       )}
