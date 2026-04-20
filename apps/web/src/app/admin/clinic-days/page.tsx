@@ -619,7 +619,6 @@ export default function ClinicDaysPage() {
                         e.stopPropagation();
                         setUploadTarget(entry);
                         setStagedFiles([]);
-                        fileInputRef.current?.click();
                       }}
                       style={{
                         all: "unset",
