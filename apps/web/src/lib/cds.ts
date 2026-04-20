@@ -181,6 +181,25 @@ export async function runCDS(
       });
     }
 
+    // ── Phase 0.1: Waiver Weight Bridge ──────────────────────────────
+    // For waivers with OCR data but no chip match, use weight + sex +
+    // description to find the right appointment. Then set the CDN.
+    let weightBridged = 0;
+    try {
+      const wb = await queryOne<{ bridge_waivers_by_weight: number }>(
+        `SELECT ops.bridge_waivers_by_weight($1)`,
+        [clinicDate]
+      );
+      weightBridged = wb?.bridge_waivers_by_weight ?? 0;
+    } catch { /* function may not exist yet */ }
+    if (weightBridged > 0) {
+      phases.push({ phase: "0.1_waiver_weight_bridge", matched: weightBridged });
+      // Reload waivers since weight bridge may have matched new ones
+      waivers.length = 0;
+      const refreshed = await loadWaivers(clinicDate);
+      waivers.push(...refreshed);
+    }
+
     // ── Phase 0.25: Waiver OCR CDN Bridge ─────────────────────────────
     // For waivers with OCR-extracted clinic_number and matched appointments,
     // bridge the CDN directly (waiver = irrefutable proof).
