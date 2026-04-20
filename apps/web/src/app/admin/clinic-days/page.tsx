@@ -89,8 +89,9 @@ export default function ClinicDaysPage() {
   // Drawer
   const [drawerEntry, setDrawerEntry] = useState<RosterEntry | null>(null);
 
-  // Photo upload
+  // Photo upload modal
   const [uploadTarget, setUploadTarget] = useState<RosterEntry | null>(null);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -168,7 +169,7 @@ export default function ClinicDaysPage() {
     setUploadTarget(null);
   }, [selectedDate, addToast]);
 
-  // Paste support
+  // Paste support — stages files into modal
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       if (!uploadTarget) return;
@@ -181,12 +182,12 @@ export default function ClinicDaysPage() {
       }
       if (files.length > 0) {
         e.preventDefault();
-        uploadPhotos(files, uploadTarget);
+        setStagedFiles(prev => [...prev, ...files]);
       }
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [uploadTarget, uploadPhotos]);
+  }, [uploadTarget]);
 
   // ── Admin: Sync master list from SharePoint ─────────────────────
 
@@ -500,11 +501,11 @@ export default function ClinicDaysPage() {
             }}
           />
 
-          {/* Paste indicator */}
-          {uploadTarget && (
+          {/* Upload target hint */}
+          {uploadTarget && stagedFiles.length === 0 && !uploading && (
             <div style={{
               marginTop: "6px",
-              padding: "8px 12px",
+              padding: "6px 12px",
               background: "var(--primary-bg)",
               borderRadius: "6px",
               fontSize: "0.8rem",
@@ -513,9 +514,9 @@ export default function ClinicDaysPage() {
               alignItems: "center",
             }}>
               <span>
-                Ready to paste image for <strong>#{uploadTarget.clinic_day_number || uploadTarget.line_number} {uploadTarget.cat_name || ""}</strong>
+                Upload for <strong>#{uploadTarget.clinic_day_number || uploadTarget.line_number}</strong> — choose file or paste (Ctrl+V)
               </span>
-              <button onClick={() => setUploadTarget(null)} style={{ all: "unset", cursor: "pointer", color: "var(--muted)", fontSize: "0.8rem" }}>
+              <button onClick={() => { setUploadTarget(null); setStagedFiles([]); }} style={{ all: "unset", cursor: "pointer", color: "var(--muted)", fontSize: "0.8rem" }}>
                 cancel
               </button>
             </div>
@@ -605,6 +606,7 @@ export default function ClinicDaysPage() {
                       onClick={(e) => {
                         e.stopPropagation();
                         setUploadTarget(entry);
+                        setStagedFiles([]);
                         fileInputRef.current?.click();
                       }}
                       style={{
@@ -763,7 +765,7 @@ export default function ClinicDaysPage() {
         </details>
       )}
 
-      {/* ── Hidden file input ── */}
+      {/* ── Hidden file input (stages files) ── */}
       <input
         ref={fileInputRef}
         type="file"
@@ -772,8 +774,8 @@ export default function ClinicDaysPage() {
         capture="environment"
         style={{ display: "none" }}
         onChange={(e) => {
-          if (e.target.files && e.target.files.length > 0 && uploadTarget) {
-            uploadPhotos(Array.from(e.target.files), uploadTarget);
+          if (e.target.files && e.target.files.length > 0) {
+            setStagedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
             e.target.value = "";
           }
         }}
@@ -859,28 +861,17 @@ export default function ClinicDaysPage() {
                 <h3 style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Upload Photo
                 </h3>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <Button
-                    onClick={() => { setUploadTarget(drawerEntry); fileInputRef.current?.click(); }}
-                    loading={uploading}
-                  >
-                    Choose File
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setUploadTarget(drawerEntry);
-                      addToast({ type: "info", message: "Paste an image (Ctrl+V / Cmd+V)" });
-                    }}
-                  >
-                    Paste Mode
-                  </Button>
-                </div>
-                {uploadTarget?.entry_id === drawerEntry.entry_id && (
-                  <p style={{ fontSize: "0.8rem", color: "var(--primary)", marginTop: "8px" }}>
-                    Ready — paste or drop an image...
-                  </p>
-                )}
+                <Button
+                  onClick={() => {
+                    setUploadTarget(drawerEntry);
+                    setStagedFiles([]);
+                  }}
+                >
+                  Choose or Paste Photo
+                </Button>
+                <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "4px" }}>
+                  Opens upload dialog — choose file, drag & drop, or paste from clipboard
+                </p>
               </div>
             )}
 
@@ -899,13 +890,122 @@ export default function ClinicDaysPage() {
         </div>
       )}
 
-      {/* Upload overlay */}
-      {uploading && (
+      {/* ── Upload staging modal ── */}
+      {uploadTarget && (stagedFiles.length > 0 || uploading) && (
         <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000,
+          position: "fixed", inset: 0, zIndex: 2000,
+          display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <div style={{ background: "var(--card-bg)", padding: "24px", borderRadius: "12px" }}>Uploading...</div>
+          <div
+            onClick={() => { if (!uploading) { setUploadTarget(null); setStagedFiles([]); } }}
+            style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }}
+          />
+          <div style={{
+            position: "relative",
+            background: "var(--background)",
+            borderRadius: "12px",
+            padding: "20px",
+            width: "min(480px, 90vw)",
+            maxHeight: "80vh",
+            overflowY: "auto",
+            boxShadow: "0 8px 30px rgba(0,0,0,0.2)",
+          }}>
+            <h3 style={{ margin: "0 0 12px 0", fontSize: "1rem" }}>
+              Upload to #{uploadTarget.clinic_day_number || uploadTarget.line_number}{" "}
+              <span style={{ fontWeight: 400, color: "var(--muted)" }}>
+                {uploadTarget.cat_name || uploadTarget.parsed_cat_name || ""}
+              </span>
+            </h3>
+
+            {/* Staged image previews */}
+            {stagedFiles.length > 0 && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+                gap: "8px",
+                marginBottom: "12px",
+              }}>
+                {stagedFiles.map((file, i) => (
+                  <div key={i} style={{ position: "relative" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      style={{
+                        width: "100%",
+                        height: "100px",
+                        objectFit: "cover",
+                        borderRadius: "6px",
+                        border: "1px solid var(--card-border)",
+                      }}
+                    />
+                    {!uploading && (
+                      <button
+                        onClick={() => setStagedFiles(prev => prev.filter((_, j) => j !== i))}
+                        style={{
+                          position: "absolute", top: "4px", right: "4px",
+                          all: "unset", cursor: "pointer",
+                          background: "rgba(0,0,0,0.6)", color: "#fff",
+                          width: "20px", height: "20px", borderRadius: "50%",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: "0.7rem",
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Drop zone */}
+            {!uploading && (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+                  if (files.length > 0) setStagedFiles(prev => [...prev, ...files]);
+                }}
+                style={{
+                  border: "2px dashed var(--card-border)",
+                  borderRadius: "8px",
+                  padding: "20px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  color: "var(--muted)",
+                  fontSize: "0.85rem",
+                  marginBottom: "12px",
+                }}
+              >
+                Click to choose, drag & drop, or paste (Ctrl+V)
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              {!uploading && (
+                <Button variant="secondary" onClick={() => { setUploadTarget(null); setStagedFiles([]); }}>
+                  Cancel
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  if (stagedFiles.length > 0 && uploadTarget) {
+                    uploadPhotos(stagedFiles, uploadTarget);
+                    setStagedFiles([]);
+                  }
+                }}
+                loading={uploading}
+                disabled={stagedFiles.length === 0}
+              >
+                {uploading ? "Uploading..." : `Upload ${stagedFiles.length} photo${stagedFiles.length !== 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
