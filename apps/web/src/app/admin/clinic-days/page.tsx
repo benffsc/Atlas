@@ -501,26 +501,7 @@ export default function ClinicDaysPage() {
             }}
           />
 
-          {/* Upload target hint */}
-          {uploadTarget && stagedFiles.length === 0 && !uploading && (
-            <div style={{
-              marginTop: "6px",
-              padding: "6px 12px",
-              background: "var(--primary-bg)",
-              borderRadius: "6px",
-              fontSize: "0.8rem",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}>
-              <span>
-                Upload for <strong>#{uploadTarget.clinic_day_number || uploadTarget.line_number}</strong> — choose file or paste (Ctrl+V)
-              </span>
-              <button onClick={() => { setUploadTarget(null); setStagedFiles([]); }} style={{ all: "unset", cursor: "pointer", color: "var(--muted)", fontSize: "0.8rem" }}>
-                cancel
-              </button>
-            </div>
-          )}
+          {/* (upload hint removed — modal handles it) */}
         </div>
       )}
 
@@ -891,7 +872,7 @@ export default function ClinicDaysPage() {
       )}
 
       {/* ── Upload staging modal ── */}
-      {uploadTarget && (stagedFiles.length > 0 || uploading) && (
+      {uploadTarget && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 2000,
           display: "flex", alignItems: "center", justifyContent: "center",
