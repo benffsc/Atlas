@@ -8,6 +8,8 @@
 -- the correct appointment. Weight at 2 decimal places is near-unique per
 -- clinic day (1-3 dupes in 30-50 cats).
 --
+-- FFS-1318: Uses ML line_number as CDN (not OCR clinic_number).
+-- CDN = ML line number. OCR is ~5% unreliable.
 -- This runs BEFORE CDN-first matching to maximize deterministic matches.
 --
 -- Created: 2026-04-20
