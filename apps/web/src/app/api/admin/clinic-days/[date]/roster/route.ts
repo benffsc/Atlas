@@ -93,7 +93,7 @@ export async function GET(
     LEFT JOIN sot.places pl ON pl.place_id = COALESCE(a.inferred_place_id, a.place_id)
       AND pl.merged_into_place_id IS NULL
     WHERE cd.clinic_date = $1
-    ORDER BY e.line_number
+    ORDER BY COALESCE(a.clinic_day_number, e.line_number + 1000)
   `, [date]);
 
   // Also find cats with appointments on this date but NOT linked to any ML entry
