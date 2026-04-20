@@ -842,7 +842,41 @@ export default function ClinicDaysPage() {
                 {drawerEntry.appointment_number && <div><strong>Appt #:</strong> {drawerEntry.appointment_number}</div>}
                 <div><strong>Booked as:</strong> {drawerEntry.client_name || drawerEntry.parsed_owner_name || "—"}</div>
                 {drawerEntry.client_address && <div><strong>Address:</strong> {drawerEntry.client_address}</div>}
-                <div><strong>ML Line:</strong> #{drawerEntry.line_number}{drawerEntry.clinic_day_number ? ` (CDN #${drawerEntry.clinic_day_number})` : ""}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <strong>CDN #:</strong>
+                  <input
+                    type="number"
+                    defaultValue={drawerEntry.clinic_day_number || drawerEntry.line_number}
+                    min={1}
+                    style={{
+                      width: "60px",
+                      padding: "3px 6px",
+                      borderRadius: "4px",
+                      border: "1px solid var(--card-border)",
+                      fontSize: "0.85rem",
+                      fontFamily: "monospace",
+                    }}
+                    onBlur={async (e) => {
+                      const newCdn = parseInt(e.target.value);
+                      if (!newCdn || !drawerEntry.appointment_id) return;
+                      if (newCdn === drawerEntry.clinic_day_number) return;
+                      try {
+                        await fetch(`/api/appointments/${drawerEntry.appointment_id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ clinic_day_number: newCdn }),
+                        });
+                        addToast({ type: "success", message: `CDN set to #${newCdn}` });
+                        const data = await fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`);
+                        setRoster(data.roster || []);
+                      } catch {
+                        addToast({ type: "error", message: "Failed to update CDN" });
+                      }
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>ML #{drawerEntry.line_number}</span>
+                </div>
                 <div><strong>Match:</strong> {drawerEntry.match_confidence || "unmatched"}</div>
                 <div><strong>Photos:</strong> {drawerEntry.photo_count}{drawerEntry.has_hero ? " (hero set)" : ""}</div>
               </div>
