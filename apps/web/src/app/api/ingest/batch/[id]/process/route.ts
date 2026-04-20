@@ -225,6 +225,38 @@ export async function POST(
       }
     }
 
+    // Re-match unmatched waivers against newly ingested cats
+    // Waivers may have been synced before ClinicHQ data arrived
+    if ((allSuccess || anySuccess) && batchDates.length > 0) {
+      try {
+        for (const { appointment_date } of batchDates) {
+          await queryOne(`
+            UPDATE ops.waiver_scans ws
+            SET matched_cat_id = sub.cat_id,
+                matched_appointment_id = sub.appointment_id,
+                match_method = 'chip_date',
+                match_confidence = 0.95
+            FROM (
+              SELECT DISTINCT ON (ws2.waiver_id) ws2.waiver_id, a.cat_id, a.appointment_id
+              FROM ops.waiver_scans ws2
+              JOIN ops.appointments a ON a.appointment_date = ws2.parsed_date
+                AND a.merged_into_appointment_id IS NULL
+              JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+              WHERE ws2.parsed_date = $1::DATE
+                AND ws2.matched_cat_id IS NULL
+                AND ws2.parsed_last4_chip IS NOT NULL AND ws2.parsed_last4_chip != ''
+                AND c.microchip IS NOT NULL
+                AND RIGHT(c.microchip, 4) = ws2.parsed_last4_chip
+              ORDER BY ws2.waiver_id, a.created_at DESC
+            ) sub
+            WHERE ws.waiver_id = sub.waiver_id
+          `, [appointment_date]);
+        }
+      } catch (err) {
+        console.error("[BATCH] Waiver re-match error (non-fatal):", err);
+      }
+    }
+
     // FFS-1295: Auto-trigger full CDS pipeline for affected dates
     // Runs waiver OCR CDN bridge + all SQL passes + propagation
     let cdsResults: Array<{ date: string; matched: number }> = [];
