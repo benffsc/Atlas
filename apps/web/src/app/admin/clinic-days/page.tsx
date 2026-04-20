@@ -174,7 +174,34 @@ export default function ClinicDaysPage() {
     return () => document.removeEventListener("paste", onPaste);
   }, [uploadTarget, uploadPhotos]);
 
-  // ── Admin: Import master list ────────────────────────────────────
+  // ── Admin: Sync master list from SharePoint ─────────────────────
+
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSync = async () => {
+    if (!selectedDate) return;
+    setSyncing(true);
+    try {
+      // Trigger the SharePoint master list sync cron
+      const resp = await fetch("/api/cron/sharepoint-master-list-sync", {
+        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ""}` },
+      });
+      const data = await resp.json();
+      const d = data.data || data;
+      const imported = d?.stats?.imported ?? 0;
+      const skipped = d?.stats?.skippedExisting ?? 0;
+      addToast({ type: "success", message: `Sync complete: ${imported} new, ${skipped} already synced` });
+      // Reload roster
+      const r = await fetchApi<{ roster: RosterEntry[] }>(`/api/admin/clinic-days/${selectedDate}/roster`);
+      setRoster(r.roster || []);
+    } catch (err) {
+      addToast({ type: "error", message: err instanceof Error ? err.message : "Sync failed" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // ── Admin: Manual import (fallback) ────────────────────────────
 
   const handleImport = async () => {
     if (!importFile || !selectedDate) return;
@@ -369,31 +396,39 @@ export default function ClinicDaysPage() {
           flexDirection: "column",
           gap: "12px",
         }}>
-          {/* Import Master List */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "0.8rem", fontWeight: 500, minWidth: "100px" }}>Import ML:</span>
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-              style={{ fontSize: "0.8rem", flex: 1, minWidth: "150px" }}
-            />
-            <Button size="sm" onClick={handleImport} loading={importing} disabled={!importFile}>
-              Import
+          {/* Sync + CDS row */}
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <Button size="sm" onClick={handleSync} loading={syncing}>
+              Sync from SharePoint
             </Button>
-          </div>
-
-          {/* Re-match CDS */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "0.8rem", fontWeight: 500, minWidth: "100px" }}>CDS:</span>
             <Button size="sm" variant="secondary" onClick={handleRematch} loading={rematching}>
-              Re-match All
+              Re-match CDS
             </Button>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-              {activeEntries.filter(e => e.cat_id).length}/{activeEntries.length} matched
+            <span style={{ fontSize: "0.8rem", color: "var(--muted)", marginLeft: "auto" }}>
+              {activeEntries.length > 0
+                ? `${activeEntries.filter(e => e.cat_id).length}/${activeEntries.length} matched`
+                : "No roster data"}
             </span>
           </div>
+
+          {/* Manual import (fallback) */}
+          <details>
+            <summary style={{ fontSize: "0.75rem", color: "var(--muted)", cursor: "pointer" }}>
+              Manual file import (if SharePoint sync missed a file)
+            </summary>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                style={{ fontSize: "0.8rem", flex: 1 }}
+              />
+              <Button size="sm" onClick={handleImport} loading={importing} disabled={!importFile}>
+                Import
+              </Button>
+            </div>
+          </details>
 
           {/* Bulk Photo Upload */}
           <div>
