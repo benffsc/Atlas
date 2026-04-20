@@ -79,6 +79,33 @@ These apply to ALL changes across ALL layers:
 
     See `docs/DATA_RELIABILITY_ANALYSIS.md` for full methodology. See DATA_GAP_054, MIG_2496 for place extraction fix.
 
+## Population Estimation (CATS System)
+
+**Full documentation: `docs/POPULATION_ESTIMATION.md`**
+
+12. **Colony Estimates Use Kalman Filter** — All colony population estimates come from `sot.place_population_state` via the Kalman filter. Never hardcode colony sizes or use raw `cat_place` counts for display.
+
+13. **Floor Counts Are Attrition-Weighted** — `sot.get_attrition_weighted_floor()` weights each cat by `(1-0.13)^years_since_last_appointment`. Never use raw `COUNT(*)` from `cat_place` as a floor. Annual attrition rate is configurable via `ops.app_config` key `population.annual_attrition_rate`.
+
+14. **Evidence Date = Appointment Date, Not created_at** — `cat_place.created_at` reflects when entity linking ran (often recently), NOT when the cat was actually seen. Always use `appointment_date` for recency calculations.
+
+15. **Departed Cats Don't Count** — All cat counts for display MUST include `AND COALESCE(cp.presence_status, 'unknown') != 'departed'`. Departed cats (adopted, relocated, transferred, deceased, in foster) are kept for history but excluded from active counts.
+
+16. **Kittens That Enter Custody Don't Count** — Kittens taken into FFSC custody (ShelterLuv intake → foster/adoption) get `presence_status = 'departed'` automatically. Only kittens returned to field (TNR'd) count toward colony estimates.
+
+17. **Kalman Observations Are Non-Blocking** — All Kalman update calls MUST be wrapped in try/catch. Failure to update the population estimate should never block the primary operation (observation creation, request update, etc.).
+
+**Key Functions:**
+- `sot.update_population_estimate(place_id, count, source_type, date, source_record_id)` — Core Kalman update
+- `sot.get_attrition_weighted_floor(place_id)` — Returns raw_floor, weighted_floor, freshness breakdown
+- `sot.get_altered_cat_count_at_place(place_id)` — Raw non-departed altered cat count
+
+**Key Tables:**
+- `sot.place_population_state` — Current estimate + variance per place
+- `sot.population_observations` — Audit log of every Kalman update
+- `sot.v_place_colony_status` — View with Kalman estimate + CI + confidence level
+- `sot.v_place_cat_freshness` — Per-cat freshness categories
+
 ## API Route Invariants
 
 These rules apply to ALL API routes in `/apps/web/src/app/api/`:
