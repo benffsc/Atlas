@@ -283,28 +283,24 @@ export async function GET(
       // Fallback: direct query if function doesn't exist
       people = await queryRows<PersonAtPlace>(
         `SELECT
-          pp.id as person_place_id,
+          pp.relationship_id as person_place_id,
           pp.person_id,
           p.display_name,
-          p.first_name,
-          p.last_name,
+          NULL::text as first_name,
+          NULL::text as last_name,
           pp.relationship_type,
-          COALESCE(pp.is_staff_verified, FALSE) as is_staff_verified,
-          pp.verified_at::text,
-          pp.verification_method,
-          ppd.financial_commitment,
-          COALESCE(ppd.is_primary_contact, FALSE) as is_primary_contact,
+          FALSE as is_staff_verified,
+          NULL::text as verified_at,
+          NULL::text as verification_method,
+          NULL::text as financial_commitment,
+          FALSE as is_primary_contact,
           (SELECT COUNT(*) FROM sot.person_cat pcr WHERE pcr.person_id = pp.person_id)::int as cat_count,
           pp.source_system,
           pp.created_at::text
         FROM sot.person_place pp
         JOIN sot.people p ON p.person_id = pp.person_id AND p.merged_into_person_id IS NULL
-        LEFT JOIN sot.person_place_details ppd ON ppd.person_place_id = pp.id
         WHERE pp.place_id = $1
-        ORDER BY
-          COALESCE(ppd.is_primary_contact, FALSE) DESC,
-          COALESCE(pp.is_staff_verified, FALSE) DESC,
-          pp.created_at DESC`,
+        ORDER BY pp.created_at DESC`,
         [placeId]
       );
     }
