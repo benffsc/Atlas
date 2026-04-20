@@ -595,8 +595,53 @@ async function runWaiverOCRBridge(
 
   if (ocrWaivers.length === 0) return 0;
 
-  let bridged = 0;
+  // Build a map of what waiver OCR says each appointment's CDN should be
+  const ocrCdnMap = new Map<string, number>(); // appointment_id → desired CDN
+  for (const w of ocrWaivers) {
+    ocrCdnMap.set(w.matched_appointment_id!, w.ocr_clinic_number!);
+  }
 
+  // Detect swaps: appointment A has CDN X but waiver says Y,
+  // AND appointment B has CDN Y but waiver says X
+  // Fix by clearing both then setting both (atomic swap)
+  const swapPairs = new Set<string>();
+  for (const w of ocrWaivers) {
+    const apptId = w.matched_appointment_id!;
+    const desiredCdn = w.ocr_clinic_number!;
+
+    // Check if this appointment currently has a DIFFERENT CDN
+    const current = await queryOne<{ clinic_day_number: number | null; other_appt_id: string | null }>(
+      `SELECT a.clinic_day_number,
+        (SELECT a2.appointment_id::text FROM ops.appointments a2
+         WHERE a2.appointment_date = $2::DATE AND a2.clinic_day_number = $3
+           AND a2.merged_into_appointment_id IS NULL AND a2.appointment_id != $1::UUID
+         LIMIT 1) AS other_appt_id
+       FROM ops.appointments a WHERE a.appointment_id = $1::UUID`,
+      [apptId, clinicDate, desiredCdn]
+    );
+
+    if (current?.clinic_day_number != null
+        && current.clinic_day_number !== desiredCdn
+        && current.other_appt_id
+        && ocrCdnMap.has(current.other_appt_id)
+        && ocrCdnMap.get(current.other_appt_id) === current.clinic_day_number
+    ) {
+      // Cross-swap detected! Clear both then re-set
+      const key = [apptId, current.other_appt_id].sort().join(":");
+      if (!swapPairs.has(key)) {
+        swapPairs.add(key);
+        await execute(
+          `UPDATE ops.appointments SET clinic_day_number = NULL, clinic_day_number_source = NULL
+           WHERE appointment_id IN ($1::UUID, $2::UUID)
+             AND NOT COALESCE(manually_overridden_fields @> ARRAY['clinic_day_number'], false)`,
+          [apptId, current.other_appt_id]
+        );
+      }
+    }
+  }
+
+  // Now set all CDNs (swapped ones are cleared, so no collision)
+  let bridged = 0;
   for (const w of ocrWaivers) {
     const result = await queryOne<{ set_clinic_day_number: boolean }>(
       `SELECT ops.set_clinic_day_number(
