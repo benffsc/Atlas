@@ -43,6 +43,9 @@ interface ClinicDayEntry {
   // CDS columns (MIG_3046)
   cds_method: string | null;
   cds_llm_reasoning: string | null;
+  // MIG_3096/3088
+  cancellation_reason: string | null;
+  clinic_day_number: number | null;
 }
 
 /**
@@ -91,6 +94,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         -- CDS columns (MIG_3046)
         e.cds_method,
         e.cds_llm_reasoning,
+        -- Cancellation + CDN (MIG_3096/3088)
+        e.cancellation_reason,
+        a.clinic_day_number,
         -- Matched appointment details
         c.name AS matched_cat_name,
         c.sex AS matched_cat_sex,

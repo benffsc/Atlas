@@ -123,6 +123,28 @@ interface EntryRow {
   is_recheck: boolean;
   cds_method: string | null;
   cds_llm_reasoning: string | null;
+  cancellation_reason: string | null;
+  clinic_day_number: number | null;
+}
+
+function methodLabel(method: string): string {
+  const labels: Record<string, string> = {
+    sql_owner_name: "name",
+    sql_cat_name: "cat name",
+    sql_sex: "sex",
+    sql_cardinality: "cardinality",
+    waiver_bridge: "waiver",
+    foster_cat_name: "foster",
+    foster_parent_name: "foster",
+    shelter_id: "shelter ID",
+    trapper_alias: "trapper",
+    weight_disambiguation: "weight",
+    composite: "composite",
+    constraint_propagation: "constraint",
+    cds_suggestion: "suggestion",
+    manual: "manual",
+  };
+  return labels[method] || method.replace(/_/g, " ");
 }
 
 // ── Page ───────────────────────────────────────────────────────────────
@@ -135,7 +157,7 @@ export default function ClinicDayHubPage() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"status" | "roster" | "evidence">("status");
+  const [activeTab, setActiveTab] = useState<"status" | "roster" | "evidence">("roster");
   const [evidenceMode, setEvidenceMode] = useState<"phone" | "batch" | "manual">("phone");
 
   // Import state
@@ -977,9 +999,9 @@ export default function ClinicDayHubPage() {
 
         {/* Roster Tab */}
         {activeTab === "roster" && (
-          <div className="card" style={{ overflow: "auto" }}>
+          <div>
             {entries.length === 0 ? (
-              <div style={{
+              <div className="card" style={{
                 textAlign: "center",
                 padding: "48px 24px",
                 color: "var(--muted)",
@@ -988,10 +1010,120 @@ export default function ClinicDayHubPage() {
                   No entries yet
                 </div>
                 <p style={{ fontSize: "0.85rem" }}>
-                  Import a master list from the Overview tab to see the roster.
+                  Import a master list from the Status tab to see the roster.
                 </p>
               </div>
             ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {/* Roster summary bar */}
+                <div style={{
+                  display: "flex",
+                  gap: "12px",
+                  padding: "8px 12px",
+                  fontSize: "0.8rem",
+                  color: "var(--muted)",
+                  alignItems: "center",
+                }}>
+                  <span><strong>{entries.length}</strong> cats</span>
+                  <span>{entries.filter(e => e.matched_cat_name).length} matched</span>
+                  <span style={{ color: "var(--warning-text)" }}>
+                    {entries.filter(e => !e.matched_cat_name && !e.cancellation_reason).length} unmatched
+                  </span>
+                  {entries.some(e => e.cancellation_reason) && (
+                    <span style={{ opacity: 0.6 }}>{entries.filter(e => e.cancellation_reason).length} cancelled</span>
+                  )}
+                </div>
+
+                {/* Card roster */}
+                {entries.filter(e => !e.cancellation_reason).map((entry) => {
+                  const badge = confidenceBadge(entry.match_confidence);
+                  const hasPhoto = false; // TODO: add photo_count to entries query
+                  return (
+                    <div
+                      key={entry.entry_id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        padding: "10px 14px",
+                        borderRadius: "8px",
+                        background: "var(--card-bg)",
+                        border: "1px solid var(--card-border)",
+                        borderLeft: `4px solid ${entry.matched_cat_name ? "var(--success-text)" : "var(--warning-text)"}`,
+                      }}
+                    >
+                      {/* CDN number - large, scannable */}
+                      <div style={{
+                        fontWeight: 700,
+                        fontFamily: "monospace",
+                        fontSize: "1.2rem",
+                        minWidth: "36px",
+                        textAlign: "center",
+                        color: entry.matched_cat_name ? "var(--foreground)" : "var(--muted)",
+                      }}>
+                        {entry.clinic_day_number || entry.line_number}
+                      </div>
+
+                      {/* Cat info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>
+                          {entry.matched_cat_name || entry.parsed_cat_name || entry.parsed_owner_name || "Unknown"}
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          {entry.female_count > 0 && <span style={{ color: "var(--danger-text)" }}>F</span>}
+                          {entry.male_count > 0 && <span style={{ color: "var(--info-text)" }}>M</span>}
+                          {entry.weight_lbs != null && <span>{entry.weight_lbs} lbs</span>}
+                          {entry.matched_microchip && <span>...{entry.matched_microchip.slice(-4)}</span>}
+                          {entry.parsed_owner_name && entry.matched_cat_name && (
+                            <span>{entry.parsed_owner_name}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Status badge */}
+                      {entry.match_confidence && (
+                        <span style={{
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontSize: "0.65rem",
+                          fontWeight: 600,
+                          background: badge.bg,
+                          color: badge.color,
+                          whiteSpace: "nowrap",
+                        }}>
+                          {entry.cds_method ? methodLabel(entry.cds_method) : entry.match_confidence}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Cancelled entries (collapsed) */}
+                {entries.some(e => e.cancellation_reason) && (
+                  <details style={{ marginTop: "8px" }}>
+                    <summary style={{ fontSize: "0.8rem", color: "var(--muted)", cursor: "pointer", padding: "4px" }}>
+                      {entries.filter(e => e.cancellation_reason).length} cancelled/excluded entries
+                    </summary>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "4px", opacity: 0.5 }}>
+                      {entries.filter(e => e.cancellation_reason).map((entry) => (
+                        <div key={entry.entry_id} style={{
+                          display: "flex", alignItems: "center", gap: "8px",
+                          padding: "6px 12px", fontSize: "0.8rem",
+                          background: "var(--section-bg)", borderRadius: "6px",
+                        }}>
+                          <span style={{ fontFamily: "monospace", minWidth: "28px" }}>#{entry.line_number}</span>
+                          <span style={{ flex: 1 }}>{entry.parsed_owner_name || "Unknown"}</span>
+                          <span style={{ fontSize: "0.7rem", color: "var(--muted)" }}>{entry.cancellation_reason?.replace(/_/g, " ")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+
+            {/* Legacy table view (hidden, available for CDS debugging) */}
+            {entries.length > 0 && false && (
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid var(--card-border)" }}>
