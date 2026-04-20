@@ -41,6 +41,7 @@ interface RosterEntry {
   photo_count: number;
   has_hero: boolean;
   photo_url: string | null;
+  waiver_id: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -652,8 +653,13 @@ export default function ClinicDaysPage() {
                       entry.microchip ? `...${entry.microchip.slice(-4)}` : null,
                     ].filter(Boolean).join(" · ")}
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {entry.client_name || entry.parsed_owner_name || ""}
+                  <div style={{ fontSize: "0.7rem", color: "var(--muted)", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {entry.client_name || entry.parsed_owner_name || ""}
+                    </span>
+                    {entry.waiver_id && (
+                      <span title="Waiver linked" style={{ opacity: 0.5 }}>📄</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -827,6 +833,25 @@ export default function ClinicDaysPage() {
                 <div><strong>Photos:</strong> {drawerEntry.photo_count}{drawerEntry.has_hero ? " (hero set)" : ""}</div>
               </div>
             </div>
+
+            {/* Waiver PDF preview */}
+            {drawerEntry.waiver_id && (
+              <div>
+                <h3 style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Waiver
+                </h3>
+                <iframe
+                  src={`/api/waivers/${drawerEntry.waiver_id}/pdf`}
+                  style={{
+                    width: "100%",
+                    height: "300px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--card-border)",
+                  }}
+                  title="Waiver PDF"
+                />
+              </div>
+            )}
 
             {/* Upload section */}
             {drawerEntry.cat_id && (

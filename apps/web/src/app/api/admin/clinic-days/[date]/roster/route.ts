@@ -47,6 +47,7 @@ export async function GET(
     photo_count: number;
     has_hero: boolean;
     photo_url: string | null;
+    waiver_id: string | null;
   }>(`
     SELECT
       e.line_number,
@@ -80,7 +81,10 @@ export async function GET(
          WHERE rm.cat_id = a.cat_id AND NOT rm.is_archived
          ORDER BY rm.is_hero DESC NULLS LAST, rm.uploaded_at DESC LIMIT 1),
         c.photo_url
-      ) AS photo_url
+      ) AS photo_url,
+      (SELECT ws.waiver_id::text FROM ops.waiver_scans ws
+       WHERE ws.matched_cat_id = a.cat_id AND ws.parsed_date = $1
+       LIMIT 1) AS waiver_id
     FROM ops.clinic_day_entries e
     JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
     LEFT JOIN ops.appointments a ON a.appointment_id = e.matched_appointment_id
