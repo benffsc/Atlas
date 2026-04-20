@@ -819,7 +819,7 @@ export default function ClinicDaysPage() {
             {/* Cat info */}
             <div style={{ background: "var(--section-bg)", borderRadius: "8px", padding: "14px" }}>
               <div style={{ fontWeight: 600, fontSize: "1rem", marginBottom: "4px" }}>
-                {drawerEntry.cat_name || drawerEntry.parsed_cat_name || "Unknown Cat"}
+                {drawerEntry.cat_name || drawerEntry.parsed_cat_name || drawerEntry.parsed_owner_name || "Unknown"}
               </div>
               <div style={{ fontSize: "0.85rem", color: "var(--muted)", display: "flex", flexDirection: "column", gap: "4px" }}>
                 <div>
@@ -830,6 +830,11 @@ export default function ClinicDaysPage() {
                   <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>Chip: {drawerEntry.microchip}</div>
                 )}
               </div>
+              {!drawerEntry.cat_id && (
+                <div style={{ marginTop: "8px", padding: "8px", background: "var(--warning-bg)", borderRadius: "6px", fontSize: "0.8rem", color: "var(--warning-text)" }}>
+                  No appointment found for this date — likely rescheduled or cancelled
+                </div>
+              )}
             </div>
 
             {/* Appointment info */}
