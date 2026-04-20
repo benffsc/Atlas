@@ -6,6 +6,7 @@ import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { SkeletonText } from "@/components/feedback/Skeleton";
 import { BatchEvidenceUpload } from "@/components/clinic/BatchEvidenceUpload";
+import { compressImage } from "@/lib/image-utils";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -147,8 +148,10 @@ export default function ClinicDaysPage() {
     setUploading(true);
     let count = 0;
     let lastError = "";
-    for (const file of files) {
+    for (const rawFile of files) {
       try {
+        // Compress to fit Vercel's 4.5MB body limit
+        const file = await compressImage(rawFile, 1600, 0.80);
         const fd = new FormData();
         fd.append("file", file);
         fd.append("entity_type", "cat");
