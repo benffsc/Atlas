@@ -25,7 +25,14 @@ DECLARE
   v_waiver RECORD;
   v_best_appt UUID;
   v_best_score NUMERIC;
+  v_entry_count INT;
 BEGIN
+  -- Get entry count for CDN validation (reject impossible CDNs)
+  SELECT COUNT(*) INTO v_entry_count
+  FROM ops.clinic_day_entries e
+  JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+  WHERE cd.clinic_date = p_clinic_date;
+
   -- For each waiver with OCR data but no cat match
   FOR v_waiver IN
     SELECT ws.waiver_id, ws.ocr_clinic_number, ws.ocr_microchip,
@@ -37,6 +44,9 @@ BEGIN
       AND ws.ocr_clinic_number IS NOT NULL
       AND ws.matched_cat_id IS NULL
       AND ws.ocr_status = 'extracted'
+      -- CDN validation: reject impossible values
+      AND ws.ocr_clinic_number <= GREATEST(v_entry_count, 60)
+      AND ws.ocr_clinic_number > 0
   LOOP
     v_best_appt := NULL;
     v_best_score := 0;
