@@ -30,11 +30,19 @@ async function execute(sql: string, params: unknown[] = []): Promise<void> {
   await pool.query(sql, params);
 }
 
-const CDN_PROMPT = `Look at this veterinary clinic waiver form. Find the clinic number — it's the large handwritten or stamped number in the top-right area of the form, usually inside a circle or box. It's typically 1-3 digits (1 through ~60).
+const CDN_PROMPT = `This is an FFSC Spay/Neuter Waiver form. I need the CLINIC DAY NUMBER only.
 
-Do NOT read the trap number, appointment number, or any other number. ONLY the big clinic day number in the top-right.
+WHERE TO LOOK: Top-right corner of the form. It's a large handwritten number, usually written in marker or pen inside a circle, oval, or open area. It is the BIGGEST handwritten number on the page. It's separate from all printed fields.
 
-Return ONLY a JSON object: {"clinic_number": <integer or null>}`;
+WHAT IT IS: A sequential number (1 through ~60) assigned to each cat that day. It is NOT:
+- The trap number (printed field, smaller, in the "Trap #" row)
+- The appointment number (format like "26-1234")
+- A phone number or zip code
+- The microchip number (15 digits)
+
+The clinic day number is almost always between 1 and 60. If you read a number above 60, you are likely reading the wrong field.
+
+Return ONLY: {"clinic_number": <integer or null>}`;
 
 async function main() {
   const args = process.argv.slice(2);
@@ -108,7 +116,7 @@ async function main() {
       const parsed = JSON.parse(match[0]);
       const cdn = parsed.clinic_number;
 
-      if (cdn != null && typeof cdn === "number" && cdn > 0 && cdn < 200) {
+      if (cdn != null && typeof cdn === "number" && cdn > 0 && cdn <= 60) {
         await execute(
           `UPDATE ops.waiver_scans SET ocr_clinic_number = $2, ocr_status = 'extracted',
            ocr_processed_at = NOW(), ocr_model = 'claude-haiku-4-5-20251001'
