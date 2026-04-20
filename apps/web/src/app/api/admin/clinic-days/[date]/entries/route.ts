@@ -31,6 +31,7 @@ interface ClinicDayEntry {
   match_reason: string | null;
   matched_at: string | null;
   // Matched appointment details
+  matched_cat_id: string | null;
   matched_cat_name: string | null;
   matched_cat_sex: string | null;
   matched_microchip: string | null;
@@ -98,6 +99,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         e.cancellation_reason,
         a.clinic_day_number,
         -- Matched appointment details
+        a.cat_id::text AS matched_cat_id,
         c.name AS matched_cat_name,
         c.sex AS matched_cat_sex,
         ci.id_value AS matched_microchip,

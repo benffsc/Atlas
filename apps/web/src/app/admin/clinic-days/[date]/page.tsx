@@ -117,6 +117,7 @@ interface EntryRow {
   match_confidence: string | null;
   match_score: number | null;
   matched_appointment_id: string | null;
+  matched_cat_id: string | null;
   matched_cat_name: string | null;
   matched_microchip: string | null;
   matched_cat_weight: number | null;
@@ -177,6 +178,13 @@ export default function ClinicDayHubPage() {
   // Evidence refresh key — forces EvidenceReviewPanel remount after CDS-AI classify
   const [evidenceRefreshKey, setEvidenceRefreshKey] = useState(0);
 
+  // Roster search + photo upload + cat drawer
+  const [rosterSearch, setRosterSearch] = useState("");
+  const [drawerEntry, setDrawerEntry] = useState<EntryRow | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadTargetEntry, setUploadTargetEntry] = useState<EntryRow | null>(null);
+
   // Cancelled entries collapsible
   const [cancelledExpanded, setCancelledExpanded] = useState(false);
 
@@ -205,6 +213,57 @@ export default function ClinicDayHubPage() {
       setStatus(null);
     }
   }, [date]);
+
+  // Upload photo to a cat (from file picker, camera, or paste)
+  const handleRosterPhotoUpload = async (files: File[], entry: EntryRow) => {
+    if (!entry.matched_cat_id) {
+      addToast({ type: "error", message: "No cat matched to this entry — can't upload" });
+      return;
+    }
+    setUploading(true);
+    let uploaded = 0;
+    for (const file of files) {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("entity_type", "cat");
+        formData.append("entity_id", entry.matched_cat_id);
+        formData.append("media_type", "cat_photo");
+        formData.append("cat_identification_confidence", "confirmed");
+        formData.append("caption", `Clinic ${date} #${entry.clinic_day_number || entry.line_number}`);
+        const resp = await fetch("/api/media/upload", { method: "POST", body: formData });
+        if (resp.ok) uploaded++;
+      } catch { /* toast error */ }
+    }
+    if (uploaded > 0) {
+      addToast({ type: "success", message: `${uploaded} photo${uploaded > 1 ? "s" : ""} uploaded to #${entry.clinic_day_number || entry.line_number}` });
+      loadEntries();
+    }
+    setUploading(false);
+    setUploadTargetEntry(null);
+  };
+
+  // Handle paste from clipboard (for copy-paste from phone gallery)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!uploadTargetEntry) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        handleRosterPhotoUpload(files, uploadTargetEntry);
+      }
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [uploadTargetEntry]);
 
   const loadEntries = useCallback(async () => {
     try {
@@ -1015,29 +1074,71 @@ export default function ClinicDayHubPage() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {/* Roster summary bar */}
+                {/* Search + summary bar */}
                 <div style={{
                   display: "flex",
-                  gap: "12px",
-                  padding: "8px 12px",
-                  fontSize: "0.8rem",
-                  color: "var(--muted)",
+                  gap: "8px",
+                  padding: "4px 0",
                   alignItems: "center",
+                  position: "sticky",
+                  top: 0,
+                  background: "var(--background)",
+                  zIndex: 10,
+                  paddingBottom: "8px",
                 }}>
-                  <span><strong>{entries.length}</strong> cats</span>
-                  <span>{entries.filter(e => e.matched_cat_name).length} matched</span>
-                  <span style={{ color: "var(--warning-text)" }}>
-                    {entries.filter(e => !e.matched_cat_name && !e.cancellation_reason).length} unmatched
+                  <input
+                    type="text"
+                    placeholder="Filter by #, name, chip..."
+                    value={rosterSearch}
+                    onChange={(e) => setRosterSearch(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid var(--card-border)",
+                      fontSize: "0.85rem",
+                      background: "var(--card-bg)",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                    {entries.filter(e => !e.cancellation_reason).length} cats
                   </span>
-                  {entries.some(e => e.cancellation_reason) && (
-                    <span style={{ opacity: 0.6 }}>{entries.filter(e => e.cancellation_reason).length} cancelled</span>
-                  )}
                 </div>
 
-                {/* Card roster */}
-                {entries.filter(e => !e.cancellation_reason).map((entry) => {
+                {/* Paste target indicator */}
+                {uploadTargetEntry && (
+                  <div style={{
+                    padding: "8px 12px",
+                    background: "var(--primary-bg)",
+                    borderRadius: "6px",
+                    fontSize: "0.8rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginBottom: "4px",
+                  }}>
+                    <span>Paste image for <strong>#{uploadTargetEntry.clinic_day_number || uploadTargetEntry.line_number}</strong></span>
+                    <button onClick={() => setUploadTargetEntry(null)} style={{ all: "unset", cursor: "pointer", color: "var(--muted)" }}>cancel</button>
+                  </div>
+                )}
+
+                {/* Card roster (filtered) */}
+                {entries
+                  .filter(e => !e.cancellation_reason)
+                  .filter(e => {
+                    if (!rosterSearch) return true;
+                    const q = rosterSearch.toLowerCase().replace(/^#/, "");
+                    return (
+                      String(e.clinic_day_number || e.line_number).includes(q) ||
+                      (e.matched_cat_name || "").toLowerCase().includes(q) ||
+                      (e.parsed_cat_name || "").toLowerCase().includes(q) ||
+                      (e.parsed_owner_name || "").toLowerCase().includes(q) ||
+                      (e.matched_microchip || "").includes(q)
+                    );
+                  })
+                  .map((entry) => {
                   const badge = confidenceBadge(entry.match_confidence);
-                  const hasPhoto = false; // TODO: add photo_count to entries query
+                  const isUploadTarget = uploadTargetEntry?.entry_id === entry.entry_id;
                   return (
                     <div
                       key={entry.entry_id}
@@ -1047,10 +1148,13 @@ export default function ClinicDayHubPage() {
                         gap: "12px",
                         padding: "10px 14px",
                         borderRadius: "8px",
-                        background: "var(--card-bg)",
-                        border: "1px solid var(--card-border)",
+                        background: isUploadTarget ? "var(--primary-bg)" : "var(--card-bg)",
+                        border: `1px solid ${isUploadTarget ? "var(--primary)" : "var(--card-border)"}`,
                         borderLeft: `4px solid ${entry.matched_cat_name ? "var(--success-text)" : "var(--warning-text)"}`,
+                        cursor: "pointer",
+                        transition: "background 0.1s",
                       }}
+                      onClick={() => setDrawerEntry(entry)}
                     >
                       {/* CDN number - large, scannable */}
                       <div style={{
@@ -1079,6 +1183,30 @@ export default function ClinicDayHubPage() {
                           )}
                         </div>
                       </div>
+
+                      {/* Photo upload button */}
+                      {entry.matched_cat_id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadTargetEntry(entry);
+                            photoInputRef.current?.click();
+                          }}
+                          title="Upload photo (or click then paste)"
+                          style={{
+                            all: "unset",
+                            cursor: "pointer",
+                            padding: "6px",
+                            borderRadius: "6px",
+                            fontSize: "1.1rem",
+                            lineHeight: 1,
+                            background: isUploadTarget ? "var(--primary)" : "var(--section-bg)",
+                            color: isUploadTarget ? "#fff" : "var(--muted)",
+                          }}
+                        >
+                          📷
+                        </button>
+                      )}
 
                       {/* Status badge */}
                       {entry.match_confidence && (
@@ -1322,6 +1450,157 @@ export default function ClinicDayHubPage() {
           </div>
         )}
       </div>
+
+      {/* Hidden file input for photo upload */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        capture="environment"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0 && uploadTargetEntry) {
+            handleRosterPhotoUpload(Array.from(e.target.files), uploadTargetEntry);
+            e.target.value = "";
+          }
+        }}
+      />
+
+      {/* Cat detail drawer (slide-over) */}
+      {drawerEntry && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          {/* Backdrop */}
+          <div
+            onClick={() => setDrawerEntry(null)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(0,0,0,0.3)",
+            }}
+          />
+          {/* Panel */}
+          <div style={{
+            position: "relative",
+            width: "min(420px, 90vw)",
+            height: "100%",
+            background: "var(--background)",
+            boxShadow: "var(--shadow-lg)",
+            overflowY: "auto",
+            padding: "20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ margin: 0, fontSize: "1.1rem" }}>
+                #{drawerEntry.clinic_day_number || drawerEntry.line_number}
+              </h2>
+              <button onClick={() => setDrawerEntry(null)} style={{ all: "unset", cursor: "pointer", fontSize: "1.2rem", padding: "4px" }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Cat summary */}
+            <div style={{ background: "var(--section-bg)", borderRadius: "8px", padding: "14px" }}>
+              <div style={{ fontWeight: 600, fontSize: "1rem", marginBottom: "4px" }}>
+                {drawerEntry.matched_cat_name || drawerEntry.parsed_cat_name || "Unknown Cat"}
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "var(--muted)", display: "flex", flexDirection: "column", gap: "4px" }}>
+                <div>
+                  {drawerEntry.female_count > 0 ? "Female" : drawerEntry.male_count > 0 ? "Male" : "Sex unknown"}
+                  {drawerEntry.weight_lbs != null && ` · ${drawerEntry.weight_lbs} lbs`}
+                  {drawerEntry.matched_cat_weight != null && drawerEntry.matched_cat_weight !== drawerEntry.weight_lbs && ` (vitals: ${drawerEntry.matched_cat_weight} lbs)`}
+                </div>
+                {drawerEntry.matched_microchip && (
+                  <div style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>Chip: {drawerEntry.matched_microchip}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Appointment info for this day */}
+            <div>
+              <h3 style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0 0 8px 0", textTransform: "uppercase" }}>
+                Clinic Day Info
+              </h3>
+              <div style={{ fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div><strong>Owner/Client:</strong> {drawerEntry.parsed_owner_name || drawerEntry.raw_client_name || "—"}</div>
+                <div><strong>ML Line:</strong> #{drawerEntry.line_number}</div>
+                {drawerEntry.clinic_day_number && <div><strong>CDN:</strong> #{drawerEntry.clinic_day_number}</div>}
+                <div><strong>Match:</strong> {drawerEntry.match_confidence || "unmatched"} {drawerEntry.cds_method && `(${methodLabel(drawerEntry.cds_method)})`}</div>
+                {drawerEntry.is_recheck && <div style={{ color: "var(--info-text)" }}>Recheck visit</div>}
+              </div>
+            </div>
+
+            {/* Upload photo section */}
+            {drawerEntry.matched_cat_id && (
+              <div>
+                <h3 style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0 0 8px 0", textTransform: "uppercase" }}>
+                  Upload Photo
+                </h3>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <Button
+                    onClick={() => {
+                      setUploadTargetEntry(drawerEntry);
+                      photoInputRef.current?.click();
+                    }}
+                    loading={uploading}
+                  >
+                    Choose Photo
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setUploadTargetEntry(drawerEntry);
+                      addToast({ type: "success", message: "Now paste an image (Ctrl+V / Cmd+V)" });
+                    }}
+                  >
+                    Paste Mode
+                  </Button>
+                </div>
+                {uploadTargetEntry?.entry_id === drawerEntry.entry_id && (
+                  <p style={{ fontSize: "0.8rem", color: "var(--primary)", marginTop: "8px" }}>
+                    Ready to receive pasted image...
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Quick link to full profile */}
+            {drawerEntry.matched_cat_id && (
+              <a
+                href={`/cats/${drawerEntry.matched_cat_id}`}
+                target="_blank"
+                rel="noopener"
+                style={{ fontSize: "0.8rem", color: "var(--primary)", textDecoration: "underline" }}
+              >
+                Open full cat profile →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Upload loading overlay */}
+      {uploading && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000,
+        }}>
+          <div style={{ background: "var(--card-bg)", padding: "24px", borderRadius: "12px" }}>
+            Uploading...
+          </div>
+        </div>
+      )}
     </div>
   );
 }
