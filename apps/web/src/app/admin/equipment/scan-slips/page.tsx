@@ -283,10 +283,14 @@ export default function ScanSlipsPage() {
     setCommitting(true);
     const toCommit = entries.filter((e) => !e.committed && e.barcode);
 
+    // Clear previous commit errors before retrying
+    setEntries((prev) =>
+      prev.map((e) => (e.commitError ? { ...e, commitError: null } : e)),
+    );
+
     for (const entry of toCommit) {
       try {
-        // Look up equipment by barcode
-        const equipLookup = await postApi<{ equipment_id?: string }>(
+        await postApi<{ equipment_id?: string }>(
           "/api/equipment/scan-slips/commit",
           {
             barcode: entry.barcode,
@@ -326,34 +330,76 @@ export default function ScanSlipsPage() {
     }
 
     setCommitting(false);
-    setPhase("done");
-    toast.success("Slips committed");
+
+    // Check results — only go to "done" if ALL succeeded
+    setEntries((prev) => {
+      const failedCount = prev.filter((e) => e.commitError).length;
+      const successCount = prev.filter((e) => e.committed).length;
+
+      if (failedCount > 0) {
+        toast.error(`${failedCount} slip${failedCount !== 1 ? "s" : ""} failed — fix errors and retry`);
+      } else if (successCount > 0) {
+        toast.success(`${successCount} slip${successCount !== 1 ? "s" : ""} committed`);
+        // Only advance to "done" when everything succeeded
+        setTimeout(() => setPhase("done"), 0);
+      }
+      return prev;
+    });
   };
 
   const allExtracting = entries.some((e) => e.extracting);
   const readyToCommit = entries.filter((e) => !e.committed && e.barcode && e.person.display_name).length;
 
+  const stepNumber = phase === "upload" ? 1 : phase === "review" ? 2 : 3;
+
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "1.5rem" }}>
       {/* Header */}
-      <div style={{ marginBottom: "1.5rem" }}>
+      <div style={{ marginBottom: "1rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.25rem" }}>
-          <Icon name="scan-barcode" size={24} color="var(--primary)" />
-          <h1 style={{ fontSize: "1.35rem", fontWeight: 700, margin: 0 }}>Scan Checkout Slips</h1>
+          <Icon name="file-text" size={24} color="var(--primary)" />
+          <h1 style={{ fontSize: "1.35rem", fontWeight: 700, margin: 0 }}>Process Checkout Slips</h1>
         </div>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-          Upload photos of completed checkout slips. AI reads the handwriting
-          and extracts the data. Review, correct, and commit.
+          Upload a scanned PDF of checkout forms. AI reads the handwriting, you review &amp; correct, then commit.
         </p>
+      </div>
+
+      {/* Step indicator */}
+      <div style={{
+        display: "flex",
+        gap: "0.25rem",
+        marginBottom: "1.25rem",
+        fontSize: "0.75rem",
+        fontWeight: 600,
+        color: "var(--muted)",
+      }}>
+        {[
+          { num: 1, label: "Upload" },
+          { num: 2, label: "Review & Correct" },
+          { num: 3, label: "Done" },
+        ].map((step) => (
+          <div key={step.num} style={{
+            flex: 1,
+            padding: "0.5rem 0.75rem",
+            borderRadius: 8,
+            textAlign: "center",
+            background: stepNumber === step.num ? "var(--primary-bg, rgba(59,130,246,0.08))" : "var(--section-bg, #f9fafb)",
+            color: stepNumber === step.num ? "var(--primary)" : stepNumber > step.num ? "var(--success-text)" : "var(--muted)",
+            border: stepNumber === step.num ? "1px solid var(--primary-border, rgba(59,130,246,0.2))" : "1px solid transparent",
+          }}>
+            {stepNumber > step.num ? "\u2713 " : ""}{step.label}
+          </div>
+        ))}
       </div>
 
       {/* Upload area */}
       {(phase === "upload" || phase === "review") && (
         <div
           style={{
-            border: "2px dashed var(--border)",
+            border: phase === "upload" ? "2px dashed var(--primary-border, #93c5fd)" : "2px dashed var(--border)",
             borderRadius: 12,
-            padding: "2rem",
+            padding: phase === "upload" ? "2.5rem 2rem" : "1.25rem",
             textAlign: "center",
             marginBottom: "1.5rem",
             background: "var(--card-bg)",
@@ -376,23 +422,34 @@ export default function ScanSlipsPage() {
             e.currentTarget.style.background = "var(--primary-bg, rgba(59,130,246,0.04))";
           }}
           onDragLeave={(e) => {
-            e.currentTarget.style.borderColor = "var(--border)";
+            e.currentTarget.style.borderColor = phase === "upload" ? "var(--primary-border, #93c5fd)" : "var(--border)";
             e.currentTarget.style.background = "var(--card-bg)";
           }}
           onDrop={(e) => {
             e.preventDefault();
-            e.currentTarget.style.borderColor = "var(--border)";
+            e.currentTarget.style.borderColor = phase === "upload" ? "var(--primary-border, #93c5fd)" : "var(--border)";
             e.currentTarget.style.background = "var(--card-bg)";
             if (e.dataTransfer.files) handleFiles(e.dataTransfer.files);
           }}
         >
-          <Icon name="upload-cloud" size={40} color="var(--muted)" />
-          <p style={{ fontSize: "1rem", fontWeight: 600, margin: "0.75rem 0 0.25rem" }}>
-            Drop checkout slip photos here
-          </p>
-          <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: 0 }}>
-            or tap to select · JPEG / PNG / <strong>PDF</strong> (multi-page supported)
-          </p>
+          <Icon name="upload-cloud" size={phase === "upload" ? 48 : 28} color={phase === "upload" ? "var(--primary)" : "var(--muted)"} />
+          {phase === "upload" ? (
+            <>
+              <p style={{ fontSize: "1.1rem", fontWeight: 700, margin: "0.75rem 0 0.25rem", color: "var(--text-primary)" }}>
+                Drop a scanned PDF here
+              </p>
+              <p style={{ fontSize: "0.9rem", color: "var(--muted)", margin: "0 0 0.75rem" }}>
+                or tap to choose a file
+              </p>
+              <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+                Accepts <strong>PDF</strong> (multi-page — one checkout form per page) or individual images (JPEG, PNG)
+              </p>
+            </>
+          ) : (
+            <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+              + Add more slips
+            </p>
+          )}
         </div>
       )}
 
@@ -450,17 +507,40 @@ export default function ScanSlipsPage() {
 
       {/* Done state */}
       {phase === "done" && (
-        <div style={{ textAlign: "center", padding: "2rem", marginTop: "1rem" }}>
-          <Button
-            variant="primary"
-            icon="plus"
-            onClick={() => {
-              setEntries([]);
-              setPhase("upload");
-            }}
-          >
-            Scan More Slips
-          </Button>
+        <div style={{
+          textAlign: "center",
+          padding: "2rem",
+          marginTop: "1rem",
+          background: "var(--success-bg, rgba(34,197,94,0.06))",
+          border: "1px solid var(--success-border, #bbf7d0)",
+          borderRadius: 12,
+        }}>
+          <Icon name="check-circle" size={40} color="var(--success-text, #16a34a)" />
+          <p style={{ fontSize: "1.1rem", fontWeight: 700, margin: "0.75rem 0 0.25rem" }}>
+            {entries.filter((e) => e.committed).length} slip{entries.filter((e) => e.committed).length !== 1 ? "s" : ""} committed
+          </p>
+          <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0 0 1.25rem" }}>
+            {entries.filter((e) => e.committed).map((e) => `${e.person.display_name} → ${e.barcode}`).join(" · ")}
+          </p>
+          <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
+            <Button
+              variant="primary"
+              icon="upload-cloud"
+              onClick={() => {
+                setEntries([]);
+                setPhase("upload");
+              }}
+            >
+              Process More Slips
+            </Button>
+            <Button
+              variant="outline"
+              icon="arrow-left"
+              onClick={() => window.location.href = "/equipment"}
+            >
+              Back to Inventory
+            </Button>
+          </div>
         </div>
       )}
     </div>

@@ -18,6 +18,8 @@ export interface CollectedPerson {
   email: string;
   is_resolved: boolean;
   resolution_type: "resolved" | "created" | "unresolved";
+  /** Auto-detected from person record — helps parent form auto-select checkout type */
+  detected_role?: "trapper" | "foster" | null;
 }
 
 interface KioskPersonCollectorProps {
@@ -74,11 +76,20 @@ export function KioskPersonCollector({
     [value, onChange],
   );
 
-  // Background matching: check phone/email against existing people
+  // Background matching: search by name, phone, or email as user types
   const checkMatches = useCallback(
-    async (phone: string, email: string) => {
+    async (firstName: string, lastName: string, phone: string, email: string) => {
+      // Determine best search query — prefer identifier, fall back to name
       const phoneDigits = phone.replace(/\D/g, "");
-      const q = email.includes("@") ? email : phoneDigits.length >= 7 ? phoneDigits : "";
+      const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+      const q = email.includes("@")
+        ? email
+        : phoneDigits.length >= 7
+          ? phoneDigits
+          : fullName.length >= 3
+            ? fullName
+            : "";
+
       if (!q) {
         setMatchResults([]);
         return;
@@ -90,12 +101,18 @@ export function KioskPersonCollector({
 
       setMatchLoading(true);
       try {
-        const data = await fetchApi<{ results: PersonMatch[] }>(
-          `/api/search?q=${encodeURIComponent(q)}&type=person&limit=3`,
+        const data = await fetchApi<{ results: PersonMatch[]; fuzzy_results?: PersonMatch[] }>(
+          `/api/search?q=${encodeURIComponent(q)}&type=person&limit=4&fuzzy=true`,
           { signal: controller.signal },
         );
         if (!controller.signal.aborted) {
-          setMatchResults(data.results || []);
+          // Combine exact + fuzzy, dedupe
+          const combined: PersonMatch[] = [];
+          const seen = new Set<string>();
+          for (const r of [...(data.results || []), ...(data.fuzzy_results || [])]) {
+            if (!seen.has(r.entity_id)) { combined.push(r); seen.add(r.entity_id); }
+          }
+          setMatchResults(combined);
         }
       } catch {
         // Ignore abort errors
@@ -106,28 +123,73 @@ export function KioskPersonCollector({
     [],
   );
 
-  const debouncedCheck = useDebounce(checkMatches, 500);
+  const debouncedCheck = useDebounce(checkMatches, 400);
 
-  // Trigger matching when phone or email changes
+  // Trigger matching when name, phone, or email changes
   useEffect(() => {
     if (!value.is_resolved) {
-      debouncedCheck(value.phone, value.email);
+      debouncedCheck(value.first_name, value.last_name, value.phone, value.email);
     }
     return () => {
       if (abortRef.current) abortRef.current.abort();
     };
-  }, [value.phone, value.email, value.is_resolved, debouncedCheck]);
+  }, [value.first_name, value.last_name, value.phone, value.email, value.is_resolved, debouncedCheck]);
 
   const handleSelectMatch = useCallback(
-    (match: PersonMatch) => {
+    async (match: PersonMatch) => {
+      // Immediately show resolved state with display name
+      const parts = match.display_name.split(" ");
+      const firstName = parts[0] || "";
+      const lastName = parts.slice(1).join(" ") || "";
+
       onChange({
         ...value,
         person_id: match.entity_id,
         display_name: match.display_name,
+        first_name: firstName,
+        last_name: lastName,
         is_resolved: true,
         resolution_type: "resolved",
       });
       setMatchResults([]);
+
+      // Fetch full person detail to fill phone/email and detect role
+      try {
+        const detail = await fetchApi<{
+          person: {
+            person_id: string;
+            display_name: string;
+            identifiers: Array<{ id_type: string; id_value_raw: string }> | null;
+            trapper_type: string | null;
+            primary_role: string | null;
+          };
+        }>(`/api/people/${match.entity_id}`);
+
+        const person = detail.person;
+        const ids = person.identifiers || [];
+        const phoneId = ids.find((i) => i.id_type === "phone");
+        const emailId = ids.find((i) => i.id_type === "email");
+
+        // Detect role for auto-selecting checkout type
+        const detectedRole: "trapper" | "foster" | null =
+          person.trapper_type ? "trapper"
+          : person.primary_role === "foster" ? "foster"
+          : null;
+
+        onChange({
+          person_id: match.entity_id,
+          display_name: match.display_name,
+          first_name: firstName,
+          last_name: lastName,
+          phone: phoneId?.id_value_raw || "",
+          email: emailId?.id_value_raw || "",
+          is_resolved: true,
+          resolution_type: "resolved",
+          detected_role: detectedRole,
+        });
+      } catch {
+        // Non-blocking — match is already linked, just won't auto-fill contact info
+      }
     },
     [value, onChange],
   );
@@ -140,6 +202,7 @@ export function KioskPersonCollector({
       resolution_type: "unresolved",
     });
   }, [value, onChange]);
+
 
   // Show linked banner if resolved
   if (value.is_resolved && value.person_id) {
@@ -330,6 +393,7 @@ export function KioskPersonCollector({
           ))}
         </div>
       )}
+
     </div>
   );
 }

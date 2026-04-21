@@ -844,18 +844,27 @@ export const EQUIPMENT_COLLECTION_STATUS_OPTIONS = [
 // =============================================================================
 
 export const EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS = [
-  { value: "ffr", label: "FFR (Find Fix Return)", shortLabel: "FFR" },
-  { value: "well_check", label: "Well-check", shortLabel: "Well-check" },
+  { value: "ffr", label: "FFR Appointment", shortLabel: "FFR" },
+  { value: "well_check", label: "Feeding / Well-check", shortLabel: "Feeding" },
+  { value: "transport", label: "Transport", shortLabel: "Transport" },
   { value: "rescue_recovery", label: "Rescue / Recovery", shortLabel: "Rescue" },
   { value: "trap_training", label: "Trap Training", shortLabel: "Training" },
-  { value: "transport", label: "Transport Only", shortLabel: "Transport" },
-  // Legacy values (still accepted for backward compat)
+] as const satisfies readonly FormOption[];
+
+/** Legacy purpose values — no longer shown in UI but still accepted from DB reads */
+export const EQUIPMENT_CHECKOUT_PURPOSE_LEGACY = [
   { value: "tnr_appointment", label: "TNR Appointment", shortLabel: "TNR" },
   { value: "kitten_rescue", label: "Kitten Rescue", shortLabel: "Kitten" },
   { value: "colony_check", label: "Colony Check", shortLabel: "Colony" },
   { value: "feeding_station", label: "Feeding Station", shortLabel: "Feed Stn" },
   { value: "personal_pet", label: "Personal Pet", shortLabel: "Personal" },
 ] as const satisfies readonly FormOption[];
+
+/** All purpose values (active + legacy) — use for label lookup on DB reads */
+export const EQUIPMENT_CHECKOUT_PURPOSE_ALL = [
+  ...EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS,
+  ...EQUIPMENT_CHECKOUT_PURPOSE_LEGACY,
+] as FormOption[];
 
 export const EQUIPMENT_CHECKOUT_TYPE_OPTIONS = [
   { value: "public", label: "Public", shortLabel: "Public" },

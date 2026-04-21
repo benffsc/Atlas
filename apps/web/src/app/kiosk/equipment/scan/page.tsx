@@ -494,6 +494,16 @@ export default function KioskScanPage() {
               equipmentName={equipment.display_name}
               onComplete={handleActionComplete}
               onCancel={handleActionCancel}
+              onCheckoutAnother={() => {
+                // FFS-1303: Go back to scan mode (person info preserved in sessionStorage)
+                addHistoryEntry({
+                  barcode: lastBarcode,
+                  name: equipment?.display_name || lastBarcode,
+                  action: "check_out",
+                  success: true,
+                });
+                resetForNextScan();
+              }}
             />
           )}
 

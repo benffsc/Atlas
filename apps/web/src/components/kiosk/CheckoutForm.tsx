@@ -28,6 +28,8 @@ interface CheckoutFormProps {
   equipmentName: string;
   onComplete: () => void;
   onCancel: () => void;
+  /** Called when user wants to check out another trap to the SAME person */
+  onCheckoutAnother?: () => void;
 }
 
 type ResolutionStatus = "resolved" | "unresolved" | "created";
@@ -47,11 +49,15 @@ function defaultDueDate(): string {
  * Single-screen checkout form for kiosk — replaces the 3-step CheckoutWizard.
  * Layout: WHO → PURPOSE → TYPE + DEPOSIT → CONTEXT (auto-fill) → DUE DATE + NOTES → Submit
  */
+/** sessionStorage key for multi-trap checkout: persists person info across scans */
+const MULTI_CHECKOUT_KEY = "kiosk_multi_checkout_person";
+
 export function CheckoutForm({
   equipmentId,
   equipmentName,
   onComplete,
   onCancel,
+  onCheckoutAnother,
 }: CheckoutFormProps) {
   const toast = useToast();
   const isPreview = useKioskPreview();
@@ -96,6 +102,32 @@ export function CheckoutForm({
       linkedPlaceLabel: null as string | null,
     },
   );
+
+  // Auto-fill from multi-checkout sessionStorage (same person, different trap)
+  useEffect(() => {
+    if (wasRestored) return; // don't overwrite a restored form
+    try {
+      const raw = sessionStorage.getItem(MULTI_CHECKOUT_KEY);
+      if (!raw) return;
+      const { person, purposes, type, deposit, depositMethod, timestamp } = JSON.parse(raw);
+      // Only use if < 30 minutes old
+      if (Date.now() - timestamp > 30 * 60 * 1000) {
+        sessionStorage.removeItem(MULTI_CHECKOUT_KEY);
+        return;
+      }
+      setSaved((p) => ({
+        ...p,
+        collectedPerson: person || p.collectedPerson,
+        selectedPurposes: purposes || p.selectedPurposes,
+        checkoutPurpose: (purposes || []).join(",") || p.checkoutPurpose,
+        checkoutType: type || p.checkoutType,
+        depositAmount: deposit ?? p.depositAmount,
+        depositMethod: depositMethod || p.depositMethod,
+      }));
+    } catch {
+      // ignore
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Context state (not persisted — re-fetched on person change)
   const [context, setContext] = useState<EquipmentContextResponse | null>(null);
@@ -234,6 +266,14 @@ export function CheckoutForm({
     }
   }, [custodianPersonId, fetchContext]);
 
+  // FFS-1304: Auto-select checkout type based on detected person role
+  useEffect(() => {
+    const role = collectedPerson.detected_role;
+    if (role && !saved.checkoutType) {
+      setSaved((p) => ({ ...p, checkoutType: role }));
+    }
+  }, [collectedPerson.detected_role]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // FFS-1207 — show agreement modal before submitting (gates the checkout)
   const handleRequestSubmit = () => {
     if (agreementText) {
@@ -349,6 +389,28 @@ export function CheckoutForm({
     setContextExpanded(false);
   };
 
+  /** FFS-1303: Multi-trap checkout — save person info to sessionStorage and go back to scan */
+  const handleCheckoutAnotherTrap = () => {
+    try {
+      sessionStorage.setItem(MULTI_CHECKOUT_KEY, JSON.stringify({
+        person: saved.collectedPerson,
+        purposes: saved.selectedPurposes,
+        type: saved.checkoutType,
+        deposit: saved.depositAmount,
+        depositMethod: saved.depositMethod,
+        timestamp: Date.now(),
+      }));
+    } catch {
+      // sessionStorage full — still proceed, just won't auto-fill
+    }
+    clearSaved();
+    if (onCheckoutAnother) {
+      onCheckoutAnother();
+    } else {
+      onComplete();
+    }
+  };
+
   // Success state
   if (success) {
     return (
@@ -375,25 +437,49 @@ export function CheckoutForm({
         <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0 0 1.5rem" }}>
           {equipmentName}
         </p>
-        <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
-          <Button
-            variant="outline"
-            size="lg"
-            icon="plus"
-            onClick={handleAnotherCheckout}
-            style={{ minHeight: "48px", borderRadius: "12px" }}
-          >
-            Another Checkout
-          </Button>
+        {/* FFS-1303: Multi-trap — primary action is "scan another for same person" */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem", alignItems: "center" }}>
           <Button
             variant="primary"
             size="lg"
-            icon="check"
-            onClick={onComplete}
-            style={{ minHeight: "48px", borderRadius: "12px" }}
+            icon="scan-barcode"
+            fullWidth
+            onClick={handleCheckoutAnotherTrap}
+            style={{
+              minHeight: "52px",
+              borderRadius: "12px",
+              background: "var(--primary)",
+              color: "#fff",
+              border: "1px solid transparent",
+            }}
           >
-            Done
+            Scan Next Trap for {successName?.split(" ")[0] || "Same Person"}
           </Button>
+          <div style={{ display: "flex", gap: "0.75rem", width: "100%" }}>
+            <Button
+              variant="ghost"
+              size="lg"
+              fullWidth
+              onClick={handleAnotherCheckout}
+              style={{ minHeight: "44px", borderRadius: "12px" }}
+            >
+              New Person
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              icon="check"
+              fullWidth
+              onClick={() => {
+                // Clean up multi-checkout state on Done
+                try { sessionStorage.removeItem(MULTI_CHECKOUT_KEY); } catch {}
+                onComplete();
+              }}
+              style={{ minHeight: "44px", borderRadius: "12px" }}
+            >
+              Done
+            </Button>
+          </div>
         </div>
       </div>
     );

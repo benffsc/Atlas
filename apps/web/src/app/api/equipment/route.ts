@@ -10,7 +10,7 @@ import { NextRequest } from "next/server";
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
-  const { limit, offset } = parsePagination(searchParams);
+  const { limit, offset } = parsePagination(searchParams, { maxLimit: 500, defaultLimit: 200 });
 
   const search = searchParams.get("search")?.trim();
   const category = searchParams.get("category");
@@ -24,7 +24,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   let paramIdx = 1;
 
   if (search) {
-    conditions.push(`(v.barcode ILIKE $${paramIdx} OR v.display_name ILIKE $${paramIdx} OR v.custodian_name ILIKE $${paramIdx})`);
+    conditions.push(`(v.barcode ILIKE $${paramIdx} OR v.display_name ILIKE $${paramIdx} OR v.custodian_name ILIKE $${paramIdx} OR v.current_holder_name ILIKE $${paramIdx})`);
     params.push(`%${search}%`);
     paramIdx++;
   }
@@ -72,7 +72,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   // Sort
-  const validSortColumns = ["display_name", "barcode", "custody_status", "condition_status", "type_display_name", "custodian_name", "days_checked_out", "total_checkouts", "created_at", "updated_at"];
+  const validSortColumns = ["display_name", "barcode", "custody_status", "condition_status", "type_display_name", "custodian_name", "days_checked_out", "total_checkouts", "created_at", "updated_at", "current_due_date", "expected_return_date"];
   const sortBy = searchParams.get("sort") || "display_name";
   const sortDir = searchParams.get("sortDir") === "desc" ? "DESC" : "ASC";
   const orderColumn = validSortColumns.includes(sortBy) ? sortBy : "display_name";

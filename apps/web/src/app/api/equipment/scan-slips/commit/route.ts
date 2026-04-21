@@ -67,6 +67,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     .filter(Boolean)
     .join(". ");
 
+  // Block commits for equipment in non-lendable states
+  const blockedStates = ["maintenance", "missing", "retired"];
+  if (blockedStates.includes(equipment.custody_status)) {
+    throw new ApiError(
+      `Cannot check out ${equipment.display_name} — status is "${equipment.custody_status}". ` +
+      `Resolve the current state first.`,
+      409,
+    );
+  }
+
   // Determine event type — if already checked out, use transfer (auto-convert guard)
   const eventType =
     equipment.custody_status === "checked_out" ? "transfer" : "check_out";
@@ -80,7 +90,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     transport: 3,
   };
   const offsetDays = dueDays[purpose] || 14;
-  const baseDate = checkout_date ? new Date(checkout_date) : new Date();
+  const baseDate = checkout_date ? parseSlipDate(checkout_date) : new Date();
   baseDate.setDate(baseDate.getDate() + offsetDays);
   const dueDate = baseDate.toISOString().split("T")[0];
 
@@ -115,3 +125,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     event_type: eventType,
   });
 });
+
+/**
+ * Parse dates from checkout slips.
+ *
+ * Handles real-world patterns seen on FFSC forms:
+ *   "4/17"      → MM/DD, no year → assume current year
+ *   "4/17/26"   → MM/DD/YY → 2026  (JS natively parses as year 0026)
+ *   "4-20-26"   → dashes instead of slashes
+ *   "4/17/2026" → MM/DD/YYYY
+ */
+function parseSlipDate(raw: string): Date {
+  // MM/DD/YY or MM/DD/YYYY (with slash or dash)
+  const matchFull = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (matchFull) {
+    let year = parseInt(matchFull[3], 10);
+    if (year < 100) year += 2000;
+    return new Date(year, parseInt(matchFull[1], 10) - 1, parseInt(matchFull[2], 10));
+  }
+
+  // MM/DD — no year, assume current year (most common on paper slips)
+  const matchShort = raw.match(/^(\d{1,2})[/-](\d{1,2})$/);
+  if (matchShort) {
+    const now = new Date();
+    return new Date(now.getFullYear(), parseInt(matchShort[1], 10) - 1, parseInt(matchShort[2], 10));
+  }
+
+  // Fallback: try native parsing, guard against year < 100 and Invalid Date
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return new Date(); // give up → use today
+  if (d.getFullYear() < 100) d.setFullYear(d.getFullYear() + 2000);
+  return d;
+}

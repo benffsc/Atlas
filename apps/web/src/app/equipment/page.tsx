@@ -358,7 +358,7 @@ function EquipmentPageContent() {
   const { pageIndex, pageSize, sortKey, sortDir, handlePaginationChange, handleSortChange, apiParams } = useDataTable(
     filters,
     setFilters,
-    { defaultSort: "type_display_name", defaultSortDir: "asc", defaultPageSize: 50 }
+    { defaultSort: "custody_status", defaultSortDir: "asc", defaultPageSize: 200 }
   );
 
   const [equipment, setEquipment] = useState<VEquipmentInventoryRow[]>([]);
@@ -366,15 +366,6 @@ function EquipmentPageContent() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<EquipmentStatsRow | null>(null);
   const [types, setTypes] = useState<Array<{ type_key: string; display_name: string; category: string }>>([]);
-  const [syncStatus, setSyncStatus] = useState<{
-    last_sync_at: string | null;
-    minutes_ago: number | null;
-    is_stale: boolean;
-    total_equipment: number;
-  } | null>(null);
-
-  // Show grouped view when no search is active
-  const isSearching = !!filters.search;
 
   const selectedEquipment = useMemo(
     () => equipment.find((e) => e.equipment_id === filters.selected) || null,
@@ -414,9 +405,6 @@ function EquipmentPageContent() {
     fetchApi<{ types: Array<{ type_key: string; display_name: string; category: string }> }>("/api/equipment/types")
       .then((d) => setTypes(d.types || []))
       .catch(() => {});
-    fetchApi<{ last_sync_at: string | null; minutes_ago: number | null; is_stale: boolean; total_equipment: number }>(
-      "/api/equipment/sync-status"
-    ).then(setSyncStatus).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -512,14 +500,45 @@ function EquipmentPageContent() {
       meta: { sortKey: "custodian_name", hideOnMobile: true },
     },
     {
-      id: "due_date",
+      accessorKey: "current_due_date",
       header: "Due",
       cell: ({ row }) => {
         const d = row.original.current_due_date || row.original.expected_return_date;
-        if (!d) return "—";
-        return new Date(d).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+        if (!d) return <span style={{ color: "var(--muted)" }}>—</span>;
+        const due = new Date(d);
+        const now = new Date();
+        const isOverdue = due < now && row.original.custody_status === "checked_out";
+        const daysUntil = Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        return (
+          <span style={{
+            color: isOverdue ? "var(--danger-text)" : daysUntil <= 1 ? "var(--warning-text)" : "var(--text-secondary)",
+            fontWeight: isOverdue ? 600 : 400,
+            fontSize: "0.8rem",
+          }}>
+            {due.toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}
+            {isOverdue && <span style={{ marginLeft: "0.25rem", fontSize: "0.7rem" }}>OVERDUE</span>}
+          </span>
+        );
       },
-      meta: { hideOnMobile: true },
+      meta: { sortKey: "current_due_date", hideOnMobile: true },
+    },
+    {
+      accessorKey: "days_checked_out",
+      header: "Days Out",
+      cell: ({ row }) => {
+        const d = row.original.days_checked_out;
+        if (d == null || row.original.custody_status !== "checked_out") return <span style={{ color: "var(--muted)" }}>—</span>;
+        return (
+          <span style={{
+            color: d > 14 ? "var(--danger-text)" : d > 7 ? "var(--warning-text)" : "var(--text-secondary)",
+            fontWeight: d > 14 ? 600 : 400,
+            fontSize: "0.8rem",
+          }}>
+            {d}d
+          </span>
+        );
+      },
+      meta: { sortKey: "days_checked_out", hideOnMobile: true },
     },
     {
       id: "actions",
@@ -548,32 +567,25 @@ function EquipmentPageContent() {
             {total} items{stats ? ` — ${stats.available} available, ${stats.checked_out} out` : ""}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          icon="scan-barcode"
-          onClick={() => window.open("/kiosk/equipment/scan", "_blank")}
-          title="iPad-optimized checkout/check-in interface"
-        >
-          Kiosk Mode
-        </Button>
-      </div>
-
-      {/* Sync status */}
-      {syncStatus && syncStatus.last_sync_at && (
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: "0.375rem",
-          padding: "0.25rem 0.625rem", marginBottom: "0.75rem", borderRadius: "20px",
-          fontSize: "0.75rem",
-          background: syncStatus.is_stale ? "var(--warning-bg)" : "var(--muted-bg, #f3f4f6)",
-          color: syncStatus.is_stale ? "var(--warning-text)" : "var(--muted)",
-        }}>
-          {syncStatus.is_stale
-            ? `Sync delayed (${formatMinutesAgo(syncStatus.minutes_ago)})`
-            : `Synced ${formatMinutesAgo(syncStatus.minutes_ago)}`
-          }
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <Button
+            variant="primary"
+            size="sm"
+            icon="upload-cloud"
+            onClick={() => window.location.href = "/admin/equipment/scan-slips"}
+          >
+            Process Checkout Slips
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            icon="scan-barcode"
+            onClick={() => window.open("/kiosk/equipment/scan", "_blank")}
+          >
+            Kiosk Scan
+          </Button>
         </div>
-      )}
+      </div>
 
       {/* Overdue alert banner (FFS-1058) */}
       {stats && stats.overdue > 0 && (
@@ -623,12 +635,12 @@ function EquipmentPageContent() {
       <div style={{ display: "flex", gap: "0.375rem", marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
         <input
           type="text"
-          placeholder="Search..."
+          placeholder="Search barcode, name, or holder..."
           value={filters.search}
           onChange={(e) => setFilter("search", e.target.value)}
           style={{
             padding: "0.25rem 0.625rem", fontSize: "0.8rem", borderRadius: "20px",
-            border: "1px solid var(--border)", width: "160px", outline: "none",
+            border: "1px solid var(--border)", width: "240px", outline: "none",
           }}
         />
         <FilterPill label="Type" value={filters.type_key} options={types.map((t) => ({ value: t.type_key, label: t.display_name }))} onChange={(v) => setFilter("type_key", v)} />
@@ -663,9 +675,8 @@ function EquipmentPageContent() {
         }
       >
         {loading ? (
-          <SkeletonTable rows={8} columns={5} />
-        ) : isSearching ? (
-          /* Flat DataTable when searching */
+          <SkeletonTable rows={8} columns={6} />
+        ) : (
           <DataTable
             columns={columns}
             data={equipment}
@@ -681,26 +692,11 @@ function EquipmentPageContent() {
             selectedRowId={filters.selected || undefined}
             onRowClick={(id) => setFilter("selected", id)}
             loading={loading}
-            hasActiveFilters={!isDefault}
+            hasActiveFilters={!!hasActiveFilters || !!filters.search}
             onClearFilters={clearFilters}
-            pageSizeOptions={[25, 50, 100]}
-            aria-label="Equipment search results"
+            pageSizeOptions={[50, 100, 200]}
+            aria-label="Equipment inventory"
           />
-        ) : (
-          /* Grouped view — default */
-          <>
-            <GroupedEquipmentView
-              equipment={equipment}
-              selectedId={filters.selected}
-              onSelect={(id) => setFilter("selected", id)}
-              onAction={handleQuickAction}
-            />
-            {total > equipment.length && (
-              <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.8rem", color: "var(--muted)" }}>
-                Showing {equipment.length} of {total} — use search or filters to narrow results
-              </div>
-            )}
-          </>
         )}
       </ListDetailLayout>
 
