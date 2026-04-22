@@ -453,6 +453,50 @@ export default function ScanSlipsPage() {
         </div>
       )}
 
+      {/* Manual entry button */}
+      <div style={{ marginBottom: "1rem", textAlign: "center" }}>
+        <button
+          type="button"
+          onClick={() => {
+            const id = `manual-${Date.now()}`;
+            const blank: SlipEntry = {
+              id,
+              imageDataUrl: "",
+              extracting: false,
+              extracted: { confidence: 1, name: null, phone: null, email: null, address: null, appointment_date: null, date_checked_out: null, barcode: null, equipment_description: null, purpose: null, deposit: null, due_date: null, staff_name: null, notes: null, additional_notes: null },
+              extractError: null,
+              person: { person_id: null, display_name: "", is_resolved: false },
+              barcode: "",
+              purpose: "ffr",
+              depositAmount: "50",
+              checkoutDate: new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric" }),
+              appointmentDate: "",
+              address: "",
+              phone: "",
+              email: "",
+              staffName: "",
+              notes: "",
+              committed: false,
+              commitError: null,
+            };
+            setEntries((prev) => [...prev, blank]);
+            setPhase("review");
+          }}
+          style={{
+            padding: "0.5rem 1rem",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            background: "transparent",
+            color: "var(--text-secondary)",
+            cursor: "pointer",
+            fontSize: "0.85rem",
+            fontWeight: 500,
+          }}
+        >
+          + Add manual entry (no scan)
+        </button>
+      </div>
+
       {/* Review cards */}
       {entries.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -462,6 +506,23 @@ export default function ScanSlipsPage() {
               entry={entry}
               onUpdate={(field, value) => updateEntry(entry.id, field, value)}
               onRemove={() => removeEntry(entry.id)}
+              onDuplicate={() => {
+                // Clone this entry with a blank barcode — staff fills in the missing barcode
+                const newId = `${entry.id}-dup-${Date.now()}`;
+                setEntries((prev) => {
+                  const idx = prev.findIndex((e) => e.id === entry.id);
+                  const clone: SlipEntry = {
+                    ...entry,
+                    id: newId,
+                    barcode: "", // blank — staff fills this in
+                    committed: false,
+                    commitError: null,
+                  };
+                  const next = [...prev];
+                  next.splice(idx + 1, 0, clone); // insert after the current entry
+                  return next;
+                });
+              }}
             />
           ))}
         </div>
@@ -553,10 +614,12 @@ function SlipReviewCard({
   entry,
   onUpdate,
   onRemove,
+  onDuplicate,
 }: {
   entry: SlipEntry;
   onUpdate: (field: string, value: string | PersonReference) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
 }) {
   const statusColor = entry.committed
     ? "var(--success-text)"
@@ -759,6 +822,27 @@ function SlipReviewCard({
           <div style={{ gridColumn: "1 / -1" }}>
             <FieldLabel>Notes</FieldLabel>
             <FieldInput value={entry.notes} onChange={(v) => onUpdate("notes", v)} placeholder="Any additional notes" />
+          </div>
+
+          {/* Duplicate for another barcode — handles AI missing stacked barcodes */}
+          <div style={{ gridColumn: "1 / -1" }}>
+            <button
+              type="button"
+              onClick={onDuplicate}
+              style={{
+                width: "100%",
+                padding: "0.5rem",
+                border: "1px dashed var(--primary-border, #93c5fd)",
+                borderRadius: 6,
+                background: "var(--primary-bg, rgba(59,130,246,0.04))",
+                color: "var(--primary)",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                fontWeight: 500,
+              }}
+            >
+              + Add another barcode for this person
+            </button>
           </div>
         </div>
       )}
