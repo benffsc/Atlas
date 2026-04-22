@@ -502,35 +502,36 @@ function Slip({
       <div className="pf-section">
         <div className="pf-section-heading">Equipment</div>
         <div className="pf-section-body">
-          {/* Equipment type checkboxes */}
-          <div className="pf-checkbox-group">
-            <span className="pf-field-label">Type</span>
-            <div className="pf-checkbox-row">
-              {["Large Trap", "Small Trap", "Drop Trap", "Transfer Cage", "Other"].map((t) => (
-                <span key={t} className="pf-checkbox">
-                  <span className="pf-checkbox-box" />
-                  {t}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Multi-trap barcode grid — 3 columns */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.08in", marginBottom: "0.12in" }}>
+          {/* Barcodes + Type on same row */}
+          <div style={{ display: "flex", gap: "0.12in", marginBottom: "0.10in", alignItems: "flex-end" }}>
+            {/* 3 barcode boxes */}
             {[0, 1, 2].map((i) => (
-              <div key={i} className="pf-field">
-                <span className="pf-field-label">
-                  {i === 0 ? "Barcode" : ""} <span className="pf-field-helper">{i === 0 ? "(4 digits each)" : ""}</span>
-                </span>
+              <div key={i} className="pf-field" style={{ width: "0.9in" }}>
+                {i === 0 && (
+                  <span className="pf-field-label">
+                    Barcode(s) <span className="pf-field-helper">4 digits</span>
+                  </span>
+                )}
                 <div className="pf-barcode-box">
                   {i === 0 ? (eq?.barcode || "") : ""}
                 </div>
               </div>
             ))}
+            {/* Type checkboxes — compact, same row */}
+            <div style={{ flex: 1 }}>
+              <span className="pf-field-label">Type</span>
+              <div className="pf-checkbox-row" style={{ marginTop: "0.04in" }}>
+                {["Large", "Small", "Drop", "Cage"].map((t) => (
+                  <span key={t} className="pf-checkbox">
+                    <span className="pf-checkbox-box" />
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <Field label="Equipment Description" value={eq?.display_name || (eq?.type_display_name ? eq.type_display_name : "")} />
-
+          {/* Purpose */}
           <div className="pf-checkbox-group">
             <span className="pf-field-label">Purpose</span>
             <div className="pf-checkbox-row">
