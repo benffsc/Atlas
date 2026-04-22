@@ -148,6 +148,33 @@ All address fields that write to the database MUST use the `PlaceResolver` compo
 
 ---
 
+## Cat Determining System (CDS)
+
+CDS is the 12-phase pipeline that matches paper master list entries (the handwritten surgery log) to ClinicHQ digital bookings. This is how Atlas knows "line 7 on the paper = appointment for Mr. Whiskers."
+
+**Key concept: Validate-Before-Commit.** CDN (Clinic Day Number) assignments are proposed as candidates, validated against the master list, and only committed when verified. Waiver OCR misreads ~5% of clinic numbers — this prevents bad CDNs from cascading.
+
+```
+Phase 0-0.5:  Assembly + Appointment Dedup
+Phase 1:      CDN Candidates (waiver chip + weight bridge → validate → commit)
+Phase 2-3:    Cancelled Detection + CDN-First Matching
+Phase 4-6:    SQL Deterministic + Shelter ID Bridge + Waiver Bridge
+Phase 7:      Composite Scoring (8 signals, foster-aware)
+Phase 8:      Weight Disambiguation (sex-partitioned)
+Phase 9-10:   Constraint Propagation + LLM Tiebreaker
+Phase 11-12:  Propagate Matches + Classify Unmatched
+```
+
+**Full docs:** [`docs/CDS_PIPELINE.md`](docs/CDS_PIPELINE.md)
+
+**Quick test (read-only, no writes):**
+```bash
+npx tsx scripts/cds-candidate-diff.ts 2026-04-06   # Single date
+npx tsx scripts/cds-candidate-diff.ts --all         # All ground truth dates
+```
+
+---
+
 ## Known Pitfalls
 
 ### ClinicHQ Data ≠ People Data
@@ -197,6 +224,7 @@ Atlas/
 | Document | Purpose |
 |----------|---------|
 | `CLAUDE.md` | **START HERE** — All development rules and invariants |
+| `docs/CDS_PIPELINE.md` | Cat Determining System — 12-phase matching pipeline |
 | `docs/CENTRALIZED_FUNCTIONS.md` | Function signatures for entity operations |
 | `docs/DATA_FLOW_ARCHITECTURE.md` | How data moves through the system |
 | `docs/INGEST_GUIDELINES.md` | Rules for data ingestion |
