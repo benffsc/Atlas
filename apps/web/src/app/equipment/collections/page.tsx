@@ -279,7 +279,7 @@ function OverdueCard({
 }) {
   const toast = useToast();
   const [logMethod, setLogMethod] = useState<string | null>(null);
-  const [showActions, setShowActions] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [actionMode, setActionMode] = useState<"none" | "extend" | "reassign" | "note">("none");
   const [actionNote, setActionNote] = useState("");
   const [newDueDate, setNewDueDate] = useState("");
@@ -322,14 +322,23 @@ function OverdueCard({
       style={{
         borderLeft: `4px solid ${tier.color}`,
         borderRadius: 8,
-        border: `1px solid var(--card-border, #e5e7eb)`,
+        border: `1px solid ${expanded ? tier.color : "var(--card-border, #e5e7eb)"}`,
         borderLeftWidth: 4,
         borderLeftColor: tier.color,
         background: "var(--card-bg, #fff)",
-        padding: "0.875rem 1rem",
         marginBottom: "0.375rem",
+        transition: "border-color 0.15s",
       }}
     >
+      {/* Clickable summary — tap to expand */}
+      <div
+        onClick={() => { if (!isLogging && actionMode === "none") setExpanded(!expanded); }}
+        style={{
+          padding: "0.875rem 1rem",
+          cursor: "pointer",
+          WebkitTapHighlightColor: "transparent",
+        }}
+      >
       {/* Row 1: Name + days overdue badge */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -401,87 +410,84 @@ function OverdueCard({
         )}
       </div>
 
-      {/* Row 5: Action buttons */}
-      {!isLogging && (
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.625rem", flexWrap: "wrap" }}>
-          {phoneDisplay && (
-            <Button
-              variant="primary"
-              size="sm"
-              icon="phone"
-              onClick={() => {
-                window.open(`tel:${row.phone}`, "_self");
-                onStartLog();
-                setLogMethod("call");
-              }}
-              style={{ borderRadius: 8, minHeight: 36 }}
-            >
-              Call
-            </Button>
-          )}
-          {phoneDisplay && (
-            <Button
-              variant="outline"
-              size="sm"
-              icon="message-square"
-              onClick={() => {
-                window.open(`sms:${row.phone}?body=${smsBody}`, "_self");
-                onStartLog();
-                setLogMethod("text");
-              }}
-              style={{ borderRadius: 8, minHeight: 36 }}
-            >
-              Text
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="check"
-            onClick={onMarkReturned}
-            style={{ borderRadius: 8, minHeight: 36 }}
-          >
-            Returned
-          </Button>
-          {!phoneDisplay && (
+      {/* Expand hint */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginTop: "0.375rem" }}>
+        <Icon name={expanded ? "chevron-up" : "chevron-down"} size={14} color="var(--muted)" />
+      </div>
+      </div>{/* end clickable summary */}
+
+      {/* ═══ EXPANDED SECTION ═══ */}
+      {expanded && (
+      <div style={{ padding: "0 1rem 0.875rem", borderTop: "1px solid var(--card-border, #e5e7eb)" }}>
+
+      {/* Action buttons + context actions */}
+      {!isLogging && actionMode === "none" && (
+        <>
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.625rem", flexWrap: "wrap" }}>
+            {phoneDisplay && (
+              <Button
+                variant="primary"
+                size="sm"
+                icon="phone"
+                onClick={() => {
+                  window.open(`tel:${row.phone}`, "_self");
+                  onStartLog();
+                  setLogMethod("call");
+                }}
+                style={{ borderRadius: 8, minHeight: 36 }}
+              >
+                Call
+              </Button>
+            )}
+            {phoneDisplay && (
+              <Button
+                variant="outline"
+                size="sm"
+                icon="message-square"
+                onClick={() => {
+                  window.open(`sms:${row.phone}?body=${smsBody}`, "_self");
+                  onStartLog();
+                  setLogMethod("text");
+                }}
+                style={{ borderRadius: 8, minHeight: 36 }}
+              >
+                Text
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              icon="edit"
-              onClick={() => { onStartLog(); setLogMethod("call"); }}
+              icon="check"
+              onClick={onMarkReturned}
               style={{ borderRadius: 8, minHeight: 36 }}
             >
-              Log Attempt
+              Returned
             </Button>
-          )}
-          {/* More actions toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={showActions ? "chevron-up" : "more-horizontal"}
-            onClick={() => { setShowActions(!showActions); setActionMode("none"); }}
-            style={{ borderRadius: 8, minHeight: 36, marginLeft: "auto" }}
-          >
-            {showActions ? "Less" : "More"}
-          </Button>
-        </div>
-      )}
+            {!phoneDisplay && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="edit"
+                onClick={() => { onStartLog(); setLogMethod("call"); }}
+                style={{ borderRadius: 8, minHeight: 36 }}
+              >
+                Log Attempt
+              </Button>
+            )}
+          </div>
 
-      {/* Context actions — extend due date, reassign holder, add note */}
-      {showActions && !isLogging && actionMode === "none" && (
-        <div style={{
-          display: "flex", gap: "0.375rem", marginTop: "0.5rem", flexWrap: "wrap",
-        }}>
-          <Button variant="ghost" size="sm" icon="calendar-plus" onClick={() => setActionMode("extend")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
-            Extend Due Date
-          </Button>
-          <Button variant="ghost" size="sm" icon="arrow-right-left" onClick={() => setActionMode("reassign")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
-            Reassign Holder
-          </Button>
-          <Button variant="ghost" size="sm" icon="message-square-plus" onClick={() => setActionMode("note")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
-            Add Note
-          </Button>
-        </div>
+          <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+            <Button variant="ghost" size="sm" icon="calendar-plus" onClick={() => setActionMode("extend")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
+              Extend Due Date
+            </Button>
+            <Button variant="ghost" size="sm" icon="arrow-right-left" onClick={() => setActionMode("reassign")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
+              Reassign Holder
+            </Button>
+            <Button variant="ghost" size="sm" icon="message-square-plus" onClick={() => setActionMode("note")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
+              Add Note
+            </Button>
+          </div>
+        </>
       )}
 
       {/* Extend due date form */}
@@ -526,7 +532,7 @@ function OverdueCard({
                   equipment_ids: row.equipment_ids,
                 });
                 toast.success(`Due date extended to ${newDueDate}`);
-                setActionMode("none"); setShowActions(false); setActionNote(""); setNewDueDate("");
+                setActionMode("none"); setExpanded(false); setActionNote(""); setNewDueDate("");
                 onRefresh();
               } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
               finally { setActionSubmitting(false); }
@@ -568,7 +574,7 @@ function OverdueCard({
                   });
                 }
                 toast.success(`Transferred to ${reassignName.trim()}`);
-                setActionMode("none"); setShowActions(false); setReassignName(""); setActionNote("");
+                setActionMode("none"); setExpanded(false); setReassignName(""); setActionNote("");
                 onRefresh();
               } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
               finally { setActionSubmitting(false); }
@@ -600,7 +606,7 @@ function OverdueCard({
                   equipment_ids: row.equipment_ids,
                 });
                 toast.success("Note saved");
-                setActionMode("none"); setShowActions(false); setActionNote("");
+                setActionMode("none"); setExpanded(false); setActionNote("");
                 onRefresh();
               } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
               finally { setActionSubmitting(false); }
@@ -667,6 +673,9 @@ function OverdueCard({
           </div>
         </div>
       )}
+
+      </div>
+      )}{/* end expanded section */}
     </div>
   );
 }
