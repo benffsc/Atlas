@@ -11,6 +11,7 @@ import { useDataTable } from "@/components/data-table/useDataTable";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { StatCard } from "@/components/ui/StatCard";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
+import { formatPhone } from "@/lib/formatters";
 import { EquipmentPreviewContent } from "@/components/preview/EquipmentPreviewContent";
 import { getLabel } from "@/lib/form-options";
 import { EQUIPMENT_CUSTODY_STATUS_OPTIONS, EQUIPMENT_CONDITION_OPTIONS, EQUIPMENT_CATEGORY_OPTIONS, EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS } from "@/lib/form-options";
@@ -548,6 +549,7 @@ function EquipmentPageContent() {
           <RowActionMenu actions={[
             ...(item.custody_status === "available" ? [{ label: "Check Out", onClick: () => handleQuickAction(item.equipment_id, "check_out") }] : []),
             ...(item.custody_status === "checked_out" ? [{ label: "Check In", onClick: () => handleQuickAction(item.equipment_id, "check_in") }] : []),
+            ...(item.custody_status === "checked_out" ? [{ label: "Reassign Holder", onClick: () => window.location.href = `/kiosk/equipment/scan?barcode=${item.barcode}` }] : []),
             ...(item.custody_status !== "missing" ? [{ label: "Report Missing", onClick: () => handleQuickAction(item.equipment_id, "reported_missing"), variant: "danger" as const, dividerBefore: true }] : []),
           ]} />
         );
@@ -557,81 +559,153 @@ function EquipmentPageContent() {
 
   const hasActiveFilters = filters.category || filters.custody_status || filters.condition_status || filters.functional_status || filters.type_key;
 
+  // Fetch top overdue items for the attention section
+  const [topOverdue, setTopOverdue] = useState<Array<{
+    holder_name: string; phone: string | null; email: string | null;
+    trap_barcodes: string[]; trap_count: number; max_days_overdue: number;
+    earliest_due_date: string | null; is_trapper: boolean; person_id: string | null;
+    contact_attempt_count: number;
+  }>>([]);
+
+  useEffect(() => {
+    fetchApi<{ queue: typeof topOverdue }>("/api/equipment/overdue-queue?type=public&tier=critical")
+      .then((d) => setTopOverdue((d.queue || []).slice(0, 5)))
+      .catch(() => {});
+  }, []);
+
   return (
     <div>
       {/* Header */}
       <div style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Equipment Inventory</h1>
-          <p style={{ color: "var(--muted)", fontSize: "0.85rem", margin: 0 }}>
-            {total} items{stats ? ` — ${stats.available} available, ${stats.checked_out} out` : ""}
-          </p>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Equipment</h1>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <Button
-            variant="primary"
-            size="sm"
-            icon="upload-cloud"
-            onClick={() => window.location.href = "/admin/equipment/scan-slips"}
-          >
-            Process Checkout Slips
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Button variant="primary" size="sm" icon="scan-barcode" onClick={() => window.open("/kiosk/equipment/scan", "_blank")}>
+            Scan
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            icon="scan-barcode"
-            onClick={() => window.open("/kiosk/equipment/scan", "_blank")}
-          >
-            Kiosk Scan
+          <Button variant="outline" size="sm" icon="upload-cloud" onClick={() => window.location.href = "/admin/equipment/scan-slips"}>
+            Process Slips
+          </Button>
+          <Button variant="ghost" size="sm" icon="printer" onClick={() => window.location.href = "/equipment/print/slips"}>
+            Print Forms
           </Button>
         </div>
       </div>
 
-      {/* Overdue alert banner (FFS-1058) */}
-      {stats && stats.overdue > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.625rem",
-            padding: "0.625rem 1rem",
-            marginBottom: "0.75rem",
-            borderRadius: "8px",
-            background: "var(--danger-bg)",
-            borderLeft: "4px solid var(--danger-text)",
-          }}
-        >
-          <Icon name="alert-triangle" size={18} color="var(--danger-text)" />
-          <div style={{ flex: 1 }}>
-            <span style={{ fontWeight: 600, color: "var(--danger-text)", fontSize: "0.9rem" }}>
-              {stats.overdue} overdue item{stats.overdue !== 1 ? "s" : ""}
-            </span>
-            <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginLeft: "0.375rem" }}>
-              — past due date and still checked out
-            </span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFilter("custody_status", "checked_out")}
-          >
-            View Overdue
-          </Button>
-        </div>
-      )}
-
-      {/* Stats — compact row */}
+      {/* Stats strip — morning glance */}
       {stats && (
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
-          <MiniStat label="Available" value={stats.available} color="var(--success-text)" />
-          <MiniStat label="Out" value={stats.checked_out} color="var(--warning-text)" />
-          {stats.missing > 0 && <MiniStat label="Missing" value={stats.missing} color="var(--danger-text)" />}
-          {stats.needs_repair > 0 && <MiniStat label="Needs Repair" value={stats.needs_repair} color="var(--warning-text)" />}
-          {stats.overdue > 0 && <MiniStat label="Overdue" value={stats.overdue} color="var(--danger-text)" />}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
+          <StatCard label="Available" value={stats.available} valueColor="var(--success-text)" />
+          <StatCard label="Checked Out" value={stats.checked_out} valueColor="var(--warning-text)" />
+          <StatCard
+            label="Overdue"
+            value={stats.overdue}
+            valueColor={stats.overdue > 0 ? "var(--danger-text)" : "var(--muted)"}
+            subtitle={stats.overdue > 0 ? "need follow-up" : undefined}
+          />
+          {stats.missing > 0 && <StatCard label="Missing" value={stats.missing} valueColor="var(--danger-text)" />}
         </div>
       )}
 
-      {/* Compact filter bar */}
+      {/* ═══ ATTENTION SECTION ═══ */}
+      {topOverdue.length > 0 && (
+        <div style={{
+          marginBottom: "1.25rem",
+          border: "1px solid var(--danger-border, #fecaca)",
+          borderRadius: 10,
+          overflow: "hidden",
+        }}>
+          {/* Section header */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "0.625rem 1rem",
+            background: "var(--danger-bg)",
+            borderBottom: "1px solid var(--danger-border, #fecaca)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Icon name="alert-triangle" size={16} color="var(--danger-text)" />
+              <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--danger-text)" }}>
+                Overdue — Public Borrowers to Call
+              </span>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => window.location.href = "/equipment/collections"}>
+              Open Call Queue
+            </Button>
+          </div>
+
+          {/* Top overdue items */}
+          {topOverdue.map((item) => (
+            <div
+              key={item.holder_name}
+              style={{
+                display: "flex", alignItems: "center", gap: "0.75rem",
+                padding: "0.625rem 1rem",
+                borderBottom: "1px solid var(--card-border, #e5e7eb)",
+                fontSize: "0.85rem",
+              }}
+            >
+              {/* Name + traps */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600 }}>
+                  {item.person_id ? (
+                    <a href={`/people/${item.person_id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>{item.holder_name}</a>
+                  ) : item.holder_name}
+                  <span style={{ fontWeight: 400, color: "var(--muted)", marginLeft: "0.5rem", fontSize: "0.8rem" }}>
+                    {item.trap_barcodes.join(", ")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Phone */}
+              <div style={{ flexShrink: 0 }}>
+                {item.phone ? (
+                  <a href={`tel:${item.phone}`} style={{ color: "var(--primary)", textDecoration: "none", fontSize: "0.8rem", fontWeight: 500 }}>
+                    {formatPhone(item.phone)}
+                  </a>
+                ) : (
+                  <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}>No phone</span>
+                )}
+              </div>
+
+              {/* Days overdue badge */}
+              <span style={{
+                padding: "0.1rem 0.4rem", borderRadius: 4, fontSize: "0.7rem", fontWeight: 700,
+                background: "var(--danger-bg)", color: "var(--danger-text)", whiteSpace: "nowrap", flexShrink: 0,
+              }}>
+                {item.max_days_overdue}d
+              </span>
+
+              {/* Contact attempts */}
+              {item.contact_attempt_count > 0 && (
+                <span style={{ fontSize: "0.7rem", color: "var(--muted)", flexShrink: 0 }}>
+                  {item.contact_attempt_count}x called
+                </span>
+              )}
+            </div>
+          ))}
+
+          {/* Footer link */}
+          {stats && stats.overdue > 5 && (
+            <div style={{ padding: "0.5rem 1rem", fontSize: "0.8rem", color: "var(--muted)", textAlign: "center" }}>
+              Showing top 5 of {stats.overdue} overdue · <a href="/equipment/collections" style={{ color: "var(--primary)" }}>View all in Call Queue</a>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ INVENTORY SECTION ═══ */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: "0.5rem", paddingTop: "0.25rem",
+        borderTop: "1px solid var(--border)",
+      }}>
+        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          Inventory — {total} items
+        </span>
+      </div>
+
+      {/* Filter bar */}
       <div style={{ display: "flex", gap: "0.375rem", marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
         <input
           type="text"
