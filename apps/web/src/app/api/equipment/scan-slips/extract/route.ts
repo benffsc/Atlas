@@ -47,8 +47,8 @@ The form has these sections:
 
 IMPORTANT RULES:
 1. Read handwriting carefully — names, phone numbers, and emails are critical identity data
-2. For barcodes, look for ALL 4-digit numbers in/around the barcode box (e.g., "0205", "0218"). Staff often writes MULTIPLE barcodes stacked vertically or next to each other — this means multiple traps were checked out on one form. There can be 2, 3, or even more barcodes on a single form.
-3. **MULTIPLE TRAPS ON ONE FORM:** If you see more than one barcode number on the same form (e.g., "0224", "0172", and "0209" stacked in the barcode box), return a SEPARATE JSON object for EACH barcode. All objects share the same borrower info (name, phone, email, address, dates, staff) but have different barcodes. Count ALL 4-digit numbers — don't stop at two.
+2. **BARCODES — READ EACH LINE SEPARATELY.** The barcode box may contain MULTIPLE 4-digit numbers written on SEPARATE LINES, stacked vertically. Each line is a DIFFERENT trap barcode. Read each line independently — do NOT combine or merge digits from different lines. For example, if the box shows three lines "0224" then "0172" then "0209", those are THREE separate barcodes, not one number.
+3. **MULTIPLE TRAPS ON ONE FORM:** For EVERY 4-digit barcode number you find in/around the barcode box, return a SEPARATE JSON object. All objects share the same borrower info (name, phone, email, address, dates, staff) but have different barcodes. A form can have 1, 2, 3, or more barcodes — count ALL of them. If you see what looks like multiple handwritten numbers stacked in the barcode area, each one is a separate trap.
 4. For purpose, check which checkbox is marked AND read any "Other:" write-in text
 5. For dates, normalize to MM/DD/YY or MM/DD/YYYY format
 6. Capture ANY extra handwritten text anywhere on the form (margin notes, crossed-out text, annotations) in additional_notes
@@ -59,24 +59,13 @@ IMPORTANT RULES:
 
 If a single form has multiple traps, return a JSON ARRAY. Otherwise return a single object.
 
-Return ONLY valid JSON (no markdown, no explanation):
-{
-  "confidence": 0.95,
-  "name": "Kathy Perez",
-  "phone": "415-509-7648",
-  "email": "kathyperez@gmail.com",
-  "address": "1028 Temple Ave, Santa Rosa",
-  "appointment_date": "4/13/26",
-  "date_checked_out": "4/13/26",
-  "barcode": "0205",
-  "equipment_description": "trap",
-  "purpose": "FFR Appt, well check",
-  "deposit": "0",
-  "due_date": null,
-  "staff_name": "Jami",
-  "notes": null,
-  "additional_notes": null
-}`;
+Return ONLY valid JSON (no markdown, no explanation).
+
+Single trap example:
+{"confidence": 0.95, "name": "Kathy Perez", "phone": "415-509-7648", "email": "kathyperez@gmail.com", "address": "1028 Temple Ave, Santa Rosa", "appointment_date": "4/13/26", "date_checked_out": "4/13/26", "barcode": "0205", "equipment_description": "trap", "purpose": "FFR Appt", "deposit": "0", "due_date": null, "staff_name": "Jami", "notes": null, "additional_notes": null}
+
+Multiple traps example (3 barcodes on one form → 3 objects):
+[{"confidence": 0.9, "name": "Jacqueline Luna", "phone": "707-758-5428", "barcode": "0224", "purpose": "FFR Appt", "date_checked_out": "4/21", "appointment_date": "4/22", "staff_name": "JM", "address": "4377 Westside Road", "email": "jluna@gmail.com", "equipment_description": null, "deposit": null, "due_date": null, "notes": null, "additional_notes": null}, {"confidence": 0.9, "name": "Jacqueline Luna", "phone": "707-758-5428", "barcode": "0172", "purpose": "FFR Appt", "date_checked_out": "4/21", "appointment_date": "4/22", "staff_name": "JM", "address": "4377 Westside Road", "email": "jluna@gmail.com", "equipment_description": null, "deposit": null, "due_date": null, "notes": null, "additional_notes": null}, {"confidence": 0.9, "name": "Jacqueline Luna", "phone": "707-758-5428", "barcode": "0209", "purpose": "FFR Appt", "date_checked_out": "4/21", "appointment_date": "4/22", "staff_name": "JM", "address": "4377 Westside Road", "email": "jluna@gmail.com", "equipment_description": null, "deposit": null, "due_date": null, "notes": null, "additional_notes": null}]`;
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
