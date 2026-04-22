@@ -444,7 +444,7 @@ This is the PRIMARY tool for "tell me about [place]", "what's going on at [addre
   {
     name: "place_search",
     description:
-      "Find places by address or name. Returns matching places with IDs, addresses, and display names. Use when you need to find a place_id before calling other tools, or when the user asks to search for a location.",
+      "Find places by address, street, or name. Returns matching places with cat counts, alteration rates, and request status. Also returns nearby_activity: active requests within 500m, recent appointments at neighboring locations, and trappers assigned to the area. Use for street queries or when you need the neighborhood picture.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1888,15 +1888,112 @@ async function placeSearch(address: string): Promise<ToolResult> {
     };
   }
 
+  const places = Array.isArray(parsed) ? parsed : [parsed];
+
+  // When we find places, also pull nearby activity context:
+  // - Active requests within 500m of any result
+  // - Recent appointments (last 90 days) at nearby locations
+  // - Assigned trappers in the area
+  // This gives staff the neighborhood picture, not just literal matches.
+  let nearbyActivity: unknown = undefined;
+  if (places.length > 0) {
+    const firstPlaceId = (places[0] as Record<string, unknown>).place_id as string;
+    if (firstPlaceId) {
+      try {
+        const [nearbyRequests, nearbyAppointments, nearbyTrappers] = await Promise.all([
+          // Active requests within 500m of the first result
+          queryRows<{
+            request_id: string;
+            place_address: string;
+            status: string;
+            estimated_cat_count: number | null;
+            trapper_name: string | null;
+            distance_m: number;
+          }>(`
+            SELECT r.request_id::text, COALESCE(rp.formatted_address, r.short_address) AS place_address,
+              r.status, r.estimated_cat_count,
+              (SELECT p2.display_name FROM ops.request_trapper_assignments rta
+               JOIN sot.people p2 ON p2.person_id = rta.trapper_person_id
+               WHERE rta.request_id = r.request_id AND rta.status = 'active' LIMIT 1) AS trapper_name,
+              ROUND(ST_Distance(rp.location::geography, anchor.location::geography))::int AS distance_m
+            FROM ops.requests r
+            JOIN sot.places rp ON rp.place_id = r.place_id AND rp.merged_into_place_id IS NULL
+            CROSS JOIN sot.places anchor
+            WHERE anchor.place_id = $1
+              AND r.merged_into_request_id IS NULL
+              AND r.status NOT IN ('completed', 'cancelled')
+              AND ST_DWithin(rp.location::geography, anchor.location::geography, 500)
+            ORDER BY distance_m
+            LIMIT 5
+          `, [firstPlaceId]).catch(() => []),
+
+          // Recent appointments within 500m (last 90 days)
+          queryRows<{
+            place_address: string;
+            appointment_count: number;
+            last_appointment: string;
+            cats_seen: number;
+            distance_m: number;
+          }>(`
+            SELECT p2.formatted_address AS place_address,
+              COUNT(*)::int AS appointment_count,
+              MAX(a.appointment_date)::text AS last_appointment,
+              COUNT(DISTINCT a.cat_id)::int AS cats_seen,
+              ROUND(ST_Distance(p2.location::geography, anchor.location::geography))::int AS distance_m
+            FROM ops.appointments a
+            JOIN sot.places p2 ON p2.place_id = a.place_id AND p2.merged_into_place_id IS NULL
+            CROSS JOIN sot.places anchor
+            WHERE anchor.place_id = $1
+              AND a.appointment_date >= CURRENT_DATE - INTERVAL '90 days'
+              AND ST_DWithin(p2.location::geography, anchor.location::geography, 500)
+              AND p2.place_id != $1
+            GROUP BY p2.formatted_address, p2.location, anchor.location
+            ORDER BY appointment_count DESC
+            LIMIT 5
+          `, [firstPlaceId]).catch(() => []),
+
+          // Trappers assigned to nearby places
+          queryRows<{
+            trapper_name: string;
+            trapper_type: string | null;
+            service_address: string;
+          }>(`
+            SELECT DISTINCT p.display_name AS trapper_name, tp.trapper_type,
+              sp.formatted_address AS service_address
+            FROM sot.trapper_service_places tsp
+            JOIN sot.trapper_profiles tp ON tp.person_id = tsp.person_id
+            JOIN sot.people p ON p.person_id = tsp.person_id AND p.merged_into_person_id IS NULL
+            JOIN sot.places sp ON sp.place_id = tsp.place_id AND sp.merged_into_place_id IS NULL
+            CROSS JOIN sot.places anchor
+            WHERE anchor.place_id = $1
+              AND ST_DWithin(sp.location::geography, anchor.location::geography, 500)
+            LIMIT 5
+          `, [firstPlaceId]).catch(() => []),
+        ]);
+
+        if (nearbyRequests.length > 0 || nearbyAppointments.length > 0 || nearbyTrappers.length > 0) {
+          nearbyActivity = {
+            search_radius_m: 500,
+            active_requests_nearby: nearbyRequests.length > 0 ? nearbyRequests : undefined,
+            recent_appointments_nearby: nearbyAppointments.length > 0 ? nearbyAppointments : undefined,
+            trappers_in_area: nearbyTrappers.length > 0 ? nearbyTrappers : undefined,
+            note: "Nearby activity within 500m of first result. Cats roam between locations — this context helps assess whether a street is being worked.",
+          };
+        }
+      } catch {
+        // Non-blocking — nearby activity is enrichment
+      }
+    }
+  }
+
   return {
     success: true,
     data: {
       found: true,
-      places: Array.isArray(parsed) ? parsed : [parsed],
-      count: Array.isArray(parsed) ? parsed.length : 1,
-      summary: Array.isArray(parsed)
-        ? `Found ${parsed.length} place(s) matching "${address}"`
-        : undefined,
+      places,
+      count: places.length,
+      summary: `Found ${places.length} place(s) matching "${address}"`,
+      nearby_activity: nearbyActivity,
     },
   };
 }
