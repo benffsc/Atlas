@@ -508,8 +508,8 @@ function Slip({
             {[0, 1, 2].map((i) => (
               <div key={i} className="pf-field" style={{ width: "0.9in" }}>
                 {i === 0 && (
-                  <span className="pf-field-label">
-                    Barcode(s) <span className="pf-field-helper">4 digits</span>
+                  <span className="pf-field-label" style={{ whiteSpace: "nowrap" }}>
+                    Barcode(s) (4 digits)
                   </span>
                 )}
                 <div className="pf-barcode-box">
