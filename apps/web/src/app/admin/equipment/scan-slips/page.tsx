@@ -29,6 +29,7 @@ interface ExtractedSlip {
   date_checked_out: string | null;
   barcode: string | null;
   equipment_description: string | null;
+  equipment_type: string | null;
   purpose: string | null;
   deposit: string | null;
   due_date: string | null;
@@ -46,6 +47,7 @@ interface SlipEntry {
   // Editable review fields
   person: PersonReference;
   barcode: string;
+  equipmentType: string;
   purpose: string;
   depositAmount: string;
   checkoutDate: string;
@@ -96,8 +98,9 @@ export default function ScanSlipsPage() {
           extractError: null,
           person: { person_id: null, display_name: "", is_resolved: false },
           barcode: "",
+          equipmentType: "",
           purpose: "",
-          depositAmount: "50",
+          depositAmount: "0",
           checkoutDate: "",
           appointmentDate: "",
           address: "",
@@ -124,8 +127,9 @@ export default function ScanSlipsPage() {
           extractError: null,
           person: { person_id: null, display_name: "", is_resolved: false },
           barcode: "",
+          equipmentType: "",
           purpose: "",
-          depositAmount: "50",
+          depositAmount: "0",
           checkoutDate: "",
           appointmentDate: "",
           address: "",
@@ -178,8 +182,9 @@ export default function ScanSlipsPage() {
             is_resolved: false,
           },
           barcode: slip.barcode || "",
+          equipmentType: slip.equipment_type || "",
           purpose: mapPurpose(slip.purpose),
-          depositAmount: slip.deposit || "50",
+          depositAmount: slip.deposit || "0",
           checkoutDate: slip.date_checked_out || "",
           appointmentDate: slip.appointment_date || "",
           address: slip.address || "",
@@ -463,12 +468,13 @@ export default function ScanSlipsPage() {
               id,
               imageDataUrl: "",
               extracting: false,
-              extracted: { confidence: 1, name: null, phone: null, email: null, address: null, appointment_date: null, date_checked_out: null, barcode: null, equipment_description: null, purpose: null, deposit: null, due_date: null, staff_name: null, notes: null, additional_notes: null },
+              extracted: { confidence: 1, name: null, phone: null, email: null, address: null, appointment_date: null, date_checked_out: null, barcode: null, equipment_description: null, equipment_type: null, purpose: null, deposit: null, due_date: null, staff_name: null, notes: null, additional_notes: null },
               extractError: null,
               person: { person_id: null, display_name: "", is_resolved: false },
               barcode: "",
+          equipmentType: "",
               purpose: "ffr",
-              depositAmount: "50",
+              depositAmount: "0",
               checkoutDate: new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric" }),
               appointmentDate: "",
               address: "",
@@ -760,15 +766,33 @@ function SlipReviewCard({
             />
           </div>
 
-          {/* Barcode + Purpose */}
+          {/* Barcode + Type + Purpose */}
           <div>
             <FieldLabel>Barcode *</FieldLabel>
             <FieldInput
               value={entry.barcode}
               onChange={(v) => onUpdate("barcode", v)}
-              placeholder="4 digits"
+              placeholder="0224"
               mono
             />
+          </div>
+          <div>
+            <FieldLabel>Equipment Type</FieldLabel>
+            <select
+              value={entry.equipmentType}
+              onChange={(e) => onUpdate("equipmentType", e.target.value)}
+              style={selectStyle}
+            >
+              <option value="">Auto-detect</option>
+              <option value="large_trap_backdoor">Large Trap (Backdoor)</option>
+              <option value="large_trap_no_backdoor">Large Trap (No Backdoor)</option>
+              <option value="large_trap_swing_backdoor">Large Trap (Swing Backdoor)</option>
+              <option value="small_trap_backdoor">Small Trap (Backdoor)</option>
+              <option value="small_trap_no_backdoor">Small Trap (No Backdoor)</option>
+              <option value="drop_trap">Drop Trap</option>
+              <option value="string_trap">String Trap</option>
+              <option value="transfer_cage">Transfer Cage</option>
+            </select>
           </div>
           <div>
             <FieldLabel>Purpose</FieldLabel>
