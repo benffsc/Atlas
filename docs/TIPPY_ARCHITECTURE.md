@@ -1,7 +1,7 @@
 # Tippy Architecture: Unified Expert Agent System
 
-**Version:** 2.0
-**Date:** 2026-02-26
+**Version:** 3.0 (V2 Rewrite)
+**Date:** 2026-04-21
 **Status:** Implementation Guide
 
 Tippy is an **expert agentic AI** that knows the ins and outs of FFSC's data, operations, strengths, weaknesses, and data gaps. This document defines the unified architecture for all Tippy components.
@@ -22,7 +22,16 @@ Per [Amazon's evaluation framework](https://aws.amazon.com/blogs/machine-learnin
 - **Act**: Execute tools to gather data
 - **Reflect**: Interpret results, identify gaps, explain caveats
 
-### 3. Honest Data Quality Awareness
+### 3. Entity Lenses, Not Source-System Lenses
+
+Each V2 tool returns everything about an entity from ALL sources. Instead of separate tools
+for ClinicHQ data, ShelterLuv data, and VolunteerHub data about the same person, `person_lookup`
+queries all three in parallel and returns a unified view.
+
+When CDS photos, population forecasts, or new ShelterLuv data lands, existing tools get
+richer — no new tools needed.
+
+### 4. Honest Data Quality Awareness
 Unlike systems that blindly report numbers, Tippy:
 - Distinguishes NULL (unknown) from actual values
 - Acknowledges when data gaps exist
@@ -34,46 +43,125 @@ Unlike systems that blindly report numbers, Tippy:
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      TIPPY AGENT SYSTEM                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌─────────────────┐   ┌─────────────────┐   ┌────────────────┐ │
-│  │ DOMAIN KNOWLEDGE│   │ REASONING ENGINE │   │ COMMUNICATION  │ │
-│  │                 │   │                  │   │    STYLE       │ │
-│  │ - TNR science   │   │ - Chain of       │   │ - Story-first  │ │
-│  │ - FFSC ops      │   │   thought        │   │ - Caveats      │ │
-│  │ - Data quality  │   │ - Hypothesis     │   │ - Mission      │ │
-│  │ - Known gaps    │   │   testing        │   │   connection   │ │
-│  └────────┬────────┘   │ - Self-reflection│   └────────────────┘ │
-│           │            └────────┬─────────┘                       │
-│           │                     │                                 │
-│           ▼                     ▼                                 │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                     TOOL MANIFEST                            │ │
-│  │                                                              │ │
-│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐ │ │
-│  │  │  QUERY TOOLS │ │ ACTION TOOLS │ │  REASONING TOOLS     │ │ │
-│  │  │              │ │              │ │                      │ │ │
-│  │  │ run_sql      │ │ create_      │ │ analyze_place_       │ │ │
-│  │  │ query_*      │ │   reminder   │ │   situation          │ │ │
-│  │  │ lookup_*     │ │ send_staff_  │ │ strategic_city_      │ │ │
-│  │  │ comprehensive│ │   message    │ │   analysis           │ │ │
-│  │  │   _*_lookup  │ │ log_*        │ │ compare_places       │ │ │
-│  │  └──────────────┘ │ save_lookup  │ │ check_data_quality   │ │ │
-│  │                   └──────────────┘ └──────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                  DATA QUALITY LAYER                          │ │
-│  │                                                              │ │
-│  │  Known Gaps:  DATA_GAP_056, 057, 058, 059, ...              │ │
-│  │  Soft Blacklist: Org emails, fabricated PetLink emails      │ │
-│  │  Confidence Thresholds: >= 0.5 for identifiers              │ │
-│  │  NULL Awareness: Always distinguish unknown vs actual       │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                        TIPPY AGENT SYSTEM (V2)                       │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────────┐  │
+│  │ DOMAIN KNOWLEDGE │  │ REASONING ENGINE  │  │  COMMUNICATION    │  │
+│  │ (knowledge.ts)   │  │                   │  │     STYLE         │  │
+│  │                  │  │ - Chain of        │  │ - Story-first     │  │
+│  │ - TNR science    │  │   thought         │  │ - Caveats         │  │
+│  │ - FFSC geography │  │ - Hypothesis      │  │ - Mission         │  │
+│  │ - Data quality   │  │   testing         │  │   connection      │  │
+│  │ - Known gaps     │  │ - Self-reflection │  │                   │  │
+│  └────────┬─────────┘  └────────┬──────────┘  └───────────────────┘  │
+│           │                     │                                     │
+│           ▼                     ▼                                     │
+│  ┌──────────────────────────────────────────────────────────────────┐│
+│  │                  V2 TOOL MANIFEST (15 tools)                     ││
+│  │                                                                  ││
+│  │  ┌────────────────────┐ ┌──────────────┐ ┌────────────────────┐ ││
+│  │  │  ENTITY LENSES (8) │ │ STRATEGY (4) │ │  WRITE OPS (3)     │ ││
+│  │  │                    │ │              │ │                    │ ││
+│  │  │ full_place_briefing│ │ area_stats   │ │ create_reminder    │ ││
+│  │  │ place_search       │ │ spatial_     │ │ send_message       │ ││
+│  │  │ person_lookup      │ │   context    │ │ log_event          │ ││
+│  │  │ cat_lookup         │ │ compare_     │ │                    │ ││
+│  │  │ cat_search         │ │   places     │ └────────────────────┘ ││
+│  │  │ trapper_stats      │ │ find_priority│                        ││
+│  │  │ request_stats      │ │   _sites     │  ┌────────────────────┐││
+│  │  │ run_sql            │ └──────────────┘  │  ESCAPE HATCH (1)  │││
+│  │  └────────────────────┘                   │  run_sql            │││
+│  │                                           └────────────────────┘││
+│  └──────────────────────────────────────────────────────────────────┘│
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────────┐│
+│  │                   DATA QUALITY LAYER                              ││
+│  │                                                                   ││
+│  │  Known Gaps:  DATA_GAP_056, 057, 058, 059, ...                   ││
+│  │  Soft Blacklist: Org emails, fabricated PetLink emails            ││
+│  │  Confidence Thresholds: >= 0.5 for identifiers                   ││
+│  │  NULL Awareness: Always distinguish unknown vs actual             ││
+│  └──────────────────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Feature Flag
+
+```
+TIPPY_V2_ENABLED=true   →  routes to V2 handler (route-v2.ts)
+TIPPY_V2_ENABLED=false   →  routes to V1 handler (route.ts)  [default]
+```
+
+`chat/route.ts` acts as the feature flag dispatcher. When `TIPPY_V2_ENABLED` is unset or `false`, all traffic goes to the V1 handler. When `true`, traffic routes to the V2 handler with the 15-tool manifest.
+
+---
+
+## V2 Tool Manifest (15 Tools)
+
+| # | Tool | Entity Lens | Purpose |
+|---|------|-------------|---------|
+| 1 | `run_sql` | Any | Dynamic SQL queries for exploratory or complex questions |
+| 2 | `full_place_briefing` | Place | Complete place report: cats, colony status, history, nearby activity, requests |
+| 3 | `place_search` | Place (discovery) | Find a place by address, partial name, or fuzzy match |
+| 4 | `person_lookup` | Person | Unified person report across all source systems |
+| 5 | `cat_lookup` | Cat | Full cat report: microchip, procedures, places, journey |
+| 6 | `cat_search` | Cat (description) | Find cats by physical description, color, name |
+| 7 | `area_stats` | Geographic area | Regional/city TNR stats, FFR impact, partner org stats |
+| 8 | `spatial_context` | Location | Nearby activity analysis, hot zone detection |
+| 9 | `compare_places` | Place (comparison) | Multi-dimensional comparison of two places |
+| 10 | `find_priority_sites` | Strategic | Find intact cat clusters needing TNR |
+| 11 | `trapper_stats` | Trapper domain | Trapper performance, staff info, availability |
+| 12 | `request_stats` | Request pipeline | Request pipeline metrics, status breakdown |
+| 13 | `create_reminder` | Write | Create personal reminders for staff |
+| 14 | `send_message` | Write | Send messages to staff members |
+| 15 | `log_event` | Write (dispatcher) | Log field events, observations, data corrections, draft requests, anomalies |
+
+---
+
+## V1 to V2 Migration Map
+
+| V1 Tool(s) | V2 Tool | Notes |
+|-------------|---------|-------|
+| `run_sql`, `discover_views`, `query_view`, `explore_entity` | `run_sql` | Single escape hatch replaces 4 exploration tools |
+| `analyze_place_situation`, `get_place_recent_context`, `query_cats_at_place`, `query_place_colony_status`, `query_colony_estimate_history`, `query_places_by_context`, `full_place_briefing` | `full_place_briefing` | 7 place tools collapsed into 1 composite lens |
+| `comprehensive_place_lookup` | `place_search` | Renamed for clarity: search/discovery vs briefing |
+| `comprehensive_person_lookup`, `query_person_history`, `query_person_cat_relationships`, `query_volunteerhub_data` | `person_lookup` | 4 person tools unified |
+| `comprehensive_cat_lookup`, `lookup_cat_appointment`, `query_cat_journey` | `cat_lookup` | 3 cat tools unified |
+| `search_cats_by_description` | `cat_search` | Renamed |
+| `query_region_stats`, `query_cats_altered_in_area`, `query_ffr_impact`, `strategic_city_analysis`, `query_partner_org_stats` | `area_stats` | 5 geographic tools unified |
+| `analyze_spatial_context` | `spatial_context` | Renamed |
+| `compare_places` | `compare_places` | Unchanged |
+| `find_intact_cat_clusters` | `find_priority_sites` | Renamed for intent clarity |
+| `query_trapper_stats`, `query_staff_info` | `trapper_stats` | 2 tools unified |
+| `query_request_stats` | `request_stats` | Renamed |
+| `create_reminder` | `create_reminder` | Unchanged |
+| `send_staff_message` | `send_message` | Renamed |
+| `log_field_event`, `log_site_observation`, `log_data_discrepancy`, `save_lookup`, `flag_anomaly`, `propose_data_correction`, `create_draft_request`, `update_request` | `log_event` | 8 write tools collapsed into 1 dispatcher |
+
+**Total: 52 V1 tools reduced to 15 V2 tools.**
+
+---
+
+## SQL Function Registry
+
+V2 tools delegate heavy lifting to SQL functions that return composite results:
+
+| SQL Function | Called By V2 Tool | Returns |
+|--------------|-------------------|---------|
+| `ops.tippy_place_full_report(address)` | `full_place_briefing` | Cats, colony status, history, people, requests, nearby activity |
+| `ops.tippy_spatial_analysis(address, lat, lng)` | `spatial_context` | Nearby places, hot zones, distance-weighted activity |
+| `ops.tippy_strategic_analysis(question)` | `area_stats` | Regional metrics, coverage gaps, FFR impact |
+| `ops.tippy_compare_places(addr1, addr2)` | `compare_places` | Side-by-side metrics for two places |
+| `ops.comprehensive_place_lookup(address)` | `place_search` | Place candidates by address/name match |
+| `ops.comprehensive_person_lookup(identifier)` | `person_lookup` | Person + identifiers + cats + places + appointments |
+| `ops.comprehensive_cat_lookup(identifier)` | `cat_lookup` | Cat + microchip + appointments + places + people |
+| `ops.send_staff_message(...)` | `send_message` | Message delivery confirmation |
+| `ops.tippy_propose_correction(...)` | `log_event` (data_correction) | Correction proposal record |
+| `ops.tippy_log_unanswerable(...)` | `log_event` (internal) | Unanswerable question audit log |
 
 ---
 
@@ -82,243 +170,48 @@ Unlike systems that blindly report numbers, Tippy:
 ```
 apps/web/src/app/api/tippy/
 ├── chat/
-│   └── route.ts           # Main API endpoint, system prompt, orchestration
-├── tools.ts               # Tool definitions and implementations
-├── domain-knowledge.ts    # NEW: Centralized domain expertise
-├── data-quality.ts        # NEW: Known gaps, caveats, quality checks
-├── reasoning-patterns.ts  # NEW: Structured reasoning templates
-└── feedback/
-    └── route.ts           # Feedback collection
+│   ├── route.ts            # V1 handler (feature flag dispatcher)
+│   └── route-v2.ts         # V2 handler: parameterized prompt, single agent loop
+├── tools.ts                # V1 tools (52 tools, kept during migration)
+├── tools-v2.ts             # V2 tools (15 tools, dispatch map, shared helpers)
+├── knowledge.ts            # V2: TNR science + geography + data quality (merged)
+├── domain-knowledge.ts     # V1 (deprecated, merged into knowledge.ts)
+├── data-quality.ts         # V1 (deprecated, merged into knowledge.ts)
+├── briefing/route.ts       # Independent route
+├── conversations/          # Independent routes
+├── anomalies/              # Independent route
+└── feedback/route.ts       # Independent route
 
 docs/
-├── TIPPY_ARCHITECTURE.md  # THIS FILE - unified design
+├── TIPPY_ARCHITECTURE.md        # THIS FILE - unified design
 ├── TIPPY_SHOWCASE_QUESTIONS.md  # Demo questions with expected responses
 ├── TIPPY_DATA_QUALITY_REFERENCE.md  # Data quality issues for staff
-└── TIPPY_VIEWS_AND_SCHEMA.md  # Database schema reference
+└── TIPPY_VIEWS_AND_SCHEMA.md    # Database schema reference
 ```
+
+### V1 vs V2 File Mapping
+
+| V1 File | V2 File | Status |
+|---------|---------|--------|
+| `tools.ts` (52 tools) | `tools-v2.ts` (15 tools) | V1 kept for fallback |
+| `domain-knowledge.ts` | `knowledge.ts` | Merged |
+| `data-quality.ts` | `knowledge.ts` | Merged |
+| `reasoning-patterns.ts` | Removed | Reasoning is now inline in the system prompt |
+| `chat/route.ts` | `chat/route.ts` (dispatcher) + `chat/route-v2.ts` | Feature flag split |
 
 ---
 
 ## Domain Knowledge Module
 
-### Location: `apps/web/src/app/api/tippy/domain-knowledge.ts`
+### Location: `apps/web/src/app/api/tippy/knowledge.ts` (V2)
 
-Centralizes all FFSC-specific knowledge that makes Tippy an expert:
+V2 merges `domain-knowledge.ts` and `data-quality.ts` into a single `knowledge.ts` module containing:
 
-```typescript
-export const DOMAIN_KNOWLEDGE = {
-  // Scientific thresholds
-  alteration_thresholds: {
-    under_control: { min: 90, description: "Population stable, breeding stopped" },
-    good_progress: { min: 70, max: 89, description: "Significant impact, not yet stable" },
-    needs_attention: { min: 50, max: 69, description: "Active breeding likely continuing" },
-    early_stages: { max: 49, description: "Substantial work still needed" },
-    stabilization_threshold: 70,  // Scientific basis for population control
-  },
-
-  // Operational definitions
-  mass_trapping: {
-    threshold: 10,  // 10+ cats in one day = mass trapping event
-    significance: "Shows coordinated TNR effort, can stabilize colony quickly",
-  },
-
-  // Geographic context
-  sonoma_regions: {
-    "west county": ["Sebastopol", "Forestville", "Guerneville", "Monte Rio", "Occidental"],
-    "north county": ["Healdsburg", "Cloverdale", "Geyserville", "Windsor"],
-    "russian river": ["Guerneville", "Monte Rio", "Forestville", "Rio Nido"],
-    // ... more regions
-  },
-
-  // Role definitions
-  roles: {
-    caretaker: "Feeds colony regularly, knows the cats",
-    resident: "Lives at the address",
-    colony_caretaker: "Specifically manages a feral colony",
-    trapper: "FFSC-trained volunteer who traps cats",
-    coordinator: "FFSC staff who manages trapping operations",
-  },
-
-  // Data source authorities
-  source_authority: {
-    clinichq: ["TNR procedures", "medical records", "microchips"],
-    shelterluv: ["foster placements", "adoptions", "intake events"],
-    volunteerhub: ["volunteer/trapper info", "training status"],
-    airtable: ["legacy requests", "historical data"],
-  },
-};
-```
-
----
-
-## Data Quality Module
-
-### Location: `apps/web/src/app/api/tippy/data-quality.ts`
-
-Centralizes knowledge of data gaps, caveats, and quality checks:
-
-```typescript
-export const DATA_QUALITY = {
-  // Known gaps with explanations
-  known_gaps: {
-    DATA_GAP_056: {
-      name: "Shared Phone Cross-Linking",
-      impact: "Some older records may have wrong person-place links",
-      caveat: "If data seems inconsistent, acknowledge possible data quality issues",
-    },
-    DATA_GAP_057: {
-      name: "ShelterLuv Sync Stale",
-      impact: "Foster/adoption outcomes may be incomplete",
-      caveat: "ShelterLuv foster data isn't fully synced yet",
-    },
-    DATA_GAP_058: {
-      name: "Places Without Address Links",
-      impact: "32% of places not in city-level aggregations",
-      caveat: "City totals may undercount due to missing address links",
-    },
-    DATA_GAP_059: {
-      name: "NULL Altered Status",
-      impact: "Low alteration rates may be data gaps, not reality",
-      caveat: "Most cats have unknown status from legacy imports",
-      check: "When rate < 50% and total > 50 cats, check NULL count",
-    },
-  },
-
-  // Validation checks
-  suspicious_patterns: [
-    {
-      pattern: "alteration_rate < 10% AND total_cats > 100",
-      likely_cause: "NULL altered_status from legacy data",
-      recommendation: "Check NULL count before treating as priority",
-    },
-    {
-      pattern: "person linked to 50+ places",
-      likely_cause: "Organization or trapper, not resident",
-      recommendation: "Filter by relationship type",
-    },
-  ],
-
-  // Explanation templates
-  caveats: {
-    null_vs_intact: "A cat with NULL altered_status means 'unknown' - we haven't recorded the status. This is different from 'intact' (confirmed unaltered).",
-    reported_vs_verified: "Caretakers count cats at the food bowl; we count verified clinic visits. The gap tells us how much work remains.",
-    legacy_data: "Data before 2024 was entered with less rigorous practices. Some historical links may be inaccurate.",
-  },
-};
-```
-
----
-
-## Reasoning Patterns Module
-
-### Location: `apps/web/src/app/api/tippy/reasoning-patterns.ts`
-
-Provides structured reasoning templates for complex questions:
-
-```typescript
-export const REASONING_PATTERNS = {
-  // Pattern: Place Analysis
-  place_analysis: {
-    steps: [
-      "1. Get place data (cats, alteration rate, people)",
-      "2. Check for data quality flags (NULL status count, suspicious rates)",
-      "3. Look for nearby activity if no exact match",
-      "4. Interpret using domain knowledge (70% threshold, mass trapping)",
-      "5. Acknowledge limitations and explain what we know vs don't know",
-    ],
-    example: `
-      User: "What's happening at 1688 Jennings Way?"
-
-      Reasoning:
-      - Query place → 187 cats, 5.9% altered
-      - Check quality → 176/187 have NULL status (94%)
-      - Interpretation → This rate is suspicious given NULL count
-
-      Response: "1688 Jennings Way has 187 cats in our records, but I should
-      flag something about the 5.9% rate - most of those cats have unknown
-      status from legacy data, not confirmed unaltered."
-    `,
-  },
-
-  // Pattern: Priority Identification
-  prioritization: {
-    steps: [
-      "1. Identify places with untrapped potential (reported > verified)",
-      "2. Check for places below 70% with CONFIRMED status (not NULL)",
-      "3. Consider geographic clustering (nearby colonies)",
-      "4. Weight by urgency (active requests, recent activity)",
-      "5. Explain reasoning and acknowledge data limitations",
-    ],
-  },
-
-  // Pattern: Comparison
-  comparison: {
-    steps: [
-      "1. Gather metrics for both entities",
-      "2. Normalize for fair comparison (rates, not raw counts)",
-      "3. Identify what's actually different vs noise",
-      "4. Consider data quality differences between entities",
-      "5. Provide actionable insight, not just numbers",
-    ],
-  },
-
-  // Pattern: Strategic Analysis
-  strategic_analysis: {
-    steps: [
-      "1. State the question clearly",
-      "2. Identify what data would answer it",
-      "3. Query and interpret results",
-      "4. Consider what's NOT in the data",
-      "5. Provide recommendation with caveats",
-    ],
-  },
-};
-```
-
----
-
-## Tool Categories
-
-Tools are organized by purpose:
-
-### 1. Query Tools (Read-Only Data Access)
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `run_sql` | Dynamic SQL queries | Complex or exploratory questions |
-| `query_cats_at_place` | Cats at location | Simple cat count questions |
-| `query_place_colony_status` | Colony metrics | Alteration rate questions |
-| `comprehensive_place_lookup` | Full place report | "Tell me about [address]" |
-| `comprehensive_person_lookup` | Full person report | "Tell me about [person]" |
-| `comprehensive_cat_lookup` | Full cat report | "Tell me about [cat]" |
-| `query_cats_altered_in_area` | Regional stats | City/region questions |
-| `query_region_stats` | Comprehensive area stats | "What's happening in [area]?" |
-
-### 2. Action Tools (Write Operations)
-| Tool | Purpose | Access Level |
-|------|---------|--------------|
-| `create_reminder` | Personal reminders | read_write |
-| `save_lookup` | Save research | read_write |
-| `send_staff_message` | Staff messaging | read_write |
-| `log_site_observation` | Log observations | read_write |
-| `create_draft_request` | Draft new request | read_write |
-| `propose_data_correction` | Flag data issues | full |
-
-### 3. Analysis Tools (Reasoning Support)
-| Tool | Purpose | Output |
-|------|---------|--------|
-| `analyze_place_situation` | Full place analysis with hints | Structured interpretation |
-| `analyze_spatial_context` | Nearby activity analysis | Hot zone detection |
-| `strategic_city_analysis` | City-level TNR analysis | Coverage gaps |
-| `compare_places` | Multi-dimensional comparison | Prioritization guidance |
-| `check_data_quality` | Data quality assessment | Issues and caveats |
-
-### 4. Data Exploration Tools (Discovery)
-| Tool | Purpose | Use Case |
-|------|---------|----------|
-| `discover_views` | Find available views | Schema exploration |
-| `query_view` | Query specific views | Custom analysis |
-| `explore_entity` | Entity deep-dive | Understanding data |
-| `query_data_lineage` | Track data sources | Provenance questions |
+- **TNR science**: Alteration thresholds (70% stabilization, 90% colony control), mass trapping definitions, Kalman filter context
+- **FFSC geography**: Sonoma County regions, city groupings, service area boundaries
+- **Data quality awareness**: Known gaps (DATA_GAP_056-059+), suspicious patterns, NULL vs actual distinctions, confidence thresholds
+- **Source authority**: What each system (ClinicHQ, ShelterLuv, VolunteerHub, Airtable) is authoritative for
+- **Role definitions**: Caretaker, resident, trapper, coordinator distinctions
 
 ---
 
@@ -350,86 +243,26 @@ Tippy communicates like an experienced colleague, not a database query engine.
 
 ---
 
-## Test Suite Alignment
-
-Tests should validate the story-like response style, not just data accuracy.
-
-### Test Categories:
-
-1. **Accuracy Tests** (`tippy-accuracy-verification.spec.ts`)
-   - Verify correct tool selection
-   - Validate data retrieval
-   - Check for hallucination
-
-2. **Response Quality Tests** (`tippy-human-questions.spec.ts`)
-   - Story-like response format
-   - Appropriate caveats included
-   - Mission connection present
-
-3. **Data Quality Awareness Tests** (`tippy-expected-gaps.spec.ts`)
-   - Acknowledges known gaps
-   - Flags suspicious statistics
-   - Explains NULL vs actual
-
-4. **Edge Case Tests** (`tippy-edge-cases.spec.ts`)
-   - Handles missing data gracefully
-   - Provides spatial fallback
-   - Manages ambiguous queries
-
-### Test Fixtures Update:
-
-```typescript
-// fixtures/tippy-questions.ts
-export const SHOWCASE_QUESTIONS = [
-  {
-    question: "How many cats has FFSC helped?",
-    expectedTools: ["query_ffr_impact"],
-    expectedPatterns: [
-      /\d{2,},?\d{3}.*cats/i,  // Numeric answer
-      /threshold|stabiliz/i,   // Context about meaning
-      /sonoma county|ffsc/i,   // Mission connection
-    ],
-    shouldNotInclude: [
-      /I don't have/i,
-      /I cannot/i,
-    ],
-  },
-  {
-    question: "What location needs the most attention?",
-    expectedTools: ["run_sql", "analyze_place_situation"],
-    expectedPatterns: [
-      /untrapped potential|reported.*verified/i,  // Priority reasoning
-      /caveat|should note|should mention/i,       // Data quality awareness
-    ],
-    mustCheckNullStatus: true,  // If rate < 50%, must mention NULL
-  },
-];
-```
-
----
-
 ## Implementation Checklist
 
-### Phase 1: Foundation
-- [x] Create TIPPY_ARCHITECTURE.md (this document)
-- [ ] Create domain-knowledge.ts module
-- [ ] Create data-quality.ts module
-- [ ] Create reasoning-patterns.ts module
+### V2 Migration
 
-### Phase 2: Integration
-- [ ] Refactor tools.ts to import domain knowledge
-- [ ] Update chat/route.ts system prompt to use centralized modules
-- [ ] Add structured reasoning to tool implementations
+- [x] Create TIPPY_ARCHITECTURE.md V3 (this document)
+- [ ] Create `knowledge.ts` (merge domain-knowledge.ts + data-quality.ts)
+- [ ] Create `tools-v2.ts` (15 tools with dispatch map)
+- [ ] Create `chat/route-v2.ts` (parameterized prompt, single agent loop)
+- [ ] Add `TIPPY_V2_ENABLED` feature flag to `chat/route.ts`
+- [ ] Wire SQL functions (`ops.tippy_*`, `ops.comprehensive_*`)
+- [ ] Validate all 15 tools against showcase questions
+- [ ] Deprecation notices on V1 files
 
-### Phase 3: Testing
-- [ ] Update test fixtures with story-style validation
-- [ ] Add data quality awareness tests
-- [ ] Create benchmark suite for reasoning quality
+### V1 Cleanup (after V2 stable)
 
-### Phase 4: Documentation
-- [ ] Update TIPPY_DATA_QUALITY_REFERENCE.md
-- [ ] Update TIPPY_SHOWCASE_QUESTIONS.md (DONE)
-- [ ] Create staff training guide for Tippy
+- [ ] Remove `tools.ts` (V1)
+- [ ] Remove `domain-knowledge.ts`
+- [ ] Remove `data-quality.ts`
+- [ ] Remove `reasoning-patterns.ts`
+- [ ] Collapse `chat/route.ts` dispatcher into `route-v2.ts`
 
 ---
 

@@ -95,7 +95,7 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
   test.setTimeout(60000);
 
   // FFS-91: Questions changed to avoid duplicating capabilities tests
-  test("comprehensive_person_lookup within benchmark", async ({ page }) => {
+  test("person_lookup within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       page,
       "Give me a detailed overview of any person who is both a volunteer and trapper"
@@ -108,7 +108,7 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
     expect(durationMs).toBeLessThan(BENCHMARKS.COMPREHENSIVE_LOOKUP);
   });
 
-  test("comprehensive_place_lookup within benchmark", async ({ page }) => {
+  test("place_search within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       page,
       "What is the full activity history for any place with more than 5 cats?"
@@ -121,7 +121,7 @@ test.describe("Tippy Performance: Comprehensive Lookups @smoke @real-api", () =>
     expect(durationMs).toBeLessThan(BENCHMARKS.COMPREHENSIVE_LOOKUP);
   });
 
-  test("comprehensive_cat_lookup within benchmark", async ({ page }) => {
+  test("cat_lookup within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       page,
       "Show me the complete timeline for any cat with clinic visits and a foster record"
@@ -212,7 +212,7 @@ test.describe("Tippy Performance: Cross-Source Deductions @stress @slow @real-ap
 test.describe("Tippy Performance: Schema Navigation @smoke @real-api", () => {
   test.setTimeout(60000);
 
-  test("discover_views within benchmark", async ({ page }) => {
+  test("run_sql within benchmark", async ({ page }) => {
     const { ok, responseText, durationMs } = await timedTippyRequest(
       page,
       "What views are available to query?"

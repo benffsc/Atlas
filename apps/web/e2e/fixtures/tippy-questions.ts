@@ -35,7 +35,7 @@ export const PERSON_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "Find someone who is both a volunteer in VolunteerHub AND has brought cats to the clinic as a trapper",
     category: "person",
     requiresSources: ["volunteerhub_volunteers", "sot_appointments", "person_roles"],
-    expectedTools: ["comprehensive_person_lookup", "query_volunteerhub_data"],
+    expectedTools: ["person_lookup"],
     validateResponse: (r) =>
       r.toLowerCase().includes("volunteer") && r.toLowerCase().includes("trapper"),
     difficulty: "medium",
@@ -50,7 +50,7 @@ export const PERSON_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "person_cat",
       "shelterluv",
     ],
-    expectedTools: ["query_volunteerhub_data", "comprehensive_person_lookup"],
+    expectedTools: ["person_lookup"],
     validateResponse: (r) =>
       r.toLowerCase().includes("hours") || r.toLowerCase().includes("foster"),
     difficulty: "hard",
@@ -63,7 +63,7 @@ export const PERSON_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "Show me people who appear in both ClinicHQ and Airtable with different phone numbers",
     category: "person",
     requiresSources: ["person_identifiers", "staged_records", "sot_people"],
-    expectedTools: ["comprehensive_person_lookup", "find_potential_duplicates"],
+    expectedTools: ["person_lookup", "run_sql"],
     validateResponse: (r) =>
       r.toLowerCase().includes("discrepancy") ||
       r.toLowerCase().includes("different") ||
@@ -80,7 +80,7 @@ export const PERSON_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "request_trapper_assignments",
       "person_roles",
     ],
-    expectedTools: ["comprehensive_person_lookup", "query_person_history"],
+    expectedTools: ["person_lookup"],
     validateResponse: (r) =>
       r.toLowerCase().includes("request") || r.toLowerCase().includes("trapper"),
     difficulty: "medium",
@@ -96,7 +96,7 @@ export const PERSON_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "person_cat",
       "person_roles",
     ],
-    expectedTools: ["comprehensive_person_lookup"],
+    expectedTools: ["person_lookup"],
     validateResponse: (r) =>
       r.toLowerCase().includes("found") || r.length > 100,
     difficulty: "easy",
@@ -121,7 +121,7 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
       "cat_place",
       "person_cat",
     ],
-    expectedTools: ["comprehensive_cat_lookup", "query_cat_journey"],
+    expectedTools: ["cat_lookup"],
     validateResponse: (r) =>
       (r.toLowerCase().includes("trapped") ||
         r.toLowerCase().includes("colony")) &&
@@ -139,7 +139,7 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
       "cat_place",
       "sot_appointments",
     ],
-    expectedTools: ["comprehensive_cat_lookup", "query_cats_at_place"],
+    expectedTools: ["cat_lookup", "full_place_briefing"],
     validateResponse: (r) =>
       r.toLowerCase().includes("appointment") ||
       r.toLowerCase().includes("visit") ||
@@ -157,7 +157,7 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
       "sot_appointments",
       "person_cat",
     ],
-    expectedTools: ["comprehensive_cat_lookup", "lookup_cat_appointment"],
+    expectedTools: ["cat_lookup"],
     validateResponse: (r) =>
       r.toLowerCase().includes("microchip") || r.toLowerCase().includes("985"),
     difficulty: "easy",
@@ -168,7 +168,7 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
     question: "Find cats that have had multiple different owners or caretakers",
     category: "cat",
     requiresSources: ["person_cat", "sot_cats"],
-    expectedTools: ["comprehensive_cat_lookup"],
+    expectedTools: ["cat_lookup"],
     validateResponse: (r) =>
       r.toLowerCase().includes("owner") ||
       r.toLowerCase().includes("caretaker") ||
@@ -182,7 +182,7 @@ export const CAT_JOURNEY_QUESTIONS: CrossSourceQuestion[] = [
       "Find cats that appear in both ShelterLuv and ClinicHQ records",
     category: "cat",
     requiresSources: ["staged_records", "sot_cats", "cat_identifiers"],
-    expectedTools: ["comprehensive_cat_lookup", "query_source_extension"],
+    expectedTools: ["cat_lookup", "run_sql"],
     validateResponse: (r) =>
       r.toLowerCase().includes("shelterluv") ||
       r.toLowerCase().includes("clinic") ||
@@ -208,7 +208,7 @@ export const PLACE_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "request_trapper_assignments",
       "v_beacon_place_metrics",
     ],
-    expectedTools: ["comprehensive_place_lookup", "query_place_colony_status"],
+    expectedTools: ["place_search", "full_place_briefing"],
     validateResponse: (r) =>
       r.toLowerCase().includes("trapper") ||
       r.toLowerCase().includes("alteration") ||
@@ -227,7 +227,7 @@ export const PLACE_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "colony_source_confidence",
       "places",
     ],
-    expectedTools: ["comprehensive_place_lookup", "query_place_colony_status"],
+    expectedTools: ["place_search", "full_place_briefing"],
     validateResponse: (r) =>
       r.toLowerCase().includes("estimate") ||
       r.toLowerCase().includes("confidence") ||
@@ -244,7 +244,7 @@ export const PLACE_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "request_trapper_assignments",
       "person_place",
     ],
-    expectedTools: ["comprehensive_place_lookup"],
+    expectedTools: ["place_search"],
     validateResponse: (r) =>
       r.toLowerCase().includes("requester") ||
       r.toLowerCase().includes("trapper") ||
@@ -262,7 +262,7 @@ export const PLACE_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "cat_place",
       "sot_appointments",
     ],
-    expectedTools: ["comprehensive_place_lookup"],
+    expectedTools: ["place_search"],
     validateResponse: (r) =>
       r.toLowerCase().includes("selvage") ||
       r.toLowerCase().includes("request") ||
@@ -280,7 +280,7 @@ export const PLACE_CROSS_SOURCE_QUESTIONS: CrossSourceQuestion[] = [
       "sot_appointments",
       "v_beacon_place_metrics",
     ],
-    expectedTools: ["comprehensive_place_lookup", "query_place_colony_status"],
+    expectedTools: ["place_search", "full_place_briefing"],
     validateResponse: (r) =>
       r.toLowerCase().includes("colony") ||
       r.toLowerCase().includes("activity") ||
@@ -301,78 +301,78 @@ export const DATA_QUALITY_QUESTIONS: CrossSourceQuestion[] = [
     question: "Check data quality for a person record - any staff member",
     category: "data_quality",
     requiresSources: ["sot_people", "person_identifiers", "person_roles"],
-    expectedTools: ["check_data_quality"],
+    expectedTools: ["run_sql"],
     validateResponse: (r) =>
       r.toLowerCase().includes("completeness") ||
       r.toLowerCase().includes("quality") ||
       r.toLowerCase().includes("missing"),
     difficulty: "easy",
-    description: "Tests the check_data_quality function for person entities",
+    description: "Tests the run_sql function for person entities",
   },
   {
     id: "quality-cat-check",
     question: "Check data quality for any cat with a microchip",
     category: "data_quality",
     requiresSources: ["sot_cats", "cat_identifiers"],
-    expectedTools: ["check_data_quality"],
+    expectedTools: ["run_sql"],
     validateResponse: (r) =>
       r.toLowerCase().includes("quality") ||
       r.toLowerCase().includes("complete") ||
       r.toLowerCase().includes("missing"),
     difficulty: "easy",
-    description: "Tests the check_data_quality function for cat entities",
+    description: "Tests the run_sql function for cat entities",
   },
   {
     id: "quality-duplicates-person",
     question: "Find potential duplicates for person name 'Smith'",
     category: "data_quality",
     requiresSources: ["sot_people", "person_identifiers"],
-    expectedTools: ["find_potential_duplicates"],
+    expectedTools: ["run_sql"],
     validateResponse: (r) =>
       r.toLowerCase().includes("duplicate") ||
       r.toLowerCase().includes("similar") ||
       r.toLowerCase().includes("match"),
     difficulty: "medium",
-    description: "Tests the find_potential_duplicates function",
+    description: "Tests the run_sql function",
   },
   {
     id: "quality-merge-history",
     question: "Show merge history for any merged person record",
     category: "data_quality",
     requiresSources: ["sot_people"],
-    expectedTools: ["query_merge_history"],
+    expectedTools: ["run_sql"],
     validateResponse: (r) =>
       r.toLowerCase().includes("merge") ||
       r.toLowerCase().includes("combined") ||
       r.toLowerCase().includes("history"),
     difficulty: "medium",
-    description: "Tests the query_merge_history function",
+    description: "Tests the run_sql function",
   },
   {
     id: "quality-data-lineage",
     question: "Where did the data for a specific cat come from?",
     category: "data_quality",
     requiresSources: ["staged_records", "sot_cats", "cat_identifiers"],
-    expectedTools: ["query_data_lineage"],
+    expectedTools: ["run_sql"],
     validateResponse: (r) =>
       r.toLowerCase().includes("source") ||
       r.toLowerCase().includes("lineage") ||
       r.toLowerCase().includes("origin"),
     difficulty: "medium",
-    description: "Tests the query_data_lineage function",
+    description: "Tests the run_sql function",
   },
   {
     id: "quality-volunteerhub-data",
     question: "Get VolunteerHub data for any active volunteer",
     category: "data_quality",
     requiresSources: ["volunteerhub_volunteers", "sot_people"],
-    expectedTools: ["query_volunteerhub_data"],
+    expectedTools: ["person_lookup"],
     validateResponse: (r) =>
       r.toLowerCase().includes("volunteer") ||
       r.toLowerCase().includes("hours") ||
       r.toLowerCase().includes("role"),
     difficulty: "easy",
-    description: "Tests the query_volunteerhub_data function",
+    description: "Tests the person_lookup function",
   },
 ];
 
@@ -388,7 +388,7 @@ export const BEACON_QUESTIONS: CrossSourceQuestion[] = [
       "Find colonies where verified altered cats exceed the estimated colony size",
     category: "beacon",
     requiresSources: ["v_beacon_place_metrics", "place_colony_estimates"],
-    expectedTools: ["comprehensive_place_lookup", "query_place_colony_status"],
+    expectedTools: ["place_search", "full_place_briefing"],
     validateResponse: (r) =>
       r.toLowerCase().includes("alter") ||
       r.toLowerCase().includes("estimate") ||
@@ -401,7 +401,7 @@ export const BEACON_QUESTIONS: CrossSourceQuestion[] = [
     question: "Which colony estimates are older than 6 months and might be stale?",
     category: "beacon",
     requiresSources: ["place_colony_estimates", "v_beacon_place_metrics"],
-    expectedTools: ["query_place_colony_status", "comprehensive_place_lookup"],
+    expectedTools: ["full_place_briefing", "place_search"],
     validateResponse: (r) =>
       r.toLowerCase().includes("month") ||
       r.toLowerCase().includes("old") ||
@@ -420,7 +420,7 @@ export const BEACON_QUESTIONS: CrossSourceQuestion[] = [
       "cat_birth_events",
       "v_beacon_place_metrics",
     ],
-    expectedTools: ["comprehensive_place_lookup"],
+    expectedTools: ["place_search"],
     validateResponse: (r) =>
       r.toLowerCase().includes("born") ||
       r.toLowerCase().includes("immigrat") ||
@@ -434,7 +434,7 @@ export const BEACON_QUESTIONS: CrossSourceQuestion[] = [
       "Based on historical data, when should we expect the next kitten surge?",
     category: "beacon",
     requiresSources: ["v_kitten_surge_prediction", "v_breeding_season_indicators"],
-    expectedTools: ["query_ffr_impact", "query_region_stats"],
+    expectedTools: ["area_stats"],
     validateResponse: (r) =>
       r.toLowerCase().includes("kitten") ||
       r.toLowerCase().includes("season") ||
@@ -450,7 +450,7 @@ export const BEACON_QUESTIONS: CrossSourceQuestion[] = [
       "At current alteration rate, how long until our largest unmanaged colony is managed?",
     category: "beacon",
     requiresSources: ["v_beacon_place_metrics", "sot_appointments"],
-    expectedTools: ["query_place_colony_status", "comprehensive_place_lookup"],
+    expectedTools: ["full_place_briefing", "place_search"],
     validateResponse: (r) =>
       r.toLowerCase().includes("month") ||
       r.toLowerCase().includes("rate") ||
@@ -464,7 +464,7 @@ export const BEACON_QUESTIONS: CrossSourceQuestion[] = [
     question: "Are we doing better or worse than last year at this time?",
     category: "beacon",
     requiresSources: ["v_yoy_activity_comparison", "sot_appointments"],
-    expectedTools: ["query_ffr_impact", "query_region_stats"],
+    expectedTools: ["area_stats"],
     validateResponse: (r) =>
       r.toLowerCase().includes("year") ||
       r.toLowerCase().includes("compare") ||
@@ -479,7 +479,7 @@ export const BEACON_QUESTIONS: CrossSourceQuestion[] = [
     question: "What's our overall alteration rate across all of Sonoma County?",
     category: "beacon",
     requiresSources: ["v_beacon_place_metrics", "sot_appointments"],
-    expectedTools: ["query_ffr_impact", "query_region_stats"],
+    expectedTools: ["area_stats"],
     validateResponse: (r) =>
       r.toLowerCase().includes("rate") ||
       r.toLowerCase().includes("%") ||

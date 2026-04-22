@@ -19,7 +19,16 @@ Tippy uses a **dynamic schema navigation** approach instead of hardcoded query t
 
 ### Tippy Tools
 
-Located in `apps/web/src/app/api/tippy/tools.ts`:
+**V2 (current, when `TIPPY_V2_ENABLED=true`):** Located in `apps/web/src/app/api/tippy/tools-v2.ts`
+
+In V2, the `discover_views`, `query_view`, and `explore_entity` tools are **retired** — their functionality is absorbed by `run_sql` (which can execute any SELECT query directly). `propose_data_correction` and `log_unanswerable` are absorbed into the `log_event` dispatcher tool.
+
+| V2 Tool | Replaces | Purpose |
+|---------|----------|---------|
+| `run_sql` | `discover_views`, `query_view`, `explore_entity`, `run_sql` | Execute any read-only SQL — covers all schema exploration |
+| `log_event` (action_type: `data_correction`) | `propose_data_correction` | Flag discrepancies for admin review |
+
+**V1 (legacy):** Located in `apps/web/src/app/api/tippy/tools.ts`
 
 | Tool | Type | Purpose |
 |------|------|---------|

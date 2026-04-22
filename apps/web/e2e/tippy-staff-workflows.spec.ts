@@ -179,7 +179,7 @@ test.describe("Tippy Edge Cases @real-api", () => {
 });
 
 test.describe("Tippy Tool Usage @real-api", () => {
-  test("uses discover_views for unknown queries", async ({ page }) => {
+  test("uses run_sql for unknown queries", async ({ page }) => {
     // This is a meta-test to verify Tippy's tool selection
     // Note: This requires access to tool call logs
 
@@ -192,7 +192,7 @@ test.describe("Tippy Tool Usage @real-api", () => {
     expect(result.message.length).toBeGreaterThan(50);
   });
 
-  test("uses query_view for known statistics", async ({ page }) => {
+  test("uses run_sql for known statistics", async ({ page }) => {
     const result = await askTippy(
       request,
       "Query the foster program YTD view for 2025"

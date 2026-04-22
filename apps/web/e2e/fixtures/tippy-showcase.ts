@@ -45,7 +45,7 @@ export const IMPACT_QUESTIONS: ShowcaseQuestion[] = [
     id: "impact-total-cats",
     question: "How many cats has FFSC helped, and what's our overall alteration rate?",
     category: "impact",
-    expectedTools: ["query_ffr_impact"],
+    expectedTools: ["area_stats"],
     shouldInclude: [
       /\d{2,},?\d{3}/,                    // Large number with commas
       /84|85|percent|%/i,                  // Alteration rate
@@ -67,7 +67,7 @@ export const IMPACT_QUESTIONS: ShowcaseQuestion[] = [
     id: "impact-city-comparison",
     question: "Which city in Sonoma County has the most cats in our system?",
     category: "impact",
-    expectedTools: ["query_cats_altered_in_area", "run_sql", "strategic_city_analysis"],
+    expectedTools: ["area_stats", "run_sql"],
     shouldInclude: [
       /santa rosa/i,
       /\d{1,2},?\d{3}/,                    // Thousands of cats
@@ -93,7 +93,7 @@ export const SUCCESS_QUESTIONS: ShowcaseQuestion[] = [
     id: "success-scenic",
     question: "Tell me about 175 Scenic Avenue in Santa Rosa",
     category: "success",
-    expectedTools: ["analyze_place_situation", "comprehensive_place_lookup"],
+    expectedTools: ["full_place_briefing", "place_search"],
     shouldInclude: [
       /164|165|16\d.*cats/i,               // Cat count
       /94|95.*%|percent/i,                 // High alteration rate
@@ -113,7 +113,7 @@ export const SUCCESS_QUESTIONS: ShowcaseQuestion[] = [
     id: "success-pozzan",
     question: "What happened at 15760 Pozzan Road in Healdsburg?",
     category: "success",
-    expectedTools: ["analyze_place_situation", "comprehensive_place_lookup"],
+    expectedTools: ["full_place_briefing", "place_search"],
     shouldInclude: [
       /24.*cats|cats.*24/i,                // Cat count
       /one day|single day|mass trapping/i, // Efficiency
@@ -132,7 +132,7 @@ export const SUCCESS_QUESTIONS: ShowcaseQuestion[] = [
     id: "success-mass-trapping",
     question: "Show me our biggest mass trapping events",
     category: "success",
-    expectedTools: ["run_sql", "analyze_place_situation"],
+    expectedTools: ["run_sql", "full_place_briefing"],
     shouldInclude: [
       /\d{2}.*cats.*day|cats.*one day/i,   // Cats per day
       /empire|pozzan|tomales/i,            // Known locations
@@ -155,7 +155,7 @@ export const PRIORITY_QUESTIONS: ShowcaseQuestion[] = [
     id: "priority-attention",
     question: "What location needs the most attention right now?",
     category: "priority",
-    expectedTools: ["run_sql", "analyze_place_situation"],
+    expectedTools: ["run_sql", "full_place_briefing"],
     shouldInclude: [
       /annapolis|armstrong|request/i,      // Active requests
       /reported.*verified|untrapped/i,     // Gap reasoning
@@ -173,7 +173,7 @@ export const PRIORITY_QUESTIONS: ShowcaseQuestion[] = [
     id: "priority-untrapped",
     question: "Are there any active requests where we know there are more cats than we've trapped?",
     category: "priority",
-    expectedTools: ["run_sql", "query_request_stats"],
+    expectedTools: ["run_sql", "request_stats"],
     shouldInclude: [
       /annapolis|armstrong/i,              // Known locations
       /reported|estimated/i,               // What was reported
@@ -191,7 +191,7 @@ export const PRIORITY_QUESTIONS: ShowcaseQuestion[] = [
     id: "priority-low-rate",
     question: "What locations have less than 70% alteration rate?",
     category: "priority",
-    expectedTools: ["run_sql", "analyze_place_situation"],
+    expectedTools: ["run_sql", "full_place_briefing"],
     shouldInclude: [
       /70.*threshold|below.*70/i,          // Threshold reference
     ],
@@ -215,7 +215,7 @@ export const GEOGRAPHIC_QUESTIONS: ShowcaseQuestion[] = [
     id: "geo-roseland",
     question: "What's the situation in the Roseland area - zip code 95407?",
     category: "geographic",
-    expectedTools: ["query_cats_altered_in_area", "query_region_stats", "run_sql"],
+    expectedTools: ["area_stats", "run_sql"],
     shouldInclude: [
       /1,?0\d{2}.*places|places.*1,?0\d{2}/i,  // ~1000 places
       /5,?\d{3}.*cats|cats.*5,?\d{3}/i,        // ~5000 cats
@@ -232,7 +232,7 @@ export const GEOGRAPHIC_QUESTIONS: ShowcaseQuestion[] = [
     id: "geo-comparison",
     question: "Compare Santa Rosa and Petaluma - where are we doing better?",
     category: "geographic",
-    expectedTools: ["query_cats_altered_in_area", "strategic_city_analysis", "run_sql"],
+    expectedTools: ["area_stats", "run_sql"],
     shouldInclude: [
       /santa rosa/i,
       /petaluma/i,
@@ -294,7 +294,7 @@ export const TRANSPARENCY_QUESTIONS: ShowcaseQuestion[] = [
     id: "trans-gaps",
     question: "Are there areas where we probably have cats but no data?",
     category: "transparency",
-    expectedTools: ["run_sql", "strategic_city_analysis"],
+    expectedTools: ["run_sql", "area_stats"],
     shouldInclude: [
       /rural|wealth|agricultural|private/i,    // Gap areas
       /outreach|awareness/i,                   // Solution hint
@@ -317,7 +317,7 @@ export const STRATEGIC_QUESTIONS: ShowcaseQuestion[] = [
     id: "strategic-priority",
     question: "Based on our data, what should FFSC prioritize to have the biggest impact?",
     category: "strategic",
-    expectedTools: ["run_sql", "query_request_stats", "strategic_city_analysis"],
+    expectedTools: ["run_sql", "request_stats", "area_stats"],
     shouldInclude: [
       /active request|untrapped/i,             // Priority 1
       /recent activity|follow.?up/i,           // Priority 2
@@ -336,7 +336,7 @@ export const STRATEGIC_QUESTIONS: ShowcaseQuestion[] = [
     id: "strategic-resources",
     question: "If we had limited trapping resources next month, where should we focus?",
     category: "strategic",
-    expectedTools: ["run_sql", "query_request_stats"],
+    expectedTools: ["run_sql", "request_stats"],
     shouldInclude: [
       /annapolis|armstrong|request/i,          // Active requests
       /gap|reported|verified/i,                // Evidence-based

@@ -8,7 +8,7 @@
  * - Chapman + disease in place responses (FFS-758)
  * - Onboarding mode detection (FFS-759)
  * - Staff activity awareness in create_reminder (FFS-761)
- * - flag_anomaly tool (FFS-756)
+ * - log_event tool (FFS-756)
  * - Anomaly admin page (FFS-756)
  * - Anomaly → Linear copy (FFS-760)
  *
@@ -204,15 +204,15 @@ test.describe("Tippy V2: Shift Briefing (FFS-755) - Mocked", () => {
 });
 
 // ============================================================================
-// TIER 1: MOCKED TESTS — flag_anomaly Tool (FFS-756)
+// TIER 1: MOCKED TESTS — log_event Tool (FFS-756)
 // ============================================================================
 
-test.describe("Tippy V2: flag_anomaly Tool (FFS-756) - Mocked", () => {
+test.describe("Tippy V2: log_event Tool (FFS-756) - Mocked", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
   });
 
-  test("flag_anomaly tool response has expected shape", async ({
+  test("log_event tool response has expected shape", async ({
     page,
     baseURL,
   }) => {
@@ -223,9 +223,9 @@ test.describe("Tippy V2: flag_anomaly Tool (FFS-756) - Mocked", () => {
         body: JSON.stringify({
           message: "I've flagged this data inconsistency for review.",
           conversationId: "mock-conv",
-          toolsUsed: ["flag_anomaly"],
+          toolsUsed: ["log_event"],
           _debug: {
-            toolName: "flag_anomaly",
+            toolName: "log_event",
             toolResult: {
               success: true,
               data: {
@@ -412,7 +412,7 @@ test.describe("Tippy V2: Chapman + Disease Enrichment (FFS-758) - Mocked", () =>
     await page.goto("/");
   });
 
-  test("analyze_place_situation response includes chapman and disease data", async ({
+  test("full_place_briefing response includes chapman and disease data", async ({
     page,
     baseURL,
   }) => {
@@ -423,9 +423,9 @@ test.describe("Tippy V2: Chapman + Disease Enrichment (FFS-758) - Mocked", () =>
         body: JSON.stringify({
           message: "Walker Road has an estimated population of 45 cats (32-67 range). FeLV detected: 2 of 12 tested positive (16.7%).",
           conversationId: "mock-conv",
-          toolsUsed: ["analyze_place_situation"],
+          toolsUsed: ["full_place_briefing"],
           _debug: {
-            toolName: "analyze_place_situation",
+            toolName: "full_place_briefing",
             toolResult: {
               success: true,
               data: {
@@ -631,7 +631,7 @@ test.describe("Tippy V2: Chapman + Disease (FFS-758) @real-api", () => {
   });
 });
 
-test.describe("Tippy V2: flag_anomaly (FFS-756) @real-api", () => {
+test.describe("Tippy V2: log_event (FFS-756) @real-api", () => {
   test.setTimeout(90000);
 
   test("Tippy can flag anomalies when prompted", async ({ request }) => {

@@ -162,7 +162,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           response: 'Found 5 colony sites in Petaluma (MOCKED)',
-          toolsUsed: ['query_places_by_context'],
+          toolsUsed: ['place_search'],
           sessionId: 'mock-session',
         }),
       });
@@ -187,7 +187,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           response: '42 cats have been fostered through FFSC (MOCKED)',
-          toolsUsed: ['query_person_cat_relationships'],
+          toolsUsed: ['person_lookup'],
           sessionId: 'mock-session',
         }),
       });
@@ -212,7 +212,7 @@ test.describe('Tippy API Stress Tests (Mocked)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           response: 'Whiskers journey: Trapped at colony site -> Clinic visit -> Foster home -> Adopted (MOCKED)',
-          toolsUsed: ['query_cat_journey'],
+          toolsUsed: ['cat_lookup'],
           sessionId: 'mock-session',
         }),
       });

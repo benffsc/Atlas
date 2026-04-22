@@ -42,6 +42,12 @@ Atlas is the operational backbone for FFSC's Trap-Neuter-Return program, trackin
 - **TNR Progress** — Alteration rates by location and service zone
 - **Disease Tracking** — FeLV/FIV prevalence by geographic area
 
+### For Tippy (AI Assistant)
+- **Expert Agent** — Claude-powered assistant with full database access for staff
+- **15 Entity-Lens Tools** — Each returns everything about a place, person, or cat from ALL data sources (ClinicHQ, ShelterLuv, VolunteerHub, Google Maps notes, CDS photos)
+- **Data Quality Aware** — Distinguishes NULL (unknown) from confirmed values, flags suspicious patterns
+- **Docs:** `docs/TIPPY_ARCHITECTURE.md` | **Showcase:** `docs/TIPPY_SHOWCASE_QUESTIONS.md`
+
 ---
 
 ## Architecture

@@ -24,8 +24,8 @@ import { askTippy } from "./helpers/auth-api";
 
 test.describe("Gap: Temporal Queries - Trapper Stats by Date Range @real-api", () => {
   /**
-   * GAP: query_trapper_stats returns career totals only
-   * FIX NEEDED: Add date range parameters to query_trapper_stats tool
+   * GAP: trapper_stats returns career totals only
+   * FIX NEEDED: Add date range parameters to trapper_stats tool
    * MIGRATION: Add v_trapper_stats_by_month view with monthly aggregation
    */
 

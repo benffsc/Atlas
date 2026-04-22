@@ -85,7 +85,7 @@ test.describe("Domain Coverage: Staff Messaging (Mocked)", () => {
     test(`${q.id}: ${q.description}`, async ({ page, baseURL }) => {
       await mockTippyWithToolResult(
         page,
-        "send_staff_message",
+        "send_message",
         { success: true, data: { message: "Message sent to Ben's inbox." } },
         "Done! I sent that message to Ben. They'll see it on their dashboard."
       );
@@ -135,7 +135,7 @@ test.describe("Domain Coverage: Draft Requests (Mocked)", () => {
     test(`${q.id}: ${q.description}`, async ({ page, baseURL }) => {
       await mockTippyWithToolResult(
         page,
-        "create_draft_request",
+        "log_event",
         {
           success: true,
           data: {
@@ -161,9 +161,9 @@ test.describe("Domain Coverage: Field Events (Mocked)", () => {
   for (const q of FIELD_EVENT_QUESTIONS) {
     test(`${q.id}: ${q.description}`, async ({ page, baseURL }) => {
       const toolName =
-        q.expectedTool === "log_site_observation"
-          ? "log_site_observation"
-          : "log_field_event";
+        q.expectedTool === "log_event"
+          ? "log_event"
+          : "log_event";
 
       await mockTippyWithToolResult(
         page,

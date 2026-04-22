@@ -155,7 +155,7 @@ test.describe("Tippy Infrastructure (Mocked) @real-api", () => {
     test("handles tool responses correctly", async ({ page, baseURL }) => {
       await mockTippyWithToolResult(
         page,
-        "query_cats_at_place",
+        "full_place_briefing",
         { cats: [{ name: "Whiskers" }], count: 1 },
         "I found 1 cat at that location: Whiskers."
       );
@@ -378,10 +378,10 @@ test.describe(
   () => {
     test.setTimeout(90000);
 
-    test("discover_views tool returns available views", async ({ request }) => {
+    test("run_sql tool returns available views", async ({ request }) => {
       const { ok, responseText } = await askTippy(
         request,
-        "What views are available for me to query? Use the discover_views tool."
+        "What views are available for me to query? Use the run_sql tool."
       );
 
       expect(ok).toBeTruthy();
@@ -394,7 +394,7 @@ test.describe(
       ).toBeTruthy();
     });
 
-    test("discover_views returns results by category", async ({ request }) => {
+    test("run_sql returns results by category", async ({ request }) => {
       const { ok, responseText } = await askTippy(
         request,
         "Show me all the 'entity' category views available in the system."
@@ -404,7 +404,7 @@ test.describe(
       expect(responseText.length).toBeGreaterThan(30);
     });
 
-    test("discover_views returns results by search term", async ({
+    test("run_sql returns results by search term", async ({
       request,
     }) => {
       const { ok, responseText } = await askTippy(
@@ -416,7 +416,7 @@ test.describe(
       expect(responseText.length).toBeGreaterThan(30);
     });
 
-    test("query_view executes against cataloged views", async ({
+    test("run_sql executes against cataloged views", async ({
       request,
     }) => {
       const { ok, responseText } = await askTippy(
@@ -429,7 +429,7 @@ test.describe(
       expect(responseText.toLowerCase()).not.toMatch(/error|failed/i);
     });
 
-    test("query_view handles filters correctly", async ({ request }) => {
+    test("run_sql handles filters correctly", async ({ request }) => {
       const { ok, responseText } = await askTippy(
         request,
         "How many people in v_person_list have 'coordinator' in their role?"

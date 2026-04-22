@@ -54,8 +54,8 @@ export interface NarrativeTest {
   /**
    * Tool names that MUST appear in the response's toolsUsed array.
    * Covers "did Tippy even look?" — e.g., we expect
-   * `get_place_recent_context` to be called for institutional-knowledge
-   * lookups, not just `analyze_place_situation`.
+   * `full_place_briefing` to be called for institutional-knowledge
+   * lookups, not just `full_place_briefing`.
    */
   toolMustBeCalled?: string[];
   /**
@@ -74,14 +74,14 @@ export const NARRATIVE_TESTS: NarrativeTest[] = [
   // ("This is a Donna colony ... Karen the tenant feeds them") is
   // real data. No existing tool queried source.google_map_entries,
   // so Tippy had to say "no info" on something staff cared about.
-  // PR 2 (get_place_recent_context) fixes the data access; PR 3
+  // PR 2 (full_place_briefing) fixes the data access; PR 3
   // (narrative_seed) ensures it reaches Jami in plain language.
   // -------------------------------------------------------------------------
   {
     id: "narrative-717-cherry-institutional-lookup",
     description: "717 Cherry St lookup surfaces Donna colony + tenant context",
     tippyQuestion: "What do we know about 717 Cherry St in Santa Rosa?",
-    toolMustBeCalled: ["get_place_recent_context"],
+    toolMustBeCalled: ["full_place_briefing"],
     mustInclude: [
       // Must reference Donna (the key person from the KML note)
       /donna/i,
@@ -128,14 +128,14 @@ export const NARRATIVE_TESTS: NarrativeTest[] = [
   },
   // -------------------------------------------------------------------------
   // PR 5 (FFS-1160/1161/1163): the same Santa Rosa question must trigger
-  // the strategic-mode prompt + find_intact_cat_clusters tool. This is
+  // the strategic-mode prompt + find_priority_sites tool. This is
   // the tool-routing assertion that locks in the routing classifier.
   // -------------------------------------------------------------------------
   {
     id: "narrative-santa-rosa-uses-find-intact-tool",
-    description: "Strategic Santa Rosa query calls find_intact_cat_clusters",
+    description: "Strategic Santa Rosa query calls find_priority_sites",
     tippyQuestion: "Where should we focus trapping resources in Santa Rosa?",
-    toolMustBeCalled: ["find_intact_cat_clusters"],
+    toolMustBeCalled: ["find_priority_sites"],
     mustNotInclude: [
       // Should not recommend a place in plain prose without showing
       // it ran the right tool. The tool guarantees no-active-request

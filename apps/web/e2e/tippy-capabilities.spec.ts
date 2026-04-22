@@ -25,7 +25,7 @@ test.describe("Tippy: Point-in-Time Lookups @real-api", () => {
       "How many cats do we have recorded at any Santa Rosa address?"
     );
 
-    // Should use query_cats_at_place tool and return data
+    // Should use full_place_briefing tool and return data
     expect(response.message).toBeTruthy();
     expect(response.message.length).toBeGreaterThan(50);
     // Should include some numeric data or "found" indication
@@ -80,7 +80,7 @@ test.describe("Tippy: Point-in-Time Lookups @real-api", () => {
 });
 
 // FFS-91 audit: Removed comprehensive lookups — covered by human-questions.spec.ts
-// FFS-91 audit: Removed query_cat_journey — covered by cross-source.spec.ts cat journey tests
+// FFS-91 audit: Removed cat_lookup — covered by cross-source.spec.ts cat journey tests
 
 // FFS-91 audit: Removed data quality tools section (4 tests)
 // — "check entity data quality" + "find duplicates" + "merge history" → covered by cross-source data quality questions

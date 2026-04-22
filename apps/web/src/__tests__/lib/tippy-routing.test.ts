@@ -8,27 +8,25 @@ import {
 } from "@/lib/tippy-routing";
 
 // =============================================================================
-// Mock tool list (mirrors TIPPY_TOOLS shape)
+// Mock tool list (mirrors TIPPY_V2_TOOLS shape — 15 tools)
 // =============================================================================
 
 const MOCK_TOOLS = [
-  { name: "analyze_place_situation" },
-  { name: "query_cats_at_place" },
-  { name: "query_request_stats" },
-  { name: "query_staff_info" },
-  { name: "query_trapper_stats" },
-  { name: "query_partner_org_stats" },
-  { name: "comprehensive_person_lookup" },
-  { name: "query_cat_journey" },
-  { name: "create_reminder" },
-  { name: "send_staff_message" },
-  { name: "log_field_event" },
-  { name: "save_lookup" },
-  { name: "log_site_observation" },
-  { name: "create_draft_request" },
-  { name: "flag_anomaly" },
-  { name: "search_cats_by_description" },
   { name: "run_sql" },
+  { name: "full_place_briefing" },
+  { name: "place_search" },
+  { name: "person_lookup" },
+  { name: "cat_lookup" },
+  { name: "cat_search" },
+  { name: "area_stats" },
+  { name: "spatial_context" },
+  { name: "compare_places" },
+  { name: "find_priority_sites" },
+  { name: "trapper_stats" },
+  { name: "request_stats" },
+  { name: "create_reminder" },
+  { name: "send_message" },
+  { name: "log_event" },
 ];
 
 // =============================================================================
@@ -36,13 +34,13 @@ const MOCK_TOOLS = [
 // =============================================================================
 
 describe("detectIntentAndForceToolChoice", () => {
-  describe("address → analyze_place_situation", () => {
+  describe("address → full_place_briefing", () => {
     it("what's happening at 123 Main St", () => {
       const result = detectIntentAndForceToolChoice(
         "What's happening at 123 Main St?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
 
     it("tell me about 456 Oak Ave", () => {
@@ -50,7 +48,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Tell me about 456 Oak Ave",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
 
     it("cats at 789 Elm Rd", () => {
@@ -58,7 +56,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "cats at 789 Elm Rd",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
 
     it("situation at 101 Fisher Lane, Santa Rosa", () => {
@@ -66,7 +64,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Situation at 101 Fisher Lane, Santa Rosa",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
 
     it("what do we know about 1170 Walker Rd", () => {
@@ -74,7 +72,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "What do we know about 1170 Walker Rd?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
 
     it("colony at 500 Petaluma Blvd", () => {
@@ -82,7 +80,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "colony at 500 Petaluma Blvd",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
 
     it("look up 225 Scenic Ave", () => {
@@ -90,7 +88,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "look up 225 Scenic Ave",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
 
     it("anything going on at 350 Industrial Dr", () => {
@@ -98,7 +96,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Anything going on at 350 Industrial Dr?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
   });
 
@@ -152,7 +150,6 @@ describe("detectIntentAndForceToolChoice", () => {
         "Remind me to check on this",
         "read_only"
       );
-      // read_only users can't create reminders, so should not force
       expect(result).toBeUndefined();
     });
   });
@@ -161,13 +158,13 @@ describe("detectIntentAndForceToolChoice", () => {
   // Messaging patterns
   // ===========================================================================
 
-  describe("messaging → send_staff_message", () => {
+  describe("messaging → send_message", () => {
     it("tell Ben that the colony needs attention", () => {
       const result = detectIntentAndForceToolChoice(
         "Tell Ben that the colony at Oak St needs attention",
         "read_write"
       );
-      expect(result).toEqual({ type: "tool", name: "send_staff_message" });
+      expect(result).toEqual({ type: "tool", name: "send_message" });
     });
 
     it("message Jami about the intake queue", () => {
@@ -175,7 +172,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Message Jami about the intake queue",
         "read_write"
       );
-      expect(result).toEqual({ type: "tool", name: "send_staff_message" });
+      expect(result).toEqual({ type: "tool", name: "send_message" });
     });
 
     it("let Crystal know about the new traps", () => {
@@ -183,7 +180,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Let Crystal know about the new traps",
         "full"
       );
-      expect(result).toEqual({ type: "tool", name: "send_staff_message" });
+      expect(result).toEqual({ type: "tool", name: "send_message" });
     });
 
     it("messaging NOT forced for read_only users", () => {
@@ -196,16 +193,16 @@ describe("detectIntentAndForceToolChoice", () => {
   });
 
   // ===========================================================================
-  // Staff patterns
+  // Staff patterns — now route to trapper_stats (unified)
   // ===========================================================================
 
-  describe("staff → query_staff_info", () => {
+  describe("staff → trapper_stats", () => {
     it("how many staff do we have", () => {
       const result = detectIntentAndForceToolChoice(
         "How many staff do we have?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_staff_info" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("staff count", () => {
@@ -213,7 +210,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "staff count",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_staff_info" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("who are our staff members", () => {
@@ -221,7 +218,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Who are our staff members?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_staff_info" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("list of staff", () => {
@@ -229,7 +226,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "list of staff",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_staff_info" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("staff info", () => {
@@ -237,7 +234,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "staff info",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_staff_info" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
   });
 
@@ -245,13 +242,13 @@ describe("detectIntentAndForceToolChoice", () => {
   // Trapper patterns
   // ===========================================================================
 
-  describe("trapper → query_trapper_stats", () => {
+  describe("trapper → trapper_stats", () => {
     it("how many trappers do we have", () => {
       const result = detectIntentAndForceToolChoice(
         "How many trappers do we have?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_trapper_stats" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("active trappers", () => {
@@ -259,7 +256,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "active trappers",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_trapper_stats" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("trapper stats", () => {
@@ -267,7 +264,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "trapper stats",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_trapper_stats" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("how many volunteers are there", () => {
@@ -275,7 +272,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "How many volunteers are there?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_trapper_stats" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
   });
 
@@ -283,13 +280,13 @@ describe("detectIntentAndForceToolChoice", () => {
   // Partner org patterns
   // ===========================================================================
 
-  describe("partner org → query_partner_org_stats", () => {
+  describe("partner org → area_stats", () => {
     it("how many SCAS cats have we done", () => {
       const result = detectIntentAndForceToolChoice(
         "How many SCAS cats have we done?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_partner_org_stats" });
+      expect(result).toEqual({ type: "tool", name: "area_stats" });
     });
 
     it("SCAS stats", () => {
@@ -297,7 +294,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "SCAS stats",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_partner_org_stats" });
+      expect(result).toEqual({ type: "tool", name: "area_stats" });
     });
 
     it("how many shelter cats", () => {
@@ -305,21 +302,21 @@ describe("detectIntentAndForceToolChoice", () => {
         "How many shelter cats did we fix?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_partner_org_stats" });
+      expect(result).toEqual({ type: "tool", name: "area_stats" });
     });
   });
 
   // ===========================================================================
-  // FFS-744: Cat description search patterns
+  // Cat description search patterns
   // ===========================================================================
 
-  describe("cat description → search_cats_by_description", () => {
+  describe("cat description → cat_search", () => {
     it("find the orange tabby on Pozzan Road", () => {
       const result = detectIntentAndForceToolChoice(
         "Find the orange tabby on Pozzan Road",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+      expect(result).toEqual({ type: "tool", name: "cat_search" });
     });
 
     it("any calico cats near Oak St", () => {
@@ -327,7 +324,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Any calico cats near Oak St?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+      expect(result).toEqual({ type: "tool", name: "cat_search" });
     });
 
     it("search for a black cat at Walker Rd", () => {
@@ -335,7 +332,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Search for a black cat at Walker Rd",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+      expect(result).toEqual({ type: "tool", name: "cat_search" });
     });
 
     it("orange cat on Selvage", () => {
@@ -343,7 +340,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "orange cat on Selvage",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+      expect(result).toEqual({ type: "tool", name: "cat_search" });
     });
 
     it("look for a gray kitten near downtown", () => {
@@ -351,7 +348,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "Look for a gray kitten near downtown",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "search_cats_by_description" });
+      expect(result).toEqual({ type: "tool", name: "cat_search" });
     });
   });
 
@@ -379,7 +376,6 @@ describe("detectIntentAndForceToolChoice", () => {
     });
 
     it("address without query intent returns undefined", () => {
-      // Has an address but no query pattern like "what's", "tell me", etc.
       expect(
         detectIntentAndForceToolChoice("I live at 123 Main St", "read_only")
       ).toBeUndefined();
@@ -403,13 +399,11 @@ describe("detectIntentAndForceToolChoice", () => {
 
   describe("negative cases", () => {
     it("'staff' in a trapper question doesn't trigger staff lookup", () => {
-      // "staff" embedded in trapper context shouldn't match staff pattern
       const result = detectIntentAndForceToolChoice(
         "How many trappers does the staff manage?",
         "read_only"
       );
-      // Trapper pattern matches because of "trappers"
-      expect(result).toEqual({ type: "tool", name: "query_trapper_stats" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("address word without actual address number doesn't trigger place", () => {
@@ -417,7 +411,6 @@ describe("detectIntentAndForceToolChoice", () => {
         "What's the situation on Main Street in general?",
         "read_only"
       );
-      // No leading number → address pattern shouldn't match
       expect(result).toBeUndefined();
     });
 
@@ -456,7 +449,7 @@ describe("detectIntentAndForceToolChoice", () => {
         "WHAT'S HAPPENING AT 123 MAIN ST?",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "analyze_place_situation" });
+      expect(result).toEqual({ type: "tool", name: "full_place_briefing" });
     });
 
     it("special characters in message don't crash", () => {
@@ -472,7 +465,6 @@ describe("detectIntentAndForceToolChoice", () => {
     });
 
     it("multiple intent signals — first match wins (reminder before address)", () => {
-      // "Remind me" triggers before address check
       const result = detectIntentAndForceToolChoice(
         "Remind me to check on 123 Oak St tomorrow",
         "read_write"
@@ -481,21 +473,19 @@ describe("detectIntentAndForceToolChoice", () => {
     });
 
     it("staff pattern checked before trapper (priority ordering)", () => {
-      // "staff" should match staff, not fall through to trapper
       const result = detectIntentAndForceToolChoice(
         "how many staff members",
         "read_only"
       );
-      expect(result).toEqual({ type: "tool", name: "query_staff_info" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
 
     it("'none' access level still detects read-only intents", () => {
-      // Even 'none' users can have intent detection (tools just won't be available)
       const result = detectIntentAndForceToolChoice(
         "how many staff",
         "none"
       );
-      expect(result).toEqual({ type: "tool", name: "query_staff_info" });
+      expect(result).toEqual({ type: "tool", name: "trapper_stats" });
     });
   });
 });
@@ -539,9 +529,9 @@ describe("getToolsForAccessLevel", () => {
     it("includes read tools", () => {
       const result = getToolsForAccessLevel(MOCK_TOOLS, "read_only");
       const names = result.map((t) => t.name);
-      expect(names).toContain("analyze_place_situation");
-      expect(names).toContain("query_staff_info");
-      expect(names).toContain("query_trapper_stats");
+      expect(names).toContain("full_place_briefing");
+      expect(names).toContain("trapper_stats");
+      expect(names).toContain("area_stats");
     });
 
     it("returns fewer tools than the full set", () => {
@@ -555,8 +545,8 @@ describe("getToolsForAccessLevel", () => {
       const result = getToolsForAccessLevel(MOCK_TOOLS, "read_write");
       const names = result.map((t) => t.name);
       expect(names).toContain("create_reminder");
-      expect(names).toContain("send_staff_message");
-      expect(names).toContain("log_field_event");
+      expect(names).toContain("send_message");
+      expect(names).toContain("log_event");
     });
 
     it("excludes admin tools", () => {
@@ -570,8 +560,8 @@ describe("getToolsForAccessLevel", () => {
     it("includes read tools", () => {
       const result = getToolsForAccessLevel(MOCK_TOOLS, "read_write");
       const names = result.map((t) => t.name);
-      expect(names).toContain("analyze_place_situation");
-      expect(names).toContain("query_request_stats");
+      expect(names).toContain("full_place_briefing");
+      expect(names).toContain("request_stats");
     });
   });
 
@@ -585,7 +575,7 @@ describe("getToolsForAccessLevel", () => {
       const result = getToolsForAccessLevel(MOCK_TOOLS, "full");
       const names = result.map((t) => t.name);
       expect(names).toContain("create_reminder");
-      expect(names).toContain("send_staff_message");
+      expect(names).toContain("send_message");
     });
 
     it("includes all mock tools by name", () => {
@@ -615,17 +605,16 @@ describe("getToolsForAccessLevel", () => {
 // =============================================================================
 
 describe("constants", () => {
-  it("WRITE_TOOLS contains expected tools", () => {
+  it("WRITE_TOOLS contains V2 write tools", () => {
     expect(WRITE_TOOLS).toContain("create_reminder");
-    expect(WRITE_TOOLS).toContain("send_staff_message");
-    expect(WRITE_TOOLS).toContain("log_field_event");
-    expect(WRITE_TOOLS).toContain("create_draft_request");
+    expect(WRITE_TOOLS).toContain("send_message");
+    expect(WRITE_TOOLS).toContain("log_event");
   });
 
   it("WRITE_TOOLS does not contain read tools", () => {
-    expect(WRITE_TOOLS).not.toContain("analyze_place_situation");
-    expect(WRITE_TOOLS).not.toContain("query_staff_info");
-    expect(WRITE_TOOLS).not.toContain("query_trapper_stats");
+    expect(WRITE_TOOLS).not.toContain("full_place_briefing");
+    expect(WRITE_TOOLS).not.toContain("trapper_stats");
+    expect(WRITE_TOOLS).not.toContain("area_stats");
   });
 
   it("ADMIN_TOOLS is currently empty (temp demo mode)", () => {
@@ -714,7 +703,6 @@ describe("detectStrategicIntent", () => {
     });
 
     it("'priority' alone is not enough — needs noun context", () => {
-      // "priority" without "area/target/place/etc" or "highest" should not trigger
       expect(detectStrategicIntent("Is this a priority?")).toBe(false);
     });
 

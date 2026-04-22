@@ -91,7 +91,7 @@ test.describe("Data Quality: API Endpoints @real-api", () => {
 // CHECK_DATA_QUALITY FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: check_data_quality Function @real-api", () => {
+test.describe("Data Quality: run_sql Function @real-api", () => {
   test("Check data quality for a person entity", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -156,7 +156,7 @@ test.describe("Data Quality: check_data_quality Function @real-api", () => {
 // FIND_POTENTIAL_DUPLICATES FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: find_potential_duplicates Function @real-api", () => {
+test.describe("Data Quality: run_sql Function @real-api", () => {
   test("Find potential duplicate people", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -206,7 +206,7 @@ test.describe("Data Quality: find_potential_duplicates Function @real-api", () =
 // QUERY_MERGE_HISTORY FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: query_merge_history Function @real-api", () => {
+test.describe("Data Quality: run_sql Function @real-api", () => {
   test("Query merge history for people", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -256,7 +256,7 @@ test.describe("Data Quality: query_merge_history Function @real-api", () => {
 // QUERY_DATA_LINEAGE FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: query_data_lineage Function @real-api", () => {
+test.describe("Data Quality: run_sql Function @real-api", () => {
   test("Query data lineage for a person", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -317,7 +317,7 @@ test.describe("Data Quality: query_data_lineage Function @real-api", () => {
 // QUERY_VOLUNTEERHUB_DATA FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: query_volunteerhub_data Function @real-api", () => {
+test.describe("Data Quality: person_lookup Function @real-api", () => {
   test("Query volunteer hours", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -369,7 +369,7 @@ test.describe("Data Quality: query_volunteerhub_data Function @real-api", () => 
 // QUERY_SOURCE_EXTENSION FUNCTION TESTS (via Tippy)
 // ============================================================================
 
-test.describe("Data Quality: query_source_extension Function @real-api", () => {
+test.describe("Data Quality: run_sql Function @real-api", () => {
   test("Query ClinicHQ extension data", async ({ request }) => {
     const response = await askTippy(
       request,
@@ -420,7 +420,7 @@ test.describe("Data Quality: query_source_extension Function @real-api", () => {
 // ============================================================================
 
 test.describe("Data Quality: Comprehensive Lookups @real-api", () => {
-  test("comprehensive_person_lookup returns multi-source data", async ({
+  test("person_lookup returns multi-source data", async ({
     request,
   }) => {
     const response = await askTippy(
@@ -433,7 +433,7 @@ test.describe("Data Quality: Comprehensive Lookups @real-api", () => {
     expect(data).toBeDefined();
   });
 
-  test("comprehensive_cat_lookup returns full history", async ({ request }) => {
+  test("cat_lookup returns full history", async ({ request }) => {
     const response = await askTippy(
       request,
       "Give me comprehensive data for any cat with appointments including all source systems"
@@ -444,7 +444,7 @@ test.describe("Data Quality: Comprehensive Lookups @real-api", () => {
     expect(data).toBeDefined();
   });
 
-  test("comprehensive_place_lookup returns all activities", async ({
+  test("place_search returns all activities", async ({
     request,
   }) => {
     const response = await askTippy(

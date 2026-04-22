@@ -72,7 +72,7 @@ export const INTAKE_QUESTIONS: StaffQuestion[] = [
     persona: "coordinator",
     priority: "daily",
     expectedCapability: "partial",
-    gapReason: "find_potential_duplicates works but needs better intake-specific matching",
+    gapReason: "run_sql works but needs better intake-specific matching",
     validateResponse: (r) =>
       r.toLowerCase().includes("similar") ||
       r.toLowerCase().includes("duplicate") ||
@@ -198,7 +198,7 @@ export const TRAPPER_QUESTIONS: StaffQuestion[] = [
     persona: "head_trapper",
     priority: "monthly",
     expectedCapability: "gap",
-    gapReason: "query_trapper_stats has no date range",
+    gapReason: "trapper_stats has no date range",
     validateResponse: (r) =>
       r.match(/\d+/) !== null &&
       r.toLowerCase().includes("month"),
@@ -307,7 +307,7 @@ export const DATA_ENTRY_QUESTIONS: StaffQuestion[] = [
     persona: "data_entry",
     priority: "ad_hoc",
     expectedCapability: "partial",
-    gapReason: "find_potential_duplicates helps but no explicit merge recommendation",
+    gapReason: "run_sql helps but no explicit merge recommendation",
     validateResponse: (r) =>
       r.toLowerCase().includes("same") ||
       r.toLowerCase().includes("different") ||
@@ -368,7 +368,7 @@ export const REPORTING_QUESTIONS: StaffQuestion[] = [
     persona: "executive",
     priority: "monthly",
     expectedCapability: "gap",
-    gapReason: "query_ffr_impact only has yearly granularity",
+    gapReason: "area_stats only has yearly granularity",
     validateResponse: (r) =>
       r.match(/\d+/) !== null &&
       r.toLowerCase().includes("month"),
