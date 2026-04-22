@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/feedback/EmptyState";
 import { formatPhone } from "@/lib/formatters";
 import { PAPER_FORM } from "@/lib/paper-form-design";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import type { OverdueQueueRow } from "@/app/api/equipment/overdue-queue/route";
+import type { OverdueQueueRow } from "@/lib/types/view-contracts";
 
 /**
  * Equipment Follow-Up Call Queue

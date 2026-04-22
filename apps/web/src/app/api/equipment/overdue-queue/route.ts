@@ -12,27 +12,8 @@ import { NextRequest } from "next/server";
  * FFS-1333 (Equipment Follow-Up Call Queue epic FFS-1331).
  */
 
-export interface OverdueQueueRow {
-  person_id: string | null;
-  holder_name: string;
-  phone: string | null;
-  email: string | null;
-  trap_barcodes: string[];
-  equipment_ids: string[];
-  trap_count: number;
-  earliest_due_date: string | null;
-  max_days_overdue: number;
-  has_overdue: boolean;
-  is_trapper: boolean;
-  last_contact_at: string | null;
-  last_contact_method: string | null;
-  last_contact_outcome: string | null;
-  last_contact_notes: string | null;
-  contact_attempt_count: number;
-  urgency_tier: "critical" | "warning" | "new" | "on_time";
-  days_since_last_contact: number | null;
-  priority_score: number;
-}
+// OverdueQueueRow type is in @/lib/types/view-contracts.ts
+import type { OverdueQueueRow } from "@/lib/types/view-contracts";
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);

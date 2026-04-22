@@ -533,6 +533,33 @@ export interface VEquipmentInventoryRow {
 }
 
 /**
+ * Contract for ops.v_equipment_overdue_queue
+ * @see sql/schema/v2/MIG_3105__equipment_call_queue.sql
+ * @route /api/equipment/overdue-queue
+ */
+export interface OverdueQueueRow {
+  person_id: string | null;
+  holder_name: string;
+  phone: string | null;
+  email: string | null;
+  trap_barcodes: string[];
+  equipment_ids: string[];
+  trap_count: number;
+  earliest_due_date: string | null;
+  max_days_overdue: number;
+  has_overdue: boolean;
+  is_trapper: boolean;
+  last_contact_at: string | null;
+  last_contact_method: string | null;
+  last_contact_outcome: string | null;
+  last_contact_notes: string | null;
+  contact_attempt_count: number;
+  urgency_tier: "critical" | "warning" | "new" | "on_time";
+  days_since_last_contact: number | null;
+  priority_score: number;
+}
+
+/**
  * Contract for ops.equipment_collection_tasks
  * @see sql/schema/v2/MIG_2982__equipment_data_correction.sql
  * @route /api/equipment/collections
