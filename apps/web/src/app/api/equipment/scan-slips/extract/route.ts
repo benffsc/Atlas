@@ -44,7 +44,7 @@ const EXTRACTION_PROMPT = `You are reading a scanned "Equipment Checkout Form" f
 
 The form has these sections:
 - BORROWER INFORMATION: Full Name, Phone, Email, Address (where equipment will be used), Appointment Date, Date Checked Out
-- EQUIPMENT: Barcode (4 digits), Equipment Description, Purpose (checkboxes: FFR Appt, Feeding, Transport, Other with write-in)
+- EQUIPMENT: Type (checkboxes: Large Trap, Small Trap, Drop Trap, Transfer Cage, Other), Barcode boxes (up to 3 side-by-side, 4 digits each), Equipment Description, Purpose (checkboxes: FFR Appt, Feeding, Transport, Other with write-in)
 - CHECKOUT DETAILS — STAFF USE: Deposit $, Due Date, Staff Name, Notes
 
 IMPORTANT RULES:

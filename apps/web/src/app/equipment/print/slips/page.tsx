@@ -11,6 +11,8 @@ interface ScannedEquipment {
   display_name: string;
   condition_status: string;
   custody_status: string;
+  type_display_name: string | null;
+  type_category: string | null;
 }
 
 /**
@@ -469,7 +471,7 @@ function Slip({
           <div className="pf-masthead-form-title">Equipment Checkout Form</div>
         </div>
         <div className="pf-masthead-meta">
-          <div className="pf-meta-badge">Form EC-001 · Rev 1</div>
+          <div className="pf-meta-badge">Form EC-001 · Rev 2</div>
         </div>
       </div>
 
@@ -500,18 +502,34 @@ function Slip({
       <div className="pf-section">
         <div className="pf-section-heading">Equipment</div>
         <div className="pf-section-body">
-          <div className="pf-row-barcode">
-            <div className="pf-field">
-              <span className="pf-field-label">
-                Barcode
-                <span className="pf-field-helper">(4 digits)</span>
-              </span>
-              <div className="pf-barcode-box">
-                {eq?.barcode || ""}
-              </div>
+          {/* Equipment type checkboxes */}
+          <div className="pf-checkbox-group">
+            <span className="pf-field-label">Type</span>
+            <div className="pf-checkbox-row">
+              {["Large Trap", "Small Trap", "Drop Trap", "Transfer Cage", "Other"].map((t) => (
+                <span key={t} className="pf-checkbox">
+                  <span className="pf-checkbox-box" />
+                  {t}
+                </span>
+              ))}
             </div>
-            <Field label="Equipment Description" value={eq?.display_name} />
           </div>
+
+          {/* Multi-trap barcode grid — 3 columns */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.08in", marginBottom: "0.12in" }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="pf-field">
+                <span className="pf-field-label">
+                  {i === 0 ? "Barcode" : ""} <span className="pf-field-helper">{i === 0 ? "(4 digits each)" : ""}</span>
+                </span>
+                <div className="pf-barcode-box">
+                  {i === 0 ? (eq?.barcode || "") : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Field label="Equipment Description" value={eq?.display_name || (eq?.type_display_name ? eq.type_display_name : "")} />
 
           <div className="pf-checkbox-group">
             <span className="pf-field-label">Purpose</span>
