@@ -32,11 +32,11 @@ const TIERS: Record<string, { label: string; color: string; bg: string; border: 
 
 // Contact outcome options — big tappable buttons, not dropdowns
 const OUTCOMES = [
-  { value: "connected_will_return", label: "Connected \u2014 will return", icon: "check-circle" },
-  { value: "connected_needs_time", label: "Connected \u2014 needs more time", icon: "clock" },
-  { value: "left_voicemail", label: "Left voicemail", icon: "voicemail" },
-  { value: "no_answer", label: "No answer", icon: "phone-missed" },
-  { value: "wrong_number", label: "Wrong number", icon: "phone-off" },
+  { value: "connected_will_return", label: "Connected — will return", icon: "check-circle" },
+  { value: "connected_needs_time", label: "Connected — needs more time", icon: "check-circle" },
+  { value: "left_voicemail", label: "Left voicemail", icon: "phone-outgoing" },
+  { value: "no_answer", label: "No answer", icon: "phone-incoming" },
+  { value: "wrong_number", label: "Wrong number", icon: "alert-circle" },
 ];
 
 function formatOutcome(outcome: string | null): string {
@@ -423,20 +423,14 @@ function OverdueCard({
       {/* Action grid — two rows */}
       {!isLogging && actionMode === "none" && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: "0.375rem", marginTop: "0.625rem" }}>
+          <ActionTile icon="phone-call" label="Log Call" color="var(--primary)" onClick={() => { onStartLog(); setLogMethod("call"); }} />
           {phoneDisplay && (
-            <ActionTile icon="phone" label="Call" color="var(--primary)" onClick={() => {
-              window.open(`tel:${row.phone}`, "_self");
-              onStartLog(); setLogMethod("call");
-            }} />
-          )}
-          {phoneDisplay && (
-            <ActionTile icon="message-square" label="Text" color="var(--primary)" onClick={() => {
+            <ActionTile icon="message-square" label="Send Text" color="var(--primary)" onClick={() => {
               window.open(`sms:${row.phone}?body=${smsBody}`, "_self");
               onStartLog(); setLogMethod("text");
             }} />
           )}
           <ActionTile icon="check" label="Returned" color="var(--success-text)" onClick={onMarkReturned} />
-          <ActionTile icon="edit" label="Log Attempt" color="var(--text-secondary)" onClick={() => { onStartLog(); setLogMethod("call"); }} />
           <ActionTile icon="calendar-days" label="Extend Date" color="var(--warning-text)" onClick={() => setActionMode("extend")} />
           <ActionTile icon="arrow-right" label="Reassign" color="var(--info-text)" onClick={() => setActionMode("reassign")} />
           <ActionTile icon="message-square" label="Add Note" color="var(--text-secondary)" onClick={() => setActionMode("note")} />
@@ -518,15 +512,30 @@ function OverdueCard({
             <Button variant="primary" size="sm" loading={actionSubmitting} disabled={!reassignName.trim()} onClick={async () => {
               setActionSubmitting(true);
               try {
+                // Try to find the person by name to link custodian_person_id
+                let personId: string | null = null;
+                try {
+                  const searchResult = await fetchApi<{ results: Array<{ entity_id: string; display_name: string }> }>(
+                    `/api/search?q=${encodeURIComponent(reassignName.trim())}&type=person&limit=1`
+                  );
+                  if (searchResult.results?.length > 0) {
+                    const match = searchResult.results[0];
+                    if (match.display_name.toLowerCase() === reassignName.trim().toLowerCase()) {
+                      personId = match.entity_id;
+                    }
+                  }
+                } catch { /* non-blocking */ }
+
                 for (const eqId of row.equipment_ids) {
                   await postApi(`/api/equipment/${eqId}/events`, {
                     event_type: "transfer",
+                    custodian_person_id: personId || undefined,
                     custodian_name: reassignName.trim(),
                     custodian_name_raw: reassignName.trim(),
                     notes: `Reassigned from ${row.holder_name}. ${actionNote}`.trim(),
                   });
                 }
-                toast.success(`Transferred to ${reassignName.trim()}`);
+                toast.success(`Transferred to ${reassignName.trim()}${personId ? " (linked)" : ""}`);
                 setActionMode("none"); setExpanded(false); setReassignName(""); setActionNote("");
                 onRefresh();
               } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
