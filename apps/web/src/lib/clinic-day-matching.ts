@@ -31,6 +31,7 @@ interface ClinicDayEntry {
   male_count: number;
   weight_lbs: number | null;
   sx_end_time: string | null;
+  is_foster: boolean;
   // Already matched by SQL passes
   matched_appointment_id: string | null;
   match_confidence: string | null;
@@ -283,6 +284,7 @@ async function loadEntries(clinicDate: string): Promise<ClinicDayEntry[]> {
        e.male_count,
        e.weight_lbs,
        e.sx_end_time::text as sx_end_time,
+       COALESCE(e.is_foster, false) AS is_foster,
        e.matched_appointment_id,
        e.match_confidence
      FROM ops.clinic_day_entries e
@@ -607,6 +609,16 @@ function scoreWithinGroup(
       signals.time_order = +(timeOrderScore * 0.05).toFixed(3);
       score += signals.time_order;
 
+      // Foster-aware adjustment: owner name is meaningless for fosters
+      // (ML says "Foster" or a person name, CHQ says "Forgotten Felines Fosters")
+      if (entry.is_foster) {
+        score -= signals.client_name; // Remove client_name contribution
+        signals.client_name = 0;
+        score -= signals.cat_name;    // Remove old cat_name contribution
+        signals.cat_name = +(catNameScore * 0.40).toFixed(3); // Double weight (was 0.20)
+        score += signals.cat_name;
+      }
+
       pairs.push({
         entry_id: entry.entry_id,
         appointment_id: appt.appointment_id,
@@ -694,6 +706,15 @@ function scoreCrossClient(
       );
       signals.time_order = +(timeOrderScore * 0.05).toFixed(3);
       score += signals.time_order;
+
+      // Foster-aware adjustment
+      if (entry.is_foster) {
+        score -= signals.client_name;
+        signals.client_name = 0;
+        score -= signals.cat_name;
+        signals.cat_name = +(catNameScore * 0.40).toFixed(3);
+        score += signals.cat_name;
+      }
 
       pairs.push({
         entry_id: entry.entry_id,

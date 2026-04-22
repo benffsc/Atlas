@@ -1,19 +1,27 @@
 /**
  * Cat Determining System (CDS) — Multi-Source Ground Truth Engine
  *
- * 7-phase pipeline that determines which master list entry maps to which
- * ClinicHQ appointment/cat. Each phase narrows the problem for the next.
+ * Validate-before-commit pipeline (FFS-1321): CDNs are proposed as candidates,
+ * validated against the ML, and only committed when verified. Each phase
+ * narrows the problem for the next.
  *
- * Phase 0: Data Assembly — load all sources
- * Phase 1: SQL Deterministic — existing 4-pass SQL matching
- * Phase 2: Waiver Bridge — triangulate entry ↔ waiver ↔ appointment
- * Phase 3: Weight Disambiguation — within-group weight distance matrix
- * Phase 4: Composite Scoring — existing multi-signal TS matching
- * Phase 5: Constraint Propagation — pure logic (N-1 of N matched → assign Nth)
- * Phase 6: LLM Tiebreaker — gated, never auto-accepted
- * Phase 7: Results Assembly — write audit trail
+ * Phase 0:    Data Assembly — load all sources
+ * Phase 0.5:  Appointment dedup — merge cancel/rebook ghosts
+ * Phase 1:    CDN Candidates — generate, validate, commit CDNs from waivers
+ * Phase 2:    Cancelled Entry Detection — notes-based + header + recheck
+ * Phase 3:    CDN-First Matching — deterministic match via committed CDNs
+ * Phase 4:    SQL Deterministic — owner name, cat name, sex, cardinality
+ * Phase 5:    Shelter ID Bridge — previous shelter ID → cat → appointment
+ * Phase 6:    Waiver Bridge — triangulate entry ↔ waiver ↔ appointment
+ * Phase 7:    Composite Scoring — multi-signal TS matching (foster-aware)
+ * Phase 8:    Weight Disambiguation — within-group weight distance matrix
+ * Phase 9:    Constraint Propagation — N-1 of N matched → assign Nth
+ * Phase 10:   LLM Tiebreaker — gated, never auto-accepted
+ * Phase 11:   Propagate Matches — write cat_id + appointment_id links
+ * Phase 12:   Classify Unmatched — deterministic + LLM notes classifier
  */
 
+import Anthropic from "@anthropic-ai/sdk";
 import { queryRows, queryOne, execute } from "@/lib/db";
 import { runClinicDayMatching, clearAutoMatches } from "@/lib/clinic-day-matching";
 
@@ -65,6 +73,14 @@ interface CDSConfig {
   llm_min_confidence: number;
 }
 
+interface CDNCandidate {
+  appointment_id: string;
+  cdn: number;
+  source: "waiver_chip" | "waiver_weight";
+  waiver_id: string;
+  confidence: number;
+}
+
 interface PhaseResult {
   phase: string;
   matched: number;
@@ -92,10 +108,12 @@ const CDS_METHODS = {
   SQL_CAT_NAME: "sql_cat_name",
   SQL_SEX: "sql_sex",
   SQL_CARDINALITY: "sql_cardinality",
+  CDN_FIRST: "cdn_first",
   WAIVER_BRIDGE: "waiver_bridge",
   WEIGHT_DISAMBIGUATION: "weight_disambiguation",
   COMPOSITE: "composite",
   CONSTRAINT_PROPAGATION: "constraint_propagation",
+  SHELTER_ID_BRIDGE: "shelter_id_bridge",
   CDS_SUGGESTION: "cds_suggestion",
   MANUAL: "manual",
 } as const;
@@ -181,38 +199,6 @@ export async function runCDS(
       });
     }
 
-    // ── Phase 0.1: Waiver Weight Bridge ──────────────────────────────
-    // For waivers with OCR data but no chip match, use weight + sex +
-    // description to find the right appointment. Then set the CDN.
-    let weightBridged = 0;
-    try {
-      const wb = await queryOne<{ bridge_waivers_by_weight: number }>(
-        `SELECT ops.bridge_waivers_by_weight($1)`,
-        [clinicDate]
-      );
-      weightBridged = wb?.bridge_waivers_by_weight ?? 0;
-    } catch { /* function may not exist yet */ }
-    if (weightBridged > 0) {
-      phases.push({ phase: "0.1_waiver_weight_bridge", matched: weightBridged });
-      // Reload waivers since weight bridge may have matched new ones
-      waivers.length = 0;
-      const refreshed = await loadWaivers(clinicDate);
-      waivers.push(...refreshed);
-    }
-
-    // ── Phase 0.25: Waiver OCR CDN Bridge ─────────────────────────────
-    // For waivers with OCR-extracted clinic_number and matched appointments,
-    // bridge the CDN directly (waiver = irrefutable proof).
-    const ocrBridged = await runWaiverOCRBridge(clinicDate, waivers);
-    phases.push({
-      phase: "0.25_waiver_ocr_bridge",
-      matched: ocrBridged,
-      details: {
-        waivers_with_ocr: waivers.filter((w) => w.ocr_status === "extracted").length,
-        waivers_with_cdn: waivers.filter((w) => w.ocr_clinic_number != null).length,
-      },
-    });
-
     // ── Phase 0.5: Appointment Dedup ────────────────────────────────
     // Detect duplicate appointments (same chip, same date) created by the
     // ClinicHQ cancel/rebook ingest path (FFS-862). Ghost appointments lack
@@ -225,7 +211,7 @@ export async function runCDS(
       details: dedupResult.details,
     });
 
-    // ── Phase 1: SQL Deterministic ──────────────────────────────────
+    // ── Clear stale matches before matching phases ─────────────────
     // For "rematch": clear all non-manual matches and re-score from scratch.
     // For "import": only clear entries affected by data changes (delta mode).
     // For "manual": no clear, just score unmatched entries.
@@ -245,6 +231,87 @@ export async function runCDS(
       });
     }
 
+    // ── Phase 1: CDN Candidate System ──────────────────────────────
+    // Validate-before-commit: propose CDNs from waivers, check against ML,
+    // only commit when verified. Replaces direct CDN writes (old phases 0.1/0.25).
+    const cdnCandidates = await buildCDNCandidates(clinicDate, waivers);
+    const { verified: verifiedCdns, rejected: rejectedCdns } = validateCDNCandidates(
+      cdnCandidates, entries, appointments
+    );
+    const cdnsCommitted = await commitVerifiedCDNs(verifiedCdns, clinicDate);
+
+    // Update waiver records for weight-bridge candidates that were committed
+    for (const candidate of verifiedCdns) {
+      if (candidate.source === "waiver_weight") {
+        try {
+          await execute(
+            `UPDATE ops.waiver_scans SET
+               matched_appointment_id = $1,
+               matched_cat_id = (SELECT cat_id FROM ops.appointments WHERE appointment_id = $1),
+               match_method = 'ocr_weight_composite_validated',
+               match_confidence = $2
+             WHERE waiver_id = $3
+               AND matched_appointment_id IS NULL`,
+            [candidate.appointment_id, candidate.confidence, candidate.waiver_id]
+          );
+        } catch { /* non-fatal */ }
+      }
+    }
+
+    // Reload waivers if any were weight-bridged (so Phase 6 sees updated state)
+    if (verifiedCdns.some((c) => c.source === "waiver_weight")) {
+      waivers.length = 0;
+      const refreshed = await loadWaivers(clinicDate);
+      waivers.push(...refreshed);
+    }
+
+    phases.push({
+      phase: "1_cdn_candidates",
+      matched: cdnsCommitted,
+      details: {
+        chip_candidates: cdnCandidates.filter((c) => c.source === "waiver_chip").length,
+        weight_candidates: cdnCandidates.filter((c) => c.source === "waiver_weight").length,
+        total_candidates: cdnCandidates.length,
+        verified: verifiedCdns.length,
+        rejected: rejectedCdns.length,
+        committed: cdnsCommitted,
+      },
+    });
+
+    // ── Phase 2: Cancelled Entry Detection ─────────────────────────
+    // Detect cancelled entries before matching so they don't consume
+    // appointment slots. Uses notes, headers, and recheck patterns.
+    let cancelledDetected = 0;
+    try {
+      const cd = await queryOne<{ detect_cancelled_entries: number }>(
+        `SELECT ops.detect_cancelled_entries($1::date)`,
+        [clinicDate]
+      );
+      cancelledDetected = cd?.detect_cancelled_entries ?? 0;
+    } catch { /* function may not exist yet */ }
+    phases.push({
+      phase: "2_cancelled_detection",
+      matched: 0,
+      details: { detected: cancelledDetected },
+    });
+
+    // ── Phase 3: CDN-First Matching ────────────────────────────────
+    // Match entries to appointments by committed CDN (clinic_day_number).
+    // Only fires on CDNs validated by Phase 1 — deterministic and safe.
+    let cdnFirstMatched = 0;
+    try {
+      const cdnResult = await queryOne<{ match_master_list_by_clinic_day_number: number }>(
+        `SELECT ops.match_master_list_by_clinic_day_number($1::date)`,
+        [clinicDate]
+      );
+      cdnFirstMatched = cdnResult?.match_master_list_by_clinic_day_number ?? 0;
+    } catch { /* function may not exist yet */ }
+    if (cdnFirstMatched > 0) {
+      await tagMethodMatches(clinicDate, runId, "cdn_first", CDS_METHODS.CDN_FIRST);
+    }
+    phases.push({ phase: "3_cdn_first", matched: cdnFirstMatched });
+
+    // ── Phase 4: SQL Deterministic ─────────────────────────────────
     const sqlPasses = await queryRows<{
       pass: string;
       entries_matched: number;
@@ -261,22 +328,22 @@ export async function runCDS(
     }
 
     phases.push({
-      phase: "1_sql_deterministic",
+      phase: "4_sql_deterministic",
       matched: sqlMatched,
       details: Object.fromEntries(
         sqlPasses.map((p) => [p.pass, p.entries_matched || 0])
       ),
     });
 
-    // ── Phase 1.5: Shelter ID Bridge ─────────────────────────────────
+    // ── Phase 5: Shelter ID Bridge ─────────────────────────────────
     // Master list lines often reference cats by their previous shelter ID
     // (e.g., "SCAS A439019 (updates)"). Look up the cat via
     // sot.cat_identifiers (id_type='previous_shelter_id') and bridge to
     // its appointment for that date.
     const shelterMatched = await runShelterIdBridge(clinicDate, runId);
-    phases.push({ phase: "1.5_shelter_id_bridge", matched: shelterMatched });
+    phases.push({ phase: "5_shelter_id_bridge", matched: shelterMatched });
 
-    // ── Phase 2: Waiver Bridge ──────────────────────────────────────
+    // ── Phase 6: Waiver Bridge ──────────────────────────────────────
     const waiverMatched = await runWaiverBridge(
       clinicDate,
       runId,
@@ -284,17 +351,9 @@ export async function runCDS(
       appointments,
       config
     );
-    phases.push({ phase: "2_waiver_bridge", matched: waiverMatched });
+    phases.push({ phase: "6_waiver_bridge", matched: waiverMatched });
 
-    // ── Phase 3: Weight Disambiguation ──────────────────────────────
-    const weightMatched = await runWeightDisambiguation(
-      clinicDate,
-      runId,
-      config
-    );
-    phases.push({ phase: "3_weight_disambiguation", matched: weightMatched });
-
-    // ── Phase 4: Composite Scoring ──────────────────────────────────
+    // ── Phase 7: Composite Scoring (foster-aware) ────────────────────
     const compositeResult = await runClinicDayMatching(clinicDate);
 
     // Tag composite matches with cds_method
@@ -303,7 +362,7 @@ export async function runCDS(
     }
 
     phases.push({
-      phase: "4_composite",
+      phase: "7_composite",
       matched: compositeResult.newly_matched,
       details: {
         total_entries: compositeResult.total_entries,
@@ -320,17 +379,27 @@ export async function runCDS(
       },
     });
 
-    // ── Phase 5: Constraint Propagation ─────────────────────────────
+    // ── Phase 8: Weight Disambiguation ─────────────────────────────
+    // Moved AFTER composite scoring: weight resolves multi-cat ambiguity
+    // that name matching can't handle.
+    const weightMatched = await runWeightDisambiguation(
+      clinicDate,
+      runId,
+      config
+    );
+    phases.push({ phase: "8_weight_disambiguation", matched: weightMatched });
+
+    // ── Phase 9: Constraint Propagation ─────────────────────────────
     const constraintMatched = await runConstraintPropagation(
       clinicDate,
       runId
     );
     phases.push({
-      phase: "5_constraint_propagation",
+      phase: "9_constraint_propagation",
       matched: constraintMatched,
     });
 
-    // ── Phase 6: LLM Tiebreaker ─────────────────────────────────────
+    // ── Phase 10: LLM Tiebreaker ────────────────────────────────────
     let llmSuggestions = 0;
     if (config.llm_enabled && process.env.ANTHROPIC_API_KEY) {
       llmSuggestions = await runLLMTiebreaker(
@@ -340,7 +409,7 @@ export async function runCDS(
       );
     }
     phases.push({
-      phase: "6_llm_tiebreaker",
+      phase: "10_llm_tiebreaker",
       matched: llmSuggestions,
       details: {
         enabled: config.llm_enabled,
@@ -348,24 +417,55 @@ export async function runCDS(
       },
     });
 
-    // ── Phase 7: Results Assembly ───────────────────────────────────
+    // ── Phase 11: Propagate Matches ──────────────────────────────────
 
-    // Propagate matches (creates cat_id, appointment_id links)
+    // Propagate matches (creates cat_id, appointment_id links — NO CDN)
     await queryOne(
       `SELECT * FROM ops.propagate_master_list_matches($1::date)`,
       [clinicDate]
     );
 
-    // Count final state
+    // Link cancelled entries to their cats (for data cohesion)
+    // Cancelled entries don't match appointments but we still want to know
+    // which cat was scheduled (e.g., Jadis was cancelled but is a real cat)
+    try {
+      await queryOne(
+        `SELECT ops.link_cancelled_entries_to_cats($1::date)`,
+        [clinicDate]
+      );
+    } catch { /* function may not exist yet */ }
+
+    // ── Phase 12: Classify Unmatched Entries ─────────────────────────
+    // Use deterministic rules + LLM to interpret notes and classify
+    // WHY entries are unmatched (cancelled, no-show, redirected, etc.)
+    let classifiedCount = 0;
+    try {
+      const classResult = await classifyUnmatchedEntries(clinicDate);
+      classifiedCount = classResult.classified;
+      if (classifiedCount > 0) {
+        phases.push({
+          phase: "12_classify_unmatched",
+          matched: 0,
+          details: {
+            classified: classResult.classified,
+            llm_calls: classResult.llm_calls,
+          },
+        });
+      }
+    } catch { /* non-fatal */ }
+
+    // Count final state (exclude cancelled entries from unmatched count)
     const afterStats = await queryOne<{
       matched: number;
       unmatched: number;
       manual: number;
+      cancelled: number;
     }>(
       `SELECT
-         COUNT(*) FILTER (WHERE match_confidence IS NOT NULL AND match_confidence != 'unmatched')::int AS matched,
-         COUNT(*) FILTER (WHERE match_confidence IS NULL OR match_confidence = 'unmatched')::int AS unmatched,
-         COUNT(*) FILTER (WHERE match_confidence = 'manual')::int AS manual
+         COUNT(*) FILTER (WHERE match_confidence IS NOT NULL AND match_confidence != 'unmatched' AND cancellation_reason IS NULL)::int AS matched,
+         COUNT(*) FILTER (WHERE (match_confidence IS NULL OR match_confidence = 'unmatched') AND cancellation_reason IS NULL)::int AS unmatched,
+         COUNT(*) FILTER (WHERE match_confidence = 'manual')::int AS manual,
+         COUNT(*) FILTER (WHERE cancellation_reason IS NOT NULL)::int AS cancelled
        FROM ops.clinic_day_entries e
        JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
        WHERE cd.clinic_date = $1`,
@@ -376,7 +476,7 @@ export async function runCDS(
     const unmatchedRemaining = afterStats?.unmatched ?? 0;
 
     phases.push({
-      phase: "7_results",
+      phase: "11_results",
       matched: 0,
       details: {
         matched_after: matchedAfter,
@@ -595,73 +695,255 @@ async function dedupeAppointments(clinicDate: string): Promise<DedupResult> {
   };
 }
 
-// ── Phase 0.25: Waiver OCR CDN Bridge ──────────────────────────────
+// ── Phase 1: CDN Candidate System ───────────────────────────────────
 
 /**
- * For waivers with OCR-extracted clinic_number AND matched appointments,
- * bridge the CDN directly. Waiver = irrefutable proof: if the waiver says
- * clinic number Y and matches cat X, then appointment for cat X gets CDN Y.
+ * Build CDN candidates from all waiver sources.
  *
- * Priority: waiver_ocr(80) > master_list(60) but < manual(100).
+ * Source 1 (waiver_chip): Chip-matched waivers with OCR clinic_number.
+ *   High confidence — waiver chip → cat → appointment is irrefutable.
+ * Source 2 (waiver_weight): Weight bridge dry-run candidates.
+ *   Lower confidence — composite scoring on weight/sex/color/name.
  */
-async function runWaiverOCRBridge(
+async function buildCDNCandidates(
   clinicDate: string,
   waivers: CDSWaiver[]
-): Promise<number> {
+): Promise<CDNCandidate[]> {
+  const candidates: CDNCandidate[] = [];
+
+  // Source 1: Chip-matched waivers with OCR clinic number
   const ocrWaivers = waivers.filter(
-    (w) => w.ocr_status === "extracted" && w.ocr_clinic_number != null && w.matched_appointment_id != null
+    (w) =>
+      w.ocr_status === "extracted" &&
+      w.ocr_clinic_number != null &&
+      w.matched_appointment_id != null
   );
-
-  if (ocrWaivers.length === 0) return 0;
-
-  // Build a map of what waiver OCR says each appointment's CDN should be
-  const ocrCdnMap = new Map<string, number>(); // appointment_id → desired CDN
   for (const w of ocrWaivers) {
-    ocrCdnMap.set(w.matched_appointment_id!, w.ocr_clinic_number!);
+    candidates.push({
+      appointment_id: w.matched_appointment_id!,
+      cdn: w.ocr_clinic_number!,
+      source: "waiver_chip",
+      waiver_id: w.waiver_id,
+      confidence: 0.95,
+    });
   }
 
-  // Detect swaps: appointment A has CDN X but waiver says Y,
-  // AND appointment B has CDN Y but waiver says X
-  // Fix by clearing both then setting both (atomic swap)
-  const swapPairs = new Set<string>();
-  for (const w of ocrWaivers) {
-    const apptId = w.matched_appointment_id!;
-    const desiredCdn = w.ocr_clinic_number!;
+  // Source 2: Weight bridge candidates (dry-run — no writes)
+  try {
+    const weightCandidates = await queryRows<{
+      waiver_id: string;
+      appointment_id: string;
+      cdn: number;
+      score: number;
+    }>(
+      `SELECT waiver_id::text, appointment_id::text, cdn, score
+       FROM ops.bridge_waivers_by_weight_candidates($1)`,
+      [clinicDate]
+    );
+    for (const wc of weightCandidates) {
+      candidates.push({
+        appointment_id: wc.appointment_id,
+        cdn: wc.cdn,
+        source: "waiver_weight",
+        waiver_id: wc.waiver_id,
+        confidence: wc.score,
+      });
+    }
+  } catch {
+    /* function may not exist yet */
+  }
 
-    // Check if this appointment currently has a DIFFERENT CDN
-    const current = await queryOne<{ clinic_day_number: number | null; other_appt_id: string | null }>(
+  return candidates;
+}
+
+/**
+ * Validate CDN candidates against the master list before committing.
+ *
+ * Checks:
+ * 1. ML owner match: does the ML entry at line N belong to the same owner?
+ *    Foster exception: check cat name instead when either side is foster.
+ * 2. Bidirectional: if multiple candidates claim the same CDN, keep highest confidence.
+ * 3. Appointment conflict: if multiple CDNs target the same appointment, keep highest.
+ * 4. Range check: CDN must correspond to a valid entry line.
+ */
+function validateCDNCandidates(
+  candidates: CDNCandidate[],
+  entries: CDSEntry[],
+  appointments: CDSAppointment[]
+): { verified: CDNCandidate[]; rejected: CDNCandidate[] } {
+  const verified: CDNCandidate[] = [];
+  const rejected: CDNCandidate[] = [];
+
+  if (candidates.length === 0) return { verified, rejected };
+
+  // Build lookups
+  const entryByLine = new Map<number, CDSEntry>();
+  for (const e of entries) {
+    entryByLine.set(e.line_number, e);
+  }
+  const apptById = new Map<string, CDSAppointment>();
+  for (const a of appointments) {
+    apptById.set(a.appointment_id, a);
+  }
+
+  // ── Resolve bidirectional conflicts ──────────────────────────────
+  // Multiple candidates claiming the same CDN → keep highest confidence
+  const byCdn = new Map<number, CDNCandidate[]>();
+  for (const c of candidates) {
+    const group = byCdn.get(c.cdn) || [];
+    group.push(c);
+    byCdn.set(c.cdn, group);
+  }
+
+  const afterCdnDedup: CDNCandidate[] = [];
+  for (const [, group] of byCdn) {
+    group.sort((a, b) => b.confidence - a.confidence);
+    afterCdnDedup.push(group[0]);
+    for (let i = 1; i < group.length; i++) {
+      rejected.push(group[i]);
+    }
+  }
+
+  // Multiple CDNs targeting the same appointment → keep highest confidence
+  const byAppt = new Map<string, CDNCandidate[]>();
+  for (const c of afterCdnDedup) {
+    const group = byAppt.get(c.appointment_id) || [];
+    group.push(c);
+    byAppt.set(c.appointment_id, group);
+  }
+
+  const deduped: CDNCandidate[] = [];
+  for (const [, group] of byAppt) {
+    group.sort((a, b) => b.confidence - a.confidence);
+    deduped.push(group[0]);
+    for (let i = 1; i < group.length; i++) {
+      rejected.push(group[i]);
+    }
+  }
+
+  // ── Validate each candidate against ML ───────────────────────────
+  for (const candidate of deduped) {
+    const entry = entryByLine.get(candidate.cdn);
+    const appt = apptById.get(candidate.appointment_id);
+
+    // Range check: CDN must map to an actual ML entry
+    if (!entry) {
+      rejected.push(candidate);
+      continue;
+    }
+
+    // Appointment must exist
+    if (!appt) {
+      rejected.push(candidate);
+      continue;
+    }
+
+    // ML owner match check
+    const mlOwner = normalizeForGrouping(entry.parsed_owner_name);
+    const apptClient = normalizeForGrouping(appt.client_name);
+
+    if (mlOwner && apptClient) {
+      const sim = stringSimilarity(mlOwner, apptClient);
+
+      if (sim < 0.3) {
+        // Names don't match — check if foster
+        const isFoster =
+          mlOwner.includes("foster") ||
+          apptClient.includes("foster");
+
+        if (isFoster) {
+          // For fosters, verify cat name matches instead of owner
+          const mlCat = normalizeForGrouping(entry.parsed_cat_name);
+          const apptCat = normalizeForGrouping(appt.cat_name);
+          if (mlCat && apptCat && stringSimilarity(mlCat, apptCat) < 0.3) {
+            rejected.push(candidate);
+            continue;
+          }
+          // If no cat name to check, allow foster through
+        } else {
+          // Check first name as fallback (handles "Name - call phone" formatting)
+          const mlFirst = (entry.parsed_owner_name || "")
+            .split(" ")[0]
+            ?.toLowerCase()
+            .replace(/[^a-z]/g, "") || "";
+          if (mlFirst.length >= 2 && apptClient.includes(mlFirst)) {
+            // First name match — allow
+          } else {
+            rejected.push(candidate);
+            continue;
+          }
+        }
+      }
+    }
+
+    verified.push(candidate);
+  }
+
+  return { verified, rejected };
+}
+
+/**
+ * Commit verified CDN candidates by calling set_clinic_day_number().
+ *
+ * Handles swap detection: if two appointments need to exchange CDNs,
+ * clears both first then sets both (atomic swap).
+ *
+ * MIG_3103 guards remain as defense-in-depth (collision + ML validation).
+ */
+async function commitVerifiedCDNs(
+  verified: CDNCandidate[],
+  clinicDate: string
+): Promise<number> {
+  if (verified.length === 0) return 0;
+
+  // Build desired CDN map for swap detection
+  const desiredCdns = new Map<string, number>();
+  for (const c of verified) {
+    desiredCdns.set(c.appointment_id, c.cdn);
+  }
+
+  // Detect and resolve swaps: appointment A has CDN X but wants Y,
+  // AND appointment B has CDN Y but wants X
+  const swapPairs = new Set<string>();
+  for (const candidate of verified) {
+    const current = await queryOne<{
+      clinic_day_number: number | null;
+      other_appt_id: string | null;
+    }>(
       `SELECT a.clinic_day_number,
         (SELECT a2.appointment_id::text FROM ops.appointments a2
          WHERE a2.appointment_date = $2::DATE AND a2.clinic_day_number = $3
            AND a2.merged_into_appointment_id IS NULL AND a2.appointment_id != $1::UUID
          LIMIT 1) AS other_appt_id
        FROM ops.appointments a WHERE a.appointment_id = $1::UUID`,
-      [apptId, clinicDate, desiredCdn]
+      [candidate.appointment_id, clinicDate, candidate.cdn]
     );
 
-    if (current?.clinic_day_number != null
-        && current.clinic_day_number !== desiredCdn
-        && current.other_appt_id
-        && ocrCdnMap.has(current.other_appt_id)
-        && ocrCdnMap.get(current.other_appt_id) === current.clinic_day_number
+    if (
+      current?.clinic_day_number != null &&
+      current.clinic_day_number !== candidate.cdn &&
+      current.other_appt_id &&
+      desiredCdns.has(current.other_appt_id) &&
+      desiredCdns.get(current.other_appt_id) === current.clinic_day_number
     ) {
-      // Cross-swap detected! Clear both then re-set
-      const key = [apptId, current.other_appt_id].sort().join(":");
+      const key = [candidate.appointment_id, current.other_appt_id]
+        .sort()
+        .join(":");
       if (!swapPairs.has(key)) {
         swapPairs.add(key);
         await execute(
           `UPDATE ops.appointments SET clinic_day_number = NULL, clinic_day_number_source = NULL
            WHERE appointment_id IN ($1::UUID, $2::UUID)
              AND NOT COALESCE(manually_overridden_fields @> ARRAY['clinic_day_number'], false)`,
-          [apptId, current.other_appt_id]
+          [candidate.appointment_id, current.other_appt_id]
         );
       }
     }
   }
 
-  // Now set all CDNs (swapped ones are cleared, so no collision)
-  let bridged = 0;
-  for (const w of ocrWaivers) {
+  // Commit all verified CDNs via set_clinic_day_number (defense-in-depth)
+  let committed = 0;
+  for (const candidate of verified) {
     const result = await queryOne<{ set_clinic_day_number: boolean }>(
       `SELECT ops.set_clinic_day_number(
          $1::UUID,
@@ -669,15 +951,12 @@ async function runWaiverOCRBridge(
          'waiver_ocr'::ops.clinic_day_number_source,
          NULL
        )`,
-      [w.matched_appointment_id, w.ocr_clinic_number]
+      [candidate.appointment_id, candidate.cdn]
     );
-
-    if (result?.set_clinic_day_number) {
-      bridged++;
-    }
+    if (result?.set_clinic_day_number) committed++;
   }
 
-  return bridged;
+  return committed;
 }
 
 // ── Delta clear: only clear entries affected by data changes ────────
@@ -957,7 +1236,9 @@ async function runWeightDisambiguation(
 
   if (unmatchedEntries.length === 0) return 0;
 
-  // Load available (unmatched) appointments with cat weight
+  // Load available (unmatched) appointments with cat weight.
+  // Waiver OCR weight (from day of surgery) is more authoritative than
+  // cat_vitals which may be from a different date.
   const availableAppts = await queryRows<{
     appointment_id: string;
     client_name: string | null;
@@ -965,16 +1246,23 @@ async function runWeightDisambiguation(
     cat_sex: string | null;
   }>(
     `SELECT a.appointment_id, a.client_name,
-            cv.weight_lbs AS cat_weight, c.sex AS cat_sex
+            COALESCE(ww.ocr_weight_lbs, cv.weight_lbs) AS cat_weight,
+            c.sex AS cat_sex
      FROM ops.appointments a
      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
      LEFT JOIN LATERAL (
        SELECT weight_lbs FROM ops.cat_vitals
        WHERE cat_id = a.cat_id ORDER BY recorded_at DESC LIMIT 1
      ) cv ON true
+     LEFT JOIN LATERAL (
+       SELECT ws.ocr_weight_lbs FROM ops.waiver_scans ws
+       WHERE ws.matched_appointment_id = a.appointment_id
+         AND ws.ocr_weight_lbs IS NOT NULL
+       LIMIT 1
+     ) ww ON true
      WHERE a.appointment_date = $1
        AND a.merged_into_appointment_id IS NULL
-       AND cv.weight_lbs IS NOT NULL
+       AND COALESCE(ww.ocr_weight_lbs, cv.weight_lbs) IS NOT NULL
        AND NOT EXISTS (
          SELECT 1 FROM ops.clinic_day_entries e2
          JOIN ops.clinic_days cd2 ON cd2.clinic_day_id = e2.clinic_day_id
@@ -1062,8 +1350,77 @@ async function runWeightDisambiguation(
 /**
  * Greedy optimal assignment: pair entries to appointments by closest weight.
  * Only assigns if the gap between best and second-best match is sufficient.
+ *
+ * Sex partitioning: if the group has both sexes, partition into sex groups
+ * first (2F + 1M → solve females separately from males). This prevents
+ * cross-sex weight confusion where a heavy female looks like a light male.
  */
 function solveWeightAssignment(
+  entries: Array<{ entry_id: string; weight_lbs: number | null; female_count: number; male_count: number }>,
+  appts: Array<{ appointment_id: string; cat_weight: number | null; cat_sex: string | null }>,
+  minGap: number
+): Array<{ entry: typeof entries[0]; appt: typeof appts[0]; gap: number }> {
+  // Partition by sex when both sexes are present
+  const femaleEntries = entries.filter((e) => e.female_count > 0);
+  const maleEntries = entries.filter((e) => e.male_count > 0);
+  const unknownEntries = entries.filter((e) => e.female_count === 0 && e.male_count === 0);
+
+  const femaleAppts = appts.filter((a) => {
+    const s = a.cat_sex?.toLowerCase();
+    return s === "female" || s === "f";
+  });
+  const maleAppts = appts.filter((a) => {
+    const s = a.cat_sex?.toLowerCase();
+    return s === "male" || s === "m";
+  });
+  const unknownAppts = appts.filter((a) => !a.cat_sex);
+
+  const hasBothSexes =
+    (femaleEntries.length > 0 || femaleAppts.length > 0) &&
+    (maleEntries.length > 0 || maleAppts.length > 0);
+
+  if (hasBothSexes) {
+    // Solve each sex group independently, then unknowns against remainder
+    const usedAppts = new Set<string>();
+    const usedEntries = new Set<string>();
+    const results: Array<{ entry: typeof entries[0]; appt: typeof appts[0]; gap: number }> = [];
+
+    // Females first
+    const fResults = solveWeightGroup(femaleEntries, [...femaleAppts, ...unknownAppts], minGap);
+    for (const r of fResults) {
+      results.push(r);
+      usedAppts.add(r.appt.appointment_id);
+      usedEntries.add(r.entry.entry_id);
+    }
+
+    // Males
+    const remainingMaleAppts = [...maleAppts, ...unknownAppts].filter((a) => !usedAppts.has(a.appointment_id));
+    const mResults = solveWeightGroup(maleEntries, remainingMaleAppts, minGap);
+    for (const r of mResults) {
+      results.push(r);
+      usedAppts.add(r.appt.appointment_id);
+      usedEntries.add(r.entry.entry_id);
+    }
+
+    // Unknowns against remaining
+    const remainingUnkEntries = unknownEntries.filter((e) => !usedEntries.has(e.entry_id));
+    const remainingAppts = appts.filter((a) => !usedAppts.has(a.appointment_id));
+    if (remainingUnkEntries.length > 0 && remainingAppts.length > 0) {
+      const uResults = solveWeightGroup(remainingUnkEntries, remainingAppts, minGap);
+      results.push(...uResults);
+    }
+
+    return results;
+  }
+
+  // Single sex or unknown — solve as one group
+  return solveWeightGroup(entries, appts, minGap);
+}
+
+/**
+ * Core weight assignment within a single sex partition.
+ */
+function solveWeightGroup(
   entries: Array<{ entry_id: string; weight_lbs: number | null; female_count: number; male_count: number }>,
   appts: Array<{ appointment_id: string; cat_weight: number | null; cat_sex: string | null }>,
   minGap: number
@@ -1572,6 +1929,29 @@ async function tagCompositeMatches(
   );
 }
 
+/**
+ * Generic match tagger — sets cds_run_id + cds_method on entries matched
+ * by a specific match_reason prefix. Used by CDN-first and other phases.
+ */
+async function tagMethodMatches(
+  clinicDate: string,
+  runId: string,
+  reasonPrefix: string,
+  method: string
+): Promise<void> {
+  await execute(
+    `UPDATE ops.clinic_day_entries e
+     SET cds_run_id = $2,
+         cds_method = $4
+     FROM ops.clinic_days cd
+     WHERE cd.clinic_day_id = e.clinic_day_id
+       AND cd.clinic_date = $1
+       AND e.match_reason LIKE $3 || '%'
+       AND e.cds_run_id IS NULL`,
+    [clinicDate, runId, reasonPrefix, method]
+  );
+}
+
 // ── Finalize CDS run ────────────────────────────────────────────────
 
 async function finalizeCDSRun(
@@ -1836,4 +2216,199 @@ export async function getLatestCDSRun(
      LIMIT 1`,
     [clinicDate]
   );
+}
+
+// ── Phase 8: Classify unmatched entries via notes ──────────────────
+
+const UNMATCHED_REASONS = [
+  "surgery_cancelled",     // explicitly cancelled
+  "no_show",               // didn't show up
+  "redirected",            // sent to another clinic/org (HS, vet, etc.)
+  "owner_withdrew",        // owner took cat home without surgery
+  "medical_hold",          // pregnant, in heat, medical reason
+  "rescheduled",           // moved to another date
+  "duplicate_entry",       // same cat on another ML line that matched
+  "recheck_no_booking",    // follow-up/bandage change/update with no CHQ booking
+  "foster_name_mismatch",  // booked under foster org, not owner
+  "spelling_mismatch",     // owner name typo prevented match
+  "no_chq_booking",        // cat was at clinic (has weight/sex) but no CHQ appointment
+  "unknown",               // can't determine
+] as const;
+
+type UnmatchedReason = (typeof UNMATCHED_REASONS)[number];
+
+interface UnmatchedEntry {
+  entry_id: string;
+  line_number: number;
+  parsed_owner_name: string | null;
+  parsed_cat_name: string | null;
+  raw_client_name: string | null;
+  notes: string | null;
+  female_count: number;
+  male_count: number;
+  weight_lbs: number | null;
+  is_recheck: boolean;
+  is_foster: boolean;
+}
+
+/**
+ * Classify unmatched entries using a combination of deterministic rules
+ * and LLM interpretation of notes. Sets cancellation_reason on classified entries.
+ */
+export async function classifyUnmatchedEntries(
+  clinicDate: string
+): Promise<{ classified: number; llm_calls: number }> {
+  const entries = await queryRows<UnmatchedEntry>(`
+    SELECT e.entry_id::text, e.line_number, e.parsed_owner_name, e.parsed_cat_name,
+      e.raw_client_name, e.notes, e.female_count, e.male_count, e.weight_lbs,
+      COALESCE(e.is_recheck, false) AS is_recheck,
+      COALESCE(e.is_foster, false) AS is_foster
+    FROM ops.clinic_day_entries e
+    JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+    WHERE cd.clinic_date = $1
+      AND e.matched_appointment_id IS NULL
+      AND e.cancellation_reason IS NULL
+    ORDER BY e.line_number
+  `, [clinicDate]);
+
+  if (entries.length === 0) return { classified: 0, llm_calls: 0 };
+
+  // Pass 1: Deterministic classification
+  const needsLLM: UnmatchedEntry[] = [];
+  let classified = 0;
+
+  for (const entry of entries) {
+    const reason = classifyDeterministic(entry);
+    if (reason) {
+      await execute(
+        `UPDATE ops.clinic_day_entries SET cancellation_reason = $2 WHERE entry_id = $1::UUID`,
+        [entry.entry_id, reason]
+      );
+      classified++;
+    } else if (entry.notes && entry.notes.trim() !== "") {
+      needsLLM.push(entry);
+    }
+  }
+
+  // Pass 2: LLM classification for entries with notes we can't parse deterministically
+  let llmCalls = 0;
+  if (needsLLM.length > 0 && process.env.ANTHROPIC_API_KEY) {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const results = await classifyNotesWithLLM(client, needsLLM);
+    llmCalls = 1; // batch call
+
+    for (const result of results) {
+      if (result.reason !== "unknown") {
+        await execute(
+          `UPDATE ops.clinic_day_entries SET cancellation_reason = $2 WHERE entry_id = $1::UUID`,
+          [result.entry_id, result.reason]
+        );
+        classified++;
+      }
+    }
+  }
+
+  return { classified, llm_calls: llmCalls };
+}
+
+function classifyDeterministic(entry: UnmatchedEntry): UnmatchedReason | null {
+  const notes = (entry.notes || "").toLowerCase();
+  const raw = (entry.raw_client_name || "").toLowerCase();
+  const hasSurgery = entry.female_count + entry.male_count > 0;
+
+  // Recheck/follow-up with no booking
+  if (entry.is_recheck) return "recheck_no_booking";
+  if (raw.includes("bandage change") || raw.includes("(updates)") || raw.includes("(update)"))
+    return "recheck_no_booking";
+  if (raw.includes("enucleation") || raw.includes("pinnectomy") || raw.includes("cryotorchid"))
+    return "recheck_no_booking";
+
+  // Had surgery but no CHQ booking (data gap, not a cancellation)
+  if (hasSurgery && entry.weight_lbs != null) return "no_chq_booking";
+
+  // No surgery, no notes, no weight → blank placeholder
+  if (!hasSurgery && !entry.notes && !entry.weight_lbs) return "no_show";
+
+  // Explicit patterns in notes
+  if (notes.includes("cancel")) return "surgery_cancelled";
+  if (notes.includes("no show") || notes.includes("no call")) return "no_show";
+  if (notes.includes("took home") || notes.includes("owner declined")) return "owner_withdrew";
+  if (notes.includes("sent appt") || notes.includes("sent to") || notes.includes("referred"))
+    return "redirected";
+  if (notes.includes("reschedul")) return "rescheduled";
+  if (notes.includes("preg") || notes.includes("heat") || notes.includes("in season"))
+    return "medical_hold";
+
+  // Foster name mismatch
+  if (entry.is_foster) return "foster_name_mismatch";
+
+  // Has surgery mark but no weight (partial data) → treated but data gap
+  if (hasSurgery) return "no_chq_booking";
+
+  return null; // needs LLM
+}
+
+async function classifyNotesWithLLM(
+  client: Anthropic,
+  entries: UnmatchedEntry[]
+): Promise<Array<{ entry_id: string; reason: UnmatchedReason }>> {
+  const entrySummaries = entries.map((e) =>
+    `LINE ${e.line_number}: owner="${e.parsed_owner_name || "?"}", cat="${e.parsed_cat_name || "?"}", ` +
+    `raw="${e.raw_client_name || ""}", notes="${e.notes || ""}", ` +
+    `sex_mark=${e.female_count + e.male_count > 0 ? "yes" : "no"}, weight=${e.weight_lbs ?? "none"}`
+  ).join("\n");
+
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1024,
+    messages: [{
+      role: "user",
+      content: `You are classifying unmatched master list entries from a TNR (Trap-Neuter-Return) spay/neuter clinic.
+
+Each entry was on the clinic's master list but couldn't be matched to a ClinicHQ appointment. The NOTES column from the Excel sheet explains why.
+
+Classify each entry with ONE of these reasons:
+- surgery_cancelled: explicitly cancelled
+- no_show: didn't show up, no call
+- redirected: sent to another clinic/org (humane society, vet, etc.)
+- owner_withdrew: owner took cat home without surgery
+- medical_hold: pregnant, in heat, medical reason preventing surgery
+- rescheduled: moved to another date
+- recheck_no_booking: follow-up visit (bandage change, weight check, updates)
+- no_chq_booking: cat appears to have been at clinic but no booking exists
+- unknown: cannot determine from available data
+
+Common abbreviations: STO = Sent To Owner (pickup), PU = pickup, DNC = Did Not Complete, HS = Humane Society, Relo = Relocation
+
+Entries:
+${entrySummaries}
+
+Return JSON array: [{"line": NUMBER, "reason": "REASON", "explanation": "brief why"}]
+Return ONLY the JSON, no other text.`,
+    }],
+  });
+
+  try {
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return [];
+
+    const parsed = JSON.parse(jsonMatch[0]) as Array<{
+      line: number;
+      reason: string;
+      explanation: string;
+    }>;
+
+    return parsed
+      .map((r) => {
+        const entry = entries.find((e) => e.line_number === r.line);
+        const reason = UNMATCHED_REASONS.includes(r.reason as UnmatchedReason)
+          ? (r.reason as UnmatchedReason)
+          : "unknown";
+        return entry ? { entry_id: entry.entry_id, reason } : null;
+      })
+      .filter((r): r is { entry_id: string; reason: UnmatchedReason } => r !== null);
+  } catch {
+    return [];
+  }
 }

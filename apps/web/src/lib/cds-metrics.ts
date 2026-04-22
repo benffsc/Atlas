@@ -257,9 +257,9 @@ export async function loadCancelledEntries(date: string): Promise<CancelledEntry
 
   if (!run?.phase_results) return [];
 
-  // cancelled_entries are stored in phase 4_composite details
+  // cancelled_entries are stored in composite phase details
   const compositePhase = run.phase_results.find(
-    (p) => p.phase === "4_composite"
+    (p) => p.phase === "7_composite" || p.phase === "4_composite"
   );
   const raw = compositePhase?.details?.cancelled_entries ?? [];
 
