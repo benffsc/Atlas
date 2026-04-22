@@ -1,606 +1,85 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { fetchApi, postApi } from "@/lib/api-client";
-import { useToast } from "@/components/feedback/Toast";
-import { SkeletonTable } from "@/components/feedback/Skeleton";
-import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { DataTable } from "@/components/data-table";
-import { useDataTable } from "@/components/data-table/useDataTable";
-import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
+import { useState, useEffect, useMemo } from "react";
+import { fetchApi } from "@/lib/api-client";
 import { StatCard } from "@/components/ui/StatCard";
-import { RowActionMenu } from "@/components/shared/RowActionMenu";
-import { formatPhone } from "@/lib/formatters";
-import { EquipmentPreviewContent } from "@/components/preview/EquipmentPreviewContent";
-import { getLabel } from "@/lib/form-options";
-import { EQUIPMENT_CUSTODY_STATUS_OPTIONS, EQUIPMENT_CONDITION_OPTIONS, EQUIPMENT_CATEGORY_OPTIONS, EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS } from "@/lib/form-options";
-import type { VEquipmentInventoryRow, EquipmentStatsRow } from "@/lib/types/view-contracts";
-import { getCustodyStyle, getConditionStyle, getCategoryStyle } from "@/lib/equipment-styles";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
-import { EmptyList } from "@/components/feedback/EmptyState";
+import { SkeletonList } from "@/components/feedback/Skeleton";
+import { formatPhone } from "@/lib/formatters";
+import type { VEquipmentInventoryRow, OverdueQueueRow } from "@/lib/types/view-contracts";
 
-// Category → fallback icon for items without photos
-const CATEGORY_ICONS: Record<string, string> = {
-  trap: "target",
-  cage: "package-plus",
-  camera: "camera",
-  accessory: "wrench",
-};
-
-export default function EquipmentPage() {
-  return (
-    <Suspense fallback={<div style={{ padding: "2rem" }}><SkeletonTable rows={8} columns={5} /></div>}>
-      <EquipmentPageContent />
-    </Suspense>
-  );
-}
-
-function formatMinutesAgo(mins: number | null): string {
-  if (mins == null) return "unknown";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  return `${hours}h ago`;
-}
-
-// ---------------------------------------------------------------------------
-// Filter pill: compact dropdown that looks like a chip when active
-// ---------------------------------------------------------------------------
-function FilterPill({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: ReadonlyArray<{ readonly value: string; readonly label: string; [key: string]: unknown }>;
-  onChange: (v: string) => void;
-}) {
-  const isActive = !!value;
-  const activeLabel = options.find((o) => o.value === value)?.label;
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        padding: "0.25rem 0.5rem",
-        fontSize: "0.8rem",
-        borderRadius: "20px",
-        border: isActive ? "1px solid var(--primary)" : "1px solid var(--border)",
-        background: isActive ? "var(--primary-bg, rgba(59,130,246,0.08))" : "var(--card-bg, #fff)",
-        color: isActive ? "var(--primary, #3b82f6)" : "var(--text-secondary)",
-        fontWeight: isActive ? 600 : 400,
-        cursor: "pointer",
-        outline: "none",
-        appearance: "none",
-        WebkitAppearance: "none",
-        paddingRight: "1.25rem",
-        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E")`,
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "right 0.4rem center",
-        backgroundSize: "8px",
-      }}
-      title={isActive ? `${label}: ${activeLabel}` : label}
-    >
-      <option value="">{label}</option>
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Grouped table view — mimics Airtable's grouped-by-type layout
-// ---------------------------------------------------------------------------
-
-const EQUIPMENT_STYLES = `
-  .eq-row { transition: background-color 0.15s ease, transform 0.1s ease; }
-  .eq-row:hover { background-color: var(--muted-bg, #f9fafb); transform: translateX(2px); }
-  .eq-row[data-selected="true"] { background-color: var(--primary-bg, rgba(59,130,246,0.06)); border-left: 3px solid var(--primary, #3b82f6); }
-  .eq-row[data-selected="true"]:hover { background-color: var(--primary-bg, rgba(59,130,246,0.1)); }
-  .eq-group-header { position: sticky; top: 0; z-index: 2; }
-  .eq-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; position: relative; flex-shrink: 0; }
-  .eq-dot--pulse::before {
-    content: ""; position: absolute; top: 50%; left: 50%; width: 100%; height: 100%;
-    background: inherit; border-radius: 50%; transform: translate(-50%, -50%);
-    animation: eq-pulse 2s infinite ease-out;
-  }
-  @keyframes eq-pulse {
-    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
-    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
-  }
-  @media (prefers-reduced-motion: reduce) { .eq-dot--pulse::before { animation: none; } }
-`;
-
-function StatusDot({ status, dueDate }: { status: string; dueDate?: string | null }) {
-  const isOverdue = dueDate && new Date(dueDate) < new Date();
-  const needsPulse = status === "missing" || isOverdue;
-  const color = status === "missing" ? "var(--danger-text)"
-    : isOverdue ? "var(--danger-text)"
-    : status === "checked_out" ? "var(--warning-text)"
-    : status === "available" ? "var(--success-text)"
-    : "var(--muted)";
-
-  return (
-    <span
-      className={`eq-dot${needsPulse ? " eq-dot--pulse" : ""}`}
-      style={{ background: color }}
-    />
-  );
-}
-
-function GroupedEquipmentView({
-  equipment,
-  selectedId,
-  onSelect,
-  onAction,
-}: {
-  equipment: VEquipmentInventoryRow[];
-  selectedId: string;
-  onSelect: (id: string) => void;
-  onAction: (equipmentId: string, action: string) => void;
-}) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  const groups = useMemo(() => {
-    const map = new Map<string, { items: VEquipmentInventoryRow[]; category: string }>();
-    for (const item of equipment) {
-      const key = item.type_display_name || item.legacy_type || "Other";
-      if (!map.has(key)) map.set(key, { items: [], category: item.type_category || "" });
-      map.get(key)!.items.push(item);
-    }
-    return Array.from(map.entries()).sort((a, b) => {
-      if (a[0] === "Other") return 1;
-      if (b[0] === "Other") return -1;
-      return a[0].localeCompare(b[0]);
-    });
-  }, [equipment]);
-
-  const toggleGroup = (key: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  if (groups.length === 0) {
-    return <EmptyList entityName="equipment" />;
-  }
-
-  return (
-    <>
-      <style>{EQUIPMENT_STYLES}</style>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
-        {groups.map(([typeName, { items, category }]) => {
-          const isCollapsed = collapsed.has(typeName);
-          const catStyle = getCategoryStyle(category);
-          const availCount = items.filter((i) => i.custody_status === "available").length;
-          const outCount = items.filter((i) => i.custody_status === "checked_out" || i.custody_status === "in_field").length;
-          return (
-            <div key={typeName}>
-              {/* Group header — sticky, with category color strip */}
-              <button
-                className="eq-group-header"
-                onClick={() => toggleGroup(typeName)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  border: "none",
-                  borderLeft: `4px solid ${catStyle.text}`,
-                  background: "var(--card-bg, #fff)",
-                  borderBottom: "1px solid var(--border-light, #f0f0f0)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <span style={{
-                  fontSize: "0.65rem",
-                  color: "var(--muted)",
-                  transition: "transform 0.15s",
-                  transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                  lineHeight: 1,
-                }}>
-                  &#9660;
-                </span>
-                <span style={{
-                  fontSize: "0.8rem",
-                  padding: "0.125rem 0.5rem",
-                  borderRadius: "4px",
-                  background: catStyle.bg,
-                  color: catStyle.text,
-                  fontWeight: 600,
-                }}>
-                  {typeName}
-                </span>
-                <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>
-                  {items.length}
-                </span>
-                {/* Inline availability summary */}
-                <span style={{ fontSize: "0.7rem", color: "var(--muted)", marginLeft: "auto" }}>
-                  {availCount > 0 && <span style={{ color: "var(--success-text)" }}>{availCount} avail</span>}
-                  {availCount > 0 && outCount > 0 && <span> · </span>}
-                  {outCount > 0 && <span style={{ color: "var(--warning-text)" }}>{outCount} out</span>}
-                </span>
-              </button>
-
-              {/* Items table */}
-              {!isCollapsed && (
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-                  <tbody>
-                    {items.map((item) => {
-                      const custodyStyle = getCustodyStyle(item.custody_status);
-                      const isSelected = item.equipment_id === selectedId;
-                      const isOut = item.custody_status === "checked_out" || item.custody_status === "in_field";
-                      const dueDate = item.current_due_date || item.expected_return_date;
-                      const isOverdue = dueDate && new Date(dueDate) < new Date();
-                      const fallbackIcon = CATEGORY_ICONS[item.type_category || ""] || "wrench";
-                      return (
-                        <tr
-                          key={item.equipment_id}
-                          className="eq-row"
-                          data-selected={isSelected || undefined}
-                          onClick={() => onSelect(item.equipment_id)}
-                          style={{
-                            cursor: "pointer",
-                            borderBottom: "1px solid var(--border-light, #f0f0f0)",
-                            borderLeft: isOverdue
-                              ? "3px solid var(--danger-text)"
-                              : isSelected
-                                ? undefined // handled by data-selected CSS
-                                : "3px solid transparent",
-                          }}
-                        >
-                          {/* Photo */}
-                          <td style={{ width: 44, padding: "0.375rem 0.5rem" }}>
-                            <div style={{
-                              width: 36, height: 36, borderRadius: "4px", overflow: "hidden",
-                              background: "var(--muted-bg, #f3f4f6)", border: "1px solid var(--border-light, #e5e7eb)",
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                            }}>
-                              {item.photo_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={item.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              ) : (
-                                <Icon name={fallbackIcon} size={16} color="var(--muted)" />
-                              )}
-                            </div>
-                          </td>
-                          {/* Name */}
-                          <td style={{ padding: "0.375rem 0.5rem", fontWeight: 500 }}>
-                            {item.display_name}
-                          </td>
-                          {/* Barcode */}
-                          <td style={{ padding: "0.375rem 0.5rem", fontFamily: "monospace", color: "var(--muted)", fontSize: "0.8rem" }}>
-                            {item.barcode || "—"}
-                          </td>
-                          {/* Status with dot */}
-                          <td style={{ padding: "0.375rem 0.5rem" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center" }}>
-                              <StatusDot status={item.custody_status} dueDate={dueDate} />
-                              <span style={{
-                                fontSize: "0.75rem", padding: "0.125rem 0.5rem", borderRadius: "4px",
-                                background: custodyStyle.bg, color: custodyStyle.text, fontWeight: 600,
-                              }}>
-                                {getLabel(EQUIPMENT_CUSTODY_STATUS_OPTIONS, item.custody_status)}
-                              </span>
-                            </span>
-                          </td>
-                          {/* Functional status */}
-                          <td style={{ padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: "var(--muted)" }}>
-                            {item.functional_status && item.functional_status !== "functional" ? (
-                              <span style={{
-                                fontSize: "0.75rem", padding: "0.125rem 0.5rem", borderRadius: "4px",
-                                background: "var(--warning-bg)", color: "var(--warning-text)", fontWeight: 500,
-                              }}>
-                                {getLabel(EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS, item.functional_status)}
-                              </span>
-                            ) : "—"}
-                          </td>
-                          {/* Custodian */}
-                          <td style={{ padding: "0.375rem 0.5rem", fontSize: "0.8rem", color: isOut ? "var(--text-primary)" : "var(--muted)" }}>
-                            {item.custodian_name || item.current_holder_name || "—"}
-                          </td>
-                          {/* Due date */}
-                          <td style={{
-                            padding: "0.375rem 0.5rem", fontSize: "0.8rem",
-                            color: isOverdue ? "var(--danger-text)" : "var(--muted)",
-                            fontWeight: isOverdue ? 600 : 400,
-                          }}>
-                            {dueDate
-                              ? new Date(dueDate).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" })
-                              : "—"
-                            }
-                          </td>
-                          {/* Actions */}
-                          <td style={{ padding: "0.375rem 0.25rem", width: 36 }} onClick={(e) => e.stopPropagation()}>
-                            <RowActionMenu actions={[
-                              ...(item.custody_status === "available" ? [{ label: "Check Out", onClick: () => onAction(item.equipment_id, "check_out") }] : []),
-                              ...(item.custody_status === "checked_out" ? [{ label: "Check In", onClick: () => onAction(item.equipment_id, "check_in") }] : []),
-                              ...(item.custody_status !== "missing" ? [{ label: "Report Missing", onClick: () => onAction(item.equipment_id, "reported_missing"), variant: "danger" as const, dividerBefore: true }] : []),
-                            ]} />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
-function EquipmentPageContent() {
-  const { success, error: showError } = useToast();
-  const { filters, setFilter, setFilters, clearFilters, isDefault } = useUrlFilters({
-    search: "",
-    category: "",
-    custody_status: "",
-    condition_status: "",
-    functional_status: "",
-    type_key: "",
-    selected: "",
-  });
-
-  const { pageIndex, pageSize, sortKey, sortDir, handlePaginationChange, handleSortChange, apiParams } = useDataTable(
-    filters,
-    setFilters,
-    { defaultSort: "custody_status", defaultSortDir: "asc", defaultPageSize: 200 }
-  );
-
+/**
+ * Equipment Dashboard — the command center.
+ *
+ * Answers three questions in 5 seconds:
+ * 1. How many traps can I lend right now?
+ * 2. Who needs a follow-up call?
+ * 3. What happened today?
+ *
+ * Everything else is one click away via sidebar.
+ */
+export default function EquipmentDashboard() {
   const [equipment, setEquipment] = useState<VEquipmentInventoryRow[]>([]);
-  const [total, setTotal] = useState(0);
+  const [overdue, setOverdue] = useState<OverdueQueueRow[]>([]);
+  const [recentActivity, setRecentActivity] = useState<Array<{
+    event_type: string; custodian_name: string | null; barcode: string | null; created_at: string;
+  }>>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<EquipmentStatsRow | null>(null);
-  const [types, setTypes] = useState<Array<{ type_key: string; display_name: string; category: string }>>([]);
-
-  const selectedEquipment = useMemo(
-    () => equipment.find((e) => e.equipment_id === filters.selected) || null,
-    [equipment, filters.selected]
-  );
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filters.search) params.set("search", filters.search);
-      if (filters.category) params.set("category", filters.category);
-      if (filters.custody_status) params.set("custody_status", filters.custody_status);
-      if (filters.condition_status) params.set("condition_status", filters.condition_status);
-      if (filters.functional_status) params.set("functional_status", filters.functional_status);
-      if (filters.type_key) params.set("type_key", filters.type_key);
-      params.set("limit", String(apiParams.limit));
-      params.set("offset", String(apiParams.offset));
-      params.set("sort", apiParams.sort);
-      params.set("sortDir", apiParams.sortDir);
-
-      const data = await fetchApi<{ equipment: VEquipmentInventoryRow[] }>(
-        `/api/equipment?${params}`
-      );
-      setEquipment(data.equipment || []);
-      const raw = await fetch(`/api/equipment?${params}`).then(r => r.json());
-      setTotal(raw.meta?.total || data.equipment?.length || 0);
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Failed to load equipment");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.search, filters.category, filters.custody_status, filters.condition_status, filters.functional_status, filters.type_key, apiParams, showError]);
 
   useEffect(() => {
-    fetchApi<EquipmentStatsRow>("/api/equipment/stats").then(setStats).catch(() => {});
-    fetchApi<{ types: Array<{ type_key: string; display_name: string; category: string }> }>("/api/equipment/types")
-      .then((d) => setTypes(d.types || []))
-      .catch(() => {});
-  }, []);
+    Promise.all([
+      fetchApi<{ equipment: VEquipmentInventoryRow[] }>("/api/equipment?limit=500")
+        .then((d) => setEquipment(d.equipment || [])),
+      fetchApi<{ queue: OverdueQueueRow[] }>("/api/equipment/overdue-queue?type=public")
+        .then((d) => setOverdue(d.queue || [])),
+      fetchApi<{ events: typeof recentActivity }>("/api/equipment/activity?limit=8")
+        .then((d) => setRecentActivity(d.events || []))
+        .catch(() => {}),
+    ]).finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleQuickAction = useCallback(async (equipmentId: string, action: string) => {
-    try {
-      await postApi(`/api/equipment/${equipmentId}/events`, { event_type: action });
-      success(`${action.replace(/_/g, " ")} recorded`);
-      fetchData();
-      fetchApi<EquipmentStatsRow>("/api/equipment/stats").then(setStats).catch(() => {});
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Action failed");
-    }
-  }, [fetchData, success, showError]);
-
-  // DataTable columns (flat view for search mode)
-  const columns = useMemo<ColumnDef<VEquipmentInventoryRow, unknown>[]>(() => [
-    {
-      id: "photo",
-      header: "",
-      cell: ({ row }) => {
-        const url = row.original.photo_url;
-        return (
-          <div style={{
-            width: 36, height: 36, borderRadius: "4px", overflow: "hidden",
-            background: "var(--muted-bg, #f3f4f6)", display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            {url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <span style={{ fontSize: "0.6rem", color: "var(--muted)" }}>—</span>
-            )}
-          </div>
-        );
-      },
-      meta: { minWidth: "44px", hideOnMobile: true },
-    },
-    {
-      accessorKey: "display_name",
-      header: "Name",
-      meta: { sortKey: "display_name", minWidth: "140px" },
-    },
-    {
-      accessorKey: "barcode",
-      header: "Barcode",
-      cell: ({ row }) => (
-        <span style={{ fontFamily: "monospace", fontWeight: 500, fontSize: "0.85rem" }}>{row.original.barcode || "—"}</span>
-      ),
-      meta: { sortKey: "barcode", minWidth: "70px" },
-    },
-    {
-      accessorKey: "type_display_name",
-      header: "Type",
-      cell: ({ row }) => {
-        const item = row.original;
-        const typeName = item.type_display_name || item.legacy_type;
-        const catStyle = getCategoryStyle(item.type_category || "");
-        return (
-          <span style={{
-            fontSize: "0.75rem", padding: "0.125rem 0.5rem", borderRadius: "4px",
-            background: catStyle.bg, color: catStyle.text, fontWeight: 500,
-          }}>
-            {typeName}
-          </span>
-        );
-      },
-      meta: { sortKey: "type_display_name" },
-    },
-    {
-      accessorKey: "custody_status",
-      header: "Status",
-      cell: ({ row }) => {
-        const val = row.original.custody_status;
-        const style = getCustodyStyle(val);
-        return (
-          <span style={{
-            fontSize: "0.75rem", padding: "0.125rem 0.5rem", borderRadius: "4px",
-            background: style.bg, color: style.text, fontWeight: 600,
-          }}>
-            {getLabel(EQUIPMENT_CUSTODY_STATUS_OPTIONS, val)}
-          </span>
-        );
-      },
-      meta: { sortKey: "custody_status" },
-    },
-    {
-      accessorKey: "custodian_name",
-      header: "Holder",
-      cell: ({ row }) => row.original.custodian_name || row.original.current_holder_name || "—",
-      meta: { sortKey: "custodian_name", hideOnMobile: true },
-    },
-    {
-      accessorKey: "current_due_date",
-      header: "Due",
-      cell: ({ row }) => {
-        const d = row.original.current_due_date || row.original.expected_return_date;
-        if (!d) return <span style={{ color: "var(--muted)" }}>—</span>;
-        const due = new Date(d);
-        const now = new Date();
-        const isOverdue = due < now && row.original.custody_status === "checked_out";
-        const daysUntil = Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        return (
-          <span style={{
-            color: isOverdue ? "var(--danger-text)" : daysUntil <= 1 ? "var(--warning-text)" : "var(--text-secondary)",
-            fontWeight: isOverdue ? 600 : 400,
-            fontSize: "0.8rem",
-          }}>
-            {due.toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}
-            {isOverdue && <span style={{ marginLeft: "0.25rem", fontSize: "0.7rem" }}>OVERDUE</span>}
-          </span>
-        );
-      },
-      meta: { sortKey: "current_due_date", hideOnMobile: true },
-    },
-    {
-      accessorKey: "days_checked_out",
-      header: "Days Out",
-      cell: ({ row }) => {
-        const d = row.original.days_checked_out;
-        if (d == null || row.original.custody_status !== "checked_out") return <span style={{ color: "var(--muted)" }}>—</span>;
-        return (
-          <span style={{
-            color: d > 14 ? "var(--danger-text)" : d > 7 ? "var(--warning-text)" : "var(--text-secondary)",
-            fontWeight: d > 14 ? 600 : 400,
-            fontSize: "0.8rem",
-          }}>
-            {d}d
-          </span>
-        );
-      },
-      meta: { sortKey: "days_checked_out", hideOnMobile: true },
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => {
-        const item = row.original;
-        return (
-          <RowActionMenu actions={[
-            ...(item.custody_status === "available" ? [{ label: "Check Out", onClick: () => handleQuickAction(item.equipment_id, "check_out") }] : []),
-            ...(item.custody_status === "checked_out" ? [{ label: "Check In", onClick: () => handleQuickAction(item.equipment_id, "check_in") }] : []),
-            ...(item.custody_status === "checked_out" ? [{ label: "Reassign Holder", onClick: () => window.location.href = `/kiosk/equipment/scan?barcode=${item.barcode}` }] : []),
-            ...(item.custody_status !== "missing" ? [{ label: "Report Missing", onClick: () => handleQuickAction(item.equipment_id, "reported_missing"), variant: "danger" as const, dividerBefore: true }] : []),
-          ]} />
-        );
-      },
-    },
-  ], [handleQuickAction]);
-
-  const hasActiveFilters = filters.category || filters.custody_status || filters.condition_status || filters.functional_status || filters.type_key;
-
-  // Compute category-level stats from equipment data
-  const catStats = useMemo(() => {
+  // Category stats
+  const stats = useMemo(() => {
     const traps = equipment.filter((e) => e.type_category === "trap");
-    const accessories = equipment.filter((e) => e.type_category !== "trap");
     const now = new Date();
     return {
       traps: {
         total: traps.length,
         available: traps.filter((e) => e.custody_status === "available").length,
         out: traps.filter((e) => e.custody_status === "checked_out").length,
-        overdue: traps.filter((e) => e.custody_status === "checked_out" && (e.current_due_date || e.expected_return_date) && new Date(e.current_due_date || e.expected_return_date || "") < now).length,
+        overdue: traps.filter((e) =>
+          e.custody_status === "checked_out" &&
+          (e.current_due_date || e.expected_return_date) &&
+          new Date(e.current_due_date || e.expected_return_date || "") < now
+        ).length,
         missing: traps.filter((e) => e.custody_status === "missing").length,
       },
       accessories: {
-        total: accessories.length,
-        available: accessories.filter((e) => e.custody_status === "available").length,
-        out: accessories.filter((e) => e.custody_status === "checked_out").length,
+        total: equipment.filter((e) => e.type_category !== "trap").length,
+        available: equipment.filter((e) => e.type_category !== "trap" && e.custody_status === "available").length,
+        out: equipment.filter((e) => e.type_category !== "trap" && e.custody_status === "checked_out").length,
       },
     };
   }, [equipment]);
 
-  // Fetch top overdue items for the attention section
-  const [topOverdue, setTopOverdue] = useState<Array<{
-    holder_name: string; phone: string | null; email: string | null;
-    trap_barcodes: string[]; trap_count: number; max_days_overdue: number;
-    earliest_due_date: string | null; is_trapper: boolean; person_id: string | null;
-    contact_attempt_count: number;
-  }>>([]);
+  const overduePublic = overdue.filter((r) => !r.is_trapper);
+  const overdueTrapper = overdue.filter((r) => r.is_trapper);
 
-  useEffect(() => {
-    fetchApi<{ queue: typeof topOverdue }>("/api/equipment/overdue-queue?type=public&tier=critical")
-      .then((d) => setTopOverdue((d.queue || []).slice(0, 5)))
-      .catch(() => {});
-  }, []);
+  if (loading) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 1rem" }}>Equipment</h1>
+        <SkeletonList items={5} />
+      </div>
+    );
+  }
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Equipment</h1>
-        </div>
+      {/* ═══ HEADER ═══ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Equipment</h1>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <Button variant="primary" size="sm" icon="scan-barcode" onClick={() => window.open("/kiosk/equipment/scan", "_blank")}>
             Scan
@@ -608,249 +87,175 @@ function EquipmentPageContent() {
           <Button variant="outline" size="sm" icon="upload-cloud" onClick={() => window.location.href = "/admin/equipment/scan-slips"}>
             Process Slips
           </Button>
-          <Button variant="ghost" size="sm" icon="printer" onClick={() => window.location.href = "/equipment/print/slips"}>
-            Print Forms
-          </Button>
         </div>
       </div>
 
-      {/* Stats strip — category-aware morning glance */}
-      {!loading && equipment.length > 0 && (
-        <div style={{ marginBottom: "1rem" }}>
-          {/* Traps — the primary lending item */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: "0.375rem",
-            marginBottom: "0.375rem", fontSize: "0.7rem", fontWeight: 700,
-            color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em",
-          }}>
-            Traps ({catStats.traps.total})
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <StatCard label="Available to Lend" value={catStats.traps.available} valueColor="var(--success-text)" />
-            <StatCard label="Checked Out" value={catStats.traps.out} valueColor="var(--warning-text)" />
-            <StatCard
-              label="Overdue"
-              value={catStats.traps.overdue}
-              valueColor={catStats.traps.overdue > 0 ? "var(--danger-text)" : "var(--muted)"}
-              subtitle={catStats.traps.overdue > 0 ? "need follow-up" : undefined}
-            />
-            {catStats.traps.missing > 0 && <StatCard label="Missing" value={catStats.traps.missing} valueColor="var(--danger-text)" />}
-          </div>
-
-          {/* Accessories — secondary, compact */}
-          {catStats.accessories.total > 0 && (
-            <div style={{ fontSize: "0.8rem", color: "var(--muted)", display: "flex", gap: "0.75rem" }}>
-              <span>Accessories/Cages: {catStats.accessories.available} available, {catStats.accessories.out} out</span>
-            </div>
-          )}
+      {/* ═══ TRAP STATS ═══ */}
+      <div style={{
+        fontSize: "0.7rem", fontWeight: 700, color: "var(--text-secondary)",
+        textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "0.375rem",
+      }}>
+        Traps — {stats.traps.total} total
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: "0.5rem", marginBottom: "0.5rem" }}>
+        <StatCard label="Available to Lend" value={stats.traps.available} valueColor="var(--success-text)" />
+        <StatCard label="Checked Out" value={stats.traps.out} valueColor="var(--warning-text)" />
+        <StatCard
+          label="Overdue"
+          value={stats.traps.overdue}
+          valueColor={stats.traps.overdue > 0 ? "var(--danger-text)" : "var(--muted)"}
+        />
+        {stats.traps.missing > 0 && <StatCard label="Missing" value={stats.traps.missing} valueColor="var(--danger-text)" />}
+      </div>
+      {stats.accessories.total > 0 && (
+        <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
+          Accessories/Cages: {stats.accessories.available} available, {stats.accessories.out} out
         </div>
       )}
 
-      {/* ═══ ATTENTION SECTION ═══ */}
-      {topOverdue.length > 0 && (
-        <div style={{
+      {/* ═══ OVERDUE — PUBLIC BORROWERS ═══ */}
+      {overduePublic.length > 0 && (
+        <section style={{
           marginBottom: "1.25rem",
           border: "1px solid var(--danger-border, #fecaca)",
           borderRadius: 10,
           overflow: "hidden",
         }}>
-          {/* Section header */}
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "0.625rem 1rem",
+            padding: "0.5rem 0.875rem",
             background: "var(--danger-bg)",
             borderBottom: "1px solid var(--danger-border, #fecaca)",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Icon name="alert-triangle" size={16} color="var(--danger-text)" />
-              <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--danger-text)" }}>
-                Overdue — Public Borrowers to Call
-              </span>
-            </div>
+            <span style={{ display: "flex", alignItems: "center", gap: "0.375rem", fontWeight: 700, fontSize: "0.85rem", color: "var(--danger-text)" }}>
+              <Icon name="alert-triangle" size={15} color="var(--danger-text)" />
+              Public Borrowers — {overduePublic.length} overdue
+            </span>
             <Button variant="outline" size="sm" onClick={() => window.location.href = "/equipment/collections"}>
               Open Call Queue
             </Button>
           </div>
-
-          {/* Top overdue items */}
-          {topOverdue.map((item) => (
-            <div
-              key={item.holder_name}
-              style={{
-                display: "flex", alignItems: "center", gap: "0.75rem",
-                padding: "0.625rem 1rem",
-                borderBottom: "1px solid var(--card-border, #e5e7eb)",
-                fontSize: "0.85rem",
-              }}
-            >
-              {/* Name + traps */}
+          {overduePublic.slice(0, 6).map((item) => (
+            <div key={item.holder_name} style={{
+              display: "flex", alignItems: "center", gap: "0.625rem",
+              padding: "0.5rem 0.875rem", borderBottom: "1px solid var(--card-border, #e5e7eb)",
+              fontSize: "0.85rem",
+            }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600 }}>
-                  {item.person_id ? (
-                    <a href={`/people/${item.person_id}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>{item.holder_name}</a>
-                  ) : item.holder_name}
-                  <span style={{ fontWeight: 400, color: "var(--muted)", marginLeft: "0.5rem", fontSize: "0.8rem" }}>
-                    {item.trap_barcodes.join(", ")}
-                  </span>
-                </div>
+                <span style={{ fontWeight: 600 }}>{item.holder_name}</span>
+                <span style={{ color: "var(--muted)", marginLeft: "0.5rem", fontSize: "0.75rem", fontFamily: "monospace" }}>
+                  {item.trap_barcodes.join(", ")}
+                </span>
               </div>
-
-              {/* Phone */}
-              <div style={{ flexShrink: 0 }}>
-                {item.phone ? (
-                  <a href={`tel:${item.phone}`} style={{ color: "var(--primary)", textDecoration: "none", fontSize: "0.8rem", fontWeight: 500 }}>
-                    {formatPhone(item.phone)}
-                  </a>
-                ) : (
-                  <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}>No phone</span>
-                )}
-              </div>
-
-              {/* Days overdue badge */}
+              {item.phone ? (
+                <a href={`tel:${item.phone}`} style={{ color: "var(--primary)", textDecoration: "none", fontSize: "0.8rem", fontWeight: 500, flexShrink: 0 }}>
+                  {formatPhone(item.phone)}
+                </a>
+              ) : (
+                <span style={{ color: "var(--muted)", fontSize: "0.75rem", flexShrink: 0 }}>No phone</span>
+              )}
               <span style={{
-                padding: "0.1rem 0.4rem", borderRadius: 4, fontSize: "0.7rem", fontWeight: 700,
-                background: "var(--danger-bg)", color: "var(--danger-text)", whiteSpace: "nowrap", flexShrink: 0,
+                padding: "0.1rem 0.375rem", borderRadius: 4, fontSize: "0.7rem", fontWeight: 700,
+                background: item.max_days_overdue >= 30 ? "var(--danger-bg)" : "var(--warning-bg)",
+                color: item.max_days_overdue >= 30 ? "var(--danger-text)" : "var(--warning-text)",
+                flexShrink: 0,
               }}>
                 {item.max_days_overdue}d
               </span>
-
-              {/* Contact attempts */}
-              {item.contact_attempt_count > 0 && (
-                <span style={{ fontSize: "0.7rem", color: "var(--muted)", flexShrink: 0 }}>
-                  {item.contact_attempt_count}x called
-                </span>
-              )}
             </div>
           ))}
-
-          {/* Footer link */}
-          {stats && stats.overdue > 5 && (
-            <div style={{ padding: "0.5rem 1rem", fontSize: "0.8rem", color: "var(--muted)", textAlign: "center" }}>
-              Showing top 5 of {stats.overdue} overdue · <a href="/equipment/collections" style={{ color: "var(--primary)" }}>View all in Call Queue</a>
+          {overduePublic.length > 6 && (
+            <div style={{ padding: "0.375rem 0.875rem", textAlign: "center", fontSize: "0.8rem" }}>
+              <a href="/equipment/collections" style={{ color: "var(--primary)" }}>
+                +{overduePublic.length - 6} more — View full call queue
+              </a>
             </div>
           )}
-        </div>
+        </section>
       )}
 
-      {/* ═══ INVENTORY SECTION ═══ */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: "0.5rem", paddingTop: "0.25rem",
-        borderTop: "1px solid var(--border)",
-      }}>
-        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Inventory — {total} items
-        </span>
-      </div>
+      {/* ═══ OVERDUE — TRAPPERS (compact) ═══ */}
+      {overdueTrapper.length > 0 && (
+        <section style={{
+          marginBottom: "1.25rem",
+          border: "1px solid var(--card-border, #e5e7eb)",
+          borderRadius: 10,
+          overflow: "hidden",
+        }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "0.5rem 0.875rem",
+            background: "var(--section-bg, #f9fafb)",
+            borderBottom: "1px solid var(--card-border, #e5e7eb)",
+          }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+              Trappers with Overdue Equipment — {overdueTrapper.length}
+            </span>
+            <a href="/equipment/collections?type=trapper" style={{ fontSize: "0.75rem", color: "var(--primary)" }}>
+              View
+            </a>
+          </div>
+          <div style={{ padding: "0.5rem 0.875rem", fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", flexWrap: "wrap", gap: "0.25rem 1rem" }}>
+            {overdueTrapper.slice(0, 8).map((t) => (
+              <span key={t.holder_name}>
+                {t.holder_name} <span style={{ color: "var(--muted)" }}>({t.trap_count})</span>
+              </span>
+            ))}
+            {overdueTrapper.length > 8 && <span style={{ color: "var(--muted)" }}>+{overdueTrapper.length - 8} more</span>}
+          </div>
+        </section>
+      )}
 
-      {/* Filter bar */}
-      <div style={{ display: "flex", gap: "0.375rem", marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-        <input
-          type="text"
-          placeholder="Search name, barcode, phone, email, address..."
-          value={filters.search}
-          onChange={(e) => setFilter("search", e.target.value)}
-          style={{
-            padding: "0.25rem 0.625rem", fontSize: "0.8rem", borderRadius: "20px",
-            border: "1px solid var(--border)", width: "240px", outline: "none",
-          }}
-        />
-        <FilterPill label="Type" value={filters.type_key} options={types.map((t) => ({ value: t.type_key, label: t.display_name }))} onChange={(v) => setFilter("type_key", v)} />
-        <FilterPill label="Status" value={filters.custody_status} options={EQUIPMENT_CUSTODY_STATUS_OPTIONS} onChange={(v) => setFilter("custody_status", v)} />
-        <FilterPill label="Category" value={filters.category} options={EQUIPMENT_CATEGORY_OPTIONS} onChange={(v) => setFilter("category", v)} />
-        <FilterPill label="Functional" value={filters.functional_status} options={EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS} onChange={(v) => setFilter("functional_status", v)} />
-        {(hasActiveFilters || filters.search) && (
-          <button
-            onClick={clearFilters}
+      {/* ═══ QUICK LINKS ═══ */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.5rem",
+        marginBottom: "1.25rem",
+      }}>
+        {[
+          { label: "Full Inventory", href: "/equipment/inventory", icon: "boxes", desc: `${equipment.length} items` },
+          { label: "Call Queue", href: "/equipment/collections", icon: "phone-call", desc: `${overduePublic.length} to call` },
+          { label: "Activity Log", href: "/equipment/activity", icon: "activity", desc: "Recent events" },
+          { label: "Inventory Day", href: "/equipment/restock", icon: "clipboard-check", desc: "Reconcile stock" },
+        ].map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
             style={{
-              padding: "0.25rem 0.5rem", fontSize: "0.75rem", borderRadius: "20px",
-              background: "transparent", border: "1px solid var(--border)", cursor: "pointer",
-              color: "var(--muted)",
+              display: "flex", alignItems: "center", gap: "0.625rem",
+              padding: "0.75rem", borderRadius: 8,
+              border: "1px solid var(--card-border, #e5e7eb)",
+              background: "var(--card-bg, #fff)",
+              textDecoration: "none", color: "var(--text-primary)",
+              transition: "border-color 0.15s",
             }}
           >
-            Clear
-          </button>
-        )}
+            <Icon name={link.icon} size={20} color="var(--primary)" />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>{link.label}</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{link.desc}</div>
+            </div>
+          </a>
+        ))}
       </div>
 
-      {/* Main content */}
-      <ListDetailLayout
-        isDetailOpen={!!filters.selected}
-        onDetailClose={() => setFilter("selected", "")}
-        detailPanel={
-          selectedEquipment ? (
-            <EquipmentPreviewContent
-              equipment={selectedEquipment}
-              onClose={() => setFilter("selected", "")}
-            />
-          ) : null
-        }
-      >
-        {loading ? (
-          <SkeletonTable rows={8} columns={6} />
-        ) : (
-          <DataTable
-            columns={columns}
-            data={equipment}
-            density="compact"
-            getRowId={(row) => row.equipment_id}
-            total={total}
-            pageIndex={pageIndex}
-            pageSize={pageSize}
-            onPaginationChange={handlePaginationChange}
-            sortKey={sortKey}
-            sortDir={sortDir}
-            onSortChange={handleSortChange}
-            selectedRowId={filters.selected || undefined}
-            onRowClick={(id) => setFilter("selected", id)}
-            loading={loading}
-            hasActiveFilters={!!hasActiveFilters || !!filters.search}
-            onClearFilters={clearFilters}
-            pageSizeOptions={[50, 100, 200]}
-            aria-label="Equipment inventory"
-          />
-        )}
-      </ListDetailLayout>
-
-      {/* Floating scan button */}
-      <a
-        href="/equipment/scan"
-        style={{
-          position: "fixed",
-          bottom: "1.5rem",
-          right: "1.5rem",
-          width: 56,
-          height: 56,
-          borderRadius: "50%",
-          background: "var(--primary)",
-          color: "var(--primary-foreground, #fff)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "var(--shadow-lg, 0 4px 12px rgba(0,0,0,0.15))",
-          textDecoration: "none",
-          zIndex: 50,
-          transition: "transform 150ms ease",
-        }}
-        title="Scan Equipment"
-      >
-        <Icon name="scan-barcode" size={24} />
-      </a>
+      {/* ═══ MISSING TRAPS ═══ */}
+      {stats.traps.missing > 0 && (
+        <section style={{
+          marginBottom: "1.25rem",
+          padding: "0.625rem 0.875rem",
+          border: "1px solid var(--warning-border, #fde68a)",
+          borderRadius: 8,
+          background: "var(--warning-bg)",
+          fontSize: "0.85rem",
+        }}>
+          <span style={{ fontWeight: 600, color: "var(--warning-text)" }}>
+            {stats.traps.missing} missing trap{stats.traps.missing !== 1 ? "s" : ""}
+          </span>
+          <span style={{ color: "var(--text-secondary)", marginLeft: "0.5rem" }}>
+            {equipment.filter((e) => e.custody_status === "missing").map((e) => e.barcode).filter(Boolean).join(", ")}
+          </span>
+        </section>
+      )}
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Mini stat pill
-// ---------------------------------------------------------------------------
-function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: "0.25rem",
-      fontSize: "0.8rem", color: "var(--muted)",
-    }}>
-      <span style={{ fontWeight: 700, color, fontSize: "0.9rem" }}>{value}</span>
-      {label}
-    </span>
   );
 }
