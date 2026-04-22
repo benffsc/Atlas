@@ -14,6 +14,7 @@
  * Phase 5:    Shelter ID Bridge — previous shelter ID → cat → appointment
  * Phase 6:    Waiver Bridge — triangulate entry ↔ waiver ↔ appointment
  * Phase 7:    Composite Scoring — multi-signal TS matching (foster-aware)
+ * Phase 7.5:  Fuzzy Name Rescue — Levenshtein token matching for typos/formatting
  * Phase 8:    Weight Disambiguation — within-group weight distance matrix
  * Phase 9:    Constraint Propagation — N-1 of N matched → assign Nth
  * Phase 10:   LLM Tiebreaker — gated, never auto-accepted
@@ -113,6 +114,7 @@ const CDS_METHODS = {
   WEIGHT_DISAMBIGUATION: "weight_disambiguation",
   COMPOSITE: "composite",
   CONSTRAINT_PROPAGATION: "constraint_propagation",
+  FUZZY_NAME_RESCUE: "fuzzy_name_rescue",
   SHELTER_ID_BRIDGE: "shelter_id_bridge",
   CDS_SUGGESTION: "cds_suggestion",
   MANUAL: "manual",
@@ -379,6 +381,18 @@ export async function runCDS(
         })),
       },
     });
+
+    // ── Phase 7.5: Fuzzy Name Rescue ──────────────────────────────
+    // Catches entries that composite scoring missed due to name formatting
+    // differences (phone suffixes, typos, trapper aliases). Uses aggressive
+    // normalization + Levenshtein token matching instead of trigrams.
+    const fuzzyRescued = await runFuzzyNameRescue(clinicDate, runId);
+    if (fuzzyRescued > 0) {
+      phases.push({
+        phase: "7.5_fuzzy_name_rescue",
+        matched: fuzzyRescued,
+      });
+    }
 
     // ── Phase 8: Weight Disambiguation ─────────────────────────────
     // Moved AFTER composite scoring: weight resolves multi-cat ambiguity
@@ -1519,6 +1533,232 @@ function solveWeightGroup(
   return results;
 }
 
+// ── Phase 7.5: Fuzzy Name Rescue ──────────────────────────────────────
+
+/**
+ * Aggressive name normalization: strips phone suffixes, trapper aliases,
+ * parenthetical notes, and honorifics.
+ */
+function normalizeNameAggressive(name: string | null): string {
+  if (!name) return "";
+  let n = name.toLowerCase();
+  n = n.replace(/\s*[-–]\s*(call|text|phone|cell|home|work)\b.*$/i, "");
+  n = n.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, "");
+  n = n.replace(/\s*[-–]\s*trp\b.*$/i, "");
+  n = n.replace(/\s*\(.*?\)\s*/g, " ");
+  n = n.replace(/\b(jr|sr|ii|iii|iv|mr|mrs|ms|dr)\b\.?/g, "");
+  return n.replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      const cost = b[i - 1] === a[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function scoreNameTokensFuzzy(a: string, b: string): number {
+  const tokensA = normalizeNameAggressive(a).split(" ").filter((t) => t.length >= 2);
+  const tokensB = normalizeNameAggressive(b).split(" ").filter((t) => t.length >= 2);
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+
+  let totalScore = 0;
+  const usedB = new Set<number>();
+  for (const tA of tokensA) {
+    let bestScore = 0;
+    let bestIdx = -1;
+    for (let i = 0; i < tokensB.length; i++) {
+      if (usedB.has(i)) continue;
+      const maxLen = Math.max(tA.length, tokensB[i].length);
+      if (maxLen === 0) continue;
+      const score = 1 - levenshtein(tA, tokensB[i]) / maxLen;
+      if (score > bestScore) { bestScore = score; bestIdx = i; }
+    }
+    if (bestIdx >= 0) usedB.add(bestIdx);
+    totalScore += bestScore;
+  }
+  return totalScore / tokensA.length;
+}
+
+/**
+ * Fuzzy name rescue: catches entries that composite scoring missed due to
+ * name formatting differences. Uses aggressive normalization + Levenshtein
+ * token matching. Only matches when a corroborating signal (sex, cat name)
+ * also agrees — never matches on fuzzy name alone.
+ */
+async function runFuzzyNameRescue(
+  clinicDate: string,
+  runId: string
+): Promise<number> {
+  // Load unmatched entries
+  const unmatched = await queryRows<{
+    entry_id: string;
+    parsed_owner_name: string | null;
+    parsed_cat_name: string | null;
+    female_count: number;
+    male_count: number;
+    is_foster: boolean;
+  }>(
+    `SELECT e.entry_id, e.parsed_owner_name, e.parsed_cat_name,
+            COALESCE(e.female_count, 0) AS female_count,
+            COALESCE(e.male_count, 0) AS male_count,
+            COALESCE(e.is_foster, false) AS is_foster
+     FROM ops.clinic_day_entries e
+     JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+     WHERE cd.clinic_date = $1
+       AND (e.match_confidence IS NULL OR e.match_confidence = 'unmatched')
+       AND e.cancellation_reason IS NULL
+     ORDER BY e.line_number`,
+    [clinicDate]
+  );
+
+  if (unmatched.length === 0) return 0;
+
+  // Load available appointments
+  const available = await queryRows<{
+    appointment_id: string;
+    client_name: string | null;
+    cat_name: string | null;
+    cat_sex: string | null;
+    account_owner_name: string | null;
+  }>(
+    `SELECT a.appointment_id, a.client_name, c.name AS cat_name, c.sex AS cat_sex,
+            NULLIF(TRIM(COALESCE(ca.owner_first_name, '') || ' ' || COALESCE(ca.owner_last_name, '')), '') AS account_owner_name
+     FROM ops.appointments a
+     LEFT JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+     LEFT JOIN ops.clinic_accounts ca ON ca.account_id = a.owner_account_id AND ca.merged_into_account_id IS NULL
+     WHERE a.appointment_date = $1
+       AND a.merged_into_appointment_id IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM ops.clinic_day_entries e2
+         JOIN ops.clinic_days cd2 ON cd2.clinic_day_id = e2.clinic_day_id
+         WHERE cd2.clinic_date = $1
+           AND e2.matched_appointment_id = a.appointment_id
+           AND e2.match_confidence IS NOT NULL
+           AND e2.match_confidence != 'unmatched'
+       )`,
+    [clinicDate]
+  );
+
+  if (available.length === 0) return 0;
+
+  let matched = 0;
+  const usedApptIds = new Set<string>();
+  const usedEntryIds = new Set<string>();
+
+  // Score all entry-appointment pairs using token-level fuzzy matching
+  const pairs: Array<{
+    entry: typeof unmatched[0];
+    appt: typeof available[0];
+    nameScore: number;
+    corroborating: number; // count of agreeing signals
+  }> = [];
+
+  for (const entry of unmatched) {
+    if (!entry.parsed_owner_name) continue;
+    for (const appt of available) {
+      // Try fuzzy name match against both client_name and account_owner_name
+      let nameScore = 0;
+      for (const name of [appt.client_name, appt.account_owner_name]) {
+        if (!name) continue;
+        nameScore = Math.max(nameScore, scoreNameTokensFuzzy(entry.parsed_owner_name!, name));
+      }
+
+      // Must have meaningful name similarity (0.65+ on tokens)
+      if (nameScore < 0.65) continue;
+
+      // Count corroborating signals
+      let corroborating = 0;
+
+      // Sex agreement
+      if (appt.cat_sex) {
+        const isFemale = appt.cat_sex.toLowerCase() === "female" || appt.cat_sex.toLowerCase() === "f";
+        const isMale = appt.cat_sex.toLowerCase() === "male" || appt.cat_sex.toLowerCase() === "m";
+        if ((entry.female_count > 0 && isFemale) || (entry.male_count > 0 && isMale)) {
+          corroborating++;
+        }
+        // Sex mismatch is a hard reject
+        if ((entry.female_count > 0 && isMale) || (entry.male_count > 0 && isFemale)) {
+          continue;
+        }
+      }
+
+      // Cat name similarity
+      if (entry.parsed_cat_name && appt.cat_name) {
+        const catNorm1 = normalizeForGrouping(entry.parsed_cat_name);
+        const catNorm2 = normalizeForGrouping(appt.cat_name);
+        if (catNorm1 && catNorm2 && stringSimilarity(catNorm1, catNorm2) > 0.5) {
+          corroborating++;
+        }
+      }
+
+      // Require at least 1 corroborating signal (never match on name alone)
+      if (corroborating === 0) continue;
+
+      pairs.push({ entry, appt, nameScore, corroborating });
+    }
+  }
+
+  // Greedy assignment: best combined score first
+  pairs.sort((a, b) => {
+    const scoreA = a.nameScore + a.corroborating * 0.15;
+    const scoreB = b.nameScore + b.corroborating * 0.15;
+    return scoreB - scoreA;
+  });
+
+  for (const pair of pairs) {
+    if (usedEntryIds.has(pair.entry.entry_id) || usedApptIds.has(pair.appt.appointment_id)) {
+      continue;
+    }
+
+    await execute(
+      `UPDATE ops.clinic_day_entries
+       SET matched_appointment_id = $2,
+           match_confidence = 'medium',
+           match_reason = 'fuzzy_name_rescue',
+           match_score = $3,
+           match_signals = $4,
+           matched_at = NOW(),
+           cds_run_id = $5,
+           cds_method = $6
+       WHERE entry_id = $1
+         AND (matched_appointment_id IS NULL OR match_confidence = 'unmatched')`,
+      [
+        pair.entry.entry_id,
+        pair.appt.appointment_id,
+        pair.nameScore,
+        JSON.stringify({
+          name_token_score: pair.nameScore,
+          corroborating_signals: pair.corroborating,
+          entry_owner: pair.entry.parsed_owner_name,
+          appt_client: pair.appt.client_name,
+        }),
+        runId,
+        CDS_METHODS.FUZZY_NAME_RESCUE,
+      ]
+    );
+
+    usedEntryIds.add(pair.entry.entry_id);
+    usedApptIds.add(pair.appt.appointment_id);
+    matched++;
+  }
+
+  return matched;
+}
+
 // ── Phase 5: Constraint Propagation ─────────────────────────────────
 
 async function runConstraintPropagation(
@@ -1796,7 +2036,7 @@ async function runLLMTiebreaker(
       const response = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 1000,
-        system: `You are a veterinary clinic data matching assistant. Match master list entries to ClinicHQ appointment records based on all available evidence. Return valid JSON only.`,
+        system: `You are a TNR (Trap-Neuter-Return) clinic data matching assistant for Forgotten Felines of Sonoma County. Match handwritten master list entries to digital ClinicHQ booking records. Names often differ (typos, phone suffixes, trapper aliases). Foster cats are booked under "Forgotten Felines Fosters" — match by cat name. Return valid JSON only.`,
         messages: [{ role: "user", content: prompt }],
       });
 
@@ -1899,22 +2139,25 @@ function buildLLMPrompt(
     )
     .join("\n");
 
-  return `Match these master list entries to ClinicHQ appointments. Same owner may have multiple cats.
+  return `Match these master list entries to ClinicHQ appointments for a TNR spay/neuter clinic day.
 
-MASTER LIST ENTRIES (unmatched):
+MASTER LIST ENTRIES (unmatched — handwritten surgery log):
 ${entryLines}
 
-CLINICHQ APPOINTMENTS (available):
+CLINICHQ APPOINTMENTS (available — digital booking system):
 ${apptLines}
 
 Return JSON array:
 [{ "entry_id": "...", "appointment_id": "...", "confidence": 0.0-1.0, "reasoning": "..." }]
 
 Rules:
-- Each entry maps to exactly one appointment (1:1)
-- Use weight, sex, color, breed as disambiguation signals
+- Each entry maps to exactly one appointment (1:1), or to nothing if no match
+- Names may differ between systems: typos ("Suzie"/"Suzi"), phone suffixes ("Name - call 707-555-1234"), trapper aliases ("Name - Trp Christina" means Christina booked, not the owner)
+- Foster cats: ML says "Foster" or person name, CHQ says "Forgotten Felines Fosters". Match by cat name, not owner.
+- Use weight, sex, color, breed as disambiguation signals for multi-cat owners
 - Confidence 0.9+ = strong evidence, 0.7-0.9 = reasonable, <0.7 = skip
-- If genuinely ambiguous, set confidence < 0.7 to skip`;
+- If genuinely ambiguous or no plausible match, set confidence < 0.7 to skip
+- Do NOT force matches — unmatched is a valid outcome (rechecks, no-shows, cancelled surgeries have no booking)`;
 }
 
 // ── Tag existing matches with CDS metadata ──────────────────────────

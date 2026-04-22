@@ -98,6 +98,23 @@ Multi-signal scoring engine (`clinic-day-matching.ts`) with 8 signals:
 
 Minimum thresholds: 0.30 within-group, 0.35 cross-client.
 
+### Phase 7.5: Fuzzy Name Rescue
+Catches entries that composite scoring (Phase 7) missed due to name formatting differences. Uses aggressive normalization + Levenshtein token matching instead of trigram similarity.
+
+**What it strips:**
+- Phone suffixes: `"Name - call 707-555-1234"` → `"Name"`
+- Trapper aliases: `"Name - Trp Christina"` → `"Name"`
+- Parenthetical notes: `"Name (updates)"` → `"Name"`
+- Honorifics: `Jr`, `Sr`, `III`, etc.
+
+**How it matches:**
+- Splits names into tokens, compares each token pair using Levenshtein edit distance
+- `"Elise Gonzalez"` vs `"Elsie Gonsalves"` → tokens score 0.80+ (trigrams would score ~0.4)
+- Requires at least one corroborating signal (sex match OR cat name match) — never matches on fuzzy name alone
+- Sex mismatch is a hard reject
+
+**Method:** `cds_method = 'fuzzy_name_rescue'`, `match_confidence = 'medium'`
+
 ### Phase 8: Weight Disambiguation
 Resolves multi-cat owners where name matching can't distinguish (e.g., Mary Stout with 13 cats). Runs AFTER composite scoring so it only handles what names couldn't resolve.
 

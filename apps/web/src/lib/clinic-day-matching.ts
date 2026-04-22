@@ -521,6 +521,15 @@ function findMatchingClientGroup(
       sim = Math.max(sim, 0.7);
     }
 
+    // Token-level Levenshtein rescue: catches typos that trigrams miss
+    // "Elise Gonzalez" vs "Elsie Gonsalves" — trigrams score ~0.4, tokens score ~0.8
+    if (sim < 0.6 && ownerKey.length >= 4 && clientKey.length >= 4) {
+      const tokenScore = scoreNameTokens(ownerKey, clientKey);
+      if (tokenScore >= 0.75) {
+        sim = Math.max(sim, tokenScore * 0.85); // Scale down slightly — token match is good but not perfect
+      }
+    }
+
     if (sim > bestSim && sim > 0.6) {
       bestSim = sim;
       bestKey = clientKey;
@@ -789,6 +798,14 @@ function scoreClientName(
     if (ownerStripped.length >= 4 && nameStripped.includes(ownerStripped)) {
       sim = Math.max(sim, 0.7);
     }
+    // Token-level Levenshtein rescue for typos
+    // "Elise Gonzalez" vs "Elsie Gonsalves" — trigrams miss, tokens catch
+    if (sim < 0.5) {
+      const tokenScore = scoreNameTokens(ownerName, name);
+      if (tokenScore >= 0.70) {
+        sim = Math.max(sim, tokenScore);
+      }
+    }
     best = Math.max(best, sim);
   }
   return best;
@@ -945,6 +962,92 @@ function scoreChip4(
   }
 
   return 0.5; // Chip4 matches but name doesn't confirm
+}
+
+// ── Levenshtein edit distance ──────────────────────────────────────────
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      const cost = b[i - 1] === a[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,     // deletion
+        matrix[i][j - 1] + 1,     // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Aggressive name normalization for fuzzy matching.
+ * Strips phone suffixes, trapper aliases, honorifics, and formatting noise.
+ */
+function normalizeNameAggressive(name: string | null): string {
+  if (!name) return "";
+  let n = name.toLowerCase();
+  // Strip phone suffixes: "Name - call 707-555-1234" → "Name"
+  n = n.replace(/\s*[-–]\s*(call|text|phone|cell|home|work)\b.*$/i, "");
+  // Strip phone numbers anywhere
+  n = n.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, "");
+  // Strip trapper suffix: "Name - Trp Christina" → "Name"
+  n = n.replace(/\s*[-–]\s*trp\b.*$/i, "");
+  // Strip parenthetical notes: "Name (updates)" → "Name"
+  n = n.replace(/\s*\(.*?\)\s*/g, " ");
+  // Strip honorifics
+  n = n.replace(/\b(jr|sr|ii|iii|iv|mr|mrs|ms|dr)\b\.?/g, "");
+  // Collapse whitespace and strip non-alpha
+  return n.replace(/[^a-z\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Token-level name comparison using Levenshtein distance.
+ * Splits names into tokens and finds the best per-token match.
+ * Returns 0-1 score (1 = all tokens match closely).
+ *
+ * "Elise Gonzalez" vs "Elsie Gonsalves" → high (edit distance 1+3 on 5+9 chars)
+ * "Ngan Nguyen" vs "NGAN NGUYEN" → 1.0 (exact after normalization)
+ */
+function scoreNameTokens(a: string, b: string): number {
+  const tokensA = normalizeNameAggressive(a).split(" ").filter((t) => t.length >= 2);
+  const tokensB = normalizeNameAggressive(b).split(" ").filter((t) => t.length >= 2);
+
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+
+  // For each token in A, find best match in B
+  let totalScore = 0;
+  const usedB = new Set<number>();
+
+  for (const tA of tokensA) {
+    let bestScore = 0;
+    let bestIdx = -1;
+    for (let i = 0; i < tokensB.length; i++) {
+      if (usedB.has(i)) continue;
+      const tB = tokensB[i];
+      const maxLen = Math.max(tA.length, tB.length);
+      if (maxLen === 0) continue;
+      const dist = levenshtein(tA, tB);
+      // Normalize: 0 distance = 1.0, distance = maxLen = 0.0
+      const score = 1 - dist / maxLen;
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx >= 0) usedB.add(bestIdx);
+    totalScore += bestScore;
+  }
+
+  return totalScore / tokensA.length;
 }
 
 // ── String similarity (trigram-based) ──────────────────────────────────
