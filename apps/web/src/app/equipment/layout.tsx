@@ -10,7 +10,7 @@ const equipmentSections: NavSection[] = [
       { label: "Scanner", href: "/equipment/scan", icon: "scan-barcode" },
       { label: "Restock", href: "/equipment/restock", icon: "clipboard-check" },
       { label: "Kits", href: "/equipment/kits", icon: "package" },
-      { label: "Collections", href: "/equipment/collections", icon: "layers" },
+      { label: "Follow-Up", href: "/equipment/collections", icon: "phone-call" },
     ],
   },
   {
