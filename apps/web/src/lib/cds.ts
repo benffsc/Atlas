@@ -234,7 +234,7 @@ export async function runCDS(
     // ── Phase 1: CDN Candidate System ──────────────────────────────
     // Validate-before-commit: propose CDNs from waivers, check against ML,
     // only commit when verified. Replaces direct CDN writes (old phases 0.1/0.25).
-    const cdnCandidates = await buildCDNCandidates(clinicDate, waivers);
+    const { candidates: cdnCandidates, suspiciousCdnsRemoved } = await buildCDNCandidates(clinicDate, waivers);
     const { verified: verifiedCdns, rejected: rejectedCdns } = validateCDNCandidates(
       cdnCandidates, entries, appointments
     );
@@ -274,6 +274,7 @@ export async function runCDS(
         total_candidates: cdnCandidates.length,
         verified: verifiedCdns.length,
         rejected: rejectedCdns.length,
+        suspicious_ocr_removed: suspiciousCdnsRemoved,
         committed: cdnsCommitted,
       },
     });
@@ -705,10 +706,15 @@ async function dedupeAppointments(clinicDate: string): Promise<DedupResult> {
  * Source 2 (waiver_weight): Weight bridge dry-run candidates.
  *   Lower confidence — composite scoring on weight/sex/color/name.
  */
+interface BuildCDNResult {
+  candidates: CDNCandidate[];
+  suspiciousCdnsRemoved: number;
+}
+
 async function buildCDNCandidates(
   clinicDate: string,
   waivers: CDSWaiver[]
-): Promise<CDNCandidate[]> {
+): Promise<BuildCDNResult> {
   const candidates: CDNCandidate[] = [];
 
   // Source 1: Chip-matched waivers with OCR clinic number
@@ -726,6 +732,34 @@ async function buildCDNCandidates(
       waiver_id: w.waiver_id,
       confidence: 0.95,
     });
+  }
+
+  // Detect suspicious CDN values: if 3+ waivers from DIFFERENT appointments
+  // all claim the same CDN, it's a systematic OCR error (e.g., Haiku reads "50")
+  const cdnCounts = new Map<number, Set<string>>();
+  for (const c of candidates) {
+    const appts = cdnCounts.get(c.cdn) || new Set();
+    appts.add(c.appointment_id);
+    cdnCounts.set(c.cdn, appts);
+  }
+  const suspiciousCdns = new Set<number>();
+  for (const [cdn, appts] of cdnCounts) {
+    if (appts.size >= 3) suspiciousCdns.add(cdn);
+  }
+  // Remove suspicious candidates (keeping them would all be rejected by
+  // bidirectional check anyway, but this is clearer)
+  let suspiciousRemoved = 0;
+  if (suspiciousCdns.size > 0) {
+    const before = candidates.length;
+    const kept = candidates.filter((c) => !suspiciousCdns.has(c.cdn));
+    candidates.length = 0;
+    candidates.push(...kept);
+    suspiciousRemoved = before - candidates.length;
+    if (suspiciousRemoved > 0) {
+      console.log(
+        `[CDS] Removed ${suspiciousRemoved} candidates with suspicious CDNs: ${[...suspiciousCdns].join(", ")}`
+      );
+    }
   }
 
   // Source 2: Weight bridge candidates (dry-run — no writes)
@@ -753,7 +787,7 @@ async function buildCDNCandidates(
     /* function may not exist yet */
   }
 
-  return candidates;
+  return { candidates, suspiciousCdnsRemoved: suspiciousRemoved };
 }
 
 /**

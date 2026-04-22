@@ -58,8 +58,14 @@ MICROCHIP INSTRUCTIONS (critical — read carefully):
 - There may be MULTIPLE chips: a PetLink sticker (new) AND a handwritten pre-existing chip
 - Return the raw digits only, no spaces or dashes
 
+CLINIC NUMBER (critical — common misread):
+- The big clinic number is usually top-right, handwritten or stamped, 1-3 digits
+- It indicates the surgery order for that day (1 = first cat, 2 = second, etc.)
+- Typical range is 1-55 for a normal clinic day
+- COMMON ERROR: Do NOT read this as "50" unless you are very confident — "50" is frequently a misread of other 2-digit numbers (like 5, 30, 40, 20). Look carefully at the handwriting.
+- If the number is ambiguous, prefer a lower number (1-55 range) over exactly 50
+
 OTHER FIELDS:
-- The big clinic number (usually top-right, handwritten or stamped, 1-3 digits)
 - Owner info, cat info, procedures, notes
 - Weight in pounds (to 2 decimal places)
 - Any handwritten corrections or cross-outs
@@ -323,8 +329,17 @@ export async function extractWaiverOCR(
 
   const parsed = JSON.parse(jsonMatch[0]);
 
+  // Post-OCR validation: sanitize clinic_number
+  let clinicNumber: number | null = parsed.clinic_number ?? null;
+  if (clinicNumber !== null) {
+    // Must be a positive integer in reasonable range
+    if (!Number.isInteger(clinicNumber) || clinicNumber < 1 || clinicNumber > 99) {
+      clinicNumber = null;
+    }
+  }
+
   return {
-    clinic_number: parsed.clinic_number ?? null,
+    clinic_number: clinicNumber,
     date: parsed.date ?? null,
     owner_last_name: parsed.owner_last_name ?? null,
     owner_first_name: parsed.owner_first_name ?? null,
