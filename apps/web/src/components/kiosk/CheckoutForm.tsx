@@ -14,7 +14,7 @@ import {
   EQUIPMENT_CHECKOUT_TYPE_OPTIONS,
   EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS,
 } from "@/lib/form-options";
-import type { EquipmentContextResponse } from "@/lib/types/view-contracts";
+import type { EquipmentContextResponse, VEquipmentInventoryRow } from "@/lib/types/view-contracts";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useKioskStaff } from "./KioskStaffContext";
@@ -134,6 +134,10 @@ export function CheckoutForm({
   const [contextLoading, setContextLoading] = useState(false);
   const [contextExpanded, setContextExpanded] = useState(false);
   const isMobile = useIsMobile();
+
+  // FFS-1337: Overdue equipment warning
+  const [overdueItems, setOverdueItems] = useState<{ barcode: string | null; due: string }[]>([]);
+  const [overdueDismissed, setOverdueDismissed] = useState(false);
 
   // Show "Resumed" banner briefly
   useEffect(() => {
@@ -265,6 +269,40 @@ export function CheckoutForm({
       setContextExpanded(false);
     }
   }, [custodianPersonId, fetchContext]);
+
+  // FFS-1337: Check for overdue equipment when person is identified
+  useEffect(() => {
+    if (!custodianPersonId) {
+      setOverdueItems([]);
+      setOverdueDismissed(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchApi<{ equipment: VEquipmentInventoryRow[] }>(
+          `/api/equipment?custody_status=checked_out&custodian_person_id=${encodeURIComponent(custodianPersonId)}`
+        );
+        if (cancelled) return;
+        const today = new Date().toISOString().split("T")[0];
+        const items = (res.equipment || [])
+          .filter((item) => {
+            const due = item.current_due_date || item.expected_return_date;
+            return due && due < today;
+          })
+          .map((item) => ({
+            barcode: item.barcode,
+            due: (item.current_due_date || item.expected_return_date)!,
+          }));
+        setOverdueItems(items);
+        setOverdueDismissed(false);
+      } catch {
+        // Non-blocking — don't prevent checkout if this fails
+        if (!cancelled) setOverdueItems([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [custodianPersonId]);
 
   // FFS-1304: Auto-select checkout type based on detected person role
   useEffect(() => {
@@ -494,6 +532,59 @@ export function CheckoutForm({
           value={collectedPerson}
           onChange={setCollectedPerson}
         />
+
+        {/* ===================== FFS-1337: OVERDUE WARNING ===================== */}
+        {overdueItems.length > 0 && !overdueDismissed && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.625rem",
+              padding: "0.875rem 1rem",
+              background: "var(--warning-bg, #fef9c3)",
+              border: "1px solid var(--warning-border, #fde68a)",
+              borderRadius: "10px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+              <span style={{ flexShrink: 0, marginTop: "1px" }}><Icon name="alert-triangle" size={18} color="var(--warning-text, #a16207)" /></span>
+              <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--warning-text, #a16207)" }}>
+                This person has {overdueItems.length} overdue trap{overdueItems.length > 1 ? "s" : ""}{" "}
+                ({overdueItems.map((i) => i.barcode || "unknown").join(", ")}){" "}
+                — due back {new Date(overdueItems.reduce((earliest, i) => i.due < earliest ? i.due : earliest, overdueItems[0].due) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <Button
+                variant="outline"
+                size="sm"
+                icon="undo-2"
+                onClick={() => { window.location.href = "/kiosk/equipment/scan"; }}
+                style={{
+                  borderRadius: "8px",
+                  borderColor: "var(--warning-border, #fde68a)",
+                  color: "var(--warning-text, #a16207)",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
+                }}
+              >
+                Return overdue traps now
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setOverdueDismissed(true)}
+                style={{
+                  borderRadius: "8px",
+                  color: "var(--warning-text, #a16207)",
+                  fontSize: "0.8rem",
+                }}
+              >
+                Continue checkout
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* ===================== TYPE + DEPOSIT (side by side) ===================== */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "1rem" }}>

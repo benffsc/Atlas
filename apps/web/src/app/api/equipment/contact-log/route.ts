@@ -32,7 +32,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new ApiError("outcome is required", 400);
   }
 
-  const validMethods = ["call", "text", "email", "in_person"];
+  const validMethods = ["call", "text", "email", "in_person", "system"];
   if (!validMethods.includes(method)) {
     throw new ApiError(`Invalid method: ${method}. Must be one of: ${validMethods.join(", ")}`, 400);
   }
@@ -40,6 +40,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const validOutcomes = [
     "connected_will_return", "connected_needs_time", "connected_other",
     "left_voicemail", "no_answer", "wrong_number", "texted", "emailed",
+    "auto_escalated",
   ];
   if (!validOutcomes.includes(outcome)) {
     throw new ApiError(`Invalid outcome: ${outcome}. Must be one of: ${validOutcomes.join(", ")}`, 400);
