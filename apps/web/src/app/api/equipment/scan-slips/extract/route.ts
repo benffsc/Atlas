@@ -47,8 +47,8 @@ The form has these sections:
 
 IMPORTANT RULES:
 1. Read handwriting carefully — names, phone numbers, and emails are critical identity data
-2. For barcodes, look for 4-digit numbers in the barcode box (e.g., "0205", "0218"). Sometimes staff writes a SECOND barcode next to or below the first — this means TWO traps were checked out on one form.
-3. **MULTIPLE TRAPS ON ONE FORM:** If you see more than one barcode number on the same form (e.g., "0203" in the box and "0171" written nearby), return a SEPARATE JSON object for EACH barcode. Both objects should share the same borrower info (name, phone, email, address, dates, staff) but have different barcodes and equipment descriptions.
+2. For barcodes, look for ALL 4-digit numbers in/around the barcode box (e.g., "0205", "0218"). Staff often writes MULTIPLE barcodes stacked vertically or next to each other — this means multiple traps were checked out on one form. There can be 2, 3, or even more barcodes on a single form.
+3. **MULTIPLE TRAPS ON ONE FORM:** If you see more than one barcode number on the same form (e.g., "0224", "0172", and "0209" stacked in the barcode box), return a SEPARATE JSON object for EACH barcode. All objects share the same borrower info (name, phone, email, address, dates, staff) but have different barcodes. Count ALL 4-digit numbers — don't stop at two.
 4. For purpose, check which checkbox is marked AND read any "Other:" write-in text
 5. For dates, normalize to MM/DD/YY or MM/DD/YYYY format
 6. Capture ANY extra handwritten text anywhere on the form (margin notes, crossed-out text, annotations) in additional_notes
@@ -128,7 +128,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // For PDFs (always potentially multi-page) and single images, adjust prompt
   const isPdfOrMulti = !!pdf;
   const prompt = isPdfOrMulti
-    ? EXTRACTION_PROMPT + `\n\nThis document has multiple pages. Each page is a separate checkout slip. If any single page has MULTIPLE barcodes (two traps checked out on one form), create a separate object for each barcode with the same borrower info. Return a JSON ARRAY of ALL slip objects across all pages. Example: [{ "confidence": 0.95, "name": "...", "barcode": "0203", ... }, { "confidence": 0.95, "name": "...", "barcode": "0171", ... }]`
+    ? EXTRACTION_PROMPT + `\n\nThis document has multiple pages. Each page is a separate checkout slip. If any single page has MULTIPLE barcodes (2, 3, or more numbers stacked in the barcode box), create a separate JSON object for EACH barcode with the same borrower info. Return a JSON ARRAY of ALL slip objects across all pages. Example for a form with 3 barcodes: [{ "confidence": 0.95, "name": "Jacqueline Luna", "barcode": "0224", ... }, { "confidence": 0.95, "name": "Jacqueline Luna", "barcode": "0172", ... }, { "confidence": 0.95, "name": "Jacqueline Luna", "barcode": "0209", ... }]`
     : EXTRACTION_PROMPT;
 
   const message = await anthropic.messages.create({
