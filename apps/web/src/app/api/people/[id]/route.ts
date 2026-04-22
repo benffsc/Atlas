@@ -26,6 +26,7 @@ interface PersonDetailRow {
   places: object[] | null;
   person_relationships: object[] | null;
   cat_count: number;
+  total_cat_count: number;
   place_count: number;
   is_valid_name: boolean;
   primary_address_id: string | null;
@@ -74,6 +75,7 @@ export const GET = withErrorHandling(async (
         pd.places,
         '[]'::jsonb AS person_relationships,
         pd.cat_count,
+        COALESCE(pd.total_cat_count, pd.cat_count) AS total_cat_count,
         pd.place_count,
         sot.is_valid_person_name(pd.display_name) AS is_valid_name,
         pd.source_created_at,

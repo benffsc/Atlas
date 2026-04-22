@@ -106,7 +106,8 @@ export interface VPersonDetailRow {
   cats: unknown[] | null;
   places: unknown[] | null;
   person_relationships: unknown[] | null;
-  cat_count: number;
+  cat_count: number; // Non-departed cats only (MIG_3095)
+  total_cat_count?: number; // All cats including departed (MIG_3095)
   place_count: number;
   is_valid_name: boolean;
   primary_address_id: string | null;
