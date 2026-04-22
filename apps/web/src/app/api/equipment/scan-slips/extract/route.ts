@@ -44,7 +44,7 @@ const EXTRACTION_PROMPT = `You are reading a scanned "Equipment Checkout Form" f
 
 The form has these sections:
 - BORROWER INFORMATION: Full Name, Phone, Email, Address (where equipment will be used), Appointment Date, Date Checked Out
-- EQUIPMENT: Type (checkboxes: Large Trap, Small Trap, Drop Trap, Transfer Cage, Other), Barcode boxes (up to 3 side-by-side, 4 digits each), Equipment Description, Purpose (checkboxes: FFR Appt, Feeding, Transport, Other with write-in)
+- EQUIPMENT: Type (checkboxes: Trap, Gadget, Transfer Cage, Wire Cage), Barcode boxes (up to 3 side-by-side, 4 digits each), Purpose (checkboxes: FFR Appt, Feeding, Transport, Other with write-in). Note: older forms (Rev 1) have a single barcode box and an "Equipment Description" write-in field instead of Type checkboxes.
 - CHECKOUT DETAILS — STAFF USE: Deposit $, Due Date, Staff Name, Notes
 
 IMPORTANT RULES:
@@ -58,7 +58,7 @@ IMPORTANT RULES:
 8. Return confidence 0.0-1.0 based on how clearly you can read the slip
 9. For the equipment description, include any trap number mentioned (e.g., "#132 trap", "trap T-2")
 10. The barcode in the equipment description field is sometimes the trap's legacy name, not the barcode — use the number in the BARCODE BOX as the barcode field.
-11. **EQUIPMENT TYPE:** If identifiable from the description or form context, set equipment_type to one of: "large_trap_backdoor", "large_trap_no_backdoor", "large_trap_swing_backdoor", "small_trap_backdoor", "small_trap_no_backdoor", "drop_trap", "string_trap", "transfer_cage", "trap_cover", "divider". If just "trap" with no size/type detail, use "large_trap_backdoor" (most common). If unclear, return null.
+11. **EQUIPMENT TYPE:** Check the Type checkboxes on the form. Map to: "Trap" → "large_trap_backdoor", "Gadget" → "unknown", "Transfer Cage" → "transfer_cage", "Wire Cage" → "wire_cage". If no checkbox is checked but the description says "trap", use "large_trap_backdoor". If unclear, return null.
 12. **STAFF NAME RESOLUTION:** Common staff abbreviations: "JM" or "Jami" = "Jami Knuthson", "JK" = "Jami Knuthson", "CF" = "Crystal Furtado", "HF" or "Heidi" = "Heidi Fantacone". Return the full resolved name if you can match an abbreviation.
 13. **BARCODES MUST BE 4 DIGITS with leading zeros.** If you read "209", it should be "0209". If you read "24", it should be "0024". Always pad to 4 digits.
 

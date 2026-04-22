@@ -521,7 +521,7 @@ function Slip({
             <div style={{ flex: 1 }}>
               <span className="pf-field-label">Type</span>
               <div className="pf-checkbox-row" style={{ marginTop: "0.04in" }}>
-                {["Large", "Small", "Drop", "Cage"].map((t) => (
+                {["Trap", "Gadget", "Transfer Cage", "Wire Cage"].map((t) => (
                   <span key={t} className="pf-checkbox">
                     <span className="pf-checkbox-box" />
                     {t}

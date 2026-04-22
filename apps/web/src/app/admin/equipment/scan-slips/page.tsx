@@ -783,15 +783,11 @@ function SlipReviewCard({
               onChange={(e) => onUpdate("equipmentType", e.target.value)}
               style={selectStyle}
             >
-              <option value="">Auto-detect</option>
-              <option value="large_trap_backdoor">Large Trap (Backdoor)</option>
-              <option value="large_trap_no_backdoor">Large Trap (No Backdoor)</option>
-              <option value="large_trap_swing_backdoor">Large Trap (Swing Backdoor)</option>
-              <option value="small_trap_backdoor">Small Trap (Backdoor)</option>
-              <option value="small_trap_no_backdoor">Small Trap (No Backdoor)</option>
-              <option value="drop_trap">Drop Trap</option>
-              <option value="string_trap">String Trap</option>
+              <option value="">—</option>
+              <option value="large_trap_backdoor">Trap</option>
+              <option value="unknown">Gadget / Accessory</option>
               <option value="transfer_cage">Transfer Cage</option>
+              <option value="wire_cage">Wire Cage</option>
             </select>
           </div>
           <div>
