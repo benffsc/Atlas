@@ -219,6 +219,7 @@ export default function CollectionsPage() {
                       onMarkReturned={() => {
                         toast.info("Use the Inventory page or Kiosk to check in returned traps.");
                       }}
+                      onRefresh={fetchQueue}
                     />
                   ))}
                 </div>
@@ -265,6 +266,7 @@ function OverdueCard({
   onCancelLog,
   onLogContact,
   onMarkReturned,
+  onRefresh,
 }: {
   row: OverdueQueueRow;
   tier: { color: string; bg: string; border: string };
@@ -273,8 +275,16 @@ function OverdueCard({
   onCancelLog: () => void;
   onLogContact: (method: string, outcome: string, notes: string) => void;
   onMarkReturned: () => void;
+  onRefresh: () => void;
 }) {
+  const toast = useToast();
   const [logMethod, setLogMethod] = useState<string | null>(null);
+  const [showActions, setShowActions] = useState(false);
+  const [actionMode, setActionMode] = useState<"none" | "extend" | "reassign" | "note">("none");
+  const [actionNote, setActionNote] = useState("");
+  const [newDueDate, setNewDueDate] = useState("");
+  const [reassignName, setReassignName] = useState("");
+  const [actionSubmitting, setActionSubmitting] = useState(false);
   const [logNotes, setLogNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -444,6 +454,163 @@ function OverdueCard({
               Log Attempt
             </Button>
           )}
+          {/* More actions toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={showActions ? "chevron-up" : "more-horizontal"}
+            onClick={() => { setShowActions(!showActions); setActionMode("none"); }}
+            style={{ borderRadius: 8, minHeight: 36, marginLeft: "auto" }}
+          >
+            {showActions ? "Less" : "More"}
+          </Button>
+        </div>
+      )}
+
+      {/* Context actions — extend due date, reassign holder, add note */}
+      {showActions && !isLogging && actionMode === "none" && (
+        <div style={{
+          display: "flex", gap: "0.375rem", marginTop: "0.5rem", flexWrap: "wrap",
+        }}>
+          <Button variant="ghost" size="sm" icon="calendar-plus" onClick={() => setActionMode("extend")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
+            Extend Due Date
+          </Button>
+          <Button variant="ghost" size="sm" icon="arrow-right-left" onClick={() => setActionMode("reassign")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
+            Reassign Holder
+          </Button>
+          <Button variant="ghost" size="sm" icon="message-square-plus" onClick={() => setActionMode("note")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
+            Add Note
+          </Button>
+        </div>
+      )}
+
+      {/* Extend due date form */}
+      {actionMode === "extend" && (
+        <div style={{ marginTop: "0.5rem", padding: "0.75rem", background: "var(--section-bg, #f9fafb)", borderRadius: 8, border: "1px solid var(--card-border)" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>Extend due date for all {row.trap_count} trap{row.trap_count !== 1 ? "s" : ""}</div>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div>
+              <label style={{ fontSize: "0.7rem", color: "var(--muted)", display: "block", marginBottom: "0.2rem" }}>New due date</label>
+              <input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)}
+                style={{ padding: "0.4rem 0.5rem", borderRadius: 6, border: "1px solid var(--card-border)", fontSize: "0.85rem" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: "0.7rem", color: "var(--muted)", display: "block", marginBottom: "0.2rem" }}>Reason</label>
+              <input type="text" value={actionNote} onChange={(e) => setActionNote(e.target.value)} placeholder="e.g. Active colony, keeping for 2 more weeks"
+                style={{ width: "100%", padding: "0.4rem 0.5rem", borderRadius: 6, border: "1px solid var(--card-border)", fontSize: "0.85rem", boxSizing: "border-box" }} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.5rem" }}>
+            <Button variant="primary" size="sm" loading={actionSubmitting} disabled={!newDueDate} onClick={async () => {
+              setActionSubmitting(true);
+              try {
+                for (const eqId of row.equipment_ids) {
+                  // Log the extension event
+                  await postApi(`/api/equipment/${eqId}/events`, {
+                    event_type: "note",
+                    notes: `Due date extended to ${newDueDate}. ${actionNote}`.trim(),
+                    due_date: newDueDate,
+                  });
+                  // Update the actual due date on the equipment row
+                  await fetch(`/api/equipment/${eqId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ expected_return_date: newDueDate }),
+                  });
+                }
+                // Log as contact attempt so it shows in the call queue history
+                await postApi("/api/equipment/contact-log", {
+                  person_id: row.person_id, holder_name: row.holder_name,
+                  method: "system", outcome: "connected_needs_time",
+                  notes: `Due date extended to ${newDueDate}. ${actionNote}`.trim(),
+                  equipment_ids: row.equipment_ids,
+                });
+                toast.success(`Due date extended to ${newDueDate}`);
+                setActionMode("none"); setShowActions(false); setActionNote(""); setNewDueDate("");
+                onRefresh();
+              } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
+              finally { setActionSubmitting(false); }
+            }} style={{ borderRadius: 8 }}>
+              Extend
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setActionMode("none"); setActionNote(""); setNewDueDate(""); }} style={{ borderRadius: 8 }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign holder form */}
+      {actionMode === "reassign" && (
+        <div style={{ marginTop: "0.5rem", padding: "0.75rem", background: "var(--section-bg, #f9fafb)", borderRadius: 8, border: "1px solid var(--card-border)" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+            Reassign from {row.holder_name} — who actually has {row.trap_count > 1 ? "these traps" : "this trap"}?
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ flex: 1 }}>
+              <input type="text" value={reassignName} onChange={(e) => setReassignName(e.target.value)} placeholder="e.g. Moria Zimbicki"
+                style={{ width: "100%", padding: "0.5rem", borderRadius: 6, border: "1px solid var(--card-border)", fontSize: "0.9rem", boxSizing: "border-box" }} />
+            </div>
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+            This will transfer all {row.trap_count} trap{row.trap_count !== 1 ? "s" : ""} ({row.trap_barcodes.join(", ")}) to the new holder.
+          </div>
+          <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.5rem" }}>
+            <Button variant="primary" size="sm" loading={actionSubmitting} disabled={!reassignName.trim()} onClick={async () => {
+              setActionSubmitting(true);
+              try {
+                for (const eqId of row.equipment_ids) {
+                  await postApi(`/api/equipment/${eqId}/events`, {
+                    event_type: "transfer",
+                    custodian_name: reassignName.trim(),
+                    custodian_name_raw: reassignName.trim(),
+                    notes: `Reassigned from ${row.holder_name}. ${actionNote}`.trim(),
+                  });
+                }
+                toast.success(`Transferred to ${reassignName.trim()}`);
+                setActionMode("none"); setShowActions(false); setReassignName(""); setActionNote("");
+                onRefresh();
+              } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
+              finally { setActionSubmitting(false); }
+            }} style={{ borderRadius: 8 }}>
+              Reassign
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setActionMode("none"); setReassignName(""); }} style={{ borderRadius: 8 }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Add note form */}
+      {actionMode === "note" && (
+        <div style={{ marginTop: "0.5rem", padding: "0.75rem", background: "var(--section-bg, #f9fafb)", borderRadius: 8, border: "1px solid var(--card-border)" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>Add a note about this equipment</div>
+          <input type="text" value={actionNote} onChange={(e) => setActionNote(e.target.value)}
+            placeholder="e.g. Left at colony site intentionally, borrower traveling until May, trapper has it"
+            style={{ width: "100%", padding: "0.5rem", borderRadius: 6, border: "1px solid var(--card-border)", fontSize: "0.85rem", boxSizing: "border-box" }} />
+          <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.5rem" }}>
+            <Button variant="primary" size="sm" loading={actionSubmitting} disabled={!actionNote.trim()} onClick={async () => {
+              setActionSubmitting(true);
+              try {
+                await postApi("/api/equipment/contact-log", {
+                  person_id: row.person_id, holder_name: row.holder_name,
+                  method: "system", outcome: "connected_other",
+                  notes: actionNote.trim(),
+                  equipment_ids: row.equipment_ids,
+                });
+                toast.success("Note saved");
+                setActionMode("none"); setShowActions(false); setActionNote("");
+                onRefresh();
+              } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
+              finally { setActionSubmitting(false); }
+            }} style={{ borderRadius: 8 }}>
+              Save Note
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setActionMode("none"); setActionNote(""); }} style={{ borderRadius: 8 }}>
+              Cancel
+            </Button>
+          </div>
         </div>
       )}
 
