@@ -24,7 +24,20 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   let paramIdx = 1;
 
   if (search) {
-    conditions.push(`(v.barcode ILIKE $${paramIdx} OR v.display_name ILIKE $${paramIdx} OR v.custodian_name ILIKE $${paramIdx} OR v.current_holder_name ILIKE $${paramIdx})`);
+    // Search across equipment fields + person contact info (phone, email) + place address
+    conditions.push(`(
+      v.barcode ILIKE $${paramIdx}
+      OR v.display_name ILIKE $${paramIdx}
+      OR v.custodian_name ILIKE $${paramIdx}
+      OR v.current_holder_name ILIKE $${paramIdx}
+      OR v.current_place_address ILIKE $${paramIdx}
+      OR EXISTS (
+        SELECT 1 FROM sot.person_identifiers pi
+        WHERE pi.person_id = v.current_custodian_id
+          AND pi.confidence >= 0.5
+          AND pi.id_value_raw ILIKE $${paramIdx}
+      )
+    )`);
     params.push(`%${search}%`);
     paramIdx++;
   }

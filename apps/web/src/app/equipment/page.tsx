@@ -635,7 +635,7 @@ function EquipmentPageContent() {
       <div style={{ display: "flex", gap: "0.375rem", marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
         <input
           type="text"
-          placeholder="Search barcode, name, or holder..."
+          placeholder="Search name, barcode, phone, email, address..."
           value={filters.search}
           onChange={(e) => setFilter("search", e.target.value)}
           style={{

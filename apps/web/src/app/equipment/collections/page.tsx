@@ -133,16 +133,16 @@ export default function CollectionsPage() {
       {/* Tier stat cards — clickable filters */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
         <button onClick={() => setTierFilter("all")} style={statButtonStyle(tierFilter === "all", "var(--text-primary)")}>
-          <StatCard label="All Overdue" value={totalPeople} subtitle={`${totalTraps} traps`} compact />
+          <StatCard label="All Overdue" value={totalPeople} subtitle={`${totalTraps} traps`} />
         </button>
         <button onClick={() => setTierFilter("critical")} style={statButtonStyle(tierFilter === "critical", "var(--danger-text)")}>
-          <StatCard label="Critical" value={summary.critical?.people || 0} subtitle={TIERS.critical.label} valueColor="var(--danger-text)" compact />
+          <StatCard label="Critical" value={summary.critical?.people || 0} subtitle={TIERS.critical.label} valueColor="var(--danger-text)" />
         </button>
         <button onClick={() => setTierFilter("warning")} style={statButtonStyle(tierFilter === "warning", "var(--warning-text)")}>
-          <StatCard label="Warning" value={summary.warning?.people || 0} subtitle={TIERS.warning.label} valueColor="var(--warning-text)" compact />
+          <StatCard label="Warning" value={summary.warning?.people || 0} subtitle={TIERS.warning.label} valueColor="var(--warning-text)" />
         </button>
         <button onClick={() => setTierFilter("new")} style={statButtonStyle(tierFilter === "new", "var(--info-text)")}>
-          <StatCard label="New" value={summary.new?.people || 0} subtitle={TIERS.new.label} valueColor="var(--info-text)" compact />
+          <StatCard label="New" value={summary.new?.people || 0} subtitle={TIERS.new.label} valueColor="var(--info-text)" />
         </button>
       </div>
 
