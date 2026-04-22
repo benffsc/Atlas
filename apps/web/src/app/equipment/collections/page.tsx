@@ -420,74 +420,27 @@ function OverdueCard({
       {expanded && (
       <div style={{ padding: "0 1rem 0.875rem", borderTop: "1px solid var(--card-border, #e5e7eb)" }}>
 
-      {/* Action buttons + context actions */}
+      {/* Action grid — two rows */}
       {!isLogging && actionMode === "none" && (
-        <>
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.625rem", flexWrap: "wrap" }}>
-            {phoneDisplay && (
-              <Button
-                variant="primary"
-                size="sm"
-                icon="phone"
-                onClick={() => {
-                  window.open(`tel:${row.phone}`, "_self");
-                  onStartLog();
-                  setLogMethod("call");
-                }}
-                style={{ borderRadius: 8, minHeight: 36 }}
-              >
-                Call
-              </Button>
-            )}
-            {phoneDisplay && (
-              <Button
-                variant="outline"
-                size="sm"
-                icon="message-square"
-                onClick={() => {
-                  window.open(`sms:${row.phone}?body=${smsBody}`, "_self");
-                  onStartLog();
-                  setLogMethod("text");
-                }}
-                style={{ borderRadius: 8, minHeight: 36 }}
-              >
-                Text
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="check"
-              onClick={onMarkReturned}
-              style={{ borderRadius: 8, minHeight: 36 }}
-            >
-              Returned
-            </Button>
-            {!phoneDisplay && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="edit"
-                onClick={() => { onStartLog(); setLogMethod("call"); }}
-                style={{ borderRadius: 8, minHeight: 36 }}
-              >
-                Log Attempt
-              </Button>
-            )}
-          </div>
-
-          <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-            <Button variant="ghost" size="sm" icon="calendar-plus" onClick={() => setActionMode("extend")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
-              Extend Due Date
-            </Button>
-            <Button variant="ghost" size="sm" icon="arrow-right-left" onClick={() => setActionMode("reassign")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
-              Reassign Holder
-            </Button>
-            <Button variant="ghost" size="sm" icon="message-square-plus" onClick={() => setActionMode("note")} style={{ borderRadius: 8, fontSize: "0.8rem" }}>
-              Add Note
-            </Button>
-          </div>
-        </>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: "0.375rem", marginTop: "0.625rem" }}>
+          {phoneDisplay && (
+            <ActionTile icon="phone" label="Call" color="var(--primary)" onClick={() => {
+              window.open(`tel:${row.phone}`, "_self");
+              onStartLog(); setLogMethod("call");
+            }} />
+          )}
+          {phoneDisplay && (
+            <ActionTile icon="message-square" label="Text" color="var(--primary)" onClick={() => {
+              window.open(`sms:${row.phone}?body=${smsBody}`, "_self");
+              onStartLog(); setLogMethod("text");
+            }} />
+          )}
+          <ActionTile icon="check" label="Returned" color="var(--success-text)" onClick={onMarkReturned} />
+          <ActionTile icon="edit" label="Log Attempt" color="var(--text-secondary)" onClick={() => { onStartLog(); setLogMethod("call"); }} />
+          <ActionTile icon="calendar-days" label="Extend Date" color="var(--warning-text)" onClick={() => setActionMode("extend")} />
+          <ActionTile icon="arrow-right" label="Reassign" color="var(--info-text)" onClick={() => setActionMode("reassign")} />
+          <ActionTile icon="message-square" label="Add Note" color="var(--text-secondary)" onClick={() => setActionMode("note")} />
+        </div>
       )}
 
       {/* Extend due date form */}
@@ -883,6 +836,32 @@ function PrintCallList({
         <span>(707) 576-7999</span>
       </div>
     </div>
+  );
+}
+
+// ─── Action Tile ────────────────────────────────────────────────────────────
+
+function ActionTile({ icon, label, color, onClick }: {
+  icon: string; label: string; color: string; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        gap: "0.25rem", padding: "0.625rem 0.375rem",
+        borderRadius: 8, border: "1px solid var(--card-border, #e5e7eb)",
+        background: "var(--card-bg, #fff)", cursor: "pointer",
+        minHeight: 56, fontSize: "0.7rem", fontWeight: 600, color,
+        WebkitTapHighlightColor: "transparent",
+        transition: "background 0.1s",
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--section-bg, #f9fafb)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "var(--card-bg, #fff)"; }}
+    >
+      <Icon name={icon} size={18} color={color} />
+      {label}
+    </button>
   );
 }
 
