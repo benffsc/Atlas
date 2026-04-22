@@ -81,18 +81,38 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const eventType =
     equipment.custody_status === "checked_out" ? "transfer" : "check_out";
 
-  // Calculate due date from purpose
-  const dueDays: Record<string, number> = {
-    ffr: 3,
-    well_check: 7,
-    rescue_recovery: 14,
-    trap_training: 7,
-    transport: 3,
-  };
-  const offsetDays = dueDays[purpose] || 14;
-  const baseDate = checkout_date ? parseSlipDate(checkout_date) : new Date();
-  baseDate.setDate(baseDate.getDate() + offsetDays);
-  const dueDate = baseDate.toISOString().split("T")[0];
+  // Calculate due date — default 2 weeks from checkout.
+  // If appointment_date is provided and falls within that 2-week window,
+  // extend to end of appointment week (Saturday) so borrower has time
+  // to trap before the appointment and return after.
+  const checkoutDate = checkout_date ? parseSlipDate(checkout_date) : new Date();
+  const twoWeeksOut = new Date(checkoutDate);
+  twoWeeksOut.setDate(twoWeeksOut.getDate() + 14);
+
+  let dueDateObj = twoWeeksOut;
+
+  if (appointment_date) {
+    const apptDate = parseSlipDate(appointment_date);
+    if (apptDate >= checkoutDate && apptDate <= twoWeeksOut) {
+      // Appointment is within the 2-week window — extend to end of that week (Saturday)
+      const dayOfWeek = apptDate.getDay(); // 0=Sun, 6=Sat
+      const daysUntilSat = (6 - dayOfWeek + 7) % 7 || 7; // days until next Saturday
+      const endOfApptWeek = new Date(apptDate);
+      endOfApptWeek.setDate(endOfApptWeek.getDate() + daysUntilSat);
+      // Use whichever is later: end of appt week or 2-week default
+      if (endOfApptWeek > dueDateObj) {
+        dueDateObj = endOfApptWeek;
+      }
+    } else if (apptDate > twoWeeksOut) {
+      // Appointment is AFTER 2 weeks — extend to end of appointment week
+      const dayOfWeek = apptDate.getDay();
+      const daysUntilSat = (6 - dayOfWeek + 7) % 7 || 7;
+      dueDateObj = new Date(apptDate);
+      dueDateObj.setDate(dueDateObj.getDate() + daysUntilSat);
+    }
+  }
+
+  const dueDate = dueDateObj.toISOString().split("T")[0];
 
   // Insert the event (trigger handles equipment table update)
   const result = await queryOne<{ event_id: string }>(
@@ -116,6 +136,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       notesParts,
       person_id ? "resolved" : "unresolved",
     ],
+  );
+
+  // Update expected_return_date on the equipment row
+  // (the event trigger doesn't propagate due_date to the equipment row)
+  await queryOne(
+    `UPDATE ops.equipment SET expected_return_date = $1::date WHERE equipment_id = $2`,
+    [dueDate, equipment.equipment_id],
   );
 
   return apiSuccess({
