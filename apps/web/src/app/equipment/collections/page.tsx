@@ -287,15 +287,16 @@ function OverdueCard({
   const dueDateDisplay = row.earliest_due_date
     ? new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
     : "";
+  const defaultSms = "Hi {first_name}, this is Forgotten Felines checking on trap {barcodes} you borrowed. Please return to {org_address} or call {org_phone}. Thank you!";
   const smsBody = encodeURIComponent(
-    smsTemplate
+    (smsTemplate || defaultSms)
       .replace(/\{name\}/g, row.holder_name)
       .replace(/\{first_name\}/g, row.holder_name.split(" ")[0])
       .replace(/\{barcodes\}/g, row.trap_barcodes.join(", "))
       .replace(/\{trap_count\}/g, String(row.trap_count))
       .replace(/\{due_date\}/g, dueDateDisplay)
-      .replace(/\{org_phone\}/g, orgPhone)
-      .replace(/\{org_address\}/g, orgAddress)
+      .replace(/\{org_phone\}/g, orgPhone || "(707) 576-7999")
+      .replace(/\{org_address\}/g, orgAddress || "1814 Empire Industrial Ct, Suite F, Santa Rosa")
   );
 
   const handleSubmitLog = async (outcome: string) => {

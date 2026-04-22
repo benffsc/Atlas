@@ -559,6 +559,27 @@ function EquipmentPageContent() {
 
   const hasActiveFilters = filters.category || filters.custody_status || filters.condition_status || filters.functional_status || filters.type_key;
 
+  // Compute category-level stats from equipment data
+  const catStats = useMemo(() => {
+    const traps = equipment.filter((e) => e.type_category === "trap");
+    const accessories = equipment.filter((e) => e.type_category !== "trap");
+    const now = new Date();
+    return {
+      traps: {
+        total: traps.length,
+        available: traps.filter((e) => e.custody_status === "available").length,
+        out: traps.filter((e) => e.custody_status === "checked_out").length,
+        overdue: traps.filter((e) => e.custody_status === "checked_out" && (e.current_due_date || e.expected_return_date) && new Date(e.current_due_date || e.expected_return_date || "") < now).length,
+        missing: traps.filter((e) => e.custody_status === "missing").length,
+      },
+      accessories: {
+        total: accessories.length,
+        available: accessories.filter((e) => e.custody_status === "available").length,
+        out: accessories.filter((e) => e.custody_status === "checked_out").length,
+      },
+    };
+  }, [equipment]);
+
   // Fetch top overdue items for the attention section
   const [topOverdue, setTopOverdue] = useState<Array<{
     holder_name: string; phone: string | null; email: string | null;
@@ -593,18 +614,35 @@ function EquipmentPageContent() {
         </div>
       </div>
 
-      {/* Stats strip — morning glance */}
-      {stats && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
-          <StatCard label="Available" value={stats.available} valueColor="var(--success-text)" />
-          <StatCard label="Checked Out" value={stats.checked_out} valueColor="var(--warning-text)" />
-          <StatCard
-            label="Overdue"
-            value={stats.overdue}
-            valueColor={stats.overdue > 0 ? "var(--danger-text)" : "var(--muted)"}
-            subtitle={stats.overdue > 0 ? "need follow-up" : undefined}
-          />
-          {stats.missing > 0 && <StatCard label="Missing" value={stats.missing} valueColor="var(--danger-text)" />}
+      {/* Stats strip — category-aware morning glance */}
+      {!loading && equipment.length > 0 && (
+        <div style={{ marginBottom: "1rem" }}>
+          {/* Traps — the primary lending item */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: "0.375rem",
+            marginBottom: "0.375rem", fontSize: "0.7rem", fontWeight: 700,
+            color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em",
+          }}>
+            Traps ({catStats.traps.total})
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <StatCard label="Available to Lend" value={catStats.traps.available} valueColor="var(--success-text)" />
+            <StatCard label="Checked Out" value={catStats.traps.out} valueColor="var(--warning-text)" />
+            <StatCard
+              label="Overdue"
+              value={catStats.traps.overdue}
+              valueColor={catStats.traps.overdue > 0 ? "var(--danger-text)" : "var(--muted)"}
+              subtitle={catStats.traps.overdue > 0 ? "need follow-up" : undefined}
+            />
+            {catStats.traps.missing > 0 && <StatCard label="Missing" value={catStats.traps.missing} valueColor="var(--danger-text)" />}
+          </div>
+
+          {/* Accessories — secondary, compact */}
+          {catStats.accessories.total > 0 && (
+            <div style={{ fontSize: "0.8rem", color: "var(--muted)", display: "flex", gap: "0.75rem" }}>
+              <span>Accessories/Cages: {catStats.accessories.available} available, {catStats.accessories.out} out</span>
+            </div>
+          )}
         </div>
       )}
 
