@@ -19,27 +19,23 @@ interface StreamPhase {
   success?: boolean;
 }
 
-/** Human-readable labels for tool names */
+/** Human-readable labels for V2 tool names */
 const TOOL_LABELS: Record<string, string> = {
   run_sql: "Querying database",
-  analyze_place_situation: "Analyzing location",
-  analyze_spatial_context: "Checking nearby activity",
-  comprehensive_place_lookup: "Looking up place",
-  comprehensive_person_lookup: "Looking up person",
-  comprehensive_cat_lookup: "Looking up cat",
-  query_cats_at_place: "Finding cats at address",
-  query_place_colony_status: "Checking colony status",
-  query_request_stats: "Getting request stats",
-  query_ffr_impact: "Getting impact metrics",
-  query_cats_altered_in_area: "Searching area",
-  query_region_stats: "Getting region stats",
-  query_cat_journey: "Tracing cat history",
-  query_trapper_stats: "Looking up trappers",
-  lookup_cat_appointment: "Searching appointments",
-  query_knowledge_base: "Searching knowledge base",
+  full_place_briefing: "Analyzing location",
+  place_search: "Looking up place",
+  person_lookup: "Looking up person",
+  cat_lookup: "Looking up cat",
+  cat_search: "Searching cats by description",
+  area_stats: "Getting area statistics",
+  spatial_context: "Checking nearby activity",
+  compare_places: "Comparing locations",
+  find_priority_sites: "Finding priority sites",
+  trapper_stats: "Looking up trappers",
+  request_stats: "Getting request stats",
   create_reminder: "Creating reminder",
-  send_staff_message: "Sending message",
-  log_field_event: "Logging event",
+  send_message: "Sending message",
+  log_event: "Logging event",
 };
 
 function getPhaseLabel(phase: StreamPhase, isBriefing?: boolean): string {

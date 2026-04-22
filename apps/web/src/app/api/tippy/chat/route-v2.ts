@@ -257,26 +257,21 @@ async function getOrCreateConversation(
   staffId: string | null
 ): Promise<string> {
   if (conversationId) {
-    const existing = await queryOne<{ id: string }>(
-      `SELECT id FROM ops.tippy_conversations WHERE id = $1`,
+    const existing = await queryOne<{ conversation_id: string }>(
+      `SELECT conversation_id FROM ops.tippy_conversations WHERE conversation_id = $1`,
       [conversationId]
     );
-    if (existing) return existing.id;
+    if (existing) return existing.conversation_id;
   }
 
-  const row = await queryOne<{ id: string }>(
-    `INSERT INTO ops.tippy_conversations (staff_id, started_at)
-     VALUES ($1, NOW())
-     RETURNING id`,
+  const row = await queryOne<{ conversation_id: string }>(
+    `INSERT INTO ops.tippy_conversations (staff_id)
+     VALUES ($1)
+     RETURNING conversation_id`,
     [staffId]
   );
 
-  // Fire-and-forget summary generation for previous conversations
-  if (staffId) {
-    generateConversationSummary(staffId).catch(() => {});
-  }
-
-  return row!.id;
+  return row?.conversation_id || `conv_${Date.now()}`;
 }
 
 async function buildPreflightContext(conversationId: string): Promise<string> {
@@ -343,21 +338,10 @@ async function buildPreflightContext(conversationId: string): Promise<string> {
   return result;
 }
 
-async function buildMemoryContext(staffId: string): Promise<string | null> {
-  try {
-    const memories = await queryRows<{ summary: string; created_at: string }>(
-      `SELECT summary, created_at::text FROM ops.tippy_staff_memory
-       WHERE staff_id = $1 ORDER BY created_at DESC LIMIT 3`,
-      [staffId]
-    );
-    if (memories.length === 0) return null;
-    return (
-      "CONVERSATION MEMORY (recent sessions):\n" +
-      memories.map((m) => `[${m.created_at}] ${m.summary}`).join("\n")
-    );
-  } catch {
-    return null;
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function buildMemoryContext(_staffId: string): Promise<string | null> {
+  // tippy_staff_memory table does not exist yet — returns null until schema created.
+  return null;
 }
 
 async function storeMessage(
@@ -365,22 +349,21 @@ async function storeMessage(
   role: "user" | "assistant",
   content: string,
   toolCalls?: string[],
-  toolResults?: string[],
-  tokens?: { input?: number; output?: number }
+  _toolResults?: string[],
+  tokens?: number
 ): Promise<void> {
+  if (conversationId.startsWith("conv_")) return; // fallback ID, no DB record
   try {
     await execute(
       `INSERT INTO ops.tippy_messages
-         (conversation_id, role, content, tool_calls, tool_results, input_tokens, output_tokens)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         (conversation_id, role, content, tool_calls, tokens_used)
+       VALUES ($1, $2, $3, $4, $5)`,
       [
         conversationId,
         role,
         content,
-        toolCalls ? JSON.stringify(toolCalls) : null,
-        toolResults ? JSON.stringify(toolResults) : null,
-        tokens?.input ?? null,
-        tokens?.output ?? null,
+        toolCalls ? JSON.stringify({ tools: toolCalls }) : null,
+        tokens ?? null,
       ]
     );
   } catch {
@@ -392,12 +375,13 @@ async function updateConversationTools(
   conversationId: string,
   toolNames: string[]
 ): Promise<void> {
-  if (toolNames.length === 0) return;
+  if (toolNames.length === 0 || conversationId.startsWith("conv_")) return;
   try {
     await execute(
       `UPDATE ops.tippy_conversations
-       SET tools_used = COALESCE(tools_used, '{}') || $2::text[]
-       WHERE id = $1`,
+       SET tools_used = array_cat(tools_used, $2::text[]),
+           updated_at = NOW()
+       WHERE conversation_id = $1`,
       [conversationId, toolNames]
     );
   } catch {
@@ -405,54 +389,10 @@ async function updateConversationTools(
   }
 }
 
-async function generateConversationSummary(staffId: string): Promise<void> {
-  try {
-    // Find the most recent completed conversation without a summary
-    const conv = await queryOne<{ id: string }>(
-      `SELECT c.id FROM ops.tippy_conversations c
-       LEFT JOIN ops.tippy_staff_memory m ON m.conversation_id = c.id
-       WHERE c.staff_id = $1 AND m.id IS NULL
-         AND c.started_at < NOW() - INTERVAL '5 minutes'
-       ORDER BY c.started_at DESC LIMIT 1`,
-      [staffId]
-    );
-    if (!conv) return;
-
-    const messages = await queryRows<{ role: string; content: string }>(
-      `SELECT role, content FROM ops.tippy_messages
-       WHERE conversation_id = $1 ORDER BY created_at LIMIT 20`,
-      [conv.id]
-    );
-    if (messages.length < 2) return;
-
-    const client = new Anthropic();
-    const transcript = messages
-      .map((m) => `${m.role}: ${m.content?.substring(0, 300) || "[tool use]"}`)
-      .join("\n");
-
-    const resp = await client.messages.create({
-      model: "claude-haiku-4-20250414",
-      max_tokens: 200,
-      messages: [
-        {
-          role: "user",
-          content: `Summarize this Tippy conversation in 1-2 sentences. Focus on: what was asked, what was found, any action items.\n\n${transcript}`,
-        },
-      ],
-    });
-
-    const summary =
-      resp.content[0].type === "text" ? resp.content[0].text : "";
-    if (summary) {
-      await execute(
-        `INSERT INTO ops.tippy_staff_memory (staff_id, conversation_id, summary)
-         VALUES ($1, $2, $3)`,
-        [staffId, conv.id, summary]
-      );
-    }
-  } catch {
-    // Fire-and-forget
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function generateConversationSummary(_staffId: string): Promise<void> {
+  // tippy_staff_memory table does not exist yet — this is a no-op until
+  // the schema is created. The V1 code had the same issue (silently failed).
 }
 
 async function assembleBriefingData(staffId: string): Promise<string> {
@@ -477,7 +417,7 @@ async function assembleBriefingData(staffId: string): Promise<string> {
     // Intake queue
     const intake = await queryOne<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM ops.intake_submissions
-       WHERE status = 'new'`
+       WHERE status = 'pending'`
     );
     if (intake) parts.push(`**New intake submissions:** ${intake.cnt}`);
 
@@ -490,17 +430,17 @@ async function assembleBriefingData(staffId: string): Promise<string> {
     if (msgs && msgs.cnt > 0) parts.push(`**Unread messages:** ${msgs.cnt}`);
 
     // Reminders
-    const reminders = await queryRows<{ title: string; due_date: string }>(
-      `SELECT title, due_date::text FROM ops.staff_reminders
+    const reminders = await queryRows<{ title: string; due_at: string }>(
+      `SELECT title, due_at::text FROM ops.staff_reminders
        WHERE staff_id = $1 AND completed_at IS NULL
-         AND due_date <= CURRENT_DATE + INTERVAL '1 day'
-       ORDER BY due_date LIMIT 5`,
+         AND due_at <= NOW() + INTERVAL '24 hours'
+       ORDER BY due_at LIMIT 5`,
       [staffId]
     );
     if (reminders.length > 0) {
       parts.push(
         "**Due reminders:**\n" +
-          reminders.map((r) => `- ${r.title} (${r.due_date})`).join("\n")
+          reminders.map((r) => `- ${r.title} (${r.due_at})`).join("\n")
       );
     }
   } catch {
@@ -925,13 +865,13 @@ export async function handleV2(request: NextRequest): Promise<Response> {
   if (staffId) {
     const staff = await queryOne<{
       ai_access_level: string | null;
-      name: string | null;
+      display_name: string | null;
     }>(
-      `SELECT ai_access_level, name FROM ops.staff WHERE id = $1`,
+      `SELECT ai_access_level, display_name FROM ops.staff WHERE staff_id = $1`,
       [staffId]
     );
     aiAccessLevel = staff?.ai_access_level ?? "read_only";
-    userName = staff?.name ?? null;
+    userName = staff?.display_name ?? null;
   }
 
   if (!aiAccessLevel || aiAccessLevel === "none") {
