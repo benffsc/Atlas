@@ -109,6 +109,56 @@ Tool selection guide:
 
 Always use tools when the user asks for specific data. Be confident in your answers when you have data.
 
+MULTI-STEP INVESTIGATION PROTOCOL — DO NOT ANSWER WITH ONLY ONE TOOL CALL:
+
+After EVERY tool result, before generating your final response, ask yourself:
+1. "Do I have enough to give a complete staff briefing, or am I missing context?"
+2. "Did this result reveal entity IDs (place_id, person_id, cat_id) I should drill into?"
+3. "Are there cross-system sources I haven't checked?" (ShelterLuv outcomes, request notes, Google Maps context, journal entries)
+
+RULE: If you called only ONE tool for a place/person/cat question, you almost certainly need more. The exception is simple counts ("how many cats total?") that one tool answers completely.
+
+RULE: When analyze_place_situation or comprehensive_place_lookup returns a place_id, ALWAYS follow up with get_place_recent_context for that place. Structured data and unstructured notes tell DIFFERENT STORIES — you need both.
+
+RULE: When a tool result contains IDs for entities you haven't queried yet (people, cats, requests), call another tool on those IDs before responding.
+
+RULE: For maximum efficiency, whenever you need multiple independent operations, invoke all relevant tools simultaneously (parallel tool calls) rather than sequentially.
+
+CONCRETE CHAIN EXAMPLES:
+
+"Tell me about Pozzan Road":
+  Step 1: analyze_place_situation("Pozzan Road Healdsburg") → road_summary mode, full report on primary place + summaries for others
+  Step 2: get_place_recent_context(primary_place_id) → institutional notes, Google Maps data, request notes, journal entries
+  → NOW synthesize. Lead with the most significant place.
+
+"New caller: Emily at 707-555-1234, 1170 Walker Rd":
+  Step 1: comprehensive_place_lookup("1170 Walker") → find the place
+  Step 2 (parallel): analyze_place_situation(address) + run_sql to check person_identifiers for the phone number
+  Step 3: get_place_recent_context(place_id) → recent notes, who manages it
+  → NOW synthesize into a callback briefing.
+
+"What happened at 15760 Pozzan Road?":
+  Step 1: analyze_place_situation("15760 Pozzan") → full colony report with request details, mass trapping events, people
+  Step 2: get_place_recent_context(place_id) → Google Maps notes, journal entries, ShelterLuv context
+  → NOW synthesize. This is a success story — 24 cats mass-trapped, lead with that.
+
+BRIEFING STRUCTURE (for place queries):
+
+When synthesizing a place briefing, follow this structure:
+
+1. **Opening line:** One sentence that tells staff what this place IS.
+   "[Address] is [description] — [who manages it], [how many cats], [current status]."
+
+2. **The story:** 2-3 sentences of what HAPPENED here. Mass trapping events, timeline of TNR work, who was involved. Use names from key_people, not just roles.
+
+3. **Current status:** Alteration rate (rate_among_known, not rate_overall), active requests, recent appointments. Flag data quality issues from caveats/suspicious_patterns inline, not as a separate section.
+
+4. **What to watch:** One concrete next step or concern. Active request? Intact cats remaining? Data gap?
+
+5. **One follow-up offer:** "Want me to [specific action]?" — only one, not a menu.
+
+ANTI-PATTERN: Do NOT structure your response as a list of tool results with headers like "Colony Status:" / "People:" / "Requests:". Staff reads chat messages, not database reports. Write paragraphs.
+
 Key information about Beacon:
 - Beacon tracks People (requesters, trappers, volunteers), Cats (with microchips, clinic visits), Requests (trapping requests), and Places (addresses/colonies)
 - The ecological analytics layer provides colony estimates, alteration rates, and FFR impact
@@ -1266,9 +1316,12 @@ async function handleStreamingChat({
         let { content: responseContent, stopReason } = await streamAndCollect(messages, forcedToolChoice);
         console.log(`[Tippy] Initial streamed call: ${Date.now() - startTime}ms, stop_reason=${stopReason}`);
 
-        // Tool loop (max 3 iterations, with time budget — FFS-809)
+        // Tool loop (max 6 iterations, with time budget — FFS-809, raised FFS-1308)
+        // 6 iterations @ ~8s worst case = ~48s tool time, well within 280s budget.
+        // Raised from 3 to support multi-step investigation chains (e.g., road query →
+        // full place report → context → cross-source tracing).
         let iterations = 0;
-        const maxIterations = 3;
+        const maxIterations = 6;
         const TIME_BUDGET_MS = 280_000; // 20s buffer before Vercel's 300s limit
 
         while (stopReason === "tool_use" && iterations < maxIterations) {
@@ -1881,9 +1934,9 @@ ${JSON.stringify(briefingData, null, 2)}`;
     // Track tools used during conversation
     const toolsUsedInThisRequest: string[] = [];
 
-    // Handle tool use loop (max 3 iterations, with time budget — FFS-809)
+    // Handle tool use loop (max 6 iterations, with time budget — FFS-809, raised FFS-1308)
     let iterations = 0;
-    const maxIterations = 3;
+    const maxIterations = 6;
     const nsStartTime = Date.now();
     const NS_TIME_BUDGET_MS = 280_000; // 20s buffer before Vercel's 300s limit
 

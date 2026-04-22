@@ -906,6 +906,26 @@ Example queries:
       required: ["place_id"],
     },
   },
+  // === FULL PLACE BRIEFING — composite tool (FFS-1308/1309/1310) ===
+  {
+    name: "full_place_briefing",
+    description:
+      "Get a COMPLETE briefing on a place in ONE call. Combines: (1) full colony report (analyze_place_situation) with people, cats, requests, appointments, disease testing, mass trapping events; (2) institutional knowledge (Google Maps notes, journal entries, request notes, clinic notes); (3) cross-source ShelterLuv outcomes for cats from this place's requests (kittens taken into care, adoptions, transfers). Use this when you already have a place_id OR address and want EVERYTHING for a comprehensive answer. This is the primary tool for 'tell me about [place]' — it returns structured data + unstructured notes + cross-system tracing in one call.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        address: {
+          type: "string",
+          description: "Address or place name. Works with roads too ('Pozzan Road Healdsburg').",
+        },
+        place_id: {
+          type: "string",
+          description: "UUID of the place. If provided, skips the address lookup.",
+        },
+      },
+      required: [],
+    },
+  },
   // === SPATIAL ANALYSIS (MIG_2528) ===
   {
     name: "analyze_spatial_context",
@@ -1684,6 +1704,12 @@ export async function executeToolCall(
           toolInput.place_id as string,
           toolInput.days as number | undefined,
           toolInput.include_google_maps_notes as boolean | undefined
+        );
+
+      case "full_place_briefing":
+        return await fullPlaceBriefing(
+          toolInput.address as string | undefined,
+          toolInput.place_id as string | undefined
         );
 
       case "analyze_spatial_context":
@@ -4973,6 +4999,192 @@ async function comprehensivePlaceLookup(address: string): Promise<ToolResult> {
  * machinery still applies. The narrative_seed (PR 3 will add more) gives
  * Tippy a head-start on synthesis.
  */
+
+/**
+ * Full Place Briefing — composite tool (FFS-1308/1309/1310)
+ *
+ * Combines in ONE call:
+ * 1. analyze_place_situation (structured colony report)
+ * 2. get_place_recent_context (institutional notes, Google Maps, journals)
+ * 3. Cross-source ShelterLuv tracing (kittens taken into care from request-attributed cats)
+ * 4. Request notes elevation (extract key facts into narrative seeds)
+ */
+async function fullPlaceBriefing(
+  address: string | undefined,
+  placeId: string | undefined,
+): Promise<ToolResult> {
+  if (!address && !placeId) {
+    return { success: false, error: "Either address or place_id is required" };
+  }
+
+  // Step 1: Get the full structured report
+  const situationReport = await analyzePlaceSituation(address || placeId || "");
+
+  if (!situationReport.success || !situationReport.data) {
+    return situationReport; // Pass through errors/not-found
+  }
+
+  const reportData = situationReport.data as Record<string, unknown>;
+
+  // For road_summary mode, extract the primary place_id
+  const mode = reportData.mode as string | undefined;
+  let effectivePlaceId = placeId;
+
+  if (mode === "road_summary") {
+    const primaryPlace = reportData.primary_place as Record<string, unknown> | undefined;
+    if (primaryPlace) {
+      const place = primaryPlace.place as Record<string, unknown> | undefined;
+      effectivePlaceId = place?.place_id as string | undefined;
+    }
+  } else {
+    const place = reportData.place as Record<string, unknown> | undefined;
+    effectivePlaceId = place?.place_id as string | undefined;
+  }
+
+  if (!effectivePlaceId) {
+    // Can't enrich without a place_id — return the base report
+    return situationReport;
+  }
+
+  // Step 2 + 3: Get context and ShelterLuv data in parallel
+  const [contextResult, shelterluvCats, requestNotesExtracted] = await Promise.all([
+    // Institutional notes
+    getPlaceRecentContext(effectivePlaceId, undefined, undefined),
+
+    // Cross-source: cats from this place's requests that ended up in ShelterLuv
+    queryRows<{
+      cat_id: string;
+      name: string;
+      microchip: string | null;
+      shelterluv_animal_id: string;
+      current_status: string;
+      last_event_type: string | null;
+      last_event_subtype: string | null;
+      last_event_at: string | null;
+    }>(`
+      SELECT DISTINCT c.cat_id::text, c.name,
+        c.microchip, c.shelterluv_animal_id,
+        cs.current_status,
+        cs.last_event_type, cs.last_event_subtype,
+        cs.last_event_at::text
+      FROM ops.request_cats rc
+      JOIN ops.requests r ON r.request_id = rc.request_id
+      JOIN sot.cats c ON c.cat_id = rc.cat_id AND c.merged_into_cat_id IS NULL
+      LEFT JOIN sot.v_cat_current_status cs ON cs.cat_id = c.cat_id
+      WHERE r.place_id = $1
+        AND c.shelterluv_animal_id IS NOT NULL
+      ORDER BY cs.last_event_at DESC NULLS LAST
+    `, [effectivePlaceId]).catch(() => []),
+
+    // Extract key facts from request notes via SQL
+    queryRows<{
+      request_id: string;
+      status: string;
+      estimated_cat_count: number | null;
+      notes: string | null;
+      trapper_name: string | null;
+      requester_name: string | null;
+    }>(`
+      SELECT r.request_id::text, r.status,
+        r.estimated_cat_count, r.notes,
+        (SELECT p.display_name FROM ops.request_trapper_assignments rta
+         JOIN sot.people p ON p.person_id = rta.trapper_person_id
+         WHERE rta.request_id = r.request_id AND rta.status = 'active'
+         LIMIT 1) AS trapper_name,
+        req_per.display_name AS requester_name
+      FROM ops.requests r
+      LEFT JOIN sot.people req_per ON req_per.person_id = r.requester_person_id
+      WHERE r.place_id = $1 AND r.merged_into_request_id IS NULL
+      ORDER BY r.created_at DESC
+      LIMIT 3
+    `, [effectivePlaceId]).catch(() => []),
+  ]);
+
+  // Build enrichment layer
+  const enrichment: Record<string, unknown> = {};
+
+  // Add institutional context
+  if (contextResult.success && contextResult.data) {
+    enrichment.institutional_context = contextResult.data;
+  }
+
+  // Add ShelterLuv cross-source data
+  if (shelterluvCats.length > 0) {
+    const adopted = shelterluvCats.filter(c => c.current_status === "adopted");
+    const transferred = shelterluvCats.filter(c => c.current_status === "transferred");
+    const fostered = shelterluvCats.filter(c => c.current_status === "in_foster");
+    const deceased = shelterluvCats.filter(c => c.current_status === "deceased");
+
+    enrichment.shelterluv_outcomes = {
+      total_cats_in_shelterluv: shelterluvCats.length,
+      adopted: adopted.length,
+      transferred: transferred.length,
+      in_foster: fostered.length,
+      deceased: deceased.length,
+      cats: shelterluvCats.slice(0, 10), // Cap at 10 to avoid token bloat
+      interpretation: shelterluvCats.length > 0
+        ? `${shelterluvCats.length} cat(s) from this location's requests went through ShelterLuv: ${adopted.length} adopted, ${transferred.length} transferred, ${fostered.length} in foster, ${deceased.length} deceased. These are cats that left the colony — the structured cat_place data may not reflect this yet.`
+        : undefined,
+    };
+  }
+
+  // Extract narrative intelligence from request notes
+  if (requestNotesExtracted.length > 0) {
+    const headlines: string[] = [];
+    for (const req of requestNotesExtracted) {
+      if (req.notes) {
+        const parts: string[] = [];
+        // Extract cat counts
+        const catMatch = req.notes.match(/(\d+)\s+(adult|cat|kitten)/gi);
+        if (catMatch) parts.push(`Reported: ${catMatch.join(", ")}`);
+        // Cooperation signals
+        if (/easy|willing|cooperative|helpful/i.test(req.notes)) parts.push("Client cooperative");
+        if (/unresponsive|difficult|no.?answer|hostile/i.test(req.notes)) parts.push("Client unresponsive");
+        // Trapping plan
+        if (/mass\s*trapping/i.test(req.notes)) parts.push("Mass trapping planned");
+        // Health
+        if (/healthy|no\s+injur/i.test(req.notes)) parts.push("Cats healthy");
+        if (/injur|sick|pregnant|FeLV|FIV/i.test(req.notes)) parts.push("Health concerns noted");
+
+        if (parts.length > 0) {
+          headlines.push(`Request (${req.status}): ${parts.join(". ")}. Trapper: ${req.trapper_name || "unassigned"}.`);
+        }
+      }
+    }
+    if (headlines.length > 0) {
+      enrichment.request_intelligence = {
+        headlines,
+        raw_notes: requestNotesExtracted.map(r => ({
+          status: r.status,
+          notes: r.notes?.slice(0, 500),
+          trapper: r.trapper_name,
+          requester: r.requester_name,
+          estimated_cats: r.estimated_cat_count,
+        })),
+      };
+    }
+  }
+
+  // Merge enrichment into the report
+  if (mode === "road_summary") {
+    return {
+      ...situationReport,
+      data: {
+        ...reportData,
+        enrichment,
+      },
+    };
+  }
+
+  return {
+    ...situationReport,
+    data: {
+      ...reportData,
+      enrichment,
+    },
+  };
+}
+
 async function getPlaceRecentContext(
   placeId: string,
   days: number | undefined,
