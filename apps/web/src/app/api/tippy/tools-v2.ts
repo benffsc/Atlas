@@ -22,6 +22,7 @@ import {
   getPlaceDataCaveats,
   checkSuspiciousPatterns,
   matchesGapTrigger,
+  assessPlaceStatus,
   type GapMatch,
 } from "./knowledge";
 
@@ -64,12 +65,24 @@ export interface ToolResult {
   narrative_seed?: ToolResultNarrativeSeed;
 }
 
+export interface ActionCardPayload {
+  card_id: string;
+  action_type: string;
+  entity_type: string;
+  entity_id: string | null;
+  entity_name: string;
+  proposed_changes: Record<string, unknown>;
+  confidence: "high" | "medium" | "low";
+  reasoning: string;
+}
+
 export interface ToolContext {
   staffId: string;
   staffName: string;
   aiAccessLevel: string;
   conversationId?: string;
   recentToolResults?: ToolResult[];
+  emitActionCard?: (card: ActionCardPayload) => void;
 }
 
 // =============================================================================
@@ -807,7 +820,8 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
 - "data_correction": Propose a data correction (internal, for staff approval).
 - "draft_request": Create a draft FFR request from conversation.
 - "update_request": Update an existing request with new information.
-- "save_lookup": Save current research to staff member's personal lookups.`,
+- "save_lookup": Save current research to staff member's personal lookups.
+- "add_note": Add a note to a place, person, cat, or request.`,
     input_schema: {
       type: "object" as const,
       properties: {
@@ -822,6 +836,7 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
             "draft_request",
             "update_request",
             "save_lookup",
+            "add_note",
           ],
           description: "Type of write operation to perform",
         },
@@ -1283,24 +1298,27 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
 
   const interpretationHints: string[] = [];
 
-  // Status interpretation
-  if (report.status_assessment === "under_control") {
-    interpretationHints.push(
-      `STATUS: This colony is UNDER CONTROL with ${alterationRate}% alteration rate (>=90% threshold met). Population should be stable.`
-    );
-  } else if (report.status_assessment === "good_progress") {
-    interpretationHints.push(
-      `STATUS: Good progress at ${alterationRate}% alteration rate, but ${unalteredCats} cats still need to be fixed to reach the 90% stability threshold.`
-    );
-  } else if (report.status_assessment === "needs_attention") {
-    interpretationHints.push(
-      `STATUS: Needs attention - only ${alterationRate}% altered. ${unalteredCats} unaltered cats means the population could still grow.`
-    );
-  } else if (report.status_assessment === "early_stages") {
-    interpretationHints.push(
-      `STATUS: Early stages of TNR work here. Only ${alterationRate}% altered so far. This colony needs continued trapping effort.`
-    );
-  }
+  // Enriched status assessment (considers request lifecycle, data confidence, recency)
+  const lastAppointmentDaysAgo = timeline.length > 0
+    ? Math.round(
+        (Date.now() - new Date(timeline[0].date as string).getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : undefined;
+
+  const enrichedStatus = assessPlaceStatus({
+    alteration_rate: alterationRate,
+    total_cats: totalCats,
+    null_status_count: (catStats.null_status_count as number) || 0,
+    has_active_request: (requestHistory.active as number) > 0,
+    last_appointment_days_ago: lastAppointmentDaysAgo,
+  });
+
+  interpretationHints.push(
+    `STATUS [${enrichedStatus.confidence} confidence]: ${enrichedStatus.label} — ${enrichedStatus.reasoning}${
+      unalteredCats > 0 ? ` (${unalteredCats} unaltered cats remaining)` : ""
+    }`
+  );
 
   // Mass trapping
   if (massTrappingEvents.length > 0) {
@@ -1567,6 +1585,12 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
       people: report.people,
       cat_statistics: report.cat_statistics,
       status_assessment: report.status_assessment,
+      enriched_status: {
+        level: enrichedStatus.level,
+        label: enrichedStatus.label,
+        confidence: enrichedStatus.confidence,
+        reasoning: enrichedStatus.reasoning,
+      },
       appointment_timeline: report.appointment_timeline,
       disease_testing: report.disease_testing,
       request_history: report.request_history,
@@ -1580,7 +1604,7 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
       chapman: chapmanEstimate,
       disease_summary: diseaseSummary,
       interpretation_hints: interpretationHints,
-      summary: `${(report.place as Record<string, unknown>)?.display_name}: ${totalCats} cats, ${alterationRate}% altered. Status: ${((report.status_assessment as string) || "unknown").replace("_", " ").toUpperCase()}.`,
+      summary: `${(report.place as Record<string, unknown>)?.display_name}: ${totalCats} cats, ${alterationRate}% altered. Status: ${enrichedStatus.label} (${enrichedStatus.confidence} confidence).`,
     },
   };
 }
@@ -1791,6 +1815,7 @@ async function getPlaceRecentContext(
     FROM sot.cat_place cp
     JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
     WHERE cp.place_id = $1
+      AND COALESCE(cp.presence_status, 'unknown') != 'departed'
     `,
     [placeId]
   );
@@ -2597,6 +2622,7 @@ async function findPrioritySites(
       FROM sot.places p
       JOIN sot.addresses a ON a.address_id = p.sot_address_id
       JOIN sot.cat_place cp ON cp.place_id = p.place_id
+        AND COALESCE(cp.presence_status, 'unknown') != 'departed'
       JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
       WHERE p.merged_into_place_id IS NULL
         ${cityFilter}
@@ -2618,6 +2644,7 @@ async function findPrioritySites(
           AND r.merged_into_request_id IS NULL
           AND r.status NOT IN ('completed','cancelled')
       )
+        AND cp.total_cats >= 3
     )
     SELECT * FROM no_active_request
     ORDER BY intact_confirmed DESC, total_cats DESC
@@ -3447,6 +3474,8 @@ async function logEvent(
       return updateRequestImpl(input, context);
     case "save_lookup":
       return saveLookupImpl(input, context);
+    case "add_note":
+      return addNoteImpl(input, context);
     default:
       return { success: false, error: `Unknown action_type: ${actionType}` };
   }
@@ -4130,6 +4159,138 @@ async function saveLookupImpl(
   } catch (error) {
     console.error("Save lookup error:", error);
     return { success: false, error: "Failed to save lookup" };
+  }
+}
+
+// =============================================================================
+// IMPLEMENTATION: add_note (sub-action of log_event)
+// =============================================================================
+
+async function addNoteImpl(
+  input: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
+  const notes = (input.notes as string) || (input.description as string) || "";
+  if (!notes) {
+    return { success: false, error: "notes content is required for add_note" };
+  }
+
+  const entityType = input.entity_type as string | undefined;
+  const entityId = input.entity_id as string | undefined;
+  const location = (input.location as string) || (input.address as string);
+
+  // Resolve the target entity
+  let primaryPlaceId: string | null = null;
+  let primaryPersonId: string | null = null;
+  let primaryCatId: string | null = null;
+  let primaryRequestId: string | null = null;
+  let entityLabel = "unknown";
+
+  if (entityId && UUID_REGEX.test(entityId)) {
+    // Direct UUID reference
+    switch (entityType) {
+      case "place":
+        primaryPlaceId = entityId;
+        break;
+      case "person":
+        primaryPersonId = entityId;
+        break;
+      case "cat":
+        primaryCatId = entityId;
+        break;
+      case "request":
+        primaryRequestId = entityId;
+        break;
+      default:
+        primaryPlaceId = entityId; // Default to place
+    }
+    entityLabel = entityId;
+  } else if (location) {
+    // Resolve by address/name
+    const place = await resolvePlace(location);
+    if (place) {
+      primaryPlaceId = place.place_id;
+      entityLabel = place.display_name || place.formatted_address || location;
+    } else {
+      return {
+        success: false,
+        error: `Could not find a place matching "${location}". Try a more specific address.`,
+      };
+    }
+  } else if (entityType === "person" && input.name) {
+    const person = await resolvePerson(input.name as string);
+    if (person) {
+      primaryPersonId = person.person_id;
+      entityLabel = person.display_name || (input.name as string);
+    } else {
+      return {
+        success: false,
+        error: `Could not find a person matching "${input.name}".`,
+      };
+    }
+  } else if (entityType === "cat" && input.name) {
+    const cat = await resolveCat(input.name as string);
+    if (cat) {
+      primaryCatId = cat.cat_id;
+      entityLabel = cat.display_name || (input.name as string);
+    } else {
+      return {
+        success: false,
+        error: `Could not find a cat matching "${input.name}".`,
+      };
+    }
+  } else {
+    return {
+      success: false,
+      error: "Provide entity_id, location, or name with entity_type to attach the note.",
+    };
+  }
+
+  const tags = ["tippy"];
+  if (input.tags && Array.isArray(input.tags)) {
+    tags.push(...(input.tags as string[]));
+  }
+
+  try {
+    const result = await queryOne<{ id: string }>(
+      `INSERT INTO ops.journal_entries (
+        entry_kind, occurred_at, body, created_by, tags,
+        primary_place_id, primary_person_id, primary_cat_id, primary_request_id
+      ) VALUES (
+        'note', NOW(), $1, 'tippy_ai', $2,
+        $3, $4, $5, $6
+      ) RETURNING id`,
+      [
+        notes,
+        tags,
+        primaryPlaceId,
+        primaryPersonId,
+        primaryCatId,
+        primaryRequestId,
+      ]
+    );
+
+    if (!result) {
+      return { success: false, error: "Failed to save note" };
+    }
+
+    return {
+      success: true,
+      data: {
+        note_saved: true,
+        journal_entry_id: result.id,
+        entity_type: entityType || "place",
+        entity_label: entityLabel,
+        note_preview: notes.length > 100 ? notes.slice(0, 100) + "..." : notes,
+        message: `Note saved for ${entityLabel}: "${notes.length > 80 ? notes.slice(0, 80) + "..." : notes}"`,
+      },
+    };
+  } catch (error) {
+    console.error("addNote error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to save note",
+    };
   }
 }
 

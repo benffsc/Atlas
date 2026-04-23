@@ -135,6 +135,7 @@ export async function GET(request: NextRequest) {
         FROM sot.cat_place cp
         JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
         WHERE cp.place_id = $1
+          AND COALESCE(cp.presence_status, 'unknown') != 'departed'
       ),
       recent_activity AS (
         SELECT

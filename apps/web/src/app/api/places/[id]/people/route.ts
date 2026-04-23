@@ -294,7 +294,15 @@ export async function GET(
           NULL::text as verification_method,
           NULL::text as financial_commitment,
           FALSE as is_primary_contact,
-          (SELECT COUNT(*) FROM sot.person_cat pcr WHERE pcr.person_id = pp.person_id)::int as cat_count,
+          (SELECT COUNT(*) FROM sot.person_cat pcr
+           JOIN sot.cats c ON c.cat_id = pcr.cat_id AND c.merged_into_cat_id IS NULL
+           WHERE pcr.person_id = pp.person_id
+             AND NOT EXISTS(
+               SELECT 1 FROM sot.cat_place cpd
+               WHERE cpd.cat_id = pcr.cat_id AND cpd.place_id = pp.place_id
+                 AND cpd.presence_status = 'departed'
+             )
+          )::int as cat_count,
           pp.source_system,
           pp.created_at::text
         FROM sot.person_place pp
