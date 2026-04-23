@@ -744,22 +744,19 @@ function EquipmentPageContent() {
       </div>
 
       {/* Filter bar */}
-      <div style={{ display: "flex", gap: "0.375rem", marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+      {/* Quick filters — predetermined categories staff thinks in */}
+      <div style={{ display: "flex", gap: "0.375rem", marginBottom: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
         <input
           type="text"
           placeholder="Search name, barcode, phone, email, address..."
           value={filters.search}
           onChange={(e) => setFilter("search", e.target.value)}
           style={{
-            padding: "0.25rem 0.625rem", fontSize: "0.8rem", borderRadius: "20px",
-            border: "1px solid var(--border)", width: "240px", outline: "none",
+            padding: "0.3rem 0.75rem", fontSize: "0.85rem", borderRadius: "20px",
+            border: "1px solid var(--border)", width: "250px", outline: "none",
           }}
         />
-        <FilterPill label="Type" value={filters.type_key} options={types.map((t) => ({ value: t.type_key, label: t.display_name }))} onChange={(v) => setFilter("type_key", v)} />
-        <FilterPill label="Status" value={filters.custody_status} options={EQUIPMENT_CUSTODY_STATUS_OPTIONS} onChange={(v) => setFilter("custody_status", v)} />
-        <FilterPill label="Category" value={filters.category} options={EQUIPMENT_CATEGORY_OPTIONS} onChange={(v) => setFilter("category", v)} />
-        <FilterPill label="Functional" value={filters.functional_status} options={EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS} onChange={(v) => setFilter("functional_status", v)} />
-        {(hasActiveFilters || filters.search) && (
+        {(!!hasActiveFilters || !!filters.search) && (
           <button
             onClick={clearFilters}
             style={{
@@ -771,6 +768,53 @@ function EquipmentPageContent() {
             Clear
           </button>
         )}
+      </div>
+      <div style={{ display: "flex", gap: "0.25rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+        {[
+          { label: "All", filter: {} },
+          { label: "Traps", filter: { category: "trap" } },
+          { label: "Cages", filter: { category: "cage" } },
+          { label: "Accessories", filter: { category: "accessory" } },
+          { label: "—", filter: null }, // divider
+          { label: "Available", filter: { custody_status: "available" } },
+          { label: "Checked Out", filter: { custody_status: "checked_out" } },
+          { label: "Overdue", filter: { custody_status: "checked_out", condition_status: "" } }, // overdue handled by sort
+          { label: "Missing", filter: { custody_status: "missing" } },
+        ].map((preset, i) => {
+          if (preset.filter === null) {
+            return <span key={i} style={{ color: "var(--border)", margin: "0 0.125rem", fontSize: "0.8rem" }}>|</span>;
+          }
+          const isActive = preset.label === "All"
+            ? !filters.category && !filters.custody_status
+            : (preset.filter.category === filters.category && !preset.filter.custody_status && !filters.custody_status)
+              || (preset.filter.custody_status === filters.custody_status && !preset.filter.category && !filters.category)
+              || (preset.filter.category === filters.category && preset.filter.custody_status === filters.custody_status);
+          return (
+            <button
+              key={preset.label}
+              onClick={() => {
+                setFilters((prev: typeof filters) => ({
+                  ...prev,
+                  category: preset.filter.category || "",
+                  custody_status: preset.filter.custody_status || "",
+                  condition_status: "",
+                  functional_status: "",
+                  type_key: "",
+                }));
+              }}
+              style={{
+                padding: "0.3rem 0.625rem", fontSize: "0.8rem", borderRadius: "20px", cursor: "pointer",
+                border: isActive ? "1.5px solid var(--primary)" : "1px solid var(--border)",
+                background: isActive ? "var(--primary-bg, rgba(59,130,246,0.08))" : "transparent",
+                color: isActive ? "var(--primary)" : "var(--text-secondary)",
+                fontWeight: isActive ? 600 : 400,
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Main content */}
