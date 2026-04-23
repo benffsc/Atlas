@@ -279,6 +279,7 @@ function OverdueCard({
 }) {
   const toast = useToast();
   const [logMethod, setLogMethod] = useState<string | null>(null);
+  const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [actionMode, setActionMode] = useState<"none" | "extend" | "reassign" | "note">("none");
   const [actionNote, setActionNote] = useState("");
@@ -315,6 +316,7 @@ function OverdueCard({
     setSubmitting(false);
     setLogMethod(null);
     setLogNotes("");
+    setSelectedOutcome(null);
   };
 
   return (
@@ -595,27 +597,31 @@ function OverdueCard({
             What happened?
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-            {OUTCOMES.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => handleSubmitLog(o.value)}
-                disabled={submitting}
-                style={{
-                  display: "flex", alignItems: "center", gap: "0.625rem",
-                  padding: "0.625rem 0.875rem", borderRadius: 8,
-                  border: "1px solid var(--card-border)",
-                  background: "var(--card-bg, #fff)", cursor: "pointer",
-                  fontSize: "0.85rem", fontWeight: 500, textAlign: "left",
-                  color: "var(--text-primary, #1a1a1a)",
-                  minHeight: 44, width: "100%",
-                  fontFamily: "inherit",
-                  opacity: submitting ? 0.5 : 1,
-                }}
-              >
-                <Icon name={o.icon} size={16} color="var(--text-secondary)" />
-                {o.label}
-              </button>
-            ))}
+            {OUTCOMES.map((o) => {
+              const isSelected = selectedOutcome === o.value;
+              return (
+                <button
+                  key={o.value}
+                  onClick={() => setSelectedOutcome(o.value)}
+                  disabled={submitting}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.625rem",
+                    padding: "0.625rem 0.875rem", borderRadius: 8,
+                    border: isSelected ? "2px solid var(--primary)" : "1px solid var(--card-border)",
+                    background: isSelected ? "var(--primary-bg, rgba(59,130,246,0.06))" : "var(--card-bg, #fff)",
+                    cursor: "pointer",
+                    fontSize: "0.85rem", fontWeight: isSelected ? 600 : 500, textAlign: "left",
+                    color: isSelected ? "var(--primary)" : "var(--text-primary, #1a1a1a)",
+                    minHeight: 44, width: "100%",
+                    fontFamily: "inherit",
+                    opacity: submitting ? 0.5 : 1,
+                  }}
+                >
+                  <Icon name={o.icon} size={16} color={isSelected ? "var(--primary)" : "var(--text-secondary)"} />
+                  {o.label}
+                </button>
+              );
+            })}
           </div>
           <div style={{ marginTop: "0.5rem" }}>
             <input
@@ -630,9 +636,18 @@ function OverdueCard({
               }}
             />
           </div>
-          <div style={{ marginTop: "0.5rem", textAlign: "right" }}>
-            <Button variant="ghost" size="sm" onClick={() => { onCancelLog(); setLogMethod(null); setLogNotes(""); }}>
+          <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.5rem", justifyContent: "flex-end" }}>
+            <Button variant="ghost" size="sm" onClick={() => { onCancelLog(); setLogMethod(null); setLogNotes(""); setSelectedOutcome(null); }}>
               Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!selectedOutcome || submitting}
+              loading={submitting}
+              onClick={() => { if (selectedOutcome) handleSubmitLog(selectedOutcome); }}
+            >
+              Save
             </Button>
           </div>
         </div>
