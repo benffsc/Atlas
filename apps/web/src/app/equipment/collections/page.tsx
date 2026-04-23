@@ -606,7 +606,9 @@ function OverdueCard({
                   border: "1px solid var(--card-border)",
                   background: "var(--card-bg, #fff)", cursor: "pointer",
                   fontSize: "0.85rem", fontWeight: 500, textAlign: "left",
+                  color: "var(--text-primary, #1a1a1a)",
                   minHeight: 44, width: "100%",
+                  fontFamily: "inherit",
                   opacity: submitting ? 0.5 : 1,
                 }}
               >
