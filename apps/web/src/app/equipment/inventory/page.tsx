@@ -793,14 +793,13 @@ function EquipmentPageContent() {
             <button
               key={preset.label}
               onClick={() => {
-                setFilters((prev: typeof filters) => ({
-                  ...prev,
+                setFilters({
                   category: preset.filter.category || "",
                   custody_status: preset.filter.custody_status || "",
                   condition_status: "",
                   functional_status: "",
                   type_key: "",
-                }));
+                });
               }}
               style={{
                 padding: "0.3rem 0.625rem", fontSize: "0.8rem", borderRadius: "20px", cursor: "pointer",

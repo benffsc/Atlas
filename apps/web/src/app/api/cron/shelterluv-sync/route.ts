@@ -291,10 +291,10 @@ export async function GET(request: NextRequest) {
     let totalApiRequests = 0;
     const TIME_BUDGET_MS = 240_000; // 240s of 300s max — leave 60s for processing
 
-    // Sync animals FIRST — they have a working incremental watermark and are fast.
-    // People sync has a NULL watermark (ShelterLuv people records lack LastUpdatedUnixTime)
-    // which causes a full refetch every run. Doing people second prevents them from
-    // starving animal sync of time budget.
+    // Sync order: Animals → Events → People
+    // Animals: incremental watermark, fast, critical for cat identity
+    // Events: drives lifecycle/presence tracking — must run before people
+    // People: full refetch every run (no LastUpdatedUnixTime), slowest — runs last
     if (!syncType || syncType === "animals") {
       console.error("[SL-SYNC] Syncing animals...");
       results.animals = await syncEndpoint(
@@ -308,24 +308,11 @@ export async function GET(request: NextRequest) {
       totalApiRequests += results.animals.apiRequests;
     }
 
-    // Only sync people if we have time budget remaining
+    // Events sync — time-budget guarded. Moved BEFORE people because events drive
+    // lifecycle/presence (intake, adoption, foster, mortality). Without this priority,
+    // people's full refetch exhausted the budget and events stalled for 6+ weeks.
     const elapsedAfterAnimals = Date.now() - startTime;
-    if ((!syncType || syncType === "people") && elapsedAfterAnimals < TIME_BUDGET_MS) {
-      console.error("[SL-SYNC] Syncing people...");
-      results.people = await syncEndpoint(
-        "/people",
-        "people",
-        "people",
-        "Internal-ID",
-        "LastUpdatedUnixTime",
-        incremental
-      );
-      totalApiRequests += results.people.apiRequests;
-    } else if (!syncType && elapsedAfterAnimals >= TIME_BUDGET_MS) {
-      console.error("[SL-SYNC] Skipping people sync — time budget exhausted");
-    }
-
-    if (!syncType || syncType === "events") {
+    if ((!syncType || syncType === "events") && elapsedAfterAnimals < TIME_BUDGET_MS) {
       console.error("[SL-SYNC] Syncing events...");
       // DATA_GAP_057 FIX: Changed from "Time" to "LastUpdatedUnixTime"
       // "Time" is the immutable event occurrence timestamp, which never changes.
@@ -340,6 +327,25 @@ export async function GET(request: NextRequest) {
         incremental
       );
       totalApiRequests += results.events.apiRequests;
+    } else if (!syncType && elapsedAfterAnimals >= TIME_BUDGET_MS) {
+      console.error("[SL-SYNC] Skipping events sync — time budget exhausted");
+    }
+
+    // People sync LAST — full refetch every run (no LastUpdatedUnixTime in SL API)
+    const elapsedBeforePeople = Date.now() - startTime;
+    if ((!syncType || syncType === "people") && elapsedBeforePeople < TIME_BUDGET_MS) {
+      console.error("[SL-SYNC] Syncing people...");
+      results.people = await syncEndpoint(
+        "/people",
+        "people",
+        "people",
+        "Internal-ID",
+        "LastUpdatedUnixTime",
+        incremental
+      );
+      totalApiRequests += results.people.apiRequests;
+    } else if (!syncType && elapsedBeforePeople >= TIME_BUDGET_MS) {
+      console.error("[SL-SYNC] Skipping people sync — time budget exhausted");
     }
 
     // Process staged records through Data Engine processors
