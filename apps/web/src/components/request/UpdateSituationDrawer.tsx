@@ -200,7 +200,7 @@ export function UpdateSituationDrawer({
       }
 
       if (Object.keys(requestPatch).length > 0) {
-        await postApi(`/api/requests/${requestId}`, requestPatch, { method: "PATCH" });
+        await postApi(`/api/requests/${requestId}`, { ...requestPatch, updated_at: request.updated_at }, { method: "PATCH" });
       }
 
       // 1b. Preserve old address as requester's home when changing cat location

@@ -7,6 +7,8 @@ import { apiSuccess, apiError, apiBadRequest, apiNotFound, apiServerError } from
 import { UpdateRequestSchema } from "@/lib/schemas";
 import type { IntakeExtendedData } from "@/lib/schemas/intake-extended-data";
 import { parseIntakeExtendedData } from "@/lib/schemas/intake-extended-data";
+import { isValidTransition, getValidTransitions } from "@/lib/request-status";
+import type { RequestStatus } from "@/lib/request-status";
 
 interface CurrentTrapper {
   trapper_person_id: string;
@@ -181,6 +183,13 @@ interface RequestDetailRow {
   completion_data: Record<string, unknown> | null;
   intake_extended_data: IntakeExtendedData | null;
   place_last_appointment_date: string | null;
+  // FFS-1351: Intake source link
+  intake_submission_id: string | null;
+  intake_call_type: string | null;
+  intake_triage_score: number | null;
+  intake_triage_category: string | null;
+  intake_custom_fields: Record<string, unknown> | null;
+  intake_submitted_at: string | null;
 }
 
 export async function GET(
@@ -417,7 +426,14 @@ export async function GET(
         r.intake_extended_data,
         -- FFS-349: Place's last clinic visit
         (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a
-         WHERE a.place_id = r.place_id OR a.inferred_place_id = r.place_id) AS place_last_appointment_date
+         WHERE a.place_id = r.place_id OR a.inferred_place_id = r.place_id) AS place_last_appointment_date,
+        -- FFS-1351: Intake source link
+        r.intake_submission_id,
+        isub.call_type AS intake_call_type,
+        isub.triage_score AS intake_triage_score,
+        isub.triage_category AS intake_triage_category,
+        isub.custom_fields AS intake_custom_fields,
+        isub.created_at AS intake_submitted_at
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
@@ -429,6 +445,7 @@ export async function GET(
       LEFT JOIN sot.addresses rpp_addr ON rpp_addr.address_id = rpp_place.sot_address_id AND rpp_addr.merged_into_address_id IS NULL
       LEFT JOIN sot.people sc ON sc.person_id = r.site_contact_person_id
       LEFT JOIN sot.v_place_colony_status pcs ON pcs.place_id = r.place_id
+      LEFT JOIN ops.intake_submissions isub ON isub.submission_id = r.intake_submission_id
       WHERE r.request_id = $1
     `;
 
@@ -592,6 +609,12 @@ export async function PATCH(
     let paramIndex = 1;
 
     if (body.status !== undefined && body.status !== current.status) {
+      // FFS-1355: Enforce status machine transitions
+      if (!isValidTransition(current.status as RequestStatus, body.status as RequestStatus)) {
+        return apiBadRequest(
+          `Cannot transition from "${current.status}" to "${body.status}". Valid targets: ${getValidTransitions(current.status as RequestStatus).join(", ")}`
+        );
+      }
       auditChanges.push({ field: "status", oldValue: current.status, newValue: body.status });
       updates.push(`status = $${paramIndex}`);
       values.push(body.status);
@@ -1066,6 +1089,15 @@ export async function PATCH(
       paramIndex++;
     }
 
+    // FFS-1368: Auto-audit all patchable fields not already tracked
+    const alreadyAudited = new Set(auditChanges.map(c => c.field));
+    const auditSkipFields = new Set(["updated_at", "skip_trip_report_check", "status_change_reason", "feeding_schedule"]);
+    for (const [field, newValue] of Object.entries(body)) {
+      if (!auditSkipFields.has(field) && !alreadyAudited.has(field) && newValue !== undefined) {
+        auditChanges.push({ field, oldValue: null, newValue });
+      }
+    }
+
     // Handle status changes that trigger resolved_at
     if (body.status === "completed" || body.status === "cancelled" || body.status === "partial") {
       updates.push(`resolved_at = COALESCE(resolved_at, NOW())`);
@@ -1087,25 +1119,23 @@ export async function PATCH(
     // Add updated_at
     updates.push(`updated_at = NOW()`);
 
-    // Log changes to centralized entity_edits table
-    if (auditChanges.length > 0) {
-      try {
-        await logFieldEdits("request", id, auditChanges, {
-          editedBy: "web_user",
-          editSource: "web_ui",
-        });
-      } catch (auditErr) {
-        console.error("[PATCH request] logFieldEdits failed:", auditErr);
-      }
-    }
-
     // Add request_id to values
     values.push(id);
+    const idParam = paramIndex;
+    paramIndex++;
+
+    // FFS-1367: Optimistic locking — client sends updated_at from last fetch
+    let concurrencyCheck = "";
+    if (body.updated_at) {
+      concurrencyCheck = ` AND updated_at = $${paramIndex}`;
+      values.push(body.updated_at);
+      paramIndex++;
+    }
 
     const sql = `
       UPDATE ops.requests
       SET ${updates.join(", ")}
-      WHERE request_id = $${paramIndex}
+      WHERE request_id = $${idParam}${concurrencyCheck}
       RETURNING request_id, status::TEXT, priority::TEXT, updated_at
     `;
 
@@ -1117,7 +1147,30 @@ export async function PATCH(
     }>(sql, values);
 
     if (!result) {
+      // FFS-1367: Distinguish stale data (409) from not found (404)
+      if (body.updated_at) {
+        const exists = await queryOne<{ request_id: string }>(
+          `SELECT request_id FROM ops.requests WHERE request_id = $1`,
+          [id]
+        );
+        if (exists) {
+          return apiError("Record was modified by another user. Please refresh and try again.", 409);
+        }
+      }
       return apiNotFound("Request", id);
+    }
+
+    // FFS-1369: Audit AFTER successful UPDATE (prevents orphaned audit records)
+    if (auditChanges.length > 0) {
+      try {
+        await logFieldEdits("request", id, auditChanges, {
+          editedBy: "web_user",
+          editSource: "web_ui",
+        });
+      } catch (auditErr) {
+        console.error("[PATCH request] logFieldEdits failed:", auditErr);
+        return apiServerError("Audit logging failed — changes were saved but not tracked");
+      }
     }
 
     // If request was completed/partial with observation data, record colony estimate (FFS-155)

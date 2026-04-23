@@ -53,6 +53,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const values: unknown[] = [];
   let paramIdx = 1;
 
+  // FFS-1351: Link request back to its source intake submission
+  setClauses.push(`intake_submission_id = $${paramIdx}`);
+  values.push(submission_id);
+  paramIdx++;
+
   const fieldMap: Record<string, string> = {
     priority: "priority",
     permission_status: "permission_status",

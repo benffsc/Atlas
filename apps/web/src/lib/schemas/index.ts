@@ -234,6 +234,10 @@ export const UpdateRequestSchema = z.object({
   // Staff/admin
   // ──────────────────────────────────────────────────────────────────────────
   received_by: z.string().uuid().nullable().optional(),
+  // ──────────────────────────────────────────────────────────────────────────
+  // Optimistic locking (FFS-1367)
+  // ──────────────────────────────────────────────────────────────────────────
+  updated_at: z.string().optional(),
 });
 
 export type UpdateRequestInput = z.infer<typeof UpdateRequestSchema>;

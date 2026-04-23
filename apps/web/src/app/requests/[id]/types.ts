@@ -275,6 +275,13 @@ export interface RequestDetail {
   intake_extended_data: IntakeExtendedData | null;
   // FFS-349: Place's last clinic visit
   place_last_appointment_date: string | null;
+  // FFS-1351: Intake source link
+  intake_submission_id: string | null;
+  intake_call_type: string | null;
+  intake_triage_score: number | null;
+  intake_triage_category: string | null;
+  intake_custom_fields: Record<string, unknown> | null;
+  intake_submitted_at: string | null;
   // Status history and trappers (from API response)
   status_history?: Array<{
     old_status: string | null;

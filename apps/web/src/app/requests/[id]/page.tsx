@@ -253,7 +253,7 @@ export default function RequestDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      await postApi(`/api/requests/${requestId}`, { status: newStatus }, { method: "PATCH" });
+      await postApi(`/api/requests/${requestId}`, { status: newStatus, updated_at: request.updated_at }, { method: "PATCH" });
       setPreviousStatus(oldStatus);
       await refreshRequest();
     } catch (err) {
@@ -288,7 +288,7 @@ export default function RequestDetailPage() {
     if (!renameValue.trim()) return;
     setSavingRename(true);
     try {
-      await postApi(`/api/requests/${requestId}`, { summary: renameValue.trim() }, { method: "PATCH" });
+      await postApi(`/api/requests/${requestId}`, { summary: renameValue.trim(), updated_at: request?.updated_at }, { method: "PATCH" });
       await refreshRequest();
       setRenaming(false);
     } catch (err) {
@@ -302,7 +302,7 @@ export default function RequestDetailPage() {
   const handleSiteContactChange = async (personId: string | null) => {
     setSavingSiteContact(true);
     try {
-      await postApi(`/api/requests/${requestId}`, { site_contact_person_id: personId }, { method: "PATCH" });
+      await postApi(`/api/requests/${requestId}`, { site_contact_person_id: personId, updated_at: request?.updated_at }, { method: "PATCH" });
       // Journal audit (fire-and-forget)
       postApi("/api/journal", {
         request_id: requestId,
@@ -1135,6 +1135,43 @@ export default function RequestDetailPage() {
             </div>
           </div>
 
+          {/* FFS-1351: Intake Source card */}
+          {request.intake_submission_id && (
+            <details className="card" style={{ padding: "1rem", fontSize: "0.8rem" }}>
+              <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+                Intake Source
+              </summary>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+                {request.intake_call_type && (
+                  <div><strong>Call Type:</strong> {request.intake_call_type}</div>
+                )}
+                {request.intake_triage_category && (
+                  <div><strong>Triage:</strong> {request.intake_triage_category}
+                    {request.intake_triage_score != null && ` (score: ${request.intake_triage_score})`}
+                  </div>
+                )}
+                {request.intake_custom_fields && Object.keys(request.intake_custom_fields).length > 0 && (
+                  <div>
+                    <strong>Custom Fields:</strong>
+                    {Object.entries(request.intake_custom_fields).map(([key, val]) => (
+                      <div key={key} style={{ paddingLeft: "0.75rem", fontSize: "0.75rem" }}>
+                        {key.replace(/_/g, " ")}: {String(val)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {request.intake_submitted_at && (
+                  <div><strong>Submitted:</strong> {new Date(request.intake_submitted_at).toLocaleString()}</div>
+                )}
+                <div style={{ marginTop: "0.25rem" }}>
+                  <a href={`/admin/intake?selected=${request.intake_submission_id}`} style={{ fontSize: "0.75rem" }}>
+                    View Full Intake Submission
+                  </a>
+                </div>
+              </div>
+            </details>
+          )}
+
           {/* Metadata */}
           <div className="card" style={{ padding: "1rem", fontSize: "0.8rem", color: "var(--muted)" }}>
             <div style={{ marginBottom: "0.5rem" }}><strong>Created:</strong> {new Date(request.created_at).toLocaleString()}</div>
@@ -1180,6 +1217,7 @@ export default function RequestDetailPage() {
           requestId={requestId}
           placeId={request.place_id || undefined}
           placeName={request.place_name || undefined}
+          updatedAt={request.updated_at}
           onClose={() => setShowCompleteModal(false)}
           onSuccess={() => { setShowCompleteModal(false); refreshRequest(); }}
         />
@@ -1190,6 +1228,7 @@ export default function RequestDetailPage() {
           requestId={requestId}
           placeId={request.place_id || undefined}
           placeName={request.place_name || undefined}
+          updatedAt={request.updated_at}
           onClose={() => setShowCloseModal(false)}
           onSuccess={() => { setShowCloseModal(false); refreshRequest(); fetchJournalEntries(); }}
         />
@@ -1198,6 +1237,7 @@ export default function RequestDetailPage() {
         <HoldRequestModal
           isOpen={true}
           requestId={requestId}
+          updatedAt={request.updated_at}
           onClose={() => setShowHoldModal(false)}
           onSuccess={() => { setShowHoldModal(false); refreshRequest(); }}
         />

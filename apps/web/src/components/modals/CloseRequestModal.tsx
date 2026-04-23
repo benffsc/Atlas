@@ -30,6 +30,8 @@ interface CloseRequestModalProps {
   placeName?: string;
   staffName?: string;
   onSuccess?: () => void;
+  /** FFS-1367: Optimistic locking — last known updated_at from server */
+  updatedAt?: string;
 }
 
 type Step = "outcome" | "reason" | "notes";
@@ -50,6 +52,7 @@ export function CloseRequestModal({
   placeName,
   staffName,
   onSuccess,
+  updatedAt,
 }: CloseRequestModalProps) {
   const [step, setStep] = useState<Step>("outcome");
   const [selectedOutcome, setSelectedOutcome] = useState<ResolutionOutcome | null>(null);
@@ -121,6 +124,7 @@ export function CloseRequestModal({
       observation_cats_seen: catsSeenNum,
       observation_eartips_seen: eartipsSeenNum,
       observation_notes: resolutionNotes || null,
+      updated_at: updatedAt,
     }, { method: "PATCH" });
   }, [selectedOutcome, catsSeen, eartipsSeen, requestId, selectedReason, resolutionNotes]);
 

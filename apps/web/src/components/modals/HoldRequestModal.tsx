@@ -11,6 +11,8 @@ interface HoldRequestModalProps {
   requestId: string;
   staffName?: string;
   onSuccess?: () => void;
+  /** FFS-1367: Optimistic locking — last known updated_at from server */
+  updatedAt?: string;
 }
 
 const HOLD_REASONS = [
@@ -30,6 +32,7 @@ export default function HoldRequestModal({
   requestId,
   staffName,
   onSuccess,
+  updatedAt,
 }: HoldRequestModalProps) {
   const [selectedReason, setSelectedReason] = useState<string>("");
   const [holdNotes, setHoldNotes] = useState("");
@@ -54,6 +57,7 @@ export default function HoldRequestModal({
       status: "paused",
       hold_reason: selectedReason,
       hold_reason_notes: holdNotes || null,
+      updated_at: updatedAt,
     }, { method: "PATCH" });
   }, [selectedReason, holdNotes, requiresNotes, requestId]);
 

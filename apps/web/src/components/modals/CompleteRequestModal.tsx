@@ -33,6 +33,8 @@ interface CompleteRequestModalProps {
   staffName?: string;
   onSuccess?: () => void;
   targetStatus?: "completed" | "cancelled";
+  /** FFS-1367: Optimistic locking — last known updated_at from server */
+  updatedAt?: string;
 }
 
 export default function CompleteRequestModal({
@@ -45,6 +47,7 @@ export default function CompleteRequestModal({
   staffName,
   onSuccess,
   targetStatus = "completed",
+  updatedAt,
 }: CompleteRequestModalProps) {
   const [reasons, setReasons] = useState<ResolutionReason[]>([]);
   const [selectedReason, setSelectedReason] = useState<string>("");
@@ -131,6 +134,7 @@ export default function CompleteRequestModal({
         observation_cats_seen: showObservation ? observation.cats_seen_total : null,
         observation_eartips_seen: showObservation ? observation.eartipped_seen : null,
         observation_notes: showObservation ? observation.notes : null,
+        updated_at: updatedAt,
       }, { method: "PATCH" });
 
       onSuccess?.();

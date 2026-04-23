@@ -138,7 +138,7 @@ export function EnrichmentDrawer({
         return;
       }
 
-      await postApi(`/api/requests/${requestId}`, patch, { method: "PATCH" });
+      await postApi(`/api/requests/${requestId}`, { ...patch, updated_at: request.updated_at }, { method: "PATCH" });
 
       // Fire-and-forget journal entry with full original text
       postApi("/api/journal", {

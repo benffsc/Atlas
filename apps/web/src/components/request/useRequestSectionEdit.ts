@@ -134,7 +134,7 @@ export function useRequestSectionEdit({
         return;
       }
 
-      await postApi(`/api/requests/${request.request_id}`, payload, { method: "PATCH" });
+      await postApi(`/api/requests/${request.request_id}`, { ...payload, updated_at: request.updated_at }, { method: "PATCH" });
       await onSaved();
       setIsEditing(false);
     } catch (err) {
