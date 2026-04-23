@@ -427,13 +427,13 @@ export async function GET(
         -- FFS-349: Place's last clinic visit
         (SELECT MAX(a.appointment_date)::TEXT FROM ops.appointments a
          WHERE a.place_id = r.place_id OR a.inferred_place_id = r.place_id) AS place_last_appointment_date,
-        -- FFS-1351: Intake source link
-        r.intake_submission_id,
-        isub.call_type AS intake_call_type,
-        isub.triage_score AS intake_triage_score,
-        isub.triage_category AS intake_triage_category,
-        isub.custom_fields AS intake_custom_fields,
-        isub.created_at AS intake_submitted_at
+        -- FFS-1351: Intake source link (safe pre-migration: returns NULLs if column missing)
+        intake_link.submission_id AS intake_submission_id,
+        intake_link.call_type AS intake_call_type,
+        intake_link.triage_score AS intake_triage_score,
+        intake_link.triage_category AS intake_triage_category,
+        intake_link.custom_fields AS intake_custom_fields,
+        intake_link.submitted_at AS intake_submitted_at
       FROM ops.requests r
       LEFT JOIN sot.places p ON p.place_id = r.place_id
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
@@ -445,7 +445,12 @@ export async function GET(
       LEFT JOIN sot.addresses rpp_addr ON rpp_addr.address_id = rpp_place.sot_address_id AND rpp_addr.merged_into_address_id IS NULL
       LEFT JOIN sot.people sc ON sc.person_id = r.site_contact_person_id
       LEFT JOIN sot.v_place_colony_status pcs ON pcs.place_id = r.place_id
-      LEFT JOIN ops.intake_submissions isub ON isub.submission_id = r.intake_submission_id
+      LEFT JOIN LATERAL (
+        SELECT s.submission_id, s.call_type, s.triage_score, s.triage_category, s.custom_fields, s.created_at AS submitted_at
+        FROM ops.intake_submissions s
+        WHERE s.request_id = r.request_id
+        LIMIT 1
+      ) intake_link ON TRUE
       WHERE r.request_id = $1
     `;
 
