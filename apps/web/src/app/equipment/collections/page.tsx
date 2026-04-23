@@ -289,6 +289,25 @@ function OverdueCard({
   const [logNotes, setLogNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Contact history — fetched when card expands
+  const [contactHistory, setContactHistory] = useState<Array<{
+    attempted_at: string; method: string; outcome: string; notes: string | null; staff_name: string | null;
+  }>>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+
+  // Fetch full contact history when expanded
+  useEffect(() => {
+    if (expanded && !historyLoaded && row.contact_attempt_count > 0) {
+      const key = row.person_id || row.holder_name;
+      fetchApi<{ attempts: typeof contactHistory }>(
+        `/api/equipment/contact-log?holder=${encodeURIComponent(row.holder_name)}${row.person_id ? `&person_id=${row.person_id}` : ""}`
+      ).then((d) => {
+        setContactHistory(d.attempts || []);
+        setHistoryLoaded(true);
+      }).catch(() => setHistoryLoaded(true));
+    }
+  }, [expanded, historyLoaded, row.contact_attempt_count, row.holder_name, row.person_id]);
+
   // SMS template from app_config (FFS-1339)
   const { value: smsTemplate } = useAppConfig<string>("equipment.sms_reminder_template");
   const { value: orgPhone } = useAppConfig<string>("equipment.org_phone");
@@ -317,6 +336,7 @@ function OverdueCard({
     setLogMethod(null);
     setLogNotes("");
     setSelectedOutcome(null);
+    setHistoryLoaded(false); // refresh history after logging
   };
 
   return (
@@ -421,6 +441,53 @@ function OverdueCard({
       {/* ═══ EXPANDED SECTION ═══ */}
       {expanded && (
       <div style={{ padding: "0 1rem 0.875rem", borderTop: "1px solid var(--card-border, #e5e7eb)" }}>
+
+      {/* Contact history journal */}
+      {row.contact_attempt_count > 0 && (
+        <div style={{ marginTop: "0.625rem", marginBottom: "0.5rem" }}>
+          <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "0.375rem" }}>
+            Contact History ({row.contact_attempt_count})
+          </div>
+          {!historyLoaded ? (
+            <div style={{ fontSize: "0.8rem", color: "var(--muted)", padding: "0.25rem 0" }}>Loading...</div>
+          ) : contactHistory.length === 0 ? (
+            <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>No records found</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+              {contactHistory.map((attempt, i) => {
+                const date = new Date(attempt.attempted_at);
+                const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                const isSystem = attempt.method === "system";
+                return (
+                  <div key={i} style={{
+                    display: "flex", gap: "0.5rem", alignItems: "baseline",
+                    padding: "0.25rem 0",
+                    borderBottom: i < contactHistory.length - 1 ? "1px solid var(--card-border, #f3f4f6)" : "none",
+                    fontSize: "0.8rem",
+                  }}>
+                    <span style={{ color: "var(--muted)", fontSize: "0.75rem", flexShrink: 0, minWidth: "3.5rem" }}>
+                      {dateStr}
+                    </span>
+                    <span style={{ color: isSystem ? "var(--muted)" : "var(--text-primary)", fontWeight: 500 }}>
+                      {formatOutcome(attempt.outcome)}
+                    </span>
+                    {attempt.staff_name && (
+                      <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>
+                        — {attempt.staff_name}
+                      </span>
+                    )}
+                    {attempt.notes && (
+                      <span style={{ color: "var(--text-secondary)", fontStyle: "italic", fontSize: "0.75rem" }}>
+                        &ldquo;{attempt.notes}&rdquo;
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Action grid — two rows */}
       {!isLogging && actionMode === "none" && (

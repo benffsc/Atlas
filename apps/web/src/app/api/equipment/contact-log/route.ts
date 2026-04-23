@@ -1,7 +1,41 @@
-import { queryOne } from "@/lib/db";
+import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess } from "@/lib/api-response";
 import { withErrorHandling, ApiError } from "@/lib/api-validation";
 import { NextRequest } from "next/server";
+
+/**
+ * GET /api/equipment/contact-log?holder=NAME&person_id=UUID
+ *
+ * Fetch contact attempt history for a person/holder.
+ */
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { searchParams } = new URL(request.url);
+  const holder = searchParams.get("holder");
+  const personId = searchParams.get("person_id");
+
+  if (!holder && !personId) {
+    throw new ApiError("holder or person_id is required", 400);
+  }
+
+  const attempts = await queryRows<{
+    attempt_id: string;
+    attempted_at: string;
+    method: string;
+    outcome: string;
+    notes: string | null;
+    staff_name: string | null;
+  }>(
+    `SELECT attempt_id, attempted_at::text, method, outcome, notes, staff_name
+     FROM ops.equipment_contact_attempts
+     WHERE ($1::uuid IS NOT NULL AND person_id = $1::uuid)
+        OR ($2 IS NOT NULL AND holder_name = $2)
+     ORDER BY attempted_at DESC
+     LIMIT 20`,
+    [personId || null, holder || null],
+  );
+
+  return apiSuccess({ attempts });
+});
 
 /**
  * POST /api/equipment/contact-log
