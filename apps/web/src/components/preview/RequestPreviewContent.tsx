@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { EntityPreviewPanel } from "./EntityPreviewPanel";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { formatPhone, formatDateLocal } from "@/lib/formatters";
-import { postApi } from "@/lib/api-client";
+import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { TnrProgressBar } from "@/components/ui/TnrProgressBar";
+import { TrapperAssignments } from "@/components/sections/TrapperAssignments";
 import { COLORS } from "@/lib/design-tokens";
 import type { RequestStatus } from "@/lib/request-status";
 import { mapToPrimaryStatus } from "@/lib/request-status";
 import type { RequestDetail } from "@/hooks/useEntityDetail";
+import type { JournalEntry } from "@/components/sections";
 import dynamic from "next/dynamic";
 
 const CompleteRequestModal = dynamic(() => import("@/components/modals/CompleteRequestModal"), { ssr: false });
@@ -112,6 +114,33 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
   const [showHold, setShowHold] = useState(false);
   const [allExpanded, setAllExpanded] = useState<boolean | null>(null); // null = use defaults
 
+  // Quick note state
+  const [noteText, setNoteText] = useState("");
+  const [addingNote, setAddingNote] = useState(false);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+
+  // Priority state
+  const [savingPriority, setSavingPriority] = useState(false);
+
+  // Journal entries
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalLoading, setJournalLoading] = useState(true);
+
+  const fetchJournal = useCallback(async () => {
+    try {
+      const data = await fetchApi<{ entries: JournalEntry[] }>(`/api/journal?request_id=${r.request_id}&include_related=true`);
+      setJournalEntries(data.entries || []);
+    } catch {
+      // Non-critical
+    } finally {
+      setJournalLoading(false);
+    }
+  }, [r.request_id]);
+
+  useEffect(() => {
+    fetchJournal();
+  }, [fetchJournal]);
+
   const createdDate = new Date(r.created_at);
   const endDate = r.resolved_at ? new Date(r.resolved_at) : new Date();
   const daysOpen = Math.max(0, Math.floor((endDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)));
@@ -131,7 +160,23 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
   const badges = (
     <div style={{ display: "flex", gap: "0.25rem", alignItems: "center", flexWrap: "wrap" }}>
       <StatusBadge status={r.status} />
-      {r.priority && <PriorityBadge priority={r.priority} />}
+      <select
+        value={r.priority || "normal"}
+        onChange={(e) => handlePriorityChange(e.target.value)}
+        disabled={savingPriority}
+        style={{
+          fontSize: "0.65rem", fontWeight: 600, padding: "2px 4px",
+          border: "1px solid var(--border)", borderRadius: "4px",
+          background: "var(--background)", cursor: "pointer",
+          color: r.priority === "urgent" ? COLORS.errorDark : r.priority === "high" ? COLORS.warningDark : "var(--text-secondary)",
+        }}
+        title="Change priority"
+      >
+        <option value="urgent">Urgent</option>
+        <option value="high">High</option>
+        <option value="normal">Normal</option>
+        <option value="low">Low</option>
+      </select>
       {r.is_emergency && <span className="badge" style={{ background: COLORS.errorDark, color: COLORS.white, fontSize: "0.65rem" }}>EMERGENCY</span>}
       {r.has_kittens && <span className="badge" style={{ background: COLORS.warning, color: COLORS.black, fontSize: "0.65rem" }}>KITTENS</span>}
       {r.has_medical_concerns && <span className="badge" style={{ background: COLORS.errorDark, color: COLORS.white, fontSize: "0.65rem" }}>MEDICAL</span>}
@@ -159,6 +204,42 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
     setShowHold(false);
     onRequestUpdated?.();
   }, [onRequestUpdated]);
+
+  // Quick note handler
+  const handleAddNote = useCallback(async () => {
+    if (!noteText.trim()) return;
+    setAddingNote(true);
+    try {
+      await postApi("/api/journal", {
+        request_id: r.request_id,
+        entry_kind: "note",
+        body: noteText.trim(),
+      });
+      setNoteText("");
+      toastSuccess("Note added");
+      fetchJournal();
+      onRequestUpdated?.();
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to add note");
+    } finally {
+      setAddingNote(false);
+    }
+  }, [noteText, r.request_id, toastSuccess, toastError, onRequestUpdated, fetchJournal]);
+
+  // Priority change handler
+  const handlePriorityChange = useCallback(async (newPriority: string) => {
+    if (newPriority === r.priority) return;
+    setSavingPriority(true);
+    try {
+      await postApi(`/api/requests/${r.request_id}`, { priority: newPriority }, { method: "PATCH" });
+      toastSuccess(`Priority set to ${newPriority}`);
+      onRequestUpdated?.();
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Failed to update priority");
+    } finally {
+      setSavingPriority(false);
+    }
+  }, [r.request_id, r.priority, toastSuccess, toastError, onRequestUpdated]);
 
   // Build actions for the header
   const actions = (
@@ -201,11 +282,63 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
       {/* Notes */}
       {r.notes && (
         <CollapsibleSection title="Notes" key={`notes-${allExpanded}`} defaultOpen={sectionOpen(true)}>
-          <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: 1.5, whiteSpace: "pre-wrap", color: "var(--foreground)" }}>
-            {r.notes.length > 300 ? r.notes.slice(0, 300) + "\u2026" : r.notes}
-          </p>
+          <ExpandableText text={r.notes} limit={300} />
         </CollapsibleSection>
       )}
+
+      {/* Quick Note Entry */}
+      <CollapsibleSection title="Add Note" key={`addnote-${allExpanded}`} defaultOpen={sectionOpen(!r.notes)}>
+        <div>
+          <textarea
+            ref={noteRef}
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="Quick note..."
+            rows={2}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && noteText.trim()) {
+                e.preventDefault();
+                handleAddNote();
+              }
+            }}
+            style={{
+              width: "100%", resize: "vertical", fontSize: "0.85rem",
+              padding: "0.5rem", borderRadius: "6px",
+              border: "1px solid var(--border)", background: "var(--background)",
+              fontFamily: "inherit", minHeight: "3.5rem",
+            }}
+          />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.35rem" }}>
+            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+              {noteText.trim() ? "\u2318\u23CE to save" : ""}
+            </span>
+            <Button variant="primary" size="sm" onClick={handleAddNote} disabled={!noteText.trim() || addingNote}>
+              {addingNote ? "Saving..." : "Add Note"}
+            </Button>
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      {/* Journal Entries */}
+      <CollapsibleSection
+        title={`Journal${journalEntries.length > 0 ? ` (${journalEntries.length})` : ""}`}
+        key={`journal-${allExpanded}`}
+        defaultOpen={sectionOpen(journalEntries.length > 0 && journalEntries.length <= 5)}
+      >
+        {journalLoading ? (
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Loading...</span>
+        ) : (
+          <JournalPreview entries={journalEntries.slice(0, 8)} />
+        )}
+        {journalEntries.length > 8 && (
+          <a
+            href={`/requests/${r.request_id}`}
+            style={{ display: "block", fontSize: "0.75rem", color: "var(--primary)", marginTop: "0.5rem", textDecoration: "none" }}
+          >
+            View all {journalEntries.length} entries →
+          </a>
+        )}
+      </CollapsibleSection>
 
       {/* Contact */}
       <CollapsibleSection title="Contact" key={`contact-${allExpanded}`} defaultOpen={sectionOpen(true)}>
@@ -308,24 +441,14 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
         </CollapsibleSection>
       )}
 
-      {/* Assigned Trappers */}
-      {(r.current_trappers && r.current_trappers.length > 0) ? (
-        <CollapsibleSection title="Assigned Trappers" key={`trappers-${allExpanded}`} defaultOpen={sectionOpen(true)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
-            {r.current_trappers.map((t) => (
-              <div key={t.trapper_person_id} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <a href={`/trappers/${t.trapper_person_id}`} style={{ fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>{t.trapper_name}</a>
-                {t.is_primary && <span className="badge" style={{ fontSize: "0.6rem", background: COLORS.primaryLight, color: COLORS.primaryDark }}>Primary</span>}
-                {t.is_ffsc_trapper && <span className="badge" style={{ fontSize: "0.6rem", background: COLORS.successLight, color: COLORS.successDark }}>FFSC</span>}
-              </div>
-            ))}
-          </div>
-        </CollapsibleSection>
-      ) : r.primary_trapper_name ? (
-        <CollapsibleSection title="Trapper" key={`trapper-single-${allExpanded}`} defaultOpen={sectionOpen(true)}>
-          <div style={{ fontSize: "0.85rem", fontWeight: 500 }}>{r.primary_trapper_name}</div>
-        </CollapsibleSection>
-      ) : null}
+      {/* Trapper Assignment — full management inline */}
+      <CollapsibleSection title="Trappers" key={`trappers-${allExpanded}`} defaultOpen={sectionOpen(true)}>
+        <TrapperAssignments
+          requestId={r.request_id}
+          placeId={r.place_id}
+          onAssignmentChange={() => onRequestUpdated?.()}
+        />
+      </CollapsibleSection>
 
       {/* Linked Cats — collapsed by default to save space */}
       {r.cats && r.cats.length > 0 && (
@@ -415,6 +538,71 @@ function FieldCell({ label, value, highlight, good }: { label: string; value: st
     <div>
       <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>{label}</div>
       <div style={{ fontWeight: 500, color: valueColor }}>{value}</div>
+    </div>
+  );
+}
+
+/** Show/hide long text with a toggle link. */
+function ExpandableText({ text, limit = 300 }: { text: string; limit?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const needsTruncation = text.length > limit;
+
+  return (
+    <div>
+      <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: 1.5, whiteSpace: "pre-wrap", color: "var(--foreground)" }}>
+        {needsTruncation && !expanded ? text.slice(0, limit) + "\u2026" : text}
+      </p>
+      {needsTruncation && (
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            background: "none", border: "none", cursor: "pointer", padding: 0,
+            fontSize: "0.75rem", color: "var(--primary, #3b82f6)", fontWeight: 500,
+            marginTop: "0.25rem",
+          }}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Compact journal entry display for the preview panel. */
+function JournalPreview({ entries }: { entries: JournalEntry[] }) {
+  if (entries.length === 0) {
+    return <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>No journal entries yet</span>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      {entries.map((entry) => {
+        const kindColor = entry.entry_kind === "communication" || entry.entry_kind === "contact_attempt"
+          ? COLORS.primaryLight : entry.entry_kind === "system" ? "var(--section-bg)" : undefined;
+        const kindLabel = entry.entry_kind === "communication" || entry.entry_kind === "contact_attempt"
+          ? "Contact" : entry.entry_kind === "system" ? "System" : null;
+
+        return (
+          <div key={entry.id} style={{
+            borderLeft: `3px solid ${entry.is_pinned ? COLORS.warning : "var(--border)"}`,
+            paddingLeft: "0.5rem",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginBottom: "0.15rem" }}>
+              {entry.is_pinned && <span style={{ fontSize: "0.6rem" }} title="Pinned">📌</span>}
+              {kindLabel && (
+                <span className="badge" style={{ fontSize: "0.55rem", background: kindColor, color: "var(--text-secondary)", padding: "1px 4px" }}>
+                  {kindLabel}
+                </span>
+              )}
+              <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                {entry.created_by_staff_name || "Staff"} · {formatDateLocal(entry.created_at)}
+              </span>
+            </div>
+            <ExpandableText text={entry.body} limit={200} />
+          </div>
+        );
+      })}
     </div>
   );
 }
