@@ -177,17 +177,49 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        // Check sharepoint_synced_files dedup
-        const alreadySynced = await queryOne<{ synced_file_id: string }>(
-          `SELECT synced_file_id FROM ops.sharepoint_synced_files
+        // Check sharepoint_synced_files dedup — but re-download if file was
+        // modified on SharePoint since we last synced (handles template → real data)
+        const alreadySynced = await queryOne<{
+          synced_file_id: string;
+          sharepoint_modified_at: string | null;
+        }>(
+          `SELECT synced_file_id, sharepoint_modified_at::text
+           FROM ops.sharepoint_synced_files
            WHERE drive_id = $1 AND item_id = $2`,
           [SHAREPOINT_DRIVE_ID, file.id]
         );
 
         if (alreadySynced) {
-          stats.filesAlreadySynced++;
-          fileResults.push({ filename: file.name, date: parsed.date, status: "already_synced" });
-          continue;
+          // Re-sync if SharePoint shows a newer modification time
+          const spModified = file.lastModifiedDateTime
+            ? new Date(file.lastModifiedDateTime)
+            : null;
+          const ourModified = alreadySynced.sharepoint_modified_at
+            ? new Date(alreadySynced.sharepoint_modified_at)
+            : null;
+
+          if (!spModified || !ourModified || spModified <= ourModified) {
+            stats.filesAlreadySynced++;
+            fileResults.push({ filename: file.name, date: parsed.date, status: "already_synced" });
+            continue;
+          }
+
+          // File was updated on SharePoint — clear old sync record and re-download
+          log.push(`  RE-SYNC: ${file.name} (modified ${spModified.toISOString()} > synced ${ourModified.toISOString()})`);
+          await execute(
+            `DELETE FROM ops.sharepoint_synced_files WHERE synced_file_id = $1`,
+            [alreadySynced.synced_file_id]
+          );
+          // Also clear old entries so fresh data replaces stale template rows
+          if (parsed.date) {
+            await execute(
+              `DELETE FROM ops.clinic_day_entries
+               WHERE clinic_day_id = (
+                 SELECT clinic_day_id FROM ops.clinic_days WHERE clinic_date = $1
+               )`,
+              [parsed.date]
+            );
+          }
         }
 
         // Download + ingest
@@ -251,7 +283,10 @@ export async function GET(request: NextRequest) {
                drive_id, item_id, file_name, file_size,
                sharepoint_modified_at, file_upload_id
              ) VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (drive_id, item_id) DO NOTHING`,
+             ON CONFLICT (drive_id, item_id) DO UPDATE SET
+               sharepoint_modified_at = EXCLUDED.sharepoint_modified_at,
+               file_upload_id = EXCLUDED.file_upload_id,
+               file_size = EXCLUDED.file_size`,
             [
               SHAREPOINT_DRIVE_ID,
               file.id,
