@@ -344,63 +344,71 @@ function HomeInner() {
   }, [requestPins, intakePins, atlasPins, enabledLayers]);
 
   return (
-    <div className="dashboard-command-center">
-      {/* Header */}
-      <div className="dashboard-greeting">
-        <div className="dashboard-greeting-text">
-          <h1>
+    <div className="dashboard-command-center dashboard-scroll-layout">
+      {/* ── Hero viewport — fills initial screen, scrolls away ── */}
+      <section className="dashboard-hero">
+        <div className="dashboard-hero__bg" />
+        <div className="dashboard-hero__content">
+          <div className="dashboard-hero__greeting">
+            <h1>
+              {staff
+                ? `${getGreeting()}, ${getFirstName(staff.display_name)}`
+                : "Beacon"}
+            </h1>
+            <p className="dashboard-tagline">A guiding light for humane cat population management</p>
+            <LiveCounter />
+            <div className="date-line">{today}</div>
+          </div>
+
+          {/* KPI cards overlaid on hero */}
+          <div className="dashboard-hero__kpis">
+            <KpiStrip stats={stats} />
+          </div>
+        </div>
+
+        {/* Scroll hint */}
+        <div className="dashboard-hero__scroll-hint" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </section>
+
+      {/* ── Operational content — revealed on scroll ── */}
+      <section className="dashboard-ops">
+        {/* Impact section */}
+        <InsightsFeed stats={stats} />
+        <YearlyImpactChart />
+
+        {/* Greeting + action cards (image 2 layout) */}
+        <div className="dashboard-ops__greeting">
+          <h2>
             {staff
               ? `${getGreeting()}, ${getFirstName(staff.display_name)}`
-              : "Beacon"}
-          </h1>
-          <p className="dashboard-tagline">A guiding light for humane cat population management</p>
-          <LiveCounter />
+              : "Dashboard"}
+          </h2>
           <div className="date-line">{today}</div>
         </div>
-        <a href="/requests/new" className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
-          + New Request
-        </a>
-      </div>
 
-      {/* Natural-language insights (Tableau Pulse pattern: at-a-glance health)
-          Replaces the Tier 1 inline briefing with a structured feed. */}
-      <InsightsFeed stats={stats} />
-
-      {/* Year-over-year impact chart — includes impact stats that react to the range slider */}
-      <YearlyImpactChart />
-
-      {/* KPI Cards */}
-      <KpiStrip stats={stats} />
-
-      {/* Split Layout: Action Panel + Map */}
-      <div className="dashboard-split">
-        <ActionPanel
-          stats={stats}
-          requests={requests}
-          intake={intake}
-          loadingRequests={loadingRequests}
-          loadingIntake={loadingIntake}
-          isAdmin={isAdmin}
-          staffPersonId={staff?.person_id ?? null}
-          showMyRequests={showMyRequests}
-          onToggleMyRequests={() => setShowMyRequests(!showMyRequests)}
-          onRequestClick={handleRequestClick}
-        />
-
-        {!isMobile ? (
-          <DashboardMap
-            requestPins={requestPins}
-            intakePins={intakePins}
-            atlasPins={atlasPins}
-            enabledLayers={enabledLayers}
-            onToggleLayer={handleToggleLayer}
-            onPinClick={handlePinClick}
-            onSearch={handleMapSearch}
-            loading={loadingMap}
-            layerCounts={layerCounts}
+        {/* Action cards row */}
+        <div className="dashboard-action-cards">
+          <ActionPanel
+            stats={stats}
+            requests={requests}
+            intake={intake}
+            loadingRequests={loadingRequests}
+            loadingIntake={loadingIntake}
+            isAdmin={isAdmin}
+            staffPersonId={staff?.person_id ?? null}
+            showMyRequests={showMyRequests}
+            onToggleMyRequests={() => setShowMyRequests(!showMyRequests)}
+            onRequestClick={handleRequestClick}
           />
-        ) : (
-          <div className="dashboard-map-container">
+        </div>
+
+        {/* Map section */}
+        <div className="dashboard-split">
+          {!isMobile ? (
             <DashboardMap
               requestPins={requestPins}
               intakePins={intakePins}
@@ -412,9 +420,23 @@ function HomeInner() {
               loading={loadingMap}
               layerCounts={layerCounts}
             />
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="dashboard-map-container">
+              <DashboardMap
+                requestPins={requestPins}
+                intakePins={intakePins}
+                atlasPins={atlasPins}
+                enabledLayers={enabledLayers}
+                onToggleLayer={handleToggleLayer}
+                onPinClick={handlePinClick}
+                onSearch={handleMapSearch}
+                loading={loadingMap}
+                layerCounts={layerCounts}
+              />
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Entity Preview Modal */}
       <EntityPreviewModal
