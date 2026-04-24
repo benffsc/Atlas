@@ -292,6 +292,35 @@ export async function runCDS(
       );
       cancelledDetected = cd?.detect_cancelled_entries ?? 0;
     } catch { /* function may not exist yet */ }
+
+    // TS pre-pass: catch crossed-out entries and master_list_status annotations
+    // that the SQL function may not know about
+    const tsCancelled = await queryRows<{ entry_id: string; notes: string }>(
+      `SELECT e.entry_id::text, LOWER(COALESCE(e.notes, '')) AS notes
+       FROM ops.clinic_day_entries e
+       JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+       WHERE cd.clinic_date = $1
+         AND e.cancellation_reason IS NULL
+         AND (
+           e.notes ILIKE '%xxxxxxxxx%' OR e.notes ILIKE '%xxxxxxxx%'
+           OR e.notes ILIKE '%master_list_status=Preg%'
+           OR e.notes ILIKE '%master_list_status=Heat%'
+           OR e.notes ILIKE '%master_list_status=Cancel%'
+         )`,
+      [clinicDate]
+    );
+    for (const entry of tsCancelled) {
+      const reason = entry.notes.includes("preg") || entry.notes.includes("heat")
+        ? "medical_hold"
+        : "surgery_cancelled";
+      await execute(
+        `UPDATE ops.clinic_day_entries SET cancellation_reason = $2
+         WHERE entry_id = $1::UUID AND cancellation_reason IS NULL`,
+        [entry.entry_id, reason]
+      );
+      cancelledDetected++;
+    }
+
     phases.push({
       phase: "2_cancelled_detection",
       matched: 0,
@@ -1090,13 +1119,13 @@ async function runShelterIdBridge(
     `SELECT
        e.entry_id,
        e.raw_client_name,
-       (regexp_match(e.raw_client_name, '\\b([A-Z]\\d{4,8})\\b'))[1] AS extracted_id
+       (regexp_match(e.raw_client_name, '\\m([A-Z]\\d{4,8})\\M'))[1] AS extracted_id
      FROM ops.clinic_day_entries e
      JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
      WHERE cd.clinic_date = $1
        AND e.matched_appointment_id IS NULL
        AND e.match_confidence IS DISTINCT FROM 'manual'
-       AND e.raw_client_name ~ '\\b[A-Z]\\d{4,8}\\b'`,
+       AND e.raw_client_name ~ '\\m[A-Z]\\d{4,8}\\M'`,
     [clinicDate]
   );
 
@@ -1107,20 +1136,28 @@ async function runShelterIdBridge(
   for (const candidate of candidates) {
     if (!candidate.extracted_id) continue;
 
-    // Find a cat with this previous shelter ID and an active appointment for the date
+    // Find a cat with this shelter ID (as previous_shelter_id OR cat name)
+    // and an active appointment for the date.
+    // Cat name match covers FFSC Relo/SCAS cats named by their shelter ID (e.g., "A440726").
     const match = await queryOne<{
       appointment_id: string;
       cat_id: string;
     }>(
       `SELECT a.appointment_id, a.cat_id
-       FROM sot.cat_identifiers ci
-       JOIN ops.appointments a
-         ON a.cat_id = ci.cat_id
-        AND a.appointment_date = $1
-        AND a.merged_into_appointment_id IS NULL
-        AND a.clinic_day_number IS NULL
-       WHERE ci.id_type = 'previous_shelter_id'
-         AND ci.id_value = $2
+       FROM ops.appointments a
+       JOIN sot.cats c ON c.cat_id = a.cat_id AND c.merged_into_cat_id IS NULL
+       WHERE a.appointment_date = $1
+         AND a.merged_into_appointment_id IS NULL
+         AND a.clinic_day_number IS NULL
+         AND (
+           EXISTS (
+             SELECT 1 FROM sot.cat_identifiers ci
+             WHERE ci.cat_id = c.cat_id
+               AND ci.id_type = 'previous_shelter_id'
+               AND ci.id_value = $2
+           )
+           OR UPPER(c.name) = UPPER($2)
+         )
        LIMIT 2`,
       [clinicDate, candidate.extracted_id]
     );
@@ -2592,6 +2629,16 @@ function classifyDeterministic(entry: UnmatchedEntry): UnmatchedReason | null {
   const notes = (entry.notes || "").toLowerCase();
   const raw = (entry.raw_client_name || "").toLowerCase();
   const hasSurgery = entry.female_count + entry.male_count > 0;
+
+  // Crossed-out entries: "xxxxxxxxx" in notes = line was struck through on paper
+  if (notes.includes("xxxxxxxxx") || notes.includes("xxxxxxxx"))
+    return "surgery_cancelled";
+
+  // Master list status annotations from ML parser
+  if (notes.includes("master_list_status=preg")) return "medical_hold";
+  if (notes.includes("master_list_status=heat")) return "medical_hold";
+  if (notes.includes("master_list_status=cancel")) return "surgery_cancelled";
+  if (notes.includes("master_list_status=no show")) return "no_show";
 
   // Recheck/follow-up with no booking
   if (entry.is_recheck) return "recheck_no_booking";
