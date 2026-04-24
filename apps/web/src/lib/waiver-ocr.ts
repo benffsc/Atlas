@@ -328,7 +328,8 @@ export async function extractWaiverOCR(
   }
 
   // Try parsing as-is first; if that fails, try fixing common issues
-  let parsed: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let parsed: any;
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
