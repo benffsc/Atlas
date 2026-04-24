@@ -303,15 +303,12 @@ export async function runCDS(
        WHERE cd.clinic_date = $1
          AND e.cancellation_reason IS NULL
          AND (
-           e.notes ILIKE '%master_list_status=Heat%'
-           OR e.notes ILIKE '%master_list_status=Cancel%'
+           e.notes ILIKE '%master_list_status=Cancel%'
          )`,
       [clinicDate]
     );
     for (const entry of tsCancelled) {
-      const reason = entry.notes.includes("heat")
-        ? "medical_hold"
-        : "surgery_cancelled";
+      const reason = "surgery_cancelled";
       await execute(
         `UPDATE ops.clinic_day_entries SET cancellation_reason = $2
          WHERE entry_id = $1::UUID AND cancellation_reason IS NULL`,
@@ -2689,9 +2686,9 @@ function classifyDeterministic(entry: UnmatchedEntry): UnmatchedReason | null {
   // It means "ditto" / "see above" — same owner, second cat, details on previous line.
 
   // Master list status annotations from ML parser
-  // NOTE: "Preg" is NOT a medical hold at a TNR clinic — pregnant cats get spayed.
-  // "Preg" is just noting the condition. Only Heat/Cancel/No Show are actionable.
-  if (notes.includes("master_list_status=heat")) return "medical_hold";
+  // NOTE: At a TNR clinic, Preg and Heat are NOT medical holds — cats still get
+  // spayed. These annotations note the condition, not defer surgery.
+  // Only explicit Cancel/No Show are actionable.
   if (notes.includes("master_list_status=cancel")) return "surgery_cancelled";
   if (notes.includes("master_list_status=no show")) return "no_show";
 
