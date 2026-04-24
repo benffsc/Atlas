@@ -1060,9 +1060,11 @@ export default function ClinicDaysPage() {
               </div>
             )}
 
-            {/* Drop zone */}
+            {/* Drop zone — tabIndex makes it focusable for paste events */}
             {!uploading && (
               <div
+                tabIndex={0}
+                ref={(el) => { if (el && uploadTarget) el.focus(); }}
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onDrop={(e) => {
@@ -1070,6 +1072,20 @@ export default function ClinicDaysPage() {
                   e.stopPropagation();
                   const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
                   if (files.length > 0) setStagedFiles(prev => [...prev, ...files]);
+                }}
+                onPaste={(e) => {
+                  const files: File[] = [];
+                  for (const item of Array.from(e.clipboardData?.items || [])) {
+                    if (item.type.startsWith("image/")) {
+                      const f = item.getAsFile();
+                      if (f) files.push(f);
+                    }
+                  }
+                  if (files.length > 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setStagedFiles(prev => [...prev, ...files]);
+                  }
                 }}
                 style={{
                   border: "2px dashed var(--card-border)",
@@ -1080,9 +1096,49 @@ export default function ClinicDaysPage() {
                   color: "var(--muted)",
                   fontSize: "0.85rem",
                   marginBottom: "12px",
+                  outline: "none",
                 }}
               >
-                Click to choose, drag & drop, or paste (Ctrl+V)
+                Click to choose, drag & drop, or paste (Cmd+V)
+                {/* Clipboard API button for iPhone Universal Clipboard */}
+                <div style={{ marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const clipItems = await navigator.clipboard.read();
+                        const files: File[] = [];
+                        for (const item of clipItems) {
+                          for (const type of item.types) {
+                            if (type.startsWith("image/")) {
+                              const blob = await item.getType(type);
+                              const ext = type.split("/")[1] || "png";
+                              files.push(new File([blob], `clipboard.${ext}`, { type }));
+                            }
+                          }
+                        }
+                        if (files.length > 0) {
+                          setStagedFiles(prev => [...prev, ...files]);
+                        } else {
+                          addToast({ type: "error", message: "No image found in clipboard" });
+                        }
+                      } catch (err) {
+                        // Clipboard API denied or unavailable — fall back to file picker
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    style={{
+                      all: "unset",
+                      cursor: "pointer",
+                      color: "var(--primary)",
+                      fontSize: "0.8rem",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Or tap here to paste from phone
+                  </button>
+                </div>
               </div>
             )}
 
