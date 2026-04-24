@@ -1967,197 +1967,87 @@ body.presentation-mode [data-admin-section="true"] {
   margin: 0 auto;
 }
 
-/* ── Apple-style scroll: hero viewport → operational content ── */
+/* ── Compact hero banner (matches Figma opt1) ── */
 
 .dashboard-scroll-layout {
   max-width: none;
 }
 
-/* Hero — fills initial viewport */
-.dashboard-hero {
+/* Banner — compact, left-aligned text, artwork background */
+.dashboard-hero-banner {
   position: relative;
-  min-height: calc(100vh - 56px); /* account for top nav */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
   margin: -1rem -1.25rem 0;
-  padding: 3rem 2rem 2rem;
+  padding: 2rem 2rem 3.5rem;
   overflow: hidden;
+  min-height: 160px;
 }
 
-/* Hero background — cat artwork with #005DA7 brand overlay */
-.dashboard-hero__bg {
+.dashboard-hero-banner__bg {
   position: absolute;
   inset: 0;
   background: url('/hero-cats.avif') center / cover no-repeat;
   z-index: 0;
 }
 
-/* Blue tint overlay matching FFSC brand blue */
-.dashboard-hero__bg::after {
+/* Strong blue overlay — text must be clearly readable */
+.dashboard-hero-banner__bg::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(0, 93, 167, 0.72);
+  background: rgba(0, 93, 167, 0.82);
 }
 
-.dashboard-hero__content {
+.dashboard-hero-banner__text {
   position: relative;
   z-index: 1;
-  width: 100%;
-  max-width: 1100px;
-  text-align: center;
 }
 
-.dashboard-hero__greeting {
-  margin-bottom: 2.5rem;
-}
-
-.dashboard-hero__greeting h1 {
+.dashboard-hero-banner__text h1 {
   color: #fff;
-  font-size: clamp(2rem, 5vw, 3.5rem);
-  font-weight: 800;
-  margin: 0 0 0.5rem;
-  text-shadow: 0 2px 12px rgba(0,0,0,0.15);
-}
-
-.dashboard-hero__greeting .dashboard-tagline {
-  color: rgba(255,255,255,0.85);
-  font-size: clamp(0.95rem, 2vw, 1.15rem);
-  margin: 0 0 0.75rem;
-}
-
-.dashboard-hero__greeting .date-line {
-  color: rgba(255,255,255,0.6);
-}
-
-/* LiveCounter in hero context — white text */
-.dashboard-hero__greeting .live-counter {
-  color: rgba(255,255,255,0.9);
-}
-
-.dashboard-hero__greeting .live-counter-value {
-  color: #fff;
-}
-
-/* KPI cards overlaid on hero — translucent glass style */
-.dashboard-hero__kpis {
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.dashboard-hero__kpis .kpi-strip {
-  margin-bottom: 0;
-}
-
-.dashboard-hero__kpis .kpi-card {
-  background: rgba(255,255,255,0.12);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #fff;
-  border-left-color: rgba(255,255,255,0.35);
-}
-
-.dashboard-hero__kpis .kpi-value {
-  color: #fff;
-}
-
-.dashboard-hero__kpis .kpi-label {
-  color: rgba(255,255,255,0.8);
-}
-
-.dashboard-hero__kpis .kpi-delta {
-  color: rgba(255,255,255,0.7);
-}
-
-.dashboard-hero__kpis .kpi-link {
-  color: rgba(255,255,255,0.7);
-}
-
-/* Scroll hint — bouncing chevron at bottom of hero */
-.dashboard-hero__scroll-hint {
-  position: absolute;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  color: rgba(255,255,255,0.5);
-  animation: hero-bounce 2s ease-in-out infinite;
-  z-index: 1;
-}
-
-@keyframes hero-bounce {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(8px); }
-}
-
-/* ── Operational section below hero ── */
-
-.dashboard-ops {
-  padding: 2rem 1.25rem;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.dashboard-ops__greeting {
-  margin-bottom: 1.25rem;
-}
-
-.dashboard-ops__greeting h2 {
-  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  font-size: clamp(1.5rem, 3vw, 2rem);
   font-weight: 700;
   margin: 0 0 0.25rem;
 }
 
-.dashboard-ops__greeting .date-line {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.dashboard-hero-banner__text .date-line {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-/* Action cards — horizontal row matching image 2 */
-.dashboard-action-cards {
-  margin-bottom: 1.5rem;
+/* KPI cards — pulled up to overlap the banner bottom */
+.dashboard-hero-kpis {
+  position: relative;
+  z-index: 2;
+  margin: -2rem 0.75rem 1.5rem;
 }
 
-.dashboard-action-cards .dashboard-action-panel {
-  flex: none;
-  max-height: none;
-  overflow-y: visible;
+.dashboard-hero-kpis .kpi-strip {
+  margin-bottom: 0;
 }
 
-/* Map in ops section — full width */
-.dashboard-ops .dashboard-split {
-  display: block;
+.dashboard-hero-kpis .kpi-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-.dashboard-ops .dashboard-map-container {
-  border-radius: 12px;
-  overflow: hidden;
-  min-height: 500px;
+/* Content below hero — normal page flow */
+.dashboard-below-hero {
+  padding: 0 0.75rem;
 }
-
-/* ── Mobile adjustments ── */
 
 @media (max-width: 768px) {
-  .dashboard-hero {
-    min-height: calc(100dvh - 56px);
+  .dashboard-hero-banner {
     margin: -1rem -1rem 0;
-    padding: 2rem 1rem 1.5rem;
+    padding: 1.5rem 1rem 3rem;
+    min-height: 120px;
   }
 
-  .dashboard-hero__greeting h1 {
-    font-size: 1.75rem;
-  }
-
-  .dashboard-hero__kpis .kpi-card {
-    min-width: 120px;
-  }
-
-  .dashboard-ops {
-    padding: 1.5rem 1rem;
+  .dashboard-hero-kpis {
+    margin: -1.5rem 0.5rem 1rem;
   }
 }
 

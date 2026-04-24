@@ -345,66 +345,43 @@ function HomeInner() {
 
   return (
     <div className="dashboard-command-center dashboard-scroll-layout">
-      {/* ── Hero viewport — fills initial screen, scrolls away ── */}
-      <section className="dashboard-hero">
-        <div className="dashboard-hero__bg" />
-        <div className="dashboard-hero__content">
-          <div className="dashboard-hero__greeting">
-            <h1>
-              {staff
-                ? `${getGreeting()}, ${getFirstName(staff.display_name)}`
-                : "Beacon"}
-            </h1>
-            <p className="dashboard-tagline">A guiding light for humane cat population management</p>
-            <LiveCounter />
-            <div className="date-line">{today}</div>
-          </div>
-
-          {/* KPI cards overlaid on hero */}
-          <div className="dashboard-hero__kpis">
-            <KpiStrip stats={stats} />
-          </div>
+      {/* ── Compact hero banner with KPI cards breaking out ── */}
+      <div className="dashboard-hero-banner">
+        <div className="dashboard-hero-banner__bg" />
+        <div className="dashboard-hero-banner__text">
+          <h1>
+            {staff
+              ? `${getGreeting()}, ${getFirstName(staff.display_name)}`
+              : "Beacon"}
+          </h1>
+          <div className="date-line">Last login: {today}</div>
         </div>
+      </div>
 
-        {/* Scroll hint */}
-        <div className="dashboard-hero__scroll-hint" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </div>
-      </section>
+      {/* KPI cards — overlapping the banner bottom edge */}
+      <div className="dashboard-hero-kpis">
+        <KpiStrip stats={stats} />
+      </div>
 
-      {/* ── Operational content — revealed on scroll ── */}
-      <section className="dashboard-ops">
+      {/* ── Content below hero ── */}
+      <div className="dashboard-below-hero">
         {/* Impact section */}
         <InsightsFeed stats={stats} />
         <YearlyImpactChart />
 
-        {/* Greeting + action cards (image 2 layout) */}
-        <div className="dashboard-ops__greeting">
-          <h2>
-            {staff
-              ? `${getGreeting()}, ${getFirstName(staff.display_name)}`
-              : "Dashboard"}
-          </h2>
-          <div className="date-line">{today}</div>
-        </div>
-
-        {/* Action cards row */}
-        <div className="dashboard-action-cards">
-          <ActionPanel
-            stats={stats}
-            requests={requests}
-            intake={intake}
-            loadingRequests={loadingRequests}
-            loadingIntake={loadingIntake}
-            isAdmin={isAdmin}
-            staffPersonId={staff?.person_id ?? null}
-            showMyRequests={showMyRequests}
-            onToggleMyRequests={() => setShowMyRequests(!showMyRequests)}
-            onRequestClick={handleRequestClick}
-          />
-        </div>
+        {/* Action panel */}
+        <ActionPanel
+          stats={stats}
+          requests={requests}
+          intake={intake}
+          loadingRequests={loadingRequests}
+          loadingIntake={loadingIntake}
+          isAdmin={isAdmin}
+          staffPersonId={staff?.person_id ?? null}
+          showMyRequests={showMyRequests}
+          onToggleMyRequests={() => setShowMyRequests(!showMyRequests)}
+          onRequestClick={handleRequestClick}
+        />
 
         {/* Map section */}
         <div className="dashboard-split">
@@ -436,7 +413,7 @@ function HomeInner() {
             </div>
           )}
         </div>
-      </section>
+      </div>
 
       {/* Entity Preview Modal */}
       <EntityPreviewModal
