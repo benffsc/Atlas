@@ -1069,8 +1069,26 @@ function KioskEquipmentAddContent() {
   return (
     <div style={{ maxWidth: 480, margin: "0 auto" }}>
       <KioskCard icon="plus" title="Add Equipment" showResumed={showResumed} style={{ marginTop: "1rem" }}>
-        {/* Step indicator */}
-        <StepIndicator current={step} total={TOTAL_STEPS} />
+        {/* Step indicator + Start Over */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ flex: 1 }}><StepIndicator current={step} total={TOTAL_STEPS} /></div>
+          {step > 1 && (
+            <button
+              onClick={() => {
+                clearSaved();
+                setPhotoFile(null);
+                setPhotoPreviewUrl(null);
+              }}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontSize: "0.75rem", color: "var(--muted)", padding: "0.25rem 0.5rem",
+                textDecoration: "underline", flexShrink: 0,
+              }}
+            >
+              Start Over
+            </button>
+          )}
+        </div>
 
         {/* Selection context breadcrumb (visible from step 2+) */}
         {step >= 2 && (
