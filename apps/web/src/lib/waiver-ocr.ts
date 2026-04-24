@@ -358,7 +358,7 @@ export async function extractWaiverOCR(
   }
 
   // Post-OCR validation: sanitize clinic_number
-  let clinicNumber: number | null = parsed.clinic_number ?? null;
+  let clinicNumber: number | null = typeof parsed.clinic_number === "number" ? parsed.clinic_number : null;
   if (clinicNumber !== null) {
     // Must be a positive integer in reasonable range
     if (!Number.isInteger(clinicNumber) || clinicNumber < 1 || clinicNumber > 99) {
