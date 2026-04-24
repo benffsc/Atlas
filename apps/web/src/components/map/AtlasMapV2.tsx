@@ -346,6 +346,19 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     setSearchHighlight(-1);
   }, [search.query, search.atlasResults, search.localResults]);
 
+  // Close search results on click outside the search container
+  useEffect(() => {
+    if (!search.showResults) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        search.setShowResults(false);
+        setSearchHighlight(-1);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [search.showResults, search]);
+
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!search.showResults) return;
     const items = searchContainerRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
