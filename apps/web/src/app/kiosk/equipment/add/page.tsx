@@ -821,7 +821,11 @@ function StepConfirm({
             variant="ghost"
             fullWidth
             icon="plus"
-            onClick={() => router.push("/kiosk/equipment/add")}
+            onClick={() => {
+              // Clear the auto-saved form state so the next add starts fresh
+              try { sessionStorage.removeItem("kiosk_form_equipment_add_v2"); } catch {}
+              window.location.href = "/kiosk/equipment/add";
+            }}
             style={{ minHeight: 48, borderRadius: 12 }}
           >
             Add Another
