@@ -95,12 +95,18 @@ export function useFormAutoSave<T>(
     [],
   );
 
+  // Keep initialState in a ref so clear() doesn't re-create on every render
+  const initialStateRef = useRef(initialState);
+
   const clear = useCallback(() => {
     try {
       sessionStorage.removeItem(storageKey);
     } catch {
       // Ignore
     }
+    // Reset in-memory state to prevent the debounced save from
+    // re-writing the old data back to sessionStorage after clearing
+    setStateInner(initialStateRef.current);
   }, [storageKey]);
 
   return [state, setState, clear, wasRestored];
