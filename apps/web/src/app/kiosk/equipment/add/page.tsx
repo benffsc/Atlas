@@ -544,6 +544,11 @@ function StepDetails({
             maxLength={4}
             value={barcode}
             onChange={(e) => setBarcode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            onPaste={(e) => {
+              e.preventDefault();
+              const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+              setBarcode(pasted);
+            }}
             placeholder={suggestedBarcode ?? "0000"}
             style={{ ...inputStyle, fontFamily: "monospace", letterSpacing: "0.1em" }}
           />
