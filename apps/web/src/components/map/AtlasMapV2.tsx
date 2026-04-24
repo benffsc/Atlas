@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { APIProvider, Map, AdvancedMarker, AdvancedMarkerAnchorPoint, InfoWindow, useMap, CollisionBehavior } from "@vis.gl/react-google-maps";
 import { useMapData } from "@/hooks/useMapData";
 import { useMapColors } from "@/hooks/useMapColors";
@@ -23,7 +24,7 @@ import { MapContextMenu } from "@/components/map/components/MapContextMenu";
 import { BottomSheet } from "@/components/map/components/BottomSheet";
 import { BulkActionBar } from "@/components/map/components/BulkActionBar";
 import { MapInfoWindowContent } from "@/components/map/components/MapInfoWindowContent";
-import { MapStatsBar } from "@/components/map/components/MapStatsBar";
+// MapStatsBar removed — stats integrated into sidebar (FFS-1375)
 import { MapErrorBoundary } from "@/components/map/components/MapErrorBoundary";
 import { StreetViewPanel } from "@/components/map/components/StreetViewPanel";
 import { MapPinKey } from "@/components/map/components/MapPinKey";
@@ -42,6 +43,7 @@ import { formatDistance } from "@/components/map/hooks/useMeasurement";
 import { GooglePinMarkers, PlaceMarkers, VolunteerMarkers, ClinicClientMarkers, TrapperTerritoryMarkers } from "@/components/map/components/LayerMarkers";
 import { ZoneBoundaries } from "@/components/map/components/ZoneBoundaries";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
+import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
 import { MapTimeSlider } from "@/components/map/components/MapTimeSlider";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type {
@@ -70,6 +72,27 @@ function useIsMobile(breakpoint = 768) {
     return () => window.removeEventListener("resize", check);
   }, [breakpoint]);
   return isMobile;
+}
+
+/**
+ * Renders children into a portal target if it exists, otherwise renders inline.
+ * Used by MapShell layout — if portal targets aren't present (e.g. Beacon),
+ * everything falls back to current inline rendering.
+ */
+function PortalOrInline({ portalId, children, fallback }: { portalId: string; children: ReactNode; fallback?: ReactNode }) {
+  const [target, setTarget] = useState<HTMLElement | null>(() => {
+    if (typeof document === "undefined") return null;
+    return document.getElementById(portalId);
+  });
+
+  useEffect(() => {
+    // Re-check after mount in case layout rendered after this component
+    const el = document.getElementById(portalId);
+    if (el !== target) setTarget(el);
+  }, [portalId, target]);
+
+  if (target) return createPortal(children, target);
+  return <>{fallback ?? children}</>;
 }
 
 /** Haversine distance in meters */
@@ -108,6 +131,7 @@ export interface AtlasMapV2Props {
 function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   const { addToast } = useToast();
   const isMobile = useIsMobile();
+  const { sidebarOpen, toggleSidebar } = useMapLayout();
   const map = useMap();
   const { mapCenter, mapZoom } = useGeoConfig();
   const { colors } = useMapColors();
@@ -1087,7 +1111,12 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           break;
         case "l":
         case "L":
-          setShowLayerPanel(prev => !prev);
+          // If MapShell sidebar portal exists, toggle sidebar; else toggle inline layer panel
+          if (document.getElementById("map-sidebar-portal")) {
+            toggleSidebar();
+          } else {
+            setShowLayerPanel(prev => !prev);
+          }
           break;
         case "m":
         case "M":
@@ -1152,7 +1181,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   // ──────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="map-container-v2" role="application" aria-roledescription="interactive map" style={{ position: "relative", height: "100dvh", width: "100%" }}>
+    <div className="map-container-v2" role="application" aria-roledescription="interactive map" style={{ position: "relative", height: "100%", width: "100%" }}>
       <Map
         mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "atlas-map-v2"}
         defaultCenter={initialUrlState.center ?? { lat: mapCenter[0], lng: mapCenter[1] }}
@@ -1355,81 +1384,159 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         )}
       </Map>
 
-      {/* ── Search bar ── */}
-      <div ref={searchContainerRef} style={{
-        position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)",
-        zIndex: MAP_Z_INDEX.searchBox, width: "100%", maxWidth: 600, padding: "0 16px",
-      }}>
-        <div style={{
-          background: "var(--background)", borderRadius: 24,
-          boxShadow: "0 2px 6px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)",
-          display: "flex", alignItems: "center", padding: "8px 16px",
-        }}>
-          <a href="/" title="Back to Beacon" style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 8, textDecoration: "none", color: "var(--text-secondary)", fontWeight: 700, fontSize: 14, flexShrink: 0, padding: "4px 8px 4px 4px", borderRadius: 6 }}>
-            <span style={{ fontSize: 16, lineHeight: 1 }}>&#x2190;</span>
-            <img src="/beacon-logo.jpeg" alt="Beacon" style={{ height: 24, width: "auto" }} />
-          </a>
-          <span style={{ width: 1, height: 20, background: "var(--bg-secondary)", marginRight: 10, flexShrink: 0 }} />
-          <input
-            ref={searchInputRef}
-            type="text"
-            role="combobox"
-            aria-expanded={search.showResults}
-            aria-autocomplete="list"
-            aria-controls="map-search-listbox"
-            aria-activedescendant={searchHighlight >= 0 ? `srp-item-${searchHighlight}` : undefined}
-            placeholder={isMobile ? "Search..." : "Search people, places, or cats... (press /)"}
-            value={search.query}
-            onChange={(e) => { search.setQuery(e.target.value); search.setShowResults(true); }}
-            onFocus={() => search.setShowResults(true)}
-            onKeyDown={handleSearchKeyDown}
-            style={{ flex: 1, border: "none", outline: "none", fontSize: 15 }}
-          />
-          {search.query && (
-            <button onClick={() => { search.setQuery(""); search.setShowResults(false); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, opacity: 0.5 }}>
-              &#x2715;
-            </button>
+      {/* ── Search bar — portalled into top bar when MapShell present ── */}
+      <PortalOrInline
+        portalId="map-search-portal"
+        fallback={
+          <div ref={searchContainerRef} style={{
+            position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)",
+            zIndex: MAP_Z_INDEX.searchBox, width: "100%", maxWidth: 600, padding: "0 16px",
+          }}>
+            <div style={{
+              background: "var(--background)", borderRadius: 24,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)",
+              display: "flex", alignItems: "center", padding: "8px 16px",
+            }}>
+              <a href="/" title="Back to Beacon" style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 8, textDecoration: "none", color: "var(--text-secondary)", fontWeight: 700, fontSize: 14, flexShrink: 0, padding: "4px 8px 4px 4px", borderRadius: 6 }}>
+                <span style={{ fontSize: 16, lineHeight: 1 }}>&#x2190;</span>
+                <img src="/beacon-logo.jpeg" alt="Beacon" style={{ height: 24, width: "auto" }} />
+              </a>
+              <span style={{ width: 1, height: 20, background: "var(--bg-secondary)", marginRight: 10, flexShrink: 0 }} />
+              <input
+                ref={searchInputRef}
+                type="text"
+                role="combobox"
+                aria-expanded={search.showResults}
+                aria-autocomplete="list"
+                aria-controls="map-search-listbox"
+                aria-activedescendant={searchHighlight >= 0 ? `srp-item-${searchHighlight}` : undefined}
+                placeholder={isMobile ? "Search..." : "Search people, places, or cats... (press /)"}
+                value={search.query}
+                onChange={(e) => { search.setQuery(e.target.value); search.setShowResults(true); }}
+                onFocus={() => search.setShowResults(true)}
+                onKeyDown={handleSearchKeyDown}
+                style={{ flex: 1, border: "none", outline: "none", fontSize: 15 }}
+              />
+              {search.query && (
+                <button onClick={() => { search.setQuery(""); search.setShowResults(false); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, opacity: 0.5 }}>
+                  &#x2715;
+                </button>
+              )}
+            </div>
+
+            {/* Recent searches */}
+            {search.showResults && !search.query && searchHistory.length > 0 && (
+              <div style={{ background: "var(--background)", borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", marginTop: 8, maxHeight: 300, overflowY: "auto" }}>
+                <div style={{ padding: "8px 16px 4px", fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", background: "var(--section-bg)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  Recent Searches
+                  <button onClick={clearSearchHistory} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--text-tertiary)", padding: "2px 6px" }}>Clear</button>
+                </div>
+                {searchHistory.map((q, i) => (
+                  <div key={i} onClick={() => { search.setQuery(q); search.setShowResults(true); }} style={{ padding: "10px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-default)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")} onMouseLeave={(e) => (e.currentTarget.style.background = "var(--background)")}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span style={{ fontSize: 14 }}>{q}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Search results — desktop: floating dropdown */}
+            {search.showResults && search.query && (search.localResults.length > 0 || search.atlasResults.length > 0 || search.poiResults.length > 0 || search.googleSuggestions.length > 0 || search.loading || (search.query.length >= 3 && !search.loading)) && !isMobile && (
+              <SearchResultsPanel
+                searchResults={search.localResults}
+                atlasSearchResults={search.atlasResults}
+                googleSuggestions={search.googleSuggestions}
+                poiResults={search.poiResults}
+                searchLoading={search.loading}
+                searchQuery={search.query}
+                selectedIndex={searchHighlight}
+                onSelectedIndexChange={setSearchHighlight}
+                onSearchSelect={(r) => { const q = search.query; search.handleLocalSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onAtlasSearchSelect={(r) => { const q = search.query; search.handleAtlasSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onGooglePlaceSelect={(p) => { const q = search.query; search.handleGoogleSelect(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onPoiSelect={(r) => { const q = search.query; search.handlePoiSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onStreetView={handleStreetViewFromSearch}
+                onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
+              />
+            )}
+          </div>
+        }
+      >
+        {/* Portalled version — simpler search bar for top bar */}
+        <div ref={searchContainerRef} className="map-search-bar-portalled" style={{ position: "relative" }}>
+          <div style={{
+            background: "var(--background)", borderRadius: 8,
+            border: "1px solid var(--map-control-border)",
+            display: "flex", alignItems: "center", padding: "4px 12px",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 8 }}>
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              role="combobox"
+              aria-expanded={search.showResults}
+              aria-autocomplete="list"
+              aria-controls="map-search-listbox"
+              aria-activedescendant={searchHighlight >= 0 ? `srp-item-${searchHighlight}` : undefined}
+              placeholder="Search people, places, or cats... (press /)"
+              value={search.query}
+              onChange={(e) => { search.setQuery(e.target.value); search.setShowResults(true); }}
+              onFocus={() => search.setShowResults(true)}
+              onKeyDown={handleSearchKeyDown}
+              style={{ flex: 1, border: "none", outline: "none", fontSize: 14, background: "transparent", padding: "4px 0" }}
+            />
+            {search.query && (
+              <button onClick={() => { search.setQuery(""); search.setShowResults(false); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, opacity: 0.5, padding: "2px 4px" }}>
+                &#x2715;
+              </button>
+            )}
+          </div>
+
+          {/* Recent searches */}
+          {search.showResults && !search.query && searchHistory.length > 0 && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "var(--background)", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", marginTop: 4, maxHeight: 300, overflowY: "auto", zIndex: 10 }}>
+              <div style={{ padding: "8px 12px 4px", fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                Recent Searches
+                <button onClick={clearSearchHistory} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--text-tertiary)", padding: "2px 6px" }}>Clear</button>
+              </div>
+              {searchHistory.map((q, i) => (
+                <div key={i} onClick={() => { search.setQuery(q); search.setShowResults(true); }} style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid var(--border-default)", display: "flex", alignItems: "center", gap: 8 }} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")} onMouseLeave={(e) => (e.currentTarget.style.background = "var(--background)")}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span style={{ fontSize: 13 }}>{q}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Search results — floating dropdown */}
+          {search.showResults && search.query && (search.localResults.length > 0 || search.atlasResults.length > 0 || search.poiResults.length > 0 || search.googleSuggestions.length > 0 || search.loading || (search.query.length >= 3 && !search.loading)) && !isMobile && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, marginTop: 4 }}>
+              <SearchResultsPanel
+                searchResults={search.localResults}
+                atlasSearchResults={search.atlasResults}
+                googleSuggestions={search.googleSuggestions}
+                poiResults={search.poiResults}
+                searchLoading={search.loading}
+                searchQuery={search.query}
+                selectedIndex={searchHighlight}
+                onSelectedIndexChange={setSearchHighlight}
+                onSearchSelect={(r) => { const q = search.query; search.handleLocalSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onAtlasSearchSelect={(r) => { const q = search.query; search.handleAtlasSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onGooglePlaceSelect={(p) => { const q = search.query; search.handleGoogleSelect(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onPoiSelect={(r) => { const q = search.query; search.handlePoiSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onStreetView={handleStreetViewFromSearch}
+                onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
+              />
+            </div>
           )}
         </div>
-
-        {/* Recent searches */}
-        {search.showResults && !search.query && searchHistory.length > 0 && (
-          <div style={{ background: "var(--background)", borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", marginTop: 8, maxHeight: 300, overflowY: "auto" }}>
-            <div style={{ padding: "8px 16px 4px", fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", background: "var(--section-bg)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              Recent Searches
-              <button onClick={clearSearchHistory} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--text-tertiary)", padding: "2px 6px" }}>Clear</button>
-            </div>
-            {searchHistory.map((q, i) => (
-              <div key={i} onClick={() => { search.setQuery(q); search.setShowResults(true); }} style={{ padding: "10px 16px", cursor: "pointer", borderBottom: "1px solid var(--border-default)", display: "flex", alignItems: "center", gap: 10 }} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-secondary)")} onMouseLeave={(e) => (e.currentTarget.style.background = "var(--background)")}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                  <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                </svg>
-                <span style={{ fontSize: 14 }}>{q}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Search results (Step 1) — desktop: floating dropdown, mobile: BottomSheet */}
-        {search.showResults && search.query && (search.localResults.length > 0 || search.atlasResults.length > 0 || search.poiResults.length > 0 || search.googleSuggestions.length > 0 || search.loading || (search.query.length >= 3 && !search.loading)) && !isMobile && (
-          <SearchResultsPanel
-            searchResults={search.localResults}
-            atlasSearchResults={search.atlasResults}
-            googleSuggestions={search.googleSuggestions}
-            poiResults={search.poiResults}
-            searchLoading={search.loading}
-            searchQuery={search.query}
-            selectedIndex={searchHighlight}
-            onSelectedIndexChange={setSearchHighlight}
-            onSearchSelect={(r) => { const q = search.query; search.handleLocalSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-            onAtlasSearchSelect={(r) => { const q = search.query; search.handleAtlasSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-            onGooglePlaceSelect={(p) => { const q = search.query; search.handleGoogleSelect(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-            onPoiSelect={(r) => { const q = search.query; search.handlePoiSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-            onStreetView={handleStreetViewFromSearch}
-            onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
-          />
-        )}
-      </div>
+      </PortalOrInline>
 
       {/* ── Mobile search results in BottomSheet ── */}
       {isMobile && (
@@ -1459,43 +1566,124 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         </BottomSheet>
       )}
 
-      {/* ── Right side controls ── */}
-      <MapControls
-        isMobile={isMobile}
-        showLayerPanel={showLayerPanel}
-        onToggleLayerPanel={() => setShowLayerPanel(!showLayerPanel)}
-        addPointMode={addPointMode}
-        onAddPointModeChange={(mode) => {
-          setAddPointMode(mode);
-          if (mode) setMeasureActive(false);
-        }}
-        showAddPointMenu={showAddPointMenu}
-        onShowAddPointMenuChange={setShowAddPointMenu}
-        locatingUser={locatingUser}
-        onMyLocation={handleMyLocation}
-        basemap={basemap}
-        onBasemapChange={setBasemap}
-        measureActive={measureActive}
-        onMeasureToggle={handleMeasureToggle}
-        isFullscreen={isFullscreen}
-        onFullscreenToggle={handleFullscreenToggle}
-        onZoomIn={() => map?.setZoom((map.getZoom() || 11) + 1)}
-        onZoomOut={() => map?.setZoom((map.getZoom() || 11) - 1)}
-        onExportCsv={handleExportCsv}
-        onExportGeoJson={handleExportGeoJson}
-        exportPinCount={atlasPins.length}
-        onCopyLink={async () => {
-          try {
-            await navigator.clipboard.writeText(window.location.href);
-            addToast({ type: "success", message: "Link copied to clipboard" });
-          } catch {
-            addToast({ type: "error", message: "Couldn't copy link — check clipboard permissions" });
-            throw new Error("clipboard unavailable");
-          }
-        }}
-      />
+      {/* ── Basemap toggle — portalled into top bar ── */}
+      <PortalOrInline portalId="map-basemap-portal" fallback={null}>
+        <div className="map-basemap-segmented">
+          <button data-active={basemap === "street"} onClick={() => setBasemap("street")}>Street</button>
+          <button data-active={basemap === "satellite"} onClick={() => setBasemap("satellite")}>Satellite</button>
+        </div>
+      </PortalOrInline>
 
-      {/* ── "Return to search" chip — shows when navigated location exists and user clicked away ── */}
+      {/* ── Action buttons — portalled into top bar ── */}
+      <PortalOrInline
+        portalId="map-actions-portal"
+        fallback={
+          <MapControls
+            isMobile={isMobile}
+            showLayerPanel={showLayerPanel}
+            onToggleLayerPanel={() => setShowLayerPanel(!showLayerPanel)}
+            addPointMode={addPointMode}
+            onAddPointModeChange={(mode) => {
+              setAddPointMode(mode);
+              if (mode) setMeasureActive(false);
+            }}
+            showAddPointMenu={showAddPointMenu}
+            onShowAddPointMenuChange={setShowAddPointMenu}
+            locatingUser={locatingUser}
+            onMyLocation={handleMyLocation}
+            basemap={basemap}
+            onBasemapChange={setBasemap}
+            measureActive={measureActive}
+            onMeasureToggle={handleMeasureToggle}
+            isFullscreen={isFullscreen}
+            onFullscreenToggle={handleFullscreenToggle}
+            onZoomIn={() => map?.setZoom((map.getZoom() || 11) + 1)}
+            onZoomOut={() => map?.setZoom((map.getZoom() || 11) - 1)}
+            onExportCsv={handleExportCsv}
+            onExportGeoJson={handleExportGeoJson}
+            exportPinCount={atlasPins.length}
+            onCopyLink={async () => {
+              try {
+                await navigator.clipboard.writeText(window.location.href);
+                addToast({ type: "success", message: "Link copied to clipboard" });
+              } catch {
+                addToast({ type: "error", message: "Couldn't copy link — check clipboard permissions" });
+                throw new Error("clipboard unavailable");
+              }
+            }}
+          />
+        }
+      >
+        {/* Portalled action buttons — compact style for top bar */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => {
+              if (addPointMode) {
+                setAddPointMode(null);
+                setShowAddPointMenu(false);
+              } else {
+                setShowAddPointMenu(!showAddPointMenu);
+              }
+            }}
+            title="Add point (A)"
+            className={`map-control-btn ${addPointMode ? "map-control-btn--active" : ""}`}
+          >
+            {addPointMode ? "\u2715" : "+"}
+          </button>
+          {showAddPointMenu && !addPointMode && (
+            <div className="map-add-point-menu">
+              <button onClick={() => { setAddPointMode("place"); setShowAddPointMenu(false); }} className="map-add-point-menu__item">
+                Add Place
+              </button>
+              <button onClick={() => { setAddPointMode("annotation"); setShowAddPointMenu(false); }} className="map-add-point-menu__item">
+                Add Note
+              </button>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={handleMeasureToggle}
+          title="Measure (D)"
+          className={`map-control-btn ${measureActive ? "map-control-btn--active" : ""}`}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z" />
+            <path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" />
+          </svg>
+        </button>
+        <button
+          onClick={() => {
+            handleExportCsv?.();
+          }}
+          title="Export (E)"
+          className="map-control-btn"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        </button>
+        <button
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(window.location.href);
+              addToast({ type: "success", message: "Link copied to clipboard" });
+            } catch {
+              addToast({ type: "error", message: "Couldn't copy link — check clipboard permissions" });
+            }
+          }}
+          title="Copy link"
+          className="map-control-btn"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+        </button>
+      </PortalOrInline>
+
+      {/* ── "Return to search" chip ── */}
       {search.navigatedLocation && (selectedPin || selectedPlaceId || selectedPersonId || selectedCatId) && (
         <button
           onClick={() => {
@@ -1504,7 +1692,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             dismissAllSelection();
           }}
           style={{
-            position: "absolute", top: 70, left: "50%", transform: "translateX(-50%)",
+            position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)",
             zIndex: MAP_Z_INDEX.searchBox - 1,
             background: "var(--background, #fff)", borderRadius: 20,
             boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
@@ -1521,14 +1709,43 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         </button>
       )}
 
-      {/* ── Layer panel ── */}
-      {showLayerPanel && (
-        <div className={isMobile ? "map-layer-panel--mobile" : "map-layer-panel"}>
+      {/* ── Layer panel — portalled into sidebar ── */}
+      <PortalOrInline
+        portalId="map-sidebar-portal"
+        fallback={
+          showLayerPanel ? (
+            <div className={isMobile ? "map-layer-panel--mobile" : "map-layer-panel"}>
+              <div className="map-layer-panel__header">
+                <div className="map-layer-panel__title">Map Layers</div>
+                <div className="map-layer-panel__subtitle">{totalMarkers.toLocaleString()} markers shown</div>
+              </div>
+              <SavedViewsPanel customViews={customViews} activeViewId={activeViewId} onApplyView={handleApplyView} onSaveView={handleSaveView} onDeleteView={handleDeleteView} />
+              <div className="map-layer-panel__zone">
+                <div className="map-layer-panel__zone-label">Service Zone</div>
+                <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="map-layer-panel__zone-select">
+                  {SERVICE_ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
+                </select>
+              </div>
+              <div className="map-layer-panel__layers">
+                <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
+              </div>
+              <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
+            </div>
+          ) : (
+            <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
+          )
+        }
+      >
+        {/* Portalled sidebar content — always visible when sidebar is open */}
+        <div className="map-layer-panel" style={{ position: "static", width: "100%", maxHeight: "none", border: "none", borderRadius: 0, boxShadow: "none", background: "transparent" }}>
           <div className="map-layer-panel__header">
             <div className="map-layer-panel__title">Map Layers</div>
             <div className="map-layer-panel__subtitle">{totalMarkers.toLocaleString()} markers shown</div>
           </div>
           <SavedViewsPanel customViews={customViews} activeViewId={activeViewId} onApplyView={handleApplyView} onSaveView={handleSaveView} onDeleteView={handleDeleteView} />
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--map-control-border)" }}>
+            <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} inline />
+          </div>
           <div className="map-layer-panel__zone">
             <div className="map-layer-panel__zone-label">Service Zone</div>
             <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="map-layer-panel__zone-select">
@@ -1539,13 +1756,9 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
           </div>
         </div>
-      )}
+      </PortalOrInline>
 
-      {/* ── Date range filter ── */}
-      <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
-
-      {/* ── Time slider (FFS-1174) — scrubbable month-by-month date picker.
-             Drives dateTo. Visible by default in analystMode, toggleable otherwise. ── */}
+      {/* ── Time slider (FFS-1174) ── */}
       {showTimeSlider && (
         <MapTimeSlider
           value={dateTo}
@@ -1553,11 +1766,35 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         />
       )}
 
-      {/* ── Pin key (always-visible collapsible legend) ── */}
-      <MapPinKey pinConfig={pinConfig} isMobile={isMobile} />
+      {/* ── Legend — bottom-left of map viewport ── */}
+      <div className="map-legend-shell">
+        <MapPinKey pinConfig={pinConfig} isMobile={isMobile} />
+      </div>
 
-      {/* ── Stats bar ── */}
-      {summary && !isMobile && <MapStatsBar summary={summary} />}
+      {/* ── Bottom controls — zoom + fullscreen (always in map viewport) ── */}
+      <div className="map-bottom-controls">
+        <button
+          onClick={handleFullscreenToggle}
+          title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+          className={`map-control-btn map-control-btn--icon ${isFullscreen ? "map-control-btn--active" : ""}`}
+        >
+          {isFullscreen ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" />
+              <line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
+              <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          )}
+        </button>
+        <div className="map-zoom-controls" role="group" aria-label="Zoom controls">
+          <button onClick={() => map?.setZoom((map.getZoom() || 11) + 1)} title="Zoom in (+)" aria-label="Zoom in">+</button>
+          <button onClick={() => map?.setZoom((map.getZoom() || 11) - 1)} title="Zoom out (-)" aria-label="Zoom out">{"\u2212"}</button>
+        </div>
+      </div>
 
       {/* ── Screen reader announcements ── */}
       <div aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}>
@@ -1707,26 +1944,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         />
       )}
 
-      {/* ── Keyboard shortcuts help ── */}
-      {!isMobile && (
-        <div style={{
-          position: "absolute", bottom: 24, right: 16, zIndex: MAP_Z_INDEX.keyboardHelp,
-          background: "rgba(255,255,255,0.9)", borderRadius: 6,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.1)", padding: "6px 10px",
-          fontSize: 10, color: "var(--text-tertiary)",
-        }}>
-          <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>/</kbd> search
-          {" "}
-          <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>L</kbd> layers
-          {" "}
-          <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>D</kbd> measure
-          {" "}
-          <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>A</kbd> add
-          {" "}
-          <kbd style={{ background: "var(--bg-secondary)", padding: "1px 4px", borderRadius: 3 }}>Esc</kbd> close
-        </div>
-      )}
-
       {/* ── Loading overlay ── */}
       {loading && (
         <div className="map-loading-overlay" role="status">
@@ -1765,7 +1982,7 @@ export default function AtlasMapV2({ analystMode = false }: AtlasMapV2Props = {}
 
   if (!apiKey) {
     return (
-      <div style={{ height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8 }}>
+      <div style={{ height: "100%", minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8 }}>
         <div style={{ fontSize: 16, fontWeight: 600 }}>Google Maps API key not configured</div>
         <div style={{ fontSize: 13, color: "#6b7280" }}>Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in .env.local</div>
       </div>

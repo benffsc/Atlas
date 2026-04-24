@@ -6,6 +6,8 @@ interface DateRangeFilterProps {
   fromDate: string | null;
   toDate: string | null;
   onDateRangeChange: (from: string | null, to: string | null) => void;
+  /** When true, renders inline (no absolute positioning). Used when embedded in sidebar. */
+  inline?: boolean;
 }
 
 const PRESETS = [
@@ -21,24 +23,27 @@ function daysAgo(days: number): string {
   return d.toISOString().split("T")[0];
 }
 
-export function DateRangeFilter({ fromDate, toDate, onDateRangeChange }: DateRangeFilterProps) {
+export function DateRangeFilter({ fromDate, toDate, onDateRangeChange, inline = false }: DateRangeFilterProps) {
   const isActive = fromDate !== null || toDate !== null;
 
   return (
     <div
       style={{
-        position: "absolute",
-        top: 60,
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: MAP_Z_INDEX.controls - 1,
+        ...(inline ? {} : {
+          position: "absolute" as const,
+          top: 60,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: MAP_Z_INDEX.controls - 1,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+        }),
         display: "flex",
-        alignItems: "center",
+        alignItems: inline ? "flex-start" : "center",
+        flexWrap: inline ? "wrap" : "nowrap",
         gap: 6,
-        background: "var(--background)",
+        background: inline ? "transparent" : "var(--background)",
         borderRadius: 8,
-        padding: "4px 8px",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+        padding: inline ? 0 : "4px 8px",
         fontSize: "0.8rem",
       }}
     >

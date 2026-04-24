@@ -8,7 +8,8 @@ import { MapCaption } from "@/components/map/MapCaption";
 const MapSpinner = () => (
   <div
     style={{
-      height: "100dvh",
+      height: "100%",
+      minHeight: "100dvh",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",

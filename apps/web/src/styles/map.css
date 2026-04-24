@@ -3381,3 +3381,318 @@
   max-height: none;
   background: var(--map-popup-bg, #ffffff);
 }
+
+/* ============================================================
+   Map Shell Layout (FFS-1375)
+   Grid layout: nav rail + top bar + sidebar + map viewport
+   ============================================================ */
+
+:root {
+  --map-rail-width: 52px;
+  --map-topbar-height: 52px;
+  --map-sidebar-width: 280px;
+}
+
+.map-shell {
+  display: grid;
+  grid-template-areas:
+    "rail topbar"
+    "rail content";
+  grid-template-columns: var(--map-rail-width) 1fr;
+  grid-template-rows: var(--map-topbar-height) 1fr;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.map-shell__content {
+  grid-area: content;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.map-shell__viewport {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Nav Rail ── */
+
+.map-nav-rail {
+  grid-area: rail;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 2px;
+  background: var(--map-control-bg);
+  border-right: 1px solid var(--map-control-border);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 2;
+}
+
+.map-nav-rail__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--map-control-text);
+  cursor: pointer;
+  transition: all var(--map-transition-fast);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.map-nav-rail__item:hover {
+  background: var(--map-control-hover);
+  color: var(--primary, #3b82f6);
+}
+
+.map-nav-rail__item--active {
+  background: var(--primary, #3b82f6);
+  color: white;
+}
+
+.map-nav-rail__item--active:hover {
+  background: var(--primary, #3b82f6);
+  color: white;
+  filter: brightness(1.1);
+}
+
+.map-nav-rail__divider {
+  width: 28px;
+  height: 1px;
+  background: var(--map-control-border);
+  margin: 4px 0;
+  flex-shrink: 0;
+}
+
+.map-nav-rail__spacer {
+  flex: 1;
+}
+
+/* ── Top Bar ── */
+
+.map-top-bar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  background: var(--map-control-bg);
+  border-bottom: 1px solid var(--map-control-border);
+  z-index: 2;
+  overflow: visible;
+}
+
+.map-top-bar__search {
+  flex: 1;
+  min-width: 0;
+  max-width: 520px;
+  position: relative;
+}
+
+.map-top-bar__spacer {
+  flex: 1;
+}
+
+.map-top-bar__basemap {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.map-top-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Sidebar ── */
+
+.map-sidebar {
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width var(--map-transition-normal);
+  border-right: 1px solid var(--map-control-border);
+  background: var(--map-control-bg);
+}
+
+.map-sidebar--open {
+  width: var(--map-sidebar-width);
+}
+
+.map-sidebar--closed {
+  width: 0;
+  border-right: none;
+}
+
+.map-sidebar__content {
+  width: var(--map-sidebar-width);
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* When sidebar content is portalled, strip the absolute positioning from layer panel */
+.map-sidebar .map-layer-panel {
+  position: static;
+  top: auto;
+  right: auto;
+  width: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* ── Top bar portal overrides ── */
+
+/* Search bar in top bar: strip absolute positioning, remove pill shadow */
+.map-top-bar__search .map-search-bar-portalled {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.map-top-bar__search .map-search-bar-portalled > div:first-child {
+  border-radius: 8px;
+  box-shadow: none;
+  border: 1px solid var(--map-control-border);
+  padding: 4px 12px;
+}
+
+/* Action buttons in top bar: icon-only compact style */
+.map-top-bar__actions .map-control-btn {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+  box-shadow: none;
+  border: 1px solid var(--map-control-border);
+}
+
+.map-top-bar__actions .map-control-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--map-control-hover);
+}
+
+/* Basemap toggle as segmented control */
+.map-top-bar__basemap .map-basemap-segmented {
+  display: flex;
+  border: 1px solid var(--map-control-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.map-top-bar__basemap .map-basemap-segmented button {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  color: var(--map-control-text);
+  cursor: pointer;
+  transition: all var(--map-transition-fast);
+  white-space: nowrap;
+}
+
+.map-top-bar__basemap .map-basemap-segmented button:not(:last-child) {
+  border-right: 1px solid var(--map-control-border);
+}
+
+.map-top-bar__basemap .map-basemap-segmented button[data-active="true"] {
+  background: var(--primary, #3b82f6);
+  color: white;
+}
+
+.map-top-bar__basemap .map-basemap-segmented button:hover:not([data-active="true"]) {
+  background: var(--map-control-hover);
+}
+
+/* ── Bottom controls (zoom + fullscreen) ── */
+
+.map-bottom-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+}
+
+/* ── Legend — bottom-left of map viewport ── */
+
+.map-legend-shell {
+  position: absolute;
+  bottom: 80px;
+  left: 16px;
+}
+
+.map-shell__viewport .map-legend-shell {
+  bottom: 16px;
+}
+
+/* ── Keyboard shortcuts tooltip in top bar ── */
+
+.map-keyboard-help {
+  position: relative;
+  display: inline-flex;
+}
+
+.map-keyboard-help__tooltip {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: var(--map-control-bg);
+  border: 1px solid var(--map-control-border);
+  border-radius: 8px;
+  box-shadow: var(--map-shadow-md);
+  padding: 8px 12px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+/* ── Mobile: hide shell chrome, render map fullscreen ── */
+
+@media (max-width: 767px) {
+  .map-shell {
+    display: block;
+  }
+
+  .map-nav-rail,
+  .map-top-bar,
+  .map-sidebar {
+    display: none;
+  }
+
+  .map-shell__content {
+    display: block;
+    height: 100dvh;
+  }
+
+  .map-shell__viewport {
+    height: 100dvh;
+  }
+
+  .map-bottom-controls {
+    bottom: 80px;
+  }
+}
