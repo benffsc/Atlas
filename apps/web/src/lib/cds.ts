@@ -1667,7 +1667,6 @@ async function runFuzzyNameRescue(
      JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
      WHERE cd.clinic_date = $1
        AND (e.match_confidence IS NULL OR e.match_confidence = 'unmatched')
-       AND e.cancellation_reason IS NULL
      ORDER BY e.line_number`,
     [clinicDate]
   );
