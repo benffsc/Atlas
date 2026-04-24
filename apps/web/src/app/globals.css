@@ -1986,23 +1986,20 @@ body.presentation-mode [data-admin-section="true"] {
   overflow: hidden;
 }
 
-/* Gradient background — replace with hero image via background-image */
+/* Hero background — cat artwork with #005DA7 brand overlay */
 .dashboard-hero__bg {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(135deg, #1e3a5f 0%, #2563eb 40%, #3b82f6 60%, #1e3a5f 100%);
+  background: url('/hero-cats.avif') center / cover no-repeat;
   z-index: 0;
 }
 
-/* Subtle animated grain overlay for texture */
+/* Blue tint overlay matching FFSC brand blue */
 .dashboard-hero__bg::after {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(ellipse at 30% 50%, rgba(255,255,255,0.08) 0%, transparent 70%),
-    radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.05) 0%, transparent 60%);
+  background: rgba(0, 93, 167, 0.72);
 }
 
 .dashboard-hero__content {
