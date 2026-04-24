@@ -3551,19 +3551,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--map-control-text);
+  border: 1px solid var(--map-control-border, #e5e7eb);
+  background: var(--map-control-bg, #fff);
+  color: var(--map-control-text, #374151);
   cursor: pointer;
   transition: all var(--map-transition-fast);
 }
 
 .map-sidebar__toggle:hover {
-  background: var(--map-control-hover);
+  background: var(--map-control-hover, #f3f4f6);
   color: var(--primary, #3b82f6);
+  border-color: var(--primary, #3b82f6);
 }
 
 .map-sidebar__content {
