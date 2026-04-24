@@ -1064,7 +1064,7 @@ export default function ClinicDaysPage() {
             {!uploading && (
               <div
                 tabIndex={0}
-                ref={(el) => { if (el && uploadTarget) el.focus(); }}
+                autoFocus
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onDrop={(e) => {
