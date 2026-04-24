@@ -199,25 +199,8 @@ export default function ClinicDaysPage() {
     setStagedFiles([]);
   }, [selectedDate, addToast]);
 
-  // Paste support — stages files into modal
-  useEffect(() => {
-    const onPaste = (e: ClipboardEvent) => {
-      if (!uploadTarget) return;
-      const files: File[] = [];
-      for (const item of Array.from(e.clipboardData?.items || [])) {
-        if (item.type.startsWith("image/")) {
-          const f = item.getAsFile();
-          if (f) files.push(f);
-        }
-      }
-      if (files.length > 0) {
-        e.preventDefault();
-        setStagedFiles(prev => [...prev, ...files]);
-      }
-    };
-    document.addEventListener("paste", onPaste);
-    return () => document.removeEventListener("paste", onPaste);
-  }, [uploadTarget]);
+  // Paste is handled directly on the dropzone div (onPaste) —
+  // no document-level listener needed (caused double-paste)
 
   // ── Admin: Sync master list from SharePoint ─────────────────────
 
