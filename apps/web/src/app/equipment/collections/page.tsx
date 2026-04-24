@@ -403,13 +403,13 @@ function OverdueCard({
       </div>
 
       {/* Row 3: Contact info */}
-      <div style={{ display: "flex", gap: "1rem", marginTop: "0.375rem", fontSize: "0.85rem", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "1rem", marginTop: "0.375rem", fontSize: "0.85rem", flexWrap: "wrap", alignItems: "center" }}>
         {phoneDisplay ? (
           <a href={`tel:${row.phone}`} style={{ color: "var(--primary)", textDecoration: "none", fontWeight: 500 }}>
             <Icon name="phone" size={13} color="var(--primary)" /> {phoneDisplay}
           </a>
         ) : (
-          <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}>No phone</span>
+          <AddPhoneInline personId={row.person_id} holderName={row.holder_name} onSaved={onRefresh} />
         )}
         {row.email && (
           <a href={`mailto:${row.email}`} style={{ color: "var(--text-secondary)", textDecoration: "none", fontSize: "0.8rem" }}>
@@ -928,6 +928,110 @@ function PrintCallList({
         <span>1814 Empire Industrial Ct, Suite F, Santa Rosa CA 95403</span>
         <span>(707) 576-7999</span>
       </div>
+    </div>
+  );
+}
+
+// ─── Add Phone Inline ───────────────────────────────────────────────────────
+
+function AddPhoneInline({ personId, holderName, onSaved }: {
+  personId: string | null;
+  holderName: string;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: "0.25rem",
+          background: "none", border: "1px dashed var(--border)", borderRadius: 6,
+          padding: "0.2rem 0.5rem", cursor: "pointer",
+          fontSize: "0.8rem", color: "var(--muted)", fontFamily: "inherit",
+        }}
+      >
+        No phone — tap to add
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+      <input
+        type="tel"
+        inputMode="tel"
+        autoFocus
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="(707) 555-1234"
+        style={{
+          width: "130px", padding: "0.25rem 0.5rem", fontSize: "0.85rem",
+          border: "1px solid var(--primary)", borderRadius: 6, outline: "none",
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { setEditing(false); setPhone(""); }
+        }}
+      />
+      <button
+        disabled={!phone.trim() || saving}
+        onClick={async () => {
+          const digits = phone.replace(/\D/g, "");
+          if (digits.length < 7) {
+            toast.error("Enter a valid phone number");
+            return;
+          }
+          setSaving(true);
+          try {
+            if (personId) {
+              // Add phone to the person's identifiers via PATCH
+              await fetch(`/api/people/${personId}/identifiers`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone: digits }),
+              });
+              toast.success("Phone saved to person record");
+            } else {
+              // No person linked — log as a contact note so it's at least captured
+              await postApi("/api/equipment/contact-log", {
+                holder_name: holderName,
+                method: "system",
+                outcome: "connected_other",
+                notes: `Phone added: ${phone.trim()}`,
+              });
+              toast.success("Phone noted (no person record to link — will be captured on next checkout)");
+            }
+            setEditing(false);
+            setPhone("");
+            onSaved();
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Failed to save phone");
+          } finally {
+            setSaving(false);
+          }
+        }}
+        style={{
+          padding: "0.25rem 0.5rem", fontSize: "0.75rem", fontWeight: 600,
+          border: "none", borderRadius: 6, cursor: "pointer",
+          background: "var(--primary)", color: "#fff",
+          opacity: !phone.trim() || saving ? 0.5 : 1,
+        }}
+      >
+        Save
+      </button>
+      <button
+        onClick={() => { setEditing(false); setPhone(""); }}
+        style={{
+          padding: "0.25rem", background: "none", border: "none",
+          cursor: "pointer", color: "var(--muted)", fontSize: "0.9rem",
+        }}
+      >
+        ×
+      </button>
     </div>
   );
 }
