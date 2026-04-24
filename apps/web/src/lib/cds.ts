@@ -302,8 +302,7 @@ export async function runCDS(
        WHERE cd.clinic_date = $1
          AND e.cancellation_reason IS NULL
          AND (
-           e.notes ILIKE '%xxxxxxxxx%' OR e.notes ILIKE '%xxxxxxxx%'
-           OR e.notes ILIKE '%master_list_status=Heat%'
+           e.notes ILIKE '%master_list_status=Heat%'
            OR e.notes ILIKE '%master_list_status=Cancel%'
          )`,
       [clinicDate]
@@ -2629,9 +2628,8 @@ function classifyDeterministic(entry: UnmatchedEntry): UnmatchedReason | null {
   const raw = (entry.raw_client_name || "").toLowerCase();
   const hasSurgery = entry.female_count + entry.male_count > 0;
 
-  // Crossed-out entries: "xxxxxxxxx" in notes = line was struck through on paper
-  if (notes.includes("xxxxxxxxx") || notes.includes("xxxxxxxx"))
-    return "surgery_cancelled";
+  // NOTE: "xxxxxxxxx" in notes does NOT mean crossed-out/cancelled.
+  // It means "ditto" / "see above" — same owner, second cat, details on previous line.
 
   // Master list status annotations from ML parser
   // NOTE: "Preg" is NOT a medical hold at a TNR clinic — pregnant cats get spayed.
