@@ -127,6 +127,8 @@ import {
   Receipt,
   Package,
   FileOutput,
+  PanelLeftClose,
+  PanelLeftOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -282,6 +284,10 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   "grid-3x3": Grid3X3,
   "skip-forward": SkipForward,
   truck: Truck,
+
+  // Map shell sidebar toggle
+  "panel-left-close": PanelLeftClose,
+  "panel-left-open": PanelLeftOpen,
 };
 
 export type IconName = keyof typeof ICON_MAP;
