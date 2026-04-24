@@ -162,7 +162,7 @@ async function processOneWaiver(uploadId: string): Promise<ProcessResult> {
     `SELECT
        a.appointment_id,
        a.cat_id,
-       c.name AS cat_name,
+       COALESCE(c.display_name, c.name) AS cat_name,
        c.microchip,
        a.client_name,
        a.appointment_date::text

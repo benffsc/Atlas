@@ -397,7 +397,7 @@ export async function GET(req: NextRequest) {
             SELECT cp.place_id, COUNT(DISTINCT cp.cat_id) as cat_count
             FROM sot.cat_place cp
             JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
-            WHERE COALESCE(cp.presence_status, 'unknown') != 'departed'
+            WHERE COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')
             GROUP BY cp.place_id
           ) cc ON cc.place_id = p.place_id
           WHERE p.merged_into_place_id IS NULL
@@ -540,7 +540,7 @@ export async function GET(req: NextRequest) {
             SELECT cp.place_id, COUNT(DISTINCT cp.cat_id) as cat_count
             FROM sot.cat_place cp
             JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
-            WHERE COALESCE(cp.presence_status, 'unknown') != 'departed'
+            WHERE COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')
             GROUP BY cp.place_id
           ) cc ON cc.place_id = p.place_id
           WHERE p.merged_into_place_id IS NULL
@@ -639,7 +639,7 @@ export async function GET(req: NextRequest) {
               SELECT cp.place_id, COUNT(DISTINCT cp.cat_id) as cat_count
               FROM sot.cat_place cp
               JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
-              WHERE COALESCE(cp.presence_status, 'unknown') != 'departed'
+              WHERE COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')
               GROUP BY cp.place_id
             ) cc ON cc.place_id = p.place_id
             WHERE p.merged_into_place_id IS NULL
@@ -1006,7 +1006,7 @@ export async function GET(req: NextRequest) {
       }>(`
         SELECT
           (SELECT COUNT(*) FROM sot.places WHERE merged_into_place_id IS NULL AND location IS NOT NULL ${zoneFilter.replace('p.', '')}) as total_places,
-          (SELECT COUNT(DISTINCT cp.cat_id) FROM sot.cat_place cp JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL WHERE COALESCE(cp.presence_status, 'unknown') != 'departed') as total_cats,
+          (SELECT COUNT(DISTINCT cp.cat_id) FROM sot.cat_place cp JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL WHERE COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')) as total_cats,
           0 as zones_needing_obs  -- V2: ops.observation_zones may not exist
       `);
       result.summary = summary[0];

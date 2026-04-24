@@ -64,12 +64,12 @@ export async function GET(request: NextRequest) {
         -- Canonical place stats
         (SELECT COUNT(*)::int FROM ops.requests WHERE place_id = c.canonical_place_id) AS canonical_requests,
         -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
-        (SELECT COUNT(*)::int FROM sot.cat_place WHERE place_id = c.canonical_place_id AND COALESCE(presence_status, 'unknown') != 'departed') AS canonical_cats,
+        (SELECT COUNT(*)::int FROM sot.cat_place WHERE place_id = c.canonical_place_id AND COALESCE(presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')) AS canonical_cats,
         (SELECT COUNT(*)::int FROM sot.places ch WHERE ch.parent_place_id = c.canonical_place_id AND ch.merged_into_place_id IS NULL) AS canonical_children,
         -- Duplicate place stats
         (SELECT COUNT(*)::int FROM ops.requests WHERE place_id = c.duplicate_place_id) AS duplicate_requests,
         -- V2: Uses sot.cat_place instead of sot.cat_place_relationships
-        (SELECT COUNT(*)::int FROM sot.cat_place WHERE place_id = c.duplicate_place_id AND COALESCE(presence_status, 'unknown') != 'departed') AS duplicate_cats,
+        (SELECT COUNT(*)::int FROM sot.cat_place WHERE place_id = c.duplicate_place_id AND COALESCE(presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')) AS duplicate_cats,
         (SELECT COUNT(*)::int FROM sot.places ch WHERE ch.parent_place_id = c.duplicate_place_id AND ch.merged_into_place_id IS NULL) AS duplicate_children,
         -- People counts
         -- V2: Uses sot.person_place instead of sot.person_place_relationships

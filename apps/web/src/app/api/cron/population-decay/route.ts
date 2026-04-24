@@ -4,10 +4,14 @@ import { apiSuccess, apiError, apiServerError } from "@/lib/api-response";
 
 // Population Estimate Decay Cron Job (CATS-4)
 //
-// Increases variance (decreases confidence) for places that haven't been
-// observed recently. Without this, a place observed once 3 years ago would
-// still show "medium confidence" — this makes stale estimates visually
-// degrade to "low confidence" over time, signaling they need fresh observations.
+// 1. Increases variance (decreases confidence) for places that haven't been
+//    observed recently. Without this, a place observed once 3 years ago would
+//    still show "medium confidence" — this makes stale estimates visually
+//    degrade to "low confidence" over time, signaling they need fresh observations.
+//
+// 2. Sweeps cat_place rows where presence_status = 'unknown' AND last_observed_at
+//    is 3+ years old → sets to 'presumed_departed'. These cats are excluded from
+//    colony floor counts (same as 'departed'). MIG_3110.
 //
 // Formula: variance += Q * months_since_last_observation
 // Q = 1.0 (same as the Kalman prediction step)
@@ -57,6 +61,33 @@ async function handleCron(request: NextRequest) {
       FROM decayed
     `);
 
+    // Presumed-departed sweep: cats not seen in 3+ years with 'unknown' status
+    // → set to 'presumed_departed' (excluded from colony counts like 'departed')
+    let presumedDepartedCount = 0;
+    try {
+      const sweepResult = await queryOne<{ swept: number }>(`
+        WITH swept AS (
+          UPDATE sot.cat_place
+          SET
+            presence_status = 'presumed_departed',
+            presence_confirmed_at = NOW(),
+            presence_confirmed_by = 'attrition_sweep',
+            updated_at = NOW()
+          WHERE presence_status = 'unknown'
+            AND last_observed_at IS NOT NULL
+            AND last_observed_at < CURRENT_DATE - INTERVAL '3 years'
+            AND relationship_type IN ('home', 'residence', 'colony_member', 'seen_at')
+            AND (presence_confirmed_by IS NULL
+                 OR presence_confirmed_by IN ('system_backfill', 'attrition_sweep'))
+          RETURNING place_id
+        )
+        SELECT COUNT(*)::INTEGER AS swept FROM swept
+      `);
+      presumedDepartedCount = sweepResult?.swept || 0;
+    } catch (sweepErr) {
+      console.warn("Presumed-departed sweep failed (non-blocking):", sweepErr);
+    }
+
     // Refresh Beacon matview so map shows updated confidence
     let matviewRefreshed = false;
     try {
@@ -69,6 +100,7 @@ async function handleCron(request: NextRequest) {
     return apiSuccess({
       decayed_places: decayResult?.updated || 0,
       avg_new_variance: decayResult?.avg_new_variance || null,
+      presumed_departed_swept: presumedDepartedCount,
       matview_refreshed: matviewRefreshed,
       duration_ms: Date.now() - startTime,
     });

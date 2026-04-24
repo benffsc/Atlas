@@ -1105,7 +1105,7 @@ async function fullPlaceBriefing(
         last_event_at: string | null;
       }>(
         `
-      SELECT DISTINCT c.cat_id::text, c.name,
+      SELECT DISTINCT c.cat_id::text, COALESCE(c.display_name, c.name) AS name,
         c.microchip, c.shelterluv_animal_id,
         cs.current_status,
         cs.last_event_type, cs.last_event_subtype,
@@ -1815,7 +1815,7 @@ async function getPlaceRecentContext(
     FROM sot.cat_place cp
     JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
     WHERE cp.place_id = $1
-      AND COALESCE(cp.presence_status, 'unknown') != 'departed'
+      AND COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')
     `,
     [placeId]
   );
@@ -2622,7 +2622,7 @@ async function findPrioritySites(
       FROM sot.places p
       JOIN sot.addresses a ON a.address_id = p.sot_address_id
       JOIN sot.cat_place cp ON cp.place_id = p.place_id
-        AND COALESCE(cp.presence_status, 'unknown') != 'departed'
+        AND COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')
       JOIN sot.cats c ON c.cat_id = cp.cat_id AND c.merged_into_cat_id IS NULL
       WHERE p.merged_into_place_id IS NULL
         ${cityFilter}

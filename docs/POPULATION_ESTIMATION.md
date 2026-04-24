@@ -122,18 +122,33 @@ When a requester reports "8 cats" — this typically includes kittens. The Kalma
 - `cats_seen_total` on site observations → observation
 - Actual cat_place links from clinic appointments → floor count
 
-## Presence Status (FFS-1280)
+## Presence Status (FFS-1280, MIG_3110)
 
-| Status | Meaning | Counts in Colony? |
-|--------|---------|-------------------|
-| `current` | Confirmed still at place (RTF event, recent observation) | Yes |
-| `departed` | Left the place (adopted, relocated, transferred, deceased, in_foster) | No |
-| `unknown` | No lifecycle event either way (default) | Yes (decayed by attrition) |
-| NULL | Legacy row, not yet processed | Yes (decayed by attrition) |
+| Status | Meaning | Counts in Colony? | Set By |
+|--------|---------|-------------------|--------|
+| `current` | Confirmed still at place (RTF event, clinic TNR, recent observation) | Yes | ShelterLuv RTF, clinic TNR, staff |
+| `unknown` | No lifecycle event either way (default for new rows) | Yes (decayed by attrition) | Default |
+| `departed` | Left the place (adopted, relocated, transferred, deceased, in_foster) | No | ShelterLuv lifecycle, staff, deceased backfill |
+| `presumed_departed` | Not seen in 3+ years, no lifecycle event confirming alive | No | Weekly attrition sweep cron |
+
+**MIG_3110 changes:**
+- NULL presence_status no longer exists — all NULLs migrated to `'unknown'`, column default enforced.
+- ClinicHQ TNR cats are auto-confirmed `current` via `sot.confirm_cat_presence_from_appointment()`.
+- Cats not seen in 3+ years are auto-swept to `presumed_departed` (weekly cron).
+- `presumed_departed` is treated identically to `departed` in all count queries but displayed differently ("Not seen since 2019 — presumed no longer here").
+- `presumed_departed` cats can be reactivated if they reappear at a clinic appointment.
+
+**Helper function:** `sot.is_present(status)` returns TRUE for `current`, `uncertain`, `unknown` — FALSE for `departed`, `presumed_departed`.
+
+**Filter pattern (SQL):** `COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')`
 
 ## Time Decay Cron
 
-**Weekly (Sunday 4 AM):** `/api/cron/population-decay` increases variance for all places not observed in 30+ days. This makes confidence labels degrade over time:
+**Weekly (Sunday 4 AM):** `/api/cron/population-decay` does two things:
+1. **Variance decay** — increases variance for all places not observed in 30+ days, degrading confidence labels over time.
+2. **Presumed-departed sweep** — cats with `presence_status = 'unknown'` AND `last_observed_at` > 3 years ago are set to `presumed_departed`.
+
+Confidence thresholds:
 - Variance ≤ 5 → High confidence
 - Variance ≤ 20 → Medium confidence
 - Variance > 20 → Low confidence
@@ -148,7 +163,9 @@ After enough time without observation, even a previously high-confidence estimat
 | `sot.get_altered_cat_count_at_place(place_id)` | Raw floor (non-departed altered cats) |
 | `sot.get_attrition_weighted_floor(place_id)` | Attrition-weighted floor + freshness breakdown |
 | `sot.trg_cat_place_kalman_update()` | Trigger: updates estimate when altered cat linked |
-| `sot.update_cat_place_from_lifecycle_events()` | Marks cats departed from ShelterLuv events |
+| `sot.update_cat_place_from_lifecycle_events()` | Marks cats departed from ShelterLuv events, confirms TNR cats current |
+| `sot.confirm_cat_presence_from_appointment()` | Auto-confirms cat current at a place from clinic appointment |
+| `sot.is_present(status)` | Returns TRUE for countable statuses, FALSE for departed/presumed_departed |
 
 ## Key Tables
 
@@ -179,6 +196,8 @@ After enough time without observation, even a previously high-confidence estimat
 | MIG_3092 | Map pins exclude departed cats |
 | MIG_3093 | Kalman filters departed cats from floor count |
 | MIG_3094 | Attrition-weighted floor + freshness view |
+| MIG_3096 | Presence filter sweep: all user-facing views exclude departed |
+| MIG_3110 | Clinic-derived presence: TNR→current, NULL→unknown, presumed_departed, is_present() |
 
 ## Frontend Components
 

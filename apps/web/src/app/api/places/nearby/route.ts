@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
          p.display_name,
          p.place_kind::TEXT as place_kind,
          p.formatted_address,
-         COALESCE((SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = p.place_id AND COALESCE(cpr.presence_status, 'unknown') != 'departed'), 0)::INT as cat_count,
+         COALESCE((SELECT COUNT(*) FROM sot.cat_place cpr WHERE cpr.place_id = p.place_id AND COALESCE(cpr.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')), 0)::INT as cat_count,
          COALESCE((SELECT COUNT(*) FROM sot.person_place ppr WHERE ppr.place_id = p.place_id), 0)::INT as person_count,
          ST_Distance(
            p.location::geography,

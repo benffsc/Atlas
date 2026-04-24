@@ -145,7 +145,7 @@ export async function GET(
         SELECT place_id, COUNT(DISTINCT cat_id) AS cat_count
         FROM sot.cat_place
         WHERE place_id = $1
-          AND COALESCE(presence_status, 'unknown') != 'departed'
+          AND COALESCE(presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')
         GROUP BY place_id
       ) cc ON cc.place_id = p.place_id
       LEFT JOIN (
@@ -401,7 +401,7 @@ export async function GET(
     const cats = await queryRows<CatLink>(
       `SELECT
         c.cat_id,
-        c.name AS display_name,
+        COALESCE(c.display_name, c.name) AS display_name,
         c.sex,
         c.altered_status,
         COALESCE(ci.id_value, c.microchip) AS microchip,

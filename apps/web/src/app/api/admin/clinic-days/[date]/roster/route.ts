@@ -59,7 +59,7 @@ export async function GET(
       e.cancellation_reason,
       a.appointment_id::text,
       a.cat_id::text,
-      c.name AS cat_name,
+      COALESCE(c.display_name, c.name) AS cat_name,
       c.microchip,
       c.sex AS cat_sex,
       COALESCE(c.primary_color, c.color) AS cat_color,
@@ -112,7 +112,7 @@ export async function GET(
   }>(`
     SELECT
       a.cat_id::text,
-      c.name AS cat_name,
+      COALESCE(c.display_name, c.name) AS cat_name,
       c.microchip,
       c.sex AS cat_sex,
       COALESCE(c.primary_color, c.color) AS cat_color,

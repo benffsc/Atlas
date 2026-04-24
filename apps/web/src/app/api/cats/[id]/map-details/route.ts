@@ -21,7 +21,7 @@ export const GET = withErrorHandling(async (
   const catSql = `
     SELECT
       c.cat_id,
-      COALESCE(c.name, 'Unknown') AS display_name,
+      COALESCE(c.display_name, c.name, 'Unknown') AS display_name,
       c.sex,
       c.altered_status,
       c.breed,

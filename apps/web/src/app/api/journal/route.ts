@@ -58,7 +58,7 @@ const ENTITY_NAME_JOINS = `
 `;
 
 const ENTITY_NAME_COLS = `
-  c.name AS cat_name,
+  COALESCE(c.display_name, c.name) AS cat_name,
   p.display_name AS person_name,
   pl.display_name AS place_name,
   sub.first_name || ' ' || sub.last_name AS submission_name,
@@ -398,7 +398,7 @@ export async function GET(request: NextRequest) {
         je.edit_count,
         je.tags,
         NULL::TEXT AS cross_ref_source,
-        c.name AS cat_name,
+        COALESCE(c.display_name, c.name) AS cat_name,
         p.display_name AS person_name,
         pl.display_name AS place_name,
         sub.first_name || ' ' || sub.last_name AS submission_name,

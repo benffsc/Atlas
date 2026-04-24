@@ -213,7 +213,7 @@ export const GET = withErrorHandling(async (
     const fallbackSql = `
       SELECT
         c.cat_id,
-        c.name AS display_name,
+        COALESCE(c.display_name, c.name) AS display_name,
         c.sex,
         c.altered_status,
         FALSE AS altered_by_clinic,

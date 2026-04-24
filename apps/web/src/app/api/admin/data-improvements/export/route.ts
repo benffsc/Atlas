@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
           )
           WHEN di.entity_type = 'cat' THEN (
             SELECT jsonb_build_object(
-              'name', c.name,
+              'name', COALESCE(c.display_name, c.name),
               'microchip', c.microchip
             ) FROM sot.cats c WHERE c.cat_id = di.entity_id
           )

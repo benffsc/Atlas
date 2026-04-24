@@ -36,7 +36,7 @@ export async function GET(
         rcl.link_notes,
         rcl.linked_at,
         rcl.linked_by,
-        c.name AS cat_name,
+        COALESCE(c.display_name, c.name) AS cat_name,
         ci.id_value AS microchip,
         c.sex
       FROM ops.request_cat_links rcl

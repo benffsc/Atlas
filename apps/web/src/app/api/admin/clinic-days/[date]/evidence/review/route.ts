@@ -68,7 +68,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         s.chunk_id::text,
         s.assignment_status,
         s.matched_cat_id::text,
-        c.name AS matched_cat_name,
+        COALESCE(c.display_name, c.name) AS matched_cat_name,
         s.matched_via,
         s.confidence::float,
         s.extracted_data AS waiver_data,

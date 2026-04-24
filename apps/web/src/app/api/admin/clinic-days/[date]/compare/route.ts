@@ -105,7 +105,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       SELECT
         a.appointment_id,
         a.cat_id,
-        c.name as cat_name,
+        COALESCE(c.display_name, c.name) as cat_name,
         c.sex as cat_sex,
         NULL as trapper_person_id,
         NULL as trapper_name,

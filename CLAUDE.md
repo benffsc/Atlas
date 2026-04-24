@@ -89,7 +89,7 @@ These apply to ALL changes across ALL layers:
 
 14. **Evidence Date = Appointment Date, Not created_at** — `cat_place.created_at` reflects when entity linking ran (often recently), NOT when the cat was actually seen. Always use `appointment_date` for recency calculations.
 
-15. **Departed Cats Don't Count** — All cat counts for display MUST include `AND COALESCE(cp.presence_status, 'unknown') != 'departed'`. Departed cats (adopted, relocated, transferred, deceased, in foster) are kept for history but excluded from active counts.
+15. **Departed Cats Don't Count** — All cat counts for display MUST include `AND COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')`. Both `departed` (explicitly left) and `presumed_departed` (not seen in 3+ years) are excluded from active counts. Use `sot.is_present(status)` in SQL functions. MIG_3110.
 
 16. **Kittens That Enter Custody Don't Count** — Kittens taken into FFSC custody (ShelterLuv intake → foster/adoption) get `presence_status = 'departed'` automatically. Only kittens returned to field (TNR'd) count toward colony estimates.
 

@@ -100,7 +100,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         a.clinic_day_number,
         -- Matched appointment details
         a.cat_id::text AS matched_cat_id,
-        c.name AS matched_cat_name,
+        COALESCE(c.display_name, c.name) AS matched_cat_name,
         c.sex AS matched_cat_sex,
         ci.id_value AS matched_microchip,
         cv.weight_lbs AS matched_cat_weight

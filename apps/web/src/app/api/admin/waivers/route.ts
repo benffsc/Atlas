@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
          ws.matched_cat_id,
          ws.match_method,
          ws.match_confidence,
-         c.name AS cat_name,
+         COALESCE(c.display_name, c.name) AS cat_name,
          c.microchip,
          a.client_name,
          ws.ocr_status,

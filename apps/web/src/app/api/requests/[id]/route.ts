@@ -338,7 +338,7 @@ export async function GET(
         -- Linked cats (V2: uses request_cats table)
         (SELECT jsonb_agg(jsonb_build_object(
             'cat_id', COALESCE(c.merged_into_cat_id, c.cat_id),
-            'cat_name', COALESCE(canonical_cat.name, c.name),
+            'cat_name', COALESCE(canonical_cat.display_name, canonical_cat.name, c.display_name, c.name),
             'link_purpose', rc.link_type::TEXT,
             'linked_at', rc.created_at,
             'microchip', c.microchip,

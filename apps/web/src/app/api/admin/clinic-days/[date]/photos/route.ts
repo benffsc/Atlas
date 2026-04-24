@@ -249,7 +249,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       original_filename: string;
       created_at: string;
     }>(
-      `SELECT rm.media_id, rm.cat_id, c.name as cat_name,
+      `SELECT rm.media_id, rm.cat_id, COALESCE(c.display_name, c.name) as cat_name,
               a.clinic_day_number, rm.storage_path, rm.media_type,
               rm.original_filename, rm.created_at::text
        FROM ops.request_media rm

@@ -61,7 +61,7 @@ export async function GET(
         je.is_pinned,
         je.edit_count,
         je.tags,
-        c.name AS cat_name,
+        COALESCE(c.display_name, c.name) AS cat_name,
         p.display_name AS person_name,
         pl.display_name AS place_name,
         ma.label AS annotation_label

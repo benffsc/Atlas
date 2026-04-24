@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
         t.updated_at::text,
         COALESCE(p.display_name, p.formatted_address) AS place_name,
         per.display_name AS person_name,
-        c.name AS cat_name
+        COALESCE(c.display_name, c.name) AS cat_name
       FROM ops.tippy_tickets t
       LEFT JOIN sot.places p ON p.place_id = t.primary_place_id
       LEFT JOIN sot.people per ON per.person_id = t.primary_person_id

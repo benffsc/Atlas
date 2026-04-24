@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       cat_results AS (
         SELECT
           c.cat_id,
-          c.name AS display_name,
+          COALESCE(c.display_name, c.name) AS display_name,
           c.sex,
           c.primary_color,
           COALESCE(c.is_deceased, FALSE) AS is_deceased,
@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
         cat_results AS (
           SELECT
             c.cat_id,
-            c.name AS display_name,
+            COALESCE(c.display_name, c.name) AS display_name,
             c.sex,
             c.primary_color,
             COALESCE(c.is_deceased, FALSE) AS is_deceased,
