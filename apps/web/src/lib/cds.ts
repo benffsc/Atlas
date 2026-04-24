@@ -19,6 +19,7 @@
  * Phase 9:    Constraint Propagation — N-1 of N matched → assign Nth
  * Phase 10:   LLM Tiebreaker — gated, never auto-accepted
  * Phase 11:   Propagate Matches — write cat_id + appointment_id links
+ * Phase 11.5: Waiver Cat Rescue — identify cats on entries without appointments
  * Phase 12:   Classify Unmatched — deterministic + LLM notes classifier
  */
 
@@ -476,6 +477,20 @@ export async function runCDS(
         [clinicDate]
       );
     } catch { /* function may not exist yet */ }
+
+    // ── Phase 11.5: Waiver Cat Rescue ────────────────────────────────
+    // For entries with NO appointment match but a waiver exists at their
+    // line number that identifies a cat → set cat_id directly.
+    // This gives us cat identity for no-booking entries, rechecks,
+    // cancellations — enabling photo linkage even without an appointment.
+    const waiverCatRescued = await rescueCatsFromWaivers(clinicDate);
+    if (waiverCatRescued > 0) {
+      phases.push({
+        phase: "11.5_waiver_cat_rescue",
+        matched: 0,
+        details: { cats_identified: waiverCatRescued },
+      });
+    }
 
     // ── Phase 12: Classify Unmatched Entries ─────────────────────────
     // Use deterministic rules + LLM to interpret notes and classify
@@ -2528,6 +2543,48 @@ export async function getLatestCDSRun(
      LIMIT 1`,
     [clinicDate]
   );
+}
+
+// ── Phase 11.5: Waiver Cat Rescue ────────────────────────────────────
+
+/**
+ * For entries with no appointment match, look up the waiver at their
+ * line_number. If the waiver identifies a cat (via chip match), set
+ * cat_id directly on the entry.
+ *
+ * This enables:
+ * - Photo linkage for cats without bookings (rechecks, cancelled, walk-ins)
+ * - Cat identity on the clinic day page even without an appointment
+ * - Future: weight/procedure data attached to the cat record
+ *
+ * Safety: only sets cat_id, never creates fake appointments or matches.
+ * The entry stays unmatched (no matched_appointment_id). cat_id is purely
+ * "we know which cat this was" without implying a booking existed.
+ */
+async function rescueCatsFromWaivers(clinicDate: string): Promise<number> {
+  const rescued = await queryOne<{ count: number }>(
+    `WITH rescued AS (
+       UPDATE ops.clinic_day_entries e
+       SET cat_id = w.matched_cat_id,
+           waiver_scan_id = COALESCE(e.waiver_scan_id, w.waiver_id)
+       FROM ops.clinic_days cd,
+            ops.waiver_scans w
+       WHERE cd.clinic_day_id = e.clinic_day_id
+         AND cd.clinic_date = $1
+         AND w.parsed_date = cd.clinic_date
+         AND w.ocr_clinic_number = e.line_number
+         AND w.matched_cat_id IS NOT NULL
+         -- Only rescue entries that have no cat yet
+         AND e.cat_id IS NULL
+         -- Don't touch matched entries (they get cat_id via propagation)
+         AND e.matched_appointment_id IS NULL
+       RETURNING 1
+     )
+     SELECT COUNT(*)::int AS count FROM rescued`,
+    [clinicDate]
+  );
+
+  return rescued?.count ?? 0;
 }
 
 // ── Phase 8: Classify unmatched entries via notes ──────────────────
