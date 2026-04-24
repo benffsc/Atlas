@@ -321,13 +321,41 @@ export async function extractWaiverOCR(
   const text =
     response.content.find((c) => c.type === "text")?.text || "";
 
-  // Parse JSON from response (may be wrapped in markdown code block)
+  // Parse JSON from response (may be wrapped in markdown code block or have trailing text)
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error(`No JSON in OCR response: ${text.slice(0, 200)}`);
   }
 
-  const parsed = JSON.parse(jsonMatch[0]);
+  // Try parsing as-is first; if that fails, try fixing common issues
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    // Strip trailing commas before } (Haiku sometimes adds them)
+    const cleaned = jsonMatch[0]
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]");
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Last resort: find the matching closing brace by counting depth
+      let depth = 0;
+      let end = -1;
+      for (let i = 0; i < jsonMatch[0].length; i++) {
+        if (jsonMatch[0][i] === "{") depth++;
+        else if (jsonMatch[0][i] === "}") {
+          depth--;
+          if (depth === 0) { end = i + 1; break; }
+        }
+      }
+      if (end > 0) {
+        parsed = JSON.parse(jsonMatch[0].slice(0, end));
+      } else {
+        throw new Error(`Invalid JSON in OCR response: ${text.slice(0, 200)}`);
+      }
+    }
+  }
 
   // Post-OCR validation: sanitize clinic_number
   let clinicNumber: number | null = parsed.clinic_number ?? null;
