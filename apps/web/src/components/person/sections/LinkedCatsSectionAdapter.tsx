@@ -17,6 +17,8 @@ export function LinkedCatsSectionAdapter({ data }: SectionProps) {
     data_source: c.data_source || c.source_system || null,
     adoption_date: c.adoption_date || null,
     placement_type: c.placement_type || null,
+    presence_status: c.presence_status || null,
+    departure_reason: c.departure_reason || null,
   })) || [];
 
   if (catsForSection.length === 0) {

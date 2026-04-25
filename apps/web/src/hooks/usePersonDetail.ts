@@ -41,6 +41,8 @@ export interface PersonCat {
   microchip: string | null;
   adoption_date: string | null;
   placement_type: string | null;
+  presence_status: string | null;
+  departure_reason: string | null;
 }
 
 export interface PersonPlace {

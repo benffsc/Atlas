@@ -5,6 +5,7 @@ import { formatRole, NOTABLE_PLACEMENT_TYPES, formatPlacementType } from "@/lib/
 import { CatHealthBadges } from "@/components/badges";
 import type { HealthFlag } from "@/components/badges/CatHealthBadges";
 import EntityPreview from "@/components/search/EntityPreview";
+import { CatPresenceBadge } from "@/components/ui/CatPresenceBadge";
 
 // Flexible cat type that accommodates different data shapes from various pages
 interface LinkedCat {
@@ -28,6 +29,9 @@ interface LinkedCat {
   placement_type?: string | null;
   adoption_date?: string | null;
   source_system?: string | null;
+  // Presence (FFS-1399)
+  presence_status?: string | null;
+  departure_reason?: string | null;
 }
 
 interface LinkedCatsSectionProps {
@@ -216,6 +220,14 @@ export function LinkedCatsSection({
                     </span>
                   )}
                 </div>
+                {cat.presence_status && cat.presence_status !== "current" && (
+                  <div style={{ marginTop: "2px" }}>
+                    <CatPresenceBadge
+                      status={cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown"}
+                      departureReason={cat.departure_reason}
+                    />
+                  </div>
+                )}
                 {(cat.health_flags?.length || cat.is_deceased) ? (
                   <div style={{ marginTop: "2px" }}>
                     <CatHealthBadges healthFlags={cat.health_flags} isDeceased={cat.is_deceased} maxInline={2} />
