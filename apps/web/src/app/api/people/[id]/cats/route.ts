@@ -54,10 +54,22 @@ export async function GET(
         la.appointment_date::TEXT AS latest_appointment_date,
         vac.placement_type,
         vac.is_barn_cat,
-        vac.adoption_date::TEXT AS adoption_date
+        vac.adoption_date::TEXT AS adoption_date,
+        COALESCE(bp.presence_status, 'unknown') AS presence_status,
+        bp.departure_reason
       FROM sot.person_cat pc
       JOIN sot.cats c ON c.cat_id = pc.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+      LEFT JOIN LATERAL (
+        SELECT cp.presence_status, cp.departure_reason
+        FROM sot.cat_place cp
+        JOIN sot.person_place pp ON pp.place_id = cp.place_id AND pp.person_id = pc.person_id
+        WHERE cp.cat_id = pc.cat_id
+        ORDER BY CASE COALESCE(cp.presence_status, 'unknown')
+          WHEN 'current' THEN 0 WHEN 'unknown' THEN 1
+          WHEN 'presumed_departed' THEN 2 WHEN 'departed' THEN 3 END
+        LIMIT 1
+      ) bp ON TRUE
       LEFT JOIN LATERAL (
         SELECT a.appointment_date
         FROM ops.appointments a

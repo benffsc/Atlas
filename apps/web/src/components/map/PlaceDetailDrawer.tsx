@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { formatRole, formatEnum } from "@/lib/display-labels";
 import { formatRelativeTime } from "@/lib/formatters";
 import { Skeleton } from "@/components/feedback/Skeleton";
+import { CatPresenceBadge, groupCatsByPresence, summarizeDepartures } from "@/components/ui/CatPresenceBadge";
 
 interface GoogleNote {
   entry_id: string;
@@ -63,6 +64,9 @@ interface CatLink {
   breed: string | null;
   primary_color: string | null;
   is_deceased: boolean;
+  presence_status: string;
+  departure_reason: string | null;
+  departed_at: string | null;
   relationship_type: string;
   appointment_count: number;
   latest_appointment_date: string | null;
@@ -124,6 +128,45 @@ interface PlaceDetailDrawerProps {
 }
 
 type NotesTab = "original" | "ai" | "journal";
+
+/** Collapsed departed cats section with expand toggle */
+function DepartedCatsSection({ cats, renderCatCard, placeId }: {
+  cats: CatLink[];
+  renderCatCard: (cat: CatLink, dimmed?: boolean) => React.ReactNode;
+  placeId: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const summary = summarizeDepartures(cats);
+
+  return (
+    <div style={{ marginTop: "12px", borderTop: "1px solid var(--border, #e5e7eb)", paddingTop: "8px" }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: "flex", alignItems: "center", gap: "6px", width: "100%",
+          background: "none", border: "none", cursor: "pointer", padding: "4px 0",
+          fontSize: "13px", fontWeight: 600, color: "var(--muted, #6b7280)",
+        }}
+      >
+        <span style={{ fontSize: "10px", transition: "transform 0.15s", transform: expanded ? "rotate(90deg)" : "rotate(0)" }}>&#9654;</span>
+        Departed ({cats.length})
+        <span style={{ fontWeight: 400, fontSize: "12px", marginLeft: "4px" }}>
+          {summary.map(s => `${s.count} ${s.reason}`).join(" · ")}
+        </span>
+      </button>
+      {expanded && (
+        <div className="cats-list" style={{ opacity: 0.7, marginTop: "6px" }}>
+          {cats.slice(0, 10).map(cat => renderCatCard(cat, true))}
+          {cats.length > 10 && (
+            <a href={`/places/${placeId}`} target="_blank" rel="noopener noreferrer" className="view-all-cats-link">
+              View all {cats.length} departed cats
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, shifted, onAddToComparison, comparisonCount, embedded, onNavigateCat, onNavigatePerson }: PlaceDetailDrawerProps) {
   const { addToast } = useToast();
@@ -655,9 +698,19 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
             {/* Stats Grid */}
             <div className="stats-grid">
               <div className="stat-card">
-                <div className="stat-value">{place.cat_count}</div>
-                <div className="stat-label">Cats</div>
+                <div className="stat-value" style={{ color: "var(--success-text, #059669)" }}>
+                  {place.cats?.filter(c => c.presence_status === "current").length ?? place.cat_count}
+                </div>
+                <div className="stat-label">Present</div>
               </div>
+              {(place.cats?.filter(c => c.presence_status === "departed" || c.presence_status === "presumed_departed").length ?? 0) > 0 && (
+                <div className="stat-card">
+                  <div className="stat-value" style={{ color: "var(--muted, #737373)" }}>
+                    {place.cats?.filter(c => c.presence_status === "departed" || c.presence_status === "presumed_departed").length}
+                  </div>
+                  <div className="stat-label">Departed</div>
+                </div>
+              )}
               <div className="stat-card">
                 <div className="stat-value">{place.person_count}</div>
                 <div className="stat-label">People</div>
@@ -888,94 +941,118 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
               )}
             </div>
 
-            {/* Cats Section */}
-            {place.cats && place.cats.length > 0 && (
-              <div className="section">
-                <h3>Cats at Location <span style={{ fontWeight: 400, fontSize: "12px", color: "#6b7280" }}>({place.cats.length})</span></h3>
-                <div className="cat-legend">
-                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-altered">S</span> Spayed</div>
-                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-altered">N</span> Neutered</div>
-                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-intact">?</span> Intact</div>
-                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-sex">M</span> Male</div>
-                  <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-sex">F</span> Female</div>
-                  <div className="cat-legend-item"><span className="cat-legend-badge cat-legend-badge-wide cat-badge-deceased">Dec</span> Deceased</div>
-                  {(() => {
-                    const diseaseMap = new Map<string, { short_code: string; color: string; disease_key: string }>();
-                    place.cats.forEach(c => c.positive_diseases?.forEach(d => {
-                      if (!diseaseMap.has(d.disease_key)) diseaseMap.set(d.disease_key, d);
-                    }));
-                    return Array.from(diseaseMap.values()).map(d => (
-                      <div key={d.disease_key} className="cat-legend-item">
-                        <span className="cat-legend-badge cat-badge-disease" style={{ background: d.color }}>{d.short_code}</span> {d.disease_key.toUpperCase()}
-                      </div>
-                    ));
-                  })()}
-                </div>
-                <div className="cats-list">
-                  {place.cats.slice(0, 10).map((cat) => (
-                    <a
-                      key={cat.cat_id}
-                      href={`/cats/${cat.cat_id}`}
-                      target={onNavigateCat ? undefined : "_blank"}
-                      rel={onNavigateCat ? undefined : "noopener noreferrer"}
-                      className="cat-card"
-                      onClick={onNavigateCat ? (e) => { e.preventDefault(); onNavigateCat(cat.cat_id); } : undefined}
-                    >
-                      <div className="cat-card-header">
-                        <span className="cat-name">{cat.display_name || "Unknown"}</span>
-                        <div className="cat-badges">
-                          {cat.altered_status === "spayed" || cat.altered_status === "neutered" ? (
-                            <span className="cat-badge cat-badge-altered">{cat.altered_status === "spayed" ? "S" : "N"}</span>
-                          ) : (
-                            <span className="cat-badge cat-badge-intact">?</span>
-                          )}
-                          {cat.sex && <span className="cat-badge cat-badge-sex">{cat.sex === "Male" ? "M" : cat.sex === "Female" ? "F" : cat.sex.charAt(0)}</span>}
-                          {cat.is_deceased && <span className="cat-badge cat-badge-deceased">Dec</span>}
-                          {cat.positive_diseases?.map(d => (
-                            <span
-                              key={d.disease_key}
-                              className="cat-badge cat-badge-disease"
-                              style={{ background: d.color }}
-                              title={`${d.disease_key.toUpperCase()} positive (${new Date(d.test_date).toLocaleDateString()})`}
-                            >
-                              {d.short_code}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="cat-card-details">
-                        {cat.breed && <span>{cat.breed}</span>}
-                        {cat.primary_color && <span>{cat.primary_color}</span>}
-                        {cat.microchip && <span className="cat-microchip">{cat.microchip}</span>}
-                      </div>
-                      {cat.appointment_count > 0 && (
-                        <div className="cat-card-appointments">
-                          {cat.appointment_count} appointment{cat.appointment_count !== 1 ? "s" : ""}
-                          {cat.latest_appointment_date && (
-                            <> &middot; Last: {new Date(cat.latest_appointment_date).toLocaleDateString()}</>
-                          )}
-                        </div>
+            {/* Cats Section — grouped by presence */}
+            {place.cats && place.cats.length > 0 && (() => {
+              const { present, uncertain, departed } = groupCatsByPresence(place.cats);
+              const activeCats = [...present, ...uncertain];
+
+              const renderCatCard = (cat: typeof place.cats[0], dimmed?: boolean) => (
+                <a
+                  key={cat.cat_id}
+                  href={`/cats/${cat.cat_id}`}
+                  target={onNavigateCat ? undefined : "_blank"}
+                  rel={onNavigateCat ? undefined : "noopener noreferrer"}
+                  className="cat-card"
+                  style={dimmed ? { opacity: 0.6 } : undefined}
+                  onClick={onNavigateCat ? (e) => { e.preventDefault(); onNavigateCat(cat.cat_id); } : undefined}
+                >
+                  <div className="cat-card-header">
+                    <span className="cat-name">{cat.display_name || "Unknown"}</span>
+                    <div className="cat-badges">
+                      <CatPresenceBadge
+                        status={cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown"}
+                        departureReason={cat.departure_reason}
+                        departedAt={cat.departed_at}
+                        compact={cat.presence_status === "current"}
+                      />
+                      {cat.altered_status === "spayed" || cat.altered_status === "neutered" ? (
+                        <span className="cat-badge cat-badge-altered">{cat.altered_status === "spayed" ? "S" : "N"}</span>
+                      ) : (
+                        <span className="cat-badge cat-badge-intact">?</span>
                       )}
-                      {cat.latest_service_type && (
-                        <div className="cat-card-services">
-                          {formatServiceType(cat.latest_service_type)}
-                        </div>
+                      {cat.sex && <span className="cat-badge cat-badge-sex">{cat.sex === "Male" ? "M" : cat.sex === "Female" ? "F" : cat.sex.charAt(0)}</span>}
+                      {cat.is_deceased && <span className="cat-badge cat-badge-deceased">Dec</span>}
+                      {cat.positive_diseases?.map(d => (
+                        <span
+                          key={d.disease_key}
+                          className="cat-badge cat-badge-disease"
+                          style={{ background: d.color }}
+                          title={`${d.disease_key.toUpperCase()} positive (${new Date(d.test_date).toLocaleDateString()})`}
+                        >
+                          {d.short_code}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="cat-card-details">
+                    {cat.breed && <span>{cat.breed}</span>}
+                    {cat.primary_color && <span>{cat.primary_color}</span>}
+                    {cat.microchip && <span className="cat-microchip">{cat.microchip}</span>}
+                  </div>
+                  {cat.appointment_count > 0 && (
+                    <div className="cat-card-appointments">
+                      {cat.appointment_count} appointment{cat.appointment_count !== 1 ? "s" : ""}
+                      {cat.latest_appointment_date && (
+                        <> &middot; Last: {new Date(cat.latest_appointment_date).toLocaleDateString()}</>
                       )}
-                    </a>
-                  ))}
-                  {place.cats.length > 10 && (
-                    <a
-                      href={`/places/${placeId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="view-all-cats-link"
-                    >
-                      View all {place.cats.length} cats
-                    </a>
+                    </div>
+                  )}
+                  {cat.latest_service_type && (
+                    <div className="cat-card-services">
+                      {formatServiceType(cat.latest_service_type)}
+                    </div>
+                  )}
+                </a>
+              );
+
+              return (
+                <div className="section">
+                  <h3>Cat Presence <span style={{ fontWeight: 400, fontSize: "12px", color: "#6b7280" }}>
+                    ({present.length} present{uncertain.length > 0 ? ` · ${uncertain.length} uncertain` : ""}{departed.length > 0 ? ` · ${departed.length} departed` : ""})
+                  </span></h3>
+                  <div className="cat-legend">
+                    <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-altered">S</span> Spayed</div>
+                    <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-altered">N</span> Neutered</div>
+                    <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-intact">?</span> Intact</div>
+                    <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-sex">M</span> Male</div>
+                    <div className="cat-legend-item"><span className="cat-legend-badge cat-badge-sex">F</span> Female</div>
+                    <div className="cat-legend-item"><span className="cat-legend-badge cat-legend-badge-wide cat-badge-deceased">Dec</span> Deceased</div>
+                    {(() => {
+                      const diseaseMap = new Map<string, { short_code: string; color: string; disease_key: string }>();
+                      place.cats.forEach(c => c.positive_diseases?.forEach(d => {
+                        if (!diseaseMap.has(d.disease_key)) diseaseMap.set(d.disease_key, d);
+                      }));
+                      return Array.from(diseaseMap.values()).map(d => (
+                        <div key={d.disease_key} className="cat-legend-item">
+                          <span className="cat-legend-badge cat-badge-disease" style={{ background: d.color }}>{d.short_code}</span> {d.disease_key.toUpperCase()}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+
+                  {/* Present + Uncertain cats — full cards */}
+                  {activeCats.length > 0 ? (
+                    <div className="cats-list">
+                      {activeCats.slice(0, 10).map(cat => renderCatCard(cat))}
+                      {activeCats.length > 10 && (
+                        <a href={`/places/${placeId}`} target="_blank" rel="noopener noreferrer" className="view-all-cats-link">
+                          View all {activeCats.length} cats
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "13px", color: "var(--muted, #6b7280)", padding: "8px 0", fontStyle: "italic" }}>
+                      No cats currently confirmed at this location.
+                    </div>
+                  )}
+
+                  {/* Departed cats — collapsed summary */}
+                  {departed.length > 0 && (
+                    <DepartedCatsSection cats={departed} renderCatCard={renderCatCard} placeId={placeId} />
                   )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Notes Section with Tabs */}
             <div className="section notes-section">

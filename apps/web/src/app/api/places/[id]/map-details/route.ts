@@ -97,6 +97,9 @@ interface CatLink {
   breed: string | null;
   primary_color: string | null;
   is_deceased: boolean;
+  presence_status: string;
+  departure_reason: string | null;
+  departed_at: string | null;
   relationship_type: string;
   appointment_count: number;
   latest_appointment_date: string | null;
@@ -408,6 +411,9 @@ export async function GET(
         c.breed,
         c.primary_color,
         COALESCE(c.is_deceased, FALSE) AS is_deceased,
+        COALESCE(cpr.presence_status, 'unknown') AS presence_status,
+        cpr.departure_reason,
+        cpr.departed_at::TEXT AS departed_at,
         cpr.relationship_type,
         COALESCE(apt.appointment_count, 0) AS appointment_count,
         apt.latest_appointment_date,
@@ -442,7 +448,15 @@ export async function GET(
           AND ctr.result = 'positive'
       ) dis ON TRUE
       WHERE cpr.place_id = $1
-      ORDER BY apt.latest_appointment_date DESC NULLS LAST, c.name`,
+      ORDER BY
+        CASE COALESCE(cpr.presence_status, 'unknown')
+          WHEN 'current' THEN 0
+          WHEN 'unknown' THEN 1
+          WHEN 'presumed_departed' THEN 2
+          WHEN 'departed' THEN 3
+        END,
+        apt.latest_appointment_date DESC NULLS LAST,
+        c.name`,
       [placeId]
     );
 

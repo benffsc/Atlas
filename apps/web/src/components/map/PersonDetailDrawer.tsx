@@ -6,6 +6,7 @@ import { unwrapApiResponse } from "@/lib/api-client";
 import { getPersonRoleColor } from "@/lib/map-colors";
 import { formatPlaceKind, formatEnum } from "@/lib/display-labels";
 import { Skeleton } from "@/components/feedback/Skeleton";
+import { CatPresenceBadge } from "@/components/ui/CatPresenceBadge";
 
 interface PersonIdentifier {
   id_type: string;
@@ -31,6 +32,8 @@ interface PersonCat {
   source_system: string | null;
   data_source: string | null;
   microchip: string | null;
+  presence_status?: string | null;
+  departure_reason?: string | null;
 }
 
 interface PersonRole {
@@ -321,6 +324,11 @@ export function PersonDetailDrawer({ personId, onClose, onNavigateCat }: PersonD
                       <div className="cat-card-header">
                         <span className="cat-name">{cat.cat_name || "Unknown"}</span>
                         <div className="cat-badges">
+                          <CatPresenceBadge
+                            status={(cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown") || "unknown"}
+                            departureReason={cat.departure_reason}
+                            compact={cat.presence_status === "current"}
+                          />
                           {cat.relationship_type && (
                             <span
                               className="person-cat-rel-badge"
