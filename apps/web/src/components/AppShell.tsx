@@ -54,7 +54,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isMapPage = pathname === "/map";
   const isKioskRoute = pathname?.startsWith("/kiosk");
   const isStoryPage = pathname === "/story";
-  const isChromeless = isPrintRoute || isLoginPage || isMapPage || isKioskRoute || isStoryPage;
+  const isWelcomePage = pathname === "/welcome";
+  const isChromeless = isPrintRoute || isLoginPage || isMapPage || isKioskRoute || isStoryPage || isWelcomePage;
 
   // Fetch current user on mount
   useEffect(() => {
