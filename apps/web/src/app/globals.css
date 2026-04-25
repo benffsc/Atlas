@@ -1338,6 +1338,57 @@ body.presentation-mode [data-admin-section="true"] {
 }
 
 /* ============================================================================
+   /welcome — Landing page for unauthenticated visitors
+   ============================================================================ */
+
+.welcome-page {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--background);
+}
+
+.welcome-page .story-container {
+  height: 100vh;
+}
+
+.welcome-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  background: rgba(var(--background-rgb, 255, 255, 255), 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(var(--border-rgb, 0, 0, 0), 0.06);
+}
+
+.welcome-nav-logo {
+  height: 36px;
+  width: auto;
+}
+
+.welcome-nav-signin {
+  padding: 0.5rem 1.25rem;
+  background: var(--primary, #4291df);
+  color: var(--primary-foreground, #fff);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  transition: opacity var(--transition-fast);
+}
+
+.welcome-nav-signin:hover {
+  opacity: 0.9;
+  text-decoration: none;
+}
+
+/* ============================================================================
    Impact Summary Card — mission-connected stats
    Pattern: nonprofit dashboard best practice (Bridgespan, Funraise).
    Translate operational data (cats altered) into outcome story
