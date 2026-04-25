@@ -483,10 +483,13 @@ export default function KioskScanPage() {
       {/* Fallback: KioskEquipmentCard for non-smart-card statuses or "Other actions" */}
       {(state === "found" || state === "action") && equipment && (forceGenericCard || !useSmartCard) && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <KioskEquipmentCard
-            equipment={equipment}
-            onAction={handleAction}
-          />
+          {/* Hide the equipment card when already in checkout action — the CheckoutForm has all the context */}
+          {!(state === "action" && activeAction === "check_out") && (
+            <KioskEquipmentCard
+              equipment={equipment}
+              onAction={handleAction}
+            />
+          )}
 
           {state === "action" && activeAction === "check_out" && (
             <CheckoutForm
