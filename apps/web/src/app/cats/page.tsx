@@ -12,13 +12,10 @@ import type { CatDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { CatPreviewContent } from "@/components/preview/CatPreviewContent";
-import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup, ActiveFilterTags, FilterDrawer, FilterDrawerSection } from "@/components/filters";
-import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
+import { FilterChip, SearchInput } from "@/components/filters";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
 import { SkeletonList } from "@/components/feedback/Skeleton";
-import { StatCard } from "@/components/ui/StatCard";
 
 interface Cat {
   cat_id: string;
@@ -125,7 +122,7 @@ const catColumns: ColumnDef<Cat, unknown>[] = [
   },
   {
     accessorKey: "sex",
-    header: "Sex",
+    header: "Gender",
     cell: ({ getValue }) => (getValue() as string) || "\u2014",
   },
   {
@@ -177,11 +174,6 @@ function CatsPageContent() {
     useDataTable(filters, setFilters, { defaultPageSize: 25, defaultSort: "quality", defaultSortDir: "desc" });
 
   const [searchInput, setSearchInput] = useState(filters.q);
-  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-
-  // Count active advanced filters (excludes search, pagination, sort)
-  const advancedFilterKeys = ["has_place", "partner_org", "disease", "condition", "is_deceased"] as const;
-  const activeAdvancedCount = advancedFilterKeys.filter(k => filters[k] && filters[k] !== FILTER_DEFAULTS[k]).length;
 
   const { items: cats, total, loading, error } = useListData<Cat>({
     endpoint: "/api/cats",
@@ -223,125 +215,98 @@ function CatsPageContent() {
     >
       <PageHeader title="Cats" />
 
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-        <StatCard label="Total Cats" value={loading ? "..." : total} />
-        {!isDefault && !loading && (
-          <StatCard label="Showing" value={cats.length} subtitle={`of ${total} matching`} />
-        )}
-      </div>
-
-      <FilterBar showClear={!isDefault} onClear={clearFilters}>
+      {/* Search bar — full width */}
+      <div style={{ marginBottom: "0.75rem" }}>
         <SearchInput
           value={searchInput}
           onChange={setSearchInput}
           onDebouncedChange={(v) => setFilters({ q: v, page: "0" })}
-          placeholder="Search by name, microchip..."
+          placeholder="Search..."
         />
-        <FilterDivider />
-        <ToggleButtonGroup
+      </div>
+
+      {/* Filter chips row */}
+      <div className="filter-chips-row">
+        <FilterChip
+          label="Confidence"
           options={[
-            { value: "", label: "All" },
-            { value: "Male", label: "Male" },
+            { value: "A", label: "Verified" },
+            { value: "B", label: "Clinic ID" },
+            { value: "C", label: "Unverified" },
+          ]}
+          value={filters.has_origin || ""}
+          onChange={(v) => setFilters({ has_origin: v, page: "0" })}
+        />
+        <FilterChip
+          label="Gender"
+          options={[
             { value: "Female", label: "Female" },
+            { value: "Male", label: "Male" },
           ]}
           value={filters.sex}
           onChange={(v) => setFilters({ sex: v, page: "0" })}
-          allowDeselect
-          defaultValue=""
-          size="sm"
-          aria-label="Filter by sex"
         />
-        <FilterDivider />
-        <ToggleButtonGroup
+        <FilterChip
+          label="Altered status"
           options={[
-            { value: "", label: "All" },
             { value: "Spayed", label: "Spayed" },
             { value: "Neutered", label: "Neutered" },
             { value: "Intact", label: "Intact" },
           ]}
           value={filters.altered}
           onChange={(v) => setFilters({ altered: v, page: "0" })}
-          allowDeselect
-          defaultValue=""
-          size="sm"
-          aria-label="Filter by altered status"
         />
-        <FilterDivider />
-        <Button
-          variant={activeAdvancedCount > 0 ? "primary" : "secondary"}
-          size="sm"
-          icon="sliders-horizontal"
-          onClick={() => setFilterDrawerOpen(true)}
-        >
-          Filters{activeAdvancedCount > 0 ? ` (${activeAdvancedCount})` : ""}
-        </Button>
-      </FilterBar>
-
-      <ActiveFilterTags
-        filters={filters}
-        defaults={FILTER_DEFAULTS}
-        labels={{
-          sex: "Sex",
-          altered: "Altered",
-          has_place: "Location",
-          has_origin: "Origin",
-          partner_org: "Partner Org",
-          disease: "Disease",
-          condition: "Condition",
-          is_deceased: "Deceased",
-        }}
-        valueLabels={{
-          altered: { spayed: "Spayed", neutered: "Neutered", intact: "Intact" },
-          disease: { felv: "FeLV", fiv: "FIV" },
-          partner_org: { SCAS: "SCAS", FFSC: "FFSC", RPAS: "RPAS", MH: "Marin Humane" },
-        }}
-        exclude={["q", "page", "pageSize", "sort", "sortDir", "selected", "has_origin"]}
-        onRemove={(key) => setFilter(key as keyof typeof FILTER_DEFAULTS, FILTER_DEFAULTS[key as keyof typeof FILTER_DEFAULTS])}
-        onClearAll={clearFilters}
-      />
-
-      <FilterDrawer
-        isOpen={filterDrawerOpen}
-        onClose={() => setFilterDrawerOpen(false)}
-        onClear={clearFilters}
-        activeCount={activeAdvancedCount}
-      >
-        <FilterDrawerSection label="Location">
-          <Select value={filters.has_place} onChange={(v) => setFilters({ has_place: v, page: "0" })} placeholder="All locations" fullWidth options={[
+        <FilterChip
+          label="Location"
+          options={[
             { value: "true", label: "Has location" },
             { value: "false", label: "No location" },
-          ]} />
-        </FilterDrawerSection>
-        <FilterDrawerSection label="Source">
-          <Select value={filters.partner_org} onChange={(v) => setFilters({ partner_org: v, page: "0" })} placeholder="All sources" fullWidth options={[
-            { value: "SCAS", label: "From SCAS" },
-            { value: "FFSC", label: "FFSC linked" },
-            { value: "RPAS", label: "From Rohnert Park" },
-            { value: "MH", label: "From Marin Humane" },
-          ]} />
-        </FilterDrawerSection>
-        <FilterDrawerSection label="Disease">
-          <Select value={filters.disease} onChange={(v) => setFilters({ disease: v, page: "0" })} placeholder="All diseases" fullWidth options={[
+          ]}
+          value={filters.has_place}
+          onChange={(v) => setFilters({ has_place: v, page: "0" })}
+        />
+        <FilterChip
+          label="Source"
+          options={[
+            { value: "SCAS", label: "SCAS" },
+            { value: "FFSC", label: "FFSC" },
+            { value: "RPAS", label: "Rohnert Park" },
+            { value: "MH", label: "Marin Humane" },
+          ]}
+          value={filters.partner_org}
+          onChange={(v) => setFilters({ partner_org: v, page: "0" })}
+        />
+        <FilterChip
+          label="Disease"
+          options={[
             { value: "felv", label: "FeLV+" },
             { value: "fiv", label: "FIV+" },
-          ]} />
-        </FilterDrawerSection>
-        <FilterDrawerSection label="Condition">
-          <Select value={filters.condition} onChange={(v) => setFilters({ condition: v, page: "0" })} placeholder="All conditions" fullWidth options={[
+          ]}
+          value={filters.disease}
+          onChange={(v) => setFilters({ disease: v, page: "0" })}
+        />
+        <FilterChip
+          label="Condition"
+          options={[
             { value: "pregnant", label: "Pregnant" },
             { value: "lactating", label: "Lactating" },
             { value: "uri", label: "URI" },
             { value: "fleas", label: "Fleas" },
             { value: "ear_mites", label: "Ear Mites" },
-          ]} />
-        </FilterDrawerSection>
-        <FilterDrawerSection label="Status">
-          <Select value={filters.is_deceased} onChange={(v) => setFilters({ is_deceased: v, page: "0" })} placeholder="Living & Deceased" fullWidth options={[
+          ]}
+          value={filters.condition}
+          onChange={(v) => setFilters({ condition: v, page: "0" })}
+        />
+        <FilterChip
+          label="Living & Deceased"
+          options={[
             { value: "false", label: "Living only" },
             { value: "true", label: "Deceased only" },
-          ]} />
-        </FilterDrawerSection>
-      </FilterDrawer>
+          ]}
+          value={filters.is_deceased}
+          onChange={(v) => setFilters({ is_deceased: v, page: "0" })}
+        />
+      </div>
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
 

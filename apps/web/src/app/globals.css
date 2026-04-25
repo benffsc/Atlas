@@ -4581,3 +4581,111 @@ a:focus-visible {
   color: rgba(255, 255, 255, 0.7);
   line-height: 1.5;
 }
+
+/* ============================================================================
+   Filter Chips (FFS-1375 — Figma cats_index_opt2)
+   ============================================================================ */
+
+.filter-chip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  font-weight: 500;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 9999px;
+  background: var(--card-bg, #fff);
+  color: var(--text-secondary, #374151);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 150ms ease;
+  line-height: 1.2;
+}
+
+.filter-chip:hover {
+  border-color: var(--text-muted, #9ca3af);
+  background: var(--bg-secondary, #f9fafb);
+}
+
+.filter-chip--active {
+  background: var(--primary-light, #eff6ff);
+  border-color: var(--primary, #3b82f6);
+  color: var(--primary, #3b82f6);
+}
+
+.filter-chip--active:hover {
+  background: var(--primary-light, #dbeafe);
+}
+
+.filter-chip__label {
+  line-height: 1;
+}
+
+.filter-chip__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 140px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 4px 0;
+  z-index: 50;
+}
+
+.filter-chip__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  font-weight: 400;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+  text-align: left;
+  transition: background 100ms;
+}
+
+.filter-chip__option:hover {
+  background: var(--bg-secondary, #f3f4f6);
+}
+
+.filter-chip__option--selected {
+  font-weight: 500;
+}
+
+.filter-chip__checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border, #d1d5db);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.filter-chip__option--selected .filter-chip__checkbox {
+  background: var(--primary, #3b82f6);
+  border-color: var(--primary, #3b82f6);
+  color: white;
+}
+
+.filter-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 1rem;
+}

@@ -1,4 +1,5 @@
 export { FilterBar } from "./FilterBar";
+export { FilterChip } from "./FilterChip";
 export { FilterDivider } from "./FilterDivider";
 export { FilterDrawer, FilterDrawerSection } from "./FilterDrawer";
 export { FilterTag, ActiveFilterTags } from "./FilterTag";
