@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
 
@@ -29,6 +29,19 @@ function formatCurrency(n: number): string {
 }
 
 export default function WelcomePage() {
+  return (
+    <Suspense fallback={
+      <div className="story-loading">
+        <img src="/beacon-logo.jpeg" alt="Beacon" style={{ width: 160, opacity: 0.7 }} />
+        <div className="story-loading-text">Loading&hellip;</div>
+      </div>
+    }>
+      <WelcomeContent />
+    </Suspense>
+  );
+}
+
+function WelcomeContent() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
   const loginHref = `/login?redirect=${encodeURIComponent(redirect)}`;
