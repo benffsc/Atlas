@@ -74,6 +74,19 @@ export function detectIntentAndForceToolChoice(
     if (/^(tell|message|let)\s+\w+\s+(that|about|know)/i.test(lower)) {
       return { type: "tool", name: "send_message" };
     }
+
+    // NOTE patterns - "note that...", "add a note...", "record that...", "log that..."
+    const notePatterns = [
+      /^note\s+that\b/i,
+      /^add\s+(?:a\s+)?note\b/i,
+      /^record\s+that\b/i,
+      /^log\s+that\b/i,
+      /^make\s+a\s+note\b/i,
+      /^jot\s+(?:down\s+)?that\b/i,
+    ];
+    if (notePatterns.some((p) => p.test(message.trim()))) {
+      return { type: "tool", name: "log_event" };
+    }
   }
 
   // STAFF patterns (must check before trapper to avoid "staff" being confused with trappers)
@@ -103,6 +116,33 @@ export function detectIntentAndForceToolChoice(
     return { type: "tool", name: "area_stats" };
   }
 
+  // PERSON lookup patterns — "info on [name]", "look up [name]", "who is [name]"
+  const personPatterns = [
+    /^(?:info|information)\s+(?:on|about)\s+\w/i,
+    /^(?:look\s*up|find)\s+(?:person\s+)?[A-Z][a-z]+\s+[A-Z]/,  // "look up Patrick Geary"
+    /^who\s+is\s+\w/i,
+    /^(?:tell me|what do we know)\s+about\s+[A-Z][a-z]+\s+[A-Z]/,  // "tell me about Patrick Geary" (capitalized = person, not place)
+  ];
+  if (personPatterns.some((p) => p.test(message.trim()))) {
+    // Only force person_lookup if the message doesn't contain address-like patterns
+    const addressPattern =
+      /\d+\s+[\w]+(?: [\w]+)?\s*(?:st|street|ave|avenue|rd|road|dr|drive|ct|court|ln|lane|way|blvd|boulevard|pl|place|cir|circle)\b/i;
+    if (!addressPattern.test(message)) {
+      return { type: "tool", name: "person_lookup" };
+    }
+  }
+
+  // CITY COMPARISON patterns — force area_stats for city-level comparisons
+  if (
+    /how\s+does?\s+\w+\s+compare\s+to\s+\w/i.test(lower) ||
+    /compare\s+(?:santa rosa|petaluma|healdsburg|sebastopol|rohnert park|cotati|sonoma|windsor|cloverdale|guerneville)/i.test(lower)
+  ) {
+    // Only if no house number (address comparisons use compare_places)
+    if (!/\d+\s+\w/.test(message)) {
+      return { type: "tool", name: "area_stats" };
+    }
+  }
+
   // Cat description search patterns
   const catDescriptionPatterns = [
     /(?:find|search|look for|any|where is|seen)\s+(?:the\s+)?(?:an?\s+)?(?:orange|black|white|gray|grey|calico|tortoiseshell|tabby|tuxedo|siamese|ginger)\s+(?:cat|kitten|tabby)/i,
@@ -118,7 +158,7 @@ export function detectIntentAndForceToolChoice(
     /\d+\s+[\w]+(?: [\w]+)?\s*(?:st|street|ave|avenue|rd|road|dr|drive|ct|court|ln|lane|way|blvd|boulevard|pl|place|cir|circle)\b/i;
   if (addressPattern.test(message)) {
     const placeQueryPattern =
-      /(?:what(?:'s| do we| is)|tell me|situation|anything|know about|activity|info|cats? at|colony|look ?up|going on)/i;
+      /(?:what(?:'s| do we| is| happened| has)|tell me|situation|anything|know about|activity|info|cats? at|colony|look ?up|going on|happened at|history)/i;
     if (placeQueryPattern.test(lower)) {
       return { type: "tool", name: "full_place_briefing" };
     }

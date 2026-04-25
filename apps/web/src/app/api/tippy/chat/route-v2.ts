@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { apiBadRequest, apiSuccess, apiServerError } from "@/lib/api-response";
 import Anthropic from "@anthropic-ai/sdk";
-import { TIPPY_V2_TOOLS, executeToolCallV2, type ToolContext, type ToolResult } from "../tools-v2";
+import { TIPPY_V2_TOOLS, executeToolCallV2, type ToolContext, type ToolResult, type ActionCardPayload } from "../tools-v2";
 import { getSession } from "@/lib/auth";
 import { queryOne, queryRows, execute } from "@/lib/db";
 import { TERMINAL_PAIR_SQL } from "@/lib/request-status";
@@ -102,7 +102,8 @@ TOOL SELECTION GUIDE (15 tools):
 - Specific address → full_place_briefing (comprehensive data + institutional context)
 - Street/road name → place_search FIRST, then full_place_briefing on best match
 - City/region → area_stats
-- Compare places → compare_places
+- Compare two addresses → compare_places
+- Compare two cities/regions → area_stats (call twice, once per city. Do NOT use run_sql for city comparisons.)
 - Priority sites → find_priority_sites
 - Person → person_lookup
 - Cat by chip/name → cat_lookup
@@ -119,6 +120,8 @@ MULTI-STEP INVESTIGATION PROTOCOL:
 After EVERY tool result, ask: Do I have enough? Did I get entity IDs to drill into? Are there cross-system sources unchecked?
 RULE: One tool is almost never enough for place/person/cat questions.
 RULE: Use parallel tool calls for independent operations.
+RULE: Once full_place_briefing returns found:true with cat_statistics, STOP calling tools and write your response. The briefing is comprehensive — do not re-query the same place with run_sql or spatial_context.
+RULE: For place_search → full_place_briefing chains, 2 tools is sufficient. Respond after the briefing.
 
 BRIEFING STRUCTURE (for place queries):
 1. Opening: One sentence — what is this place, who manages it, current status
@@ -169,7 +172,30 @@ Identity: sot.person_identifiers (confidence >= 0.5!), ops.clinic_accounts
 Operational: ops.requests, ops.appointments, ops.staff
 Lifecycle: sot.cat_lifecycle_events, sot.v_adoption_context
 Key columns: altered_status (spayed/neutered/altered/intact/NULL), merged_into_*_id IS NULL, location (PostGIS)
-Matviews: ops.mv_city_stats, ops.mv_zip_coverage, ops.mv_ffr_impact_summary`;
+Key columns for run_sql: ops.appointments(appointment_date, cat_id, place_id, client_name), sot.cats(cat_id, display_name, altered_status, is_deceased, deceased_at, sex), ops.requests(request_id, place_id, status, estimated_cat_count, requester_person_id)
+Matviews: ops.mv_city_stats, ops.mv_zip_coverage, ops.mv_ffr_impact_summary
+
+ANALYTICAL RECIPES (use with run_sql — ONE query, not schema exploration):
+1. CATS ALTERED BY YEAR: SELECT EXTRACT(YEAR FROM appointment_date)::INT as year, COUNT(DISTINCT cat_id) as cats FROM ops.appointments WHERE appointment_date IS NOT NULL GROUP BY 1 ORDER BY 1
+2. ESTIMATED LIVING ALTERED CATS: SELECT * FROM ops.v_altered_cat_survival_estimate — returns year-by-year cohorts with estimated_living, methodology, and data_caveat columns. SUM(estimated_living) for total. For scenario comparison: SELECT * FROM ops.estimate_living_altered_cats(0.10) overrides attrition rate.
+2b. IMPACT DASHBOARD: SELECT * FROM ops.v_impact_at_a_glance — single-row summary: total altered, estimated living, active requests, cities. Includes methodology column.
+3. CITY COMPARISON: Use area_stats tool, NOT run_sql. Or: SELECT * FROM ops.mv_city_stats WHERE city IN ('Santa Rosa','Petaluma')
+4. MONTHLY TREND: SELECT DATE_TRUNC('month', appointment_date) as month, COUNT(DISTINCT cat_id) FROM ops.appointments WHERE appointment_date >= NOW() - INTERVAL '12 months' GROUP BY 1 ORDER BY 1
+5. COLONY STATUS: SELECT * FROM sot.v_place_colony_status WHERE place_id = '<uuid>'
+6. REQUEST PIPELINE: SELECT status, COUNT(*) FROM ops.requests WHERE merged_into_request_id IS NULL GROUP BY 1
+7. MOST ACTIVE CARETAKERS / COMMUNITY MEMBERS: SELECT pe.display_name, COUNT(DISTINCT pp.place_id) AS places, COUNT(DISTINCT pc.cat_id) AS cats_linked, STRING_AGG(DISTINCT pp.relationship_type, ', ') AS roles FROM sot.person_place pp JOIN sot.people pe ON pe.person_id = pp.person_id AND pe.merged_into_person_id IS NULL LEFT JOIN sot.person_cat pc ON pc.person_id = pe.person_id WHERE pp.relationship_type IN ('resident','caretaker','owner') GROUP BY pe.person_id, pe.display_name HAVING COUNT(DISTINCT pp.place_id) >= 2 OR COUNT(DISTINCT pc.cat_id) >= 5 ORDER BY cats_linked DESC LIMIT 15 — Note: caretaker role is under-tagged. People with many cats across multiple places are likely colony caretakers even if tagged "resident".
+8. BIGGEST TRAPPING DAYS: SELECT appointment_date, COUNT(DISTINCT cat_id) AS cats_done, COALESCE(p.display_name, p.formatted_address) AS location FROM ops.appointments a LEFT JOIN sot.places p ON p.place_id = a.place_id WHERE appointment_date IS NOT NULL GROUP BY appointment_date, p.display_name, p.formatted_address HAVING COUNT(DISTINCT cat_id) >= 10 ORDER BY cats_done DESC LIMIT 15
+9. TOTAL CATS HELPED / OVERALL IMPACT: SELECT * FROM ops.v_impact_at_a_glance — one row with total_cats_seen, total_altered, estimated_living, places_with_cats, active_requests, cities_covered, methodology
+10. COVERAGE GAPS / WHAT DON'T WE KNOW: SELECT a.city, COUNT(DISTINCT p.place_id) AS places, SUM(CASE WHEN EXISTS (SELECT 1 FROM sot.cat_place cp WHERE cp.place_id = p.place_id) THEN 1 ELSE 0 END) AS places_with_cats, SUM(CASE WHEN EXISTS (SELECT 1 FROM ops.requests r WHERE r.place_id = p.place_id AND r.merged_into_request_id IS NULL) THEN 1 ELSE 0 END) AS places_with_requests FROM sot.places p JOIN sot.addresses a ON a.address_id = p.sot_address_id WHERE p.merged_into_place_id IS NULL AND a.city IS NOT NULL GROUP BY a.city ORDER BY places DESC LIMIT 20 — Compare places_with_cats vs places to find low-coverage cities. Our data reflects what we've DISCOVERED, not what EXISTS.
+Do NOT run "SELECT column_name FROM information_schema..." — the schema info above is sufficient.
+
+METHODOLOGY DISCLOSURE (MANDATORY):
+When presenting estimated or derived numbers (survival estimates, population projections, coverage rates):
+- Say "estimated" not "are" — never present a model output as ground truth
+- State the methodology: what rate, what source, what assumptions
+- Note data gaps: "we only have 254 confirmed deceased out of 35K+ altered cats — most mortality is untracked"
+- If using a configurable rate, say so: "using our current 13% annual attrition rate (adjustable as we collect more data)"
+This applies to ALL analytical responses. Numbers without methodology are worse than no answer.`;
 
 function buildEngineerBlock(): string {
   return `\n\n**COMMUNICATION STYLE — ENGINEER:**\nBe direct and technical. Lead with data. Reference table names. Mention data quality issues explicitly. Skip narrative fluff.`;
@@ -187,7 +213,15 @@ function buildAccessBlock(level: string): string {
 - create_reminder for "remind me", "follow up", etc. Extract contact info.
 - send_message for "tell X that..."
 - log_event for field observations, draft requests, anomalies
-- Reminders and lookups appear at /me.`;
+- log_event with action_type="add_note" for "note that...", "record that...", "log that..." — attaches a note to a place, person, cat, or request. Notes auto-appear in place briefings.
+- Reminders and lookups appear at /me.
+
+TRAPPER TEXT PARSING:
+When a user pastes a long message (>3 lines) from trapper notes or text messages:
+1. Extract structured data: addresses, cat counts, observations, names
+2. For EACH distinct observation, call log_event with action_type="add_note" and the relevant location
+3. For cat counts at specific addresses, also call log_event with action_type="field_event"
+4. Summarize what you extracted and logged after processing`;
   return "";
 }
 
@@ -624,6 +658,7 @@ async function handleStreamingChat(params: {
           staffName: params.userName || "Unknown",
           aiAccessLevel: params.aiAccessLevel || "read_only",
           conversationId,
+          emitActionCard: (card: ActionCardPayload) => send("action_card", card),
         };
 
         const messages = [...params.messages];

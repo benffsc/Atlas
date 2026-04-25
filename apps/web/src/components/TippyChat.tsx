@@ -4,7 +4,8 @@ import { useState, useRef, useEffect, useCallback, FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import { TippyFeedbackModal } from "@/components/modals";
 import { Icon } from "@/components/ui/Icon";
-import { fetchApi } from "@/lib/api-client";
+import { fetchApi, postApi } from "@/lib/api-client";
+import { ActionCard, type ActionCardData } from "@/components/tippy/ActionCard";
 
 interface Message {
   id: string;
@@ -261,6 +262,7 @@ export function TippyChat() {
   const [historyList, setHistoryList] = useState<ConversationSummary[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [anomalyCount, setAnomalyCount] = useState(0);
+  const [actionCards, setActionCards] = useState<Map<string, ActionCardData>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const streamingMsgIdRef = useRef<string | null>(null);
@@ -269,6 +271,44 @@ export function TippyChat() {
     setSelectedMessage(message);
     setFeedbackModalOpen(true);
   };
+
+  const handleConfirmAction = useCallback(async (cardId: string) => {
+    const card = actionCards.get(cardId);
+    if (!card) return;
+
+    setActionCards(prev => {
+      const next = new Map(prev);
+      next.set(cardId, { ...card, status: "confirmed" });
+      return next;
+    });
+
+    try {
+      await postApi("/api/tippy/execute-action", {
+        card_id: card.card_id,
+        action_type: card.action_type,
+        entity_type: card.entity_type,
+        entity_id: card.entity_id,
+        entity_name: card.entity_name,
+        proposed_changes: card.proposed_changes,
+      });
+    } catch {
+      // Revert on failure
+      setActionCards(prev => {
+        const next = new Map(prev);
+        next.set(cardId, { ...card, status: "pending" });
+        return next;
+      });
+    }
+  }, [actionCards]);
+
+  const handleRejectAction = useCallback((cardId: string) => {
+    setActionCards(prev => {
+      const next = new Map(prev);
+      const card = next.get(cardId);
+      if (card) next.set(cardId, { ...card, status: "rejected" });
+      return next;
+    });
+  }, []);
 
   // Listen for map context events from AtlasMap
   useEffect(() => {
@@ -388,6 +428,15 @@ export function TippyChat() {
             const doneData = event.data as { conversationId?: string };
             if (doneData.conversationId) {
               setConversationId(doneData.conversationId);
+            }
+          } else if (event.type === "action_card") {
+            const cardData = event.data as unknown as ActionCardData;
+            if (cardData.card_id) {
+              setActionCards(prev => {
+                const next = new Map(prev);
+                next.set(cardData.card_id, { ...cardData, status: "pending" });
+                return next;
+              });
             }
           } else if (event.type === "error") {
             const errData = event.data as { message?: string };
@@ -872,6 +921,20 @@ export function TippyChat() {
               </span>
               {getPhaseLabel(streamPhase, messages.some(m => m.content === '__shift_briefing__'))}
             </div>
+          </div>
+        )}
+
+        {/* Action cards from tool results */}
+        {actionCards.size > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 4px" }}>
+            {Array.from(actionCards.values()).map((card) => (
+              <ActionCard
+                key={card.card_id}
+                card={card}
+                onConfirm={handleConfirmAction}
+                onReject={handleRejectAction}
+              />
+            ))}
           </div>
         )}
 

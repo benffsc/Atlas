@@ -608,3 +608,24 @@ export function assessPlaceStatus(data: {
     }`,
   };
 }
+
+// =============================================================================
+// SURVIVAL SCIENCE (peer-reviewed defaults, configurable in ops.app_config)
+// =============================================================================
+
+export const SURVIVAL_SCIENCE = {
+  // Stopgap defaults — runtime values come from ops.app_config
+  defaults: {
+    managed_colony_annual_attrition: 0.13,
+    managed_colony_lifespan_years: 8,
+    unmanaged_annual_attrition: 0.25,
+    kitten_mortality_rate: 0.75,
+  },
+  sources: {
+    uf_study: "UF 11-year study: 83% alive after 6+ years",
+    plos_model: "PLOS simulation: 10-25% annual attrition range",
+    alley_cat_allies: "Managed colonies: 7-10 year lifespan",
+    feline_research: "Sterilized cats have infection rates comparable to indoor pets",
+  },
+  note: "These are published research defaults. Actual FFSC rates are in ops.app_config and will be refined as Beacon accumulates mortality data.",
+} as const;
