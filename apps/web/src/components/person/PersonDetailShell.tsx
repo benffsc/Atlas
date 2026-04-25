@@ -4,7 +4,7 @@ import { useState, useCallback, ReactNode } from "react";
 import { usePersonDetail } from "@/hooks/usePersonDetail";
 import { detectRoles, getRoleConfig } from "@/lib/person-roles/configs";
 import type { RoleType, SectionDefinition } from "@/lib/person-roles/types";
-import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
+import { Section } from "@/components/layouts";
 import { TabBar, TabPanel } from "@/components/ui";
 import { TrapperBadge, VolunteerBadge, VerificationBadge, LastVerified } from "@/components/badges";
 import { QuickActions, usePersonQuickActionState, EditHistory } from "@/components/common";
@@ -311,143 +311,6 @@ export function PersonDetailShell({
     </>
   );
 
-  // Header
-  const headerContent = (
-    <>
-      {navContext.breadcrumbs.length > 0 && (
-        <div style={{ marginBottom: "0.5rem" }}>
-          <Breadcrumbs items={navContext.breadcrumbs} />
-        </div>
-      )}
-      <EntityHeader
-        personId={person.person_id}
-        displayName={person.display_name}
-        backHref={navContext.backHref}
-      email={data.primaryEmail}
-      phone={data.primaryPhone}
-      badges={<>{badgeElements}</>}
-      availabilityStatus={data.trapperStats?.availability_status}
-      aliases={person.aliases?.map(a => a.name_raw)}
-      doNotContact={person.do_not_contact}
-      doNotContactReason={person.do_not_contact_reason}
-      entityType={person.entity_type}
-      allowNameEdit={initialRole !== "trapper"}
-      actions={actionButtons}
-      onDataChange={() => data.refetchPerson()}
-    />
-    </>
-  );
-
-  // Sidebar
-  const sidebarContent = (
-    <div className="space-y-4">
-      <StatsSidebar
-        stats={config.stats
-          .filter(s => !s.showWhen || s.showWhen(data))
-          .map(s => ({
-            label: s.label,
-            value: s.value(data),
-            icon: s.icon,
-            href: typeof s.href === "function" ? s.href(data) : s.href,
-          }))
-        }
-        sections={[
-          {
-            title: "Quick Actions",
-            content: (
-              <QuickActions
-                entityType="person"
-                entityId={person.person_id}
-                state={usePersonQuickActionState({
-                  email: data.primaryEmail,
-                  phone: data.primaryPhone,
-                  is_trapper: data.isTrapper,
-                  cat_count: person.cat_count,
-                  request_count: data.requests.length,
-                })}
-                onActionComplete={() => data.refetchPerson()}
-              />
-            ),
-          },
-          {
-            title: "Contact",
-            content: (
-              <div style={{ fontSize: "0.875rem" }}>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <div style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginBottom: "0.125rem" }}>Address</div>
-                  {person.primary_address ? (
-                    person.primary_place_id ? (
-                      <a href={`/places/${person.primary_place_id}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{person.primary_address}</a>
-                    ) : (
-                      <span>{person.primary_address}</span>
-                    )
-                  ) : person.associated_places && person.associated_places.length > 0 ? (
-                    <a href={`/places/${person.associated_places[0].place_id}`} style={{ color: "var(--primary)", textDecoration: "none" }}>
-                      {person.associated_places[0].formatted_address || person.associated_places[0].display_name || "Unknown"}
-                      <span className="text-muted" style={{ fontSize: "0.75rem", marginLeft: "0.25rem" }}>(inferred)</span>
-                    </a>
-                  ) : (
-                    <span className="text-muted">No address set</span>
-                  )}
-                </div>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <div style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginBottom: "0.125rem" }}>Phone</div>
-                  {data.primaryPhone ? <span>{formatPhone(data.primaryPhone)}</span> : <span className="text-muted">Not available</span>}
-                </div>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <div style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginBottom: "0.125rem" }}>Email</div>
-                  {data.primaryEmail ? <span style={{ wordBreak: "break-all" }}>{data.primaryEmail}</span> : <span className="text-muted">Not available</span>}
-                </div>
-                <button
-                  onClick={startEditingIdentifiers}
-                  style={{
-                    marginTop: "0.5rem", padding: "0.25rem 0.5rem", fontSize: "0.75rem",
-                    background: "transparent", border: "1px solid var(--border)", borderRadius: "4px",
-                    cursor: "pointer", width: "100%",
-                  }}
-                >
-                  Edit Contact Info
-                </button>
-              </div>
-            ),
-          },
-          {
-            title: "Verification",
-            content: (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                <VerificationBadge
-                  table="people"
-                  recordId={person.person_id}
-                  verifiedAt={person.verified_at}
-                  verifiedBy={person.verified_by_name}
-                  onVerify={() => data.refetchPerson()}
-                />
-                {person.verified_at && (
-                  <LastVerified verifiedAt={person.verified_at} verifiedBy={person.verified_by_name} />
-                )}
-              </div>
-            ),
-          },
-          {
-            title: "Record Info",
-            content: (
-              <div style={{ fontSize: "0.875rem" }}>
-                <StatRow label="First Seen" value={formatDateLocal(
-                  person.source_created_at && person.created_at
-                    ? (person.source_created_at < person.created_at ? person.source_created_at : person.created_at)
-                    : person.source_created_at || person.created_at
-                )} />
-                <StatRow label="Created" value={formatDateLocal(person.created_at)} />
-                <StatRow label="Updated" value={formatDateLocal(person.updated_at)} />
-                <StatRow label="Source" value={SOURCE_LABELS[person.data_source || ""] || person.data_source || "Unknown"} />
-              </div>
-            ),
-          },
-        ]}
-      />
-    </div>
-  );
-
   // Tab definitions with counts
   const tabDefs = config.tabs.map(t => ({
     id: t.id,
@@ -459,34 +322,75 @@ export function PersonDetailShell({
   // Get sections for active tab
   const sectionsForTab = resolvedSections.filter(s => s.tab === activeTab);
 
-  // Main content
-  const mainContent = (
-    <>
-      {/* Tabs */}
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <div style={{ padding: "0 1rem" }}>
-          <TabBar tabs={tabDefs} activeTab={activeTab} onTabChange={setActiveTab} />
-        </div>
-      </div>
-
-      {/* Section content for active tab */}
-      <SectionRenderer
-        sections={sectionsForTab}
-        personId={id}
-        data={data}
-        onDataChange={handleDataChange}
-      />
-    </>
-  );
-
   return (
     <>
-      <TwoColumnLayout
-        header={headerContent}
-        main={mainContent}
-        sidebar={sidebarContent}
-        sidebarWidth="35%"
-      />
+      <div style={{ maxWidth: 1100 }}>
+        {/* Breadcrumbs + Actions */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: initialRole === "trapper" ? "Trappers" : "People", href: initialRole === "trapper" ? "/trappers" : "/people" }, { label: person.display_name }]} />
+          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+            {actionButtons}
+          </div>
+        </div>
+
+        {/* Hero Card */}
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.5rem" }}>
+          <EntityHeader
+            personId={person.person_id}
+            displayName={person.display_name}
+            backHref={navContext.backHref}
+            email={data.primaryEmail}
+            phone={data.primaryPhone}
+            badges={<>{badgeElements}</>}
+            availabilityStatus={data.trapperStats?.availability_status}
+            aliases={person.aliases?.map(a => a.name_raw)}
+            doNotContact={person.do_not_contact}
+            doNotContactReason={person.do_not_contact_reason}
+            entityType={person.entity_type}
+            allowNameEdit={initialRole !== "trapper"}
+            onDataChange={() => data.refetchPerson()}
+          />
+
+          {/* Contact info inline */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Phone</div>
+              <div style={{ fontWeight: 600 }}>{data.primaryPhone ? formatPhone(data.primaryPhone) : "\u2014"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Email</div>
+              <div style={{ fontWeight: 600, wordBreak: "break-all" }}>{data.primaryEmail || "\u2014"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Address</div>
+              <div style={{ fontWeight: 600 }}>
+                {person.primary_address ? (
+                  person.primary_place_id ? (
+                    <a href={`/places/${person.primary_place_id}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{person.primary_address}</a>
+                  ) : person.primary_address
+                ) : "\u2014"}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Source</div>
+              <div style={{ fontWeight: 600 }}>{SOURCE_LABELS[person.data_source || ""] || person.data_source || "Unknown"}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Bar */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <TabBar tabs={tabDefs} activeTab={activeTab} onTabChange={setActiveTab} />
+        </div>
+
+        {/* Tab Content */}
+        <SectionRenderer
+          sections={sectionsForTab}
+          personId={id}
+          data={data}
+          onDataChange={handleDataChange}
+        />
+      </div>
 
       {/* Edit Identifiers Modal */}
       {editingIdentifiers && (

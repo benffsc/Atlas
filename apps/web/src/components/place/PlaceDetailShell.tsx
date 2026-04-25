@@ -14,7 +14,7 @@ import { CreateColonyModal } from "@/components/modals";
 import { EntityPreviewModal } from "@/components/search";
 import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import { MediaGallery, HeroGallery } from "@/components/media";
-import { TwoColumnLayout, Section, StatsSidebar, StatRow } from "@/components/layouts";
+import { Section } from "@/components/layouts";
 import { TabBar, TabPanel } from "@/components/ui";
 import { AssociatedPeopleCard } from "@/components/verification";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -150,123 +150,8 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
     person_id: p.person_id, display_name: p.person_name, relationship_type: p.role, confidence: p.confidence,
   })) || [];
 
-  /* ── Header ── */
-  const headerContent = (
-    <div>
-      {navContext.breadcrumbs.length > 0 && (
-        <div style={{ marginBottom: "0.5rem" }}><Breadcrumbs items={navContext.breadcrumbs} /></div>
-      )}
-      <BackButton fallbackHref={navContext.backHref} />
-      <div style={{ marginTop: "1rem" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", flexWrap: "wrap" }}>
-          <h1 style={{ margin: 0, fontSize: "1.75rem" }}>{place.display_name}</h1>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-            <PlaceKindBadge kind={place.place_kind} />
-            {place.contexts?.map((ctx) => <ContextBadge key={ctx.context_id} context={ctx} />)}
-            {place.has_cat_activity && (
-              <span className="badge" style={{ background: "#dcfce7", color: "#166534", fontSize: "0.7rem" }}>Cat Activity</span>
-            )}
-          </div>
-        </div>
-        {place.formatted_address && place.formatted_address !== place.display_name && (
-          <p className="text-muted" style={{ margin: "0.5rem 0 0 0" }}>{place.formatted_address}</p>
-        )}
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", flexWrap: "wrap" }}>
-          {place.coordinates && (
-            <a href={`/map?lat=${place.coordinates.lat}&lng=${place.coordinates.lng}&zoom=17`}
-              style={{ padding: "0.5rem 1rem", fontSize: "0.875rem", background: "#6366f1", color: "white", border: "none", borderRadius: "6px", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
-              {"\uD83D\uDCCD"} View on Map
-            </a>
-          )}
-          <a href={`/places/${place.place_id}/print`} target="_blank" rel="noopener noreferrer"
-            style={{ padding: "0.5rem 1rem", fontSize: "0.875rem", background: "transparent", color: "inherit", border: "1px solid var(--border)", borderRadius: "6px", textDecoration: "none" }}>
-            Print
-          </a>
-          <button onClick={() => setShowColonyModal(true)}
-            style={{ padding: "0.5rem 1rem", fontSize: "0.875rem", background: "transparent", color: "#059669", border: "1px solid #059669", borderRadius: "6px", cursor: "pointer" }}>
-            Create Colony
-          </button>
-          <button onClick={() => setShowHistory(!showHistory)}
-            style={{ padding: "0.5rem 1rem", fontSize: "0.875rem", background: showHistory ? "var(--primary)" : "transparent", color: showHistory ? "white" : "inherit", border: showHistory ? "none" : "1px solid var(--border)", borderRadius: "6px", cursor: "pointer" }}>
-            History
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  /* Place detail — single column layout */
 
-  /* ── Sidebar ── */
-  const sidebarContent = (
-    <div className="space-y-4">
-      <StatsSidebar
-        stats={[
-          { label: "Cats", value: place.cat_count, icon: "\uD83D\uDC31", href: "#cats" },
-          { label: "People", value: place.person_count, icon: "\uD83D\uDC64" },
-          { label: "Requests", value: data.requests.length, icon: "\uD83D\uDCCB", href: `/requests?place_id=${place.place_id}` },
-        ]}
-        sections={[{
-          title: "Quick Actions",
-          content: (
-            <QuickActions entityType="place" entityId={place.place_id}
-              state={usePlaceQuickActionState({ lat: place.coordinates?.lat, lng: place.coordinates?.lng, request_count: data.requests.length, cat_count: place.cat_count, colony_estimate: null, last_observation_days: null })}
-              onActionComplete={data.fetchPlace} />
-          ),
-        }]}
-      />
-      <div className="bg-white rounded-lg border">
-        <div className="px-4 py-3 border-b"><h4 className="text-sm font-semibold text-gray-900">Colony Size</h4></div>
-        <div className="p-4"><ColonyEstimates placeId={id} /></div>
-      </div>
-      <div className="bg-white rounded-lg border">
-        <div className="px-4 py-3 border-b"><h4 className="text-sm font-semibold text-gray-900">Disease Status</h4></div>
-        <div className="p-4"><DiseaseStatusSection placeId={place.place_id} onStatusChange={data.fetchPlace} /></div>
-      </div>
-      <div className="bg-white rounded-lg border">
-        <div className="px-4 py-3 border-b"><h4 className="text-sm font-semibold text-gray-900">TNR Progress</h4></div>
-        <div className="p-4"><SiteStatsCard placeId={place.place_id} /></div>
-      </div>
-      <div className="bg-white rounded-lg border">
-        <div className="px-4 py-3 border-b"><h4 className="text-sm font-semibold text-gray-900">Location</h4></div>
-        <div className="p-4">
-          <StatRow label="City" value={place.locality || "Unknown"} />
-          <StatRow label="ZIP" value={place.postal_code || "\u2014"} />
-          <StatRow label="Geocoded" value={place.is_address_backed ? "Yes" : "Approx"} />
-          {place.coordinates && (
-            <div className="text-xs text-gray-500 mt-2 font-mono">{place.coordinates.lat.toFixed(5)}, {place.coordinates.lng.toFixed(5)}</div>
-          )}
-        </div>
-      </div>
-      <div className="bg-white rounded-lg border">
-        <div className="px-4 py-3 border-b"><h4 className="text-sm font-semibold text-gray-900">Verification</h4></div>
-        <div className="p-4">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-            <VerificationBadge table="places" recordId={place.place_id} verifiedAt={place.verified_at} verifiedBy={place.verified_by_name} onVerify={() => data.fetchPlace()} />
-            {place.verified_at && <LastVerified verifiedAt={place.verified_at} verifiedBy={place.verified_by_name} />}
-          </div>
-        </div>
-      </div>
-      {place.last_appointment_date && (
-        <div className="bg-white rounded-lg border">
-          <div className="px-4 py-3 border-b"><h4 className="text-sm font-semibold text-gray-900">Activity</h4></div>
-          <div className="p-4">
-            <StatRow label="Last Clinic Visit" value={formatRelativeTime(place.last_appointment_date) || "\u2014"} />
-            <StatRow label="Last Visit Date" value={formatDateLocal(place.last_appointment_date)} />
-          </div>
-        </div>
-      )}
-      <div className="bg-white rounded-lg border">
-        <div className="px-4 py-3 border-b"><h4 className="text-sm font-semibold text-gray-900">Record Info</h4></div>
-        <div className="p-4">
-          <StatRow label="First Seen" value={formatDateLocal(place.source_created_at || place.created_at)} />
-          <StatRow label="Created" value={formatDateLocal(place.created_at)} />
-          <StatRow label="Updated" value={formatDateLocal(place.updated_at)} />
-          <div className="text-xs text-gray-500 mt-2 font-mono break-all">{place.place_id}</div>
-        </div>
-      </div>
-    </div>
-  );
-
-  /* ── Main content ── */
   const mainContent = (
     <div>
       <QuickNotes entityType="place" entityId={place.place_id} entries={data.journal} onNoteAdded={data.fetchJournal} />
@@ -487,7 +372,64 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
 
   return (
     <>
-      <TwoColumnLayout header={headerContent} main={mainContent} sidebar={sidebarContent} />
+      <div style={{ maxWidth: 1100 }}>
+        {/* Breadcrumbs + Actions */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Places", href: "/places" }, { label: place.display_name }]} />
+          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+            <button onClick={startEditing} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 600, background: "var(--primary)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}>Edit</button>
+            {place.coordinates && (
+              <a href={`/map?lat=${place.coordinates.lat}&lng=${place.coordinates.lng}&zoom=17`} style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>Map</a>
+            )}
+            <button onClick={() => setShowHistory(!showHistory)} title="History" style={{ padding: "0.4rem 0.6rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", cursor: "pointer" }}>{"\u22EE"}</button>
+          </div>
+        </div>
+
+        {/* Hero Card */}
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.5rem" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+            <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>{place.display_name}</h1>
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
+              <PlaceKindBadge kind={place.place_kind} />
+              {place.contexts?.map((ctx) => <ContextBadge key={ctx.context_id} context={ctx} />)}
+              {place.has_cat_activity && (
+                <span className="badge" style={{ background: "#dcfce7", color: "#166534", fontSize: "0.7rem" }}>Cat Activity</span>
+              )}
+            </div>
+          </div>
+          {place.formatted_address && place.formatted_address !== place.display_name && (
+            <p style={{ margin: "0 0 1rem 0", color: "var(--text-muted)", fontSize: "0.9rem" }}>{place.formatted_address}</p>
+          )}
+
+          {/* Attribute grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "0.75rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Cats</div>
+              <div style={{ fontWeight: 600 }}>{place.cat_count}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>People</div>
+              <div style={{ fontWeight: 600 }}>{place.person_count}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Requests</div>
+              <div style={{ fontWeight: 600 }}>{data.requests.length}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>City</div>
+              <div style={{ fontWeight: 600 }}>{place.locality || "\u2014"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Last Visit</div>
+              <div style={{ fontWeight: 600 }}>{place.last_appointment_date ? formatDateLocal(place.last_appointment_date) : "\u2014"}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Bar */}
+        {/* Tabs are inside mainContent — render it directly */}
+        {mainContent}
+      </div>
 
       {showHistory && (
         <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "400px", background: "var(--card-bg)", borderLeft: "1px solid var(--border)", padding: "1.5rem", overflowY: "auto", zIndex: 100, boxShadow: "-4px 0 10px rgba(0,0,0,0.2)" }}>
