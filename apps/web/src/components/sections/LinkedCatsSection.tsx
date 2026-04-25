@@ -136,6 +136,7 @@ export function LinkedCatsSection({
   maxVisible = 10,
 }: LinkedCatsSectionProps) {
   const [expanded, setExpanded] = useState(false);
+  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
   const hasCats = cats && cats.length > 0;
   const totalCount = cats?.length || 0;
   const shouldCollapse = hasCats && totalCount > maxVisible && !expanded;
@@ -185,15 +186,10 @@ export function LinkedCatsSection({
       {hasCats ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {visibleCats!.map((cat) => (
-            <a
+            <div
               key={cat.cat_id}
-              href={`/cats/${cat.cat_id}`}
-              style={cardStyle}
-              onClick={onEntityClick ? (e) => {
-                if (e.metaKey || e.ctrlKey) return;
-                e.preventDefault();
-                onEntityClick("cat", cat.cat_id);
-              } : undefined}
+              style={{ ...cardStyle, flexDirection: "column", alignItems: "stretch", cursor: "pointer" }}
+              onClick={() => setExpandedCatId(expandedCatId === cat.cat_id ? null : cat.cat_id)}
               onMouseOver={(e) => {
                 if (compact) {
                   e.currentTarget.style.backgroundColor = "var(--section-bg, #f8f9fa)";
@@ -209,40 +205,26 @@ export function LinkedCatsSection({
                 }
               }}
             >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                  <span style={{ fontSize: "10px", color: "var(--muted)", transition: "transform 0.15s", transform: expandedCatId === cat.cat_id ? "rotate(90deg)" : "rotate(0)" }}>&#9654;</span>
                   <EntityPreview entityType="cat" entityId={cat.cat_id}>
                     <span style={{ fontWeight: 500, textDecoration: cat.is_deceased ? "line-through" : "none", color: cat.is_deceased ? "var(--muted, #6c757d)" : "inherit" }}>{cat.cat_name || "Unnamed cat"}</span>
                   </EntityPreview>
-                  {cat.microchip && (
-                    <span className="text-muted text-sm" style={{ marginLeft: "0.5rem" }}>
-                      ({cat.microchip})
-                    </span>
-                  )}
-                </div>
-                {cat.presence_status && cat.presence_status !== "current" && (
-                  <div style={{ marginTop: "2px" }}>
+                  {cat.presence_status && cat.presence_status !== "current" && (
                     <CatPresenceBadge
                       status={cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown"}
                       departureReason={cat.departure_reason}
+                      compact
                     />
-                  </div>
-                )}
+                  )}
+                </div>
                 {(cat.health_flags?.length || cat.is_deceased) ? (
-                  <div style={{ marginTop: "2px" }}>
+                  <div style={{ marginTop: "2px", marginLeft: "18px" }}>
                     <CatHealthBadges healthFlags={cat.health_flags} isDeceased={cat.is_deceased} maxInline={2} />
                   </div>
                 ) : null}
-                {cat.adoption_date && (
-                  <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: "0.15rem", fontWeight: 500 }}>
-                    Adopted {new Date(cat.adoption_date).toLocaleDateString()}
-                  </div>
-                )}
-                {cat.last_appointment_date && (
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted, #6c757d)", marginTop: "0.15rem" }}>
-                    Last appt: {new Date(cat.last_appointment_date).toLocaleDateString()}
-                  </div>
-                )}
               </div>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                 {/* Data source badge for person context */}
@@ -307,7 +289,67 @@ export function LinkedCatsSection({
                   </span>
                 )}
               </div>
-            </a>
+              </div>
+
+              {/* Expanded metadata panel */}
+              {expandedCatId === cat.cat_id && (
+                <div
+                  style={{
+                    marginTop: "0.5rem",
+                    padding: "0.5rem 0.75rem",
+                    background: "var(--section-bg, #f8f9fa)",
+                    borderRadius: "4px",
+                    fontSize: "0.8rem",
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "0.25rem 1rem",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {cat.microchip && (
+                    <div><span style={{ color: "var(--muted)", fontWeight: 500 }}>Microchip:</span> {cat.microchip}</div>
+                  )}
+                  {cat.altered_status && (
+                    <div><span style={{ color: "var(--muted)", fontWeight: 500 }}>Altered:</span> {cat.altered_status}</div>
+                  )}
+                  {cat.presence_status && (
+                    <div>
+                      <span style={{ color: "var(--muted)", fontWeight: 500 }}>Presence:</span>{" "}
+                      <CatPresenceBadge
+                        status={cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown"}
+                        departureReason={cat.departure_reason}
+                      />
+                    </div>
+                  )}
+                  {(cat.relationship_type || cat.link_purpose) && (
+                    <div><span style={{ color: "var(--muted)", fontWeight: 500 }}>Role:</span> {formatBadgeText(cat.relationship_type || cat.link_purpose)}</div>
+                  )}
+                  {cat.data_source && (
+                    <div><span style={{ color: "var(--muted)", fontWeight: 500 }}>Source:</span> {cat.data_source}</div>
+                  )}
+                  {cat.last_appointment_date && (
+                    <div><span style={{ color: "var(--muted)", fontWeight: 500 }}>Last appt:</span> {new Date(cat.last_appointment_date).toLocaleDateString()}</div>
+                  )}
+                  {cat.adoption_date && (
+                    <div><span style={{ color: "#16a34a", fontWeight: 500 }}>Adopted:</span> {new Date(cat.adoption_date).toLocaleDateString()}</div>
+                  )}
+                  <div style={{ gridColumn: "1 / -1", marginTop: "0.25rem" }}>
+                    <a
+                      href={`/cats/${cat.cat_id}`}
+                      style={{ fontSize: "0.75rem", color: "var(--primary, #3b82f6)", textDecoration: "none" }}
+                      onClick={(e) => {
+                        if (onEntityClick && !e.metaKey && !e.ctrlKey) {
+                          e.preventDefault();
+                          onEntityClick("cat", cat.cat_id);
+                        }
+                      }}
+                    >
+                      Open full profile →
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
           {totalCount > maxVisible && (
             <button
