@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePlaceDetail } from "@/hooks/usePlaceDetail";
 import { JournalSection, ObservationsSection, PlaceLinksSection, DiseaseStatusSection, ClinicHistorySection, ClinicNotesSection, LinkedPeopleSection, LinkedCatsSection } from "@/components/sections";
-import { QuickNotes, BackButton, EditHistory, QuickActions, usePlaceQuickActionState, SubmissionsSection } from "@/components/common";
+import { BackButton, EditHistory, SubmissionsSection } from "@/components/common";
 import { AddressAutocomplete, PlaceContextEditor } from "@/components/forms";
 import { PlaceAlterationHistory, CatPresenceReconciliation } from "@/components/admin";
 import { ColonyEstimates, PopulationTrendChart, PopulationTimeline, TemporalTrendChart, PopulationEstimateCard } from "@/components/charts";
@@ -13,7 +13,7 @@ import { VerificationBadge, LastVerified, StatusBadge, PriorityBadge } from "@/c
 import { CreateColonyModal } from "@/components/modals";
 import { EntityPreviewModal } from "@/components/search";
 import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
-import { MediaGallery, HeroGallery } from "@/components/media";
+import { MediaGallery } from "@/components/media";
 import { Section } from "@/components/layouts";
 import { TabBar, TabPanel } from "@/components/ui";
 import { AssociatedPeopleCard } from "@/components/verification";
@@ -36,7 +36,7 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
   const preview = useEntityPreviewModal();
   const navContext = useNavigationContext(data.place?.display_name);
 
-  const [activeTab, setActiveTab] = useState("details");
+  const [activeTab, setActiveTab] = useState("overview");
 
   // Edit modes
   const [editingDetails, setEditingDetails] = useState(false);
@@ -120,15 +120,6 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
     }
   };
 
-  const handleSetHero = async (mediaId: string) => {
-    try {
-      await postApi(`/api/media/${mediaId}/hero`, {}, { method: "PATCH" });
-      await data.fetchHeroMedia();
-    } catch (err) {
-      console.error("Failed to set hero:", err);
-    }
-  };
-
   // Loading / Error states
   if (data.loading) return <div className="loading">Loading place details...</div>;
   if (data.error) {
@@ -152,221 +143,165 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
 
   /* Place detail — single column layout */
 
+  const placeTabDefs = [
+    { id: "overview", label: "Overview" },
+    { id: "connections", label: "Connections", count: (place.cats?.length || 0) + (peopleForSection.length) || undefined },
+    { id: "clinic", label: "Clinic Records" },
+    { id: "requests", label: "Requests", count: data.requests.length || undefined },
+    { id: "ecology", label: "Ecology" },
+    { id: "media", label: "Media" },
+  ];
+
   const mainContent = (
     <div>
-      <QuickNotes entityType="place" entityId={place.place_id} entries={data.journal} onNoteAdded={data.fetchJournal} />
-      <ClinicNotesSection placeId={place.place_id} />
+      {/* Tab Bar */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <TabBar tabs={placeTabDefs} activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
 
-      {/* Partner Org Profile */}
-      {place.partner_org && (
-        <div className="card" style={{ padding: "1.25rem", marginBottom: "1.5rem", borderLeft: "4px solid #0dcaf0" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-            <div>
-              <div style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", marginBottom: "0.25rem" }}>Partner Organization</div>
-              <h3 style={{ margin: 0, fontSize: "1.1rem" }}>{place.partner_org.org_name}</h3>
-              {place.partner_org.org_name_short && place.partner_org.org_name_short !== place.partner_org.org_name && (
-                <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>{place.partner_org.org_name_short}</div>
+      {/* ── Overview Tab ── */}
+      <TabPanel tabId="overview" activeTab={activeTab}>
+        {/* Record Info + Location side by side */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+          <Section title="Record Info">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>Address</div>
+                <div style={{ fontWeight: 500 }}>{place.formatted_address || "Not set"}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>City</div>
+                <div style={{ fontWeight: 500 }}>{place.locality || "Unknown"}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>ZIP</div>
+                <div style={{ fontWeight: 500 }}>{place.postal_code || "\u2014"}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>Geocoded</div>
+                <div style={{ fontWeight: 500 }}>{place.is_address_backed ? "Yes" : "Approximate"}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>Created</div>
+                <div style={{ fontWeight: 500 }}>{formatDateLocal(place.created_at)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>Updated</div>
+                <div style={{ fontWeight: 500 }}>{formatDateLocal(place.updated_at)}</div>
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Context">
+            <PlaceContextEditor placeId={place.place_id} address={place.formatted_address || undefined} onContextChange={() => data.fetchPlace()} />
+            <div style={{ marginTop: "0.75rem" }}>
+              <PlaceLinksSection placeId={place.place_id} placeName={place.display_name || place.formatted_address || "This place"} />
+            </div>
+          </Section>
+        </div>
+
+        {/* Partner Org (if applicable) */}
+        {place.partner_org && (
+          <Section title="Partner Organization">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem" }}>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Organization</div>
+                <div style={{ fontWeight: 600 }}>{place.partner_org.org_name}</div>
+              </div>
+              {place.partner_org.appointments_count != null && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Appointments</div>
+                  <div style={{ fontWeight: 600 }}>{place.partner_org.appointments_count.toLocaleString()}</div>
+                </div>
+              )}
+              {place.partner_org.cats_processed != null && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Cats Processed</div>
+                  <div style={{ fontWeight: 600 }}>{place.partner_org.cats_processed.toLocaleString()}</div>
+                </div>
+              )}
+              {place.partner_org.contact_name && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Contact</div>
+                  <div style={{ fontWeight: 500 }}>{place.partner_org.contact_name}</div>
+                </div>
               )}
             </div>
-            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-              {place.partner_org.org_type && <span className="badge" style={{ fontSize: "0.7em", background: "var(--bg-secondary)" }}>{formatPlaceKind(place.partner_org.org_type)}</span>}
-            </div>
-          </div>
-          {(place.partner_org.appointments_count || place.partner_org.cats_processed) && (
-            <div style={{ display: "flex", gap: "1.5rem", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
-              {place.partner_org.appointments_count != null && <div><span style={{ fontWeight: 600 }}>{place.partner_org.appointments_count.toLocaleString()}</span><span style={{ color: "var(--muted)", marginLeft: "0.25rem" }}>appointments</span></div>}
-              {place.partner_org.cats_processed != null && <div><span style={{ fontWeight: 600 }}>{place.partner_org.cats_processed.toLocaleString()}</span><span style={{ color: "var(--muted)", marginLeft: "0.25rem" }}>cats processed</span></div>}
-            </div>
-          )}
-          {(place.partner_org.first_appointment_date || place.partner_org.last_appointment_date) && (
-            <div style={{ display: "flex", gap: "1.5rem", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
-              {place.partner_org.first_appointment_date && <div><span style={{ color: "var(--muted)" }}>First:</span> {formatDateLocal(place.partner_org.first_appointment_date)}</div>}
-              {place.partner_org.last_appointment_date && <div><span style={{ color: "var(--muted)" }}>Last:</span> {formatDateLocal(place.partner_org.last_appointment_date)}</div>}
-            </div>
-          )}
-          {(place.partner_org.contact_name || place.partner_org.contact_email || place.partner_org.contact_phone) && (
-            <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.85rem", flexWrap: "wrap" }}>
-              {place.partner_org.contact_name && <div><span style={{ color: "var(--muted)" }}>Contact:</span> {place.partner_org.contact_name}</div>}
-              {place.partner_org.contact_email && <a href={`mailto:${place.partner_org.contact_email}`} style={{ color: "var(--primary)" }}>{place.partner_org.contact_email}</a>}
-              {place.partner_org.contact_phone && <a href={`tel:${place.partner_org.contact_phone}`} style={{ color: "var(--primary)" }}>{formatPhone(place.partner_org.contact_phone)}</a>}
-            </div>
-          )}
-          <div style={{ marginTop: "0.75rem", borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
-            <a href={`/admin/partner-orgs/${place.partner_org.org_id}`} style={{ fontSize: "0.8rem", color: "var(--primary)" }}>View full organization profile</a>
-          </div>
-        </div>
-      )}
+          </Section>
+        )}
 
-      {data.heroMedia.length > 0 && (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <HeroGallery media={data.heroMedia} onSetHero={handleSetHero} onViewAll={() => setActiveTab("media")} />
-        </div>
-      )}
+        {/* Journal */}
+        <Section title="Journal">
+          <JournalSection entries={data.journal} entityType="place" entityId={id} onEntryAdded={data.fetchJournal} />
+        </Section>
+      </TabPanel>
 
-      <LinkedCatsSection
-        cats={place.cats?.map(cat => ({ cat_id: cat.cat_id, cat_name: cat.cat_name, relationship_type: cat.relationship_type }))}
-        context="place" compact
-        onEntityClick={(entityType, entityId) => preview.open(entityType as "cat", entityId)}
-      />
-      <LinkedPeopleSection people={peopleForSection} context="place" title="People" emptyMessage="No people linked to this place."
-        onEntityClick={(t, entityId) => preview.open(t as "person", entityId)} compact />
-      <Section title="People Verification" collapsible defaultCollapsed className="mb-4">
-        <AssociatedPeopleCard placeId={place.place_id} placeName={place.display_name || place.formatted_address || undefined} />
-      </Section>
-      <ClinicHistorySection placeId={place.place_id} onCatPreview={(catId) => preview.open("cat", catId)} />
-      <div style={{ marginBottom: "1.5rem" }}>
-        <PlaceContextEditor placeId={place.place_id} address={place.formatted_address || undefined} onContextChange={() => data.fetchPlace()} />
-      </div>
-      <Section title="Linked Places" collapsible defaultCollapsed>
-        <PlaceLinksSection placeId={place.place_id} placeName={place.display_name || place.formatted_address || "This place"} />
-      </Section>
-
-      {/* Tabs */}
-      <div style={{ marginTop: "2rem" }}>
-        <TabBar
-          tabs={[
-            { id: "details", label: "Details", icon: "\uD83D\uDCCB" },
-            { id: "requests", label: "Requests", icon: "\uD83D\uDCE8", count: data.requests.length },
-            { id: "ecology", label: "Ecology", icon: "\uD83C\uDF3F" },
-            { id: "media", label: "Media", icon: "\uD83D\uDCF7" },
-          ]}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
+      {/* ── Connections Tab ── */}
+      <TabPanel tabId="connections" activeTab={activeTab}>
+        <LinkedCatsSection
+          cats={place.cats?.map(cat => ({ cat_id: cat.cat_id, cat_name: cat.cat_name, relationship_type: cat.relationship_type }))}
+          context="place" compact
+          onEntityClick={(entityType, entityId) => preview.open(entityType as "cat", entityId)}
         />
+        <LinkedPeopleSection people={peopleForSection} context="place" title="People" emptyMessage="No people linked to this place."
+          onEntityClick={(t, entityId) => preview.open(t as "person", entityId)} compact />
+        <Section title="People Verification" collapsible defaultCollapsed>
+          <AssociatedPeopleCard placeId={place.place_id} placeName={place.display_name || place.formatted_address || undefined} />
+        </Section>
+      </TabPanel>
 
-        <TabPanel tabId="details" activeTab={activeTab}>
-          <Section title="Location Details">
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
-              {!editingDetails && <button onClick={startEditing} style={{ padding: "0.25rem 0.75rem", fontSize: "0.875rem" }}>Edit</button>}
+      {/* ── Clinic Records Tab ── */}
+      <TabPanel tabId="clinic" activeTab={activeTab}>
+        <ClinicNotesSection placeId={place.place_id} />
+        <ClinicHistorySection placeId={place.place_id} onCatPreview={(catId) => preview.open("cat", catId)} />
+      </TabPanel>
+
+      {/* ── Requests Tab ── */}
+      <TabPanel tabId="requests" activeTab={activeTab}>
+        {place.cats && place.cats.length > 0 && <CatPresenceReconciliation placeId={place.place_id} onUpdate={() => data.fetchPlace()} />}
+        <Section title="Related Requests">
+          {data.requests.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {data.requests.map(req => (
+                <a key={req.request_id} href={`/requests/${req.request_id}`} onClick={preview.handleClick("request", req.request_id)}
+                  style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", background: "var(--card-bg, #f8f9fa)", borderRadius: "8px", textDecoration: "none", color: "inherit", border: "1px solid var(--border, #dee2e6)" }}>
+                  <StatusBadge status={req.status} />
+                  <PriorityBadge priority={req.priority} />
+                  <span style={{ flex: 1, fontWeight: 500 }}>{req.summary || "No summary"}</span>
+                  <span className="text-muted text-sm">{formatDateLocal(req.created_at)}</span>
+                </a>
+              ))}
             </div>
-            {editingDetails ? (
-              <div>
-                {place.is_address_backed && (
-                  <div style={{ padding: "0.75rem 1rem", background: "#fff3cd", border: "1px solid #ffc107", borderRadius: "6px", marginBottom: "1rem", color: "#856404" }}>
-                    <strong>Note:</strong> This place has a verified Google address. You can change the display name and type, but the underlying address data will remain linked.
-                  </div>
-                )}
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Display Name / Label</label>
-                    <input type="text" value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} placeholder="e.g., Old Stony Point, Mrs. Johnson's House" style={{ width: "100%", maxWidth: "400px" }} />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Place Type</label>
-                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                      <select value={editPlaceKind} onChange={(e) => setEditPlaceKind(e.target.value)} style={{ minWidth: "200px" }}>
-                        {PLACE_KINDS.map(kind => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
-                      </select>
-                      <button type="button" onClick={async () => {
-                        try {
-                          const suggestData = await fetchApi<{ suggested_kind: string | null; confidence: number; reason: string }>(`/api/places/${place.place_id}/suggest-type`);
-                          if (suggestData.suggested_kind) {
-                            setSuggestedKind(suggestData.suggested_kind);
-                            setSuggestMessage(`Suggestion: ${formatPlaceKind(suggestData.suggested_kind)} (${Math.round(suggestData.confidence * 100)}% confidence)\n\nReason: ${suggestData.reason}`);
-                            setShowSuggestConfirm(true);
-                          } else { addToast({ type: "warning", message: "No suggestion available." }); }
-                        } catch { addToast({ type: "error", message: "Failed to get suggestion" }); }
-                      }} style={{ padding: "0.25rem 0.75rem", fontSize: "0.8rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "4px", cursor: "pointer" }}>
-                        Suggest Type
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500 }}>Address</label>
-                    <p style={{ margin: 0 }}>{place.formatted_address || "No address set"}</p>
-                    {!editingAddress ? (
-                      <button onClick={startAddressCorrection} style={{ marginTop: "0.5rem", padding: "0.25rem 0.5rem", fontSize: "0.8rem", background: "transparent", border: "1px solid var(--border)" }}>Correct Address</button>
-                    ) : (
-                      <div style={{ marginTop: "0.75rem", padding: "1rem", background: "#fff8f5", border: "1px solid #e65100", borderRadius: "8px" }}>
-                        <p style={{ marginTop: 0, marginBottom: "0.75rem", fontWeight: 500, color: "#e65100" }}>Address Correction</p>
-                        <div style={{ marginBottom: "0.75rem" }}>
-                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Reason for correction *</label>
-                          <select value={changeReason} onChange={(e) => setChangeReason(e.target.value)} style={{ width: "100%" }}>
-                            <option value="">Select a reason...</option>
-                            <option value="location_clarified">Location clarified</option>
-                            <option value="data_entry_error">Data entry error</option>
-                            <option value="refinement">Address refinement</option>
-                            <option value="correction">General correction</option>
-                          </select>
-                        </div>
-                        <div style={{ marginBottom: "0.75rem" }}>
-                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>New Address</label>
-                          <AddressAutocomplete value={addressInput} onChange={setAddressInput} onPlaceSelect={handleAddressSelect} placeholder="Search for the correct address..." disabled={saving} />
-                        </div>
-                        <div style={{ marginBottom: "0.75rem" }}>
-                          <label style={{ display: "block", marginBottom: "0.25rem", fontWeight: 500, fontSize: "0.875rem" }}>Notes (optional)</label>
-                          <textarea value={changeNotes} onChange={(e) => setChangeNotes(e.target.value)} placeholder="Explain what you learned..." rows={2} style={{ width: "100%", resize: "vertical" }} />
-                        </div>
-                        <button onClick={() => setEditingAddress(false)} disabled={saving} style={{ background: "transparent", border: "1px solid var(--border)" }}>Cancel</button>
-                      </div>
-                    )}
-                  </div>
-                  {saveError && <div style={{ color: "#dc3545" }}>{saveError}</div>}
-                  <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-                    <button onClick={handleSaveDetails} disabled={saving}>{saving ? "Saving..." : "Save Changes"}</button>
-                    <button onClick={() => { setEditingDetails(false); setSaveError(null); }} disabled={saving} style={{ background: "transparent", border: "1px solid var(--border)" }}>Cancel</button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="detail-grid">
-                <div className="detail-item"><span className="detail-label">Address</span><span className="detail-value">{place.formatted_address || "Not set"}</span></div>
-                <div className="detail-item"><span className="detail-label">City</span><span className="detail-value">{place.locality || "Unknown"}</span></div>
-                <div className="detail-item"><span className="detail-label">Postal Code</span><span className="detail-value">{place.postal_code || "Unknown"}</span></div>
-                <div className="detail-item"><span className="detail-label">State</span><span className="detail-value">{place.state_province || "Unknown"}</span></div>
-              </div>
-            )}
-          </Section>
-          <Section title="Journal">
-            <JournalSection entries={data.journal} entityType="place" entityId={id} onEntryAdded={data.fetchJournal} />
-          </Section>
-        </TabPanel>
+          ) : (
+            <div>
+              <p className="text-muted">No requests for this place yet.</p>
+              <a href={`/requests/new?place_id=${place.place_id}`} style={{ display: "inline-block", marginTop: "0.5rem", padding: "0.5rem 1rem", background: "var(--foreground)", color: "var(--background)", borderRadius: "6px", textDecoration: "none" }}>+ Create Request</a>
+            </div>
+          )}
+        </Section>
+        <Section title="Website Submissions" collapsible defaultCollapsed>
+          <SubmissionsSection entityType="place" entityId={id} />
+        </Section>
+      </TabPanel>
 
-        <TabPanel tabId="requests" activeTab={activeTab}>
-          {place.cats && place.cats.length > 0 && <CatPresenceReconciliation placeId={place.place_id} onUpdate={() => data.fetchPlace()} />}
-          <Section title="Related Requests">
-            {data.requests.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                {data.requests.map(req => (
-                  <a key={req.request_id} href={`/requests/${req.request_id}`} onClick={preview.handleClick("request", req.request_id)}
-                    style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", background: "var(--card-bg, #f8f9fa)", borderRadius: "8px", textDecoration: "none", color: "inherit", border: "1px solid var(--border, #dee2e6)" }}>
-                    <StatusBadge status={req.status} />
-                    <PriorityBadge priority={req.priority} />
-                    <span style={{ flex: 1, fontWeight: 500 }}>{req.summary || "No summary"}</span>
-                    <span className="text-muted text-sm">{formatDateLocal(req.created_at)}</span>
-                  </a>
-                ))}
-                {data.requests.length >= 10 && <a href={`/requests?place_id=${place.place_id}`} className="text-sm" style={{ marginTop: "0.5rem" }}>View all requests...</a>}
-              </div>
-            ) : (
-              <div>
-                <p className="text-muted">No requests for this place yet.</p>
-                <a href={`/requests/new?place_id=${place.place_id}`} style={{ display: "inline-block", marginTop: "0.5rem", padding: "0.5rem 1rem", background: "var(--foreground)", color: "var(--background)", borderRadius: "6px", textDecoration: "none" }}>+ Create Request</a>
-              </div>
-            )}
-          </Section>
-          <Section title="Website Submissions" collapsible defaultCollapsed>
-            <SubmissionsSection entityType="place" entityId={id} />
-          </Section>
-        </TabPanel>
+      {/* ── Ecology Tab ── */}
+      <TabPanel tabId="ecology" activeTab={activeTab}>
+        <Section title="Monthly TNR Trends"><TemporalTrendChart placeId={id} months={24} /></Section>
+        <Section title="Population Estimate"><PopulationEstimateCard placeId={id} /></Section>
+        <Section title="TNR Readiness"><PlaceReadinessCard placeId={id} /></Section>
+        <Section title="Lifecycle Events"><PopulationTimeline placeId={id} /></Section>
+        <Section title="Site Observations"><ObservationsSection placeId={id} placeName={place.display_name || place.formatted_address || "This location"} /></Section>
+        <HistoricalContextCard placeId={id} className="mt-4" />
+        <Section title="FFR Activity" collapsible defaultCollapsed><PlaceAlterationHistory placeId={id} /></Section>
+        <Section title="Activity Trend" collapsible defaultCollapsed><PopulationTrendChart placeId={id} /></Section>
+      </TabPanel>
 
-        <TabPanel tabId="ecology" activeTab={activeTab}>
-          <Section title="Monthly TNR Trends"><TemporalTrendChart placeId={id} months={24} /></Section>
-          <Section title="Population Estimate"><PopulationEstimateCard placeId={id} /></Section>
-          <Section title="TNR Readiness"><PlaceReadinessCard placeId={id} /></Section>
-          <Section title="Lifecycle Events"><PopulationTimeline placeId={id} /></Section>
-          <Section title="Site Observations"><ObservationsSection placeId={id} placeName={place.display_name || place.formatted_address || "This location"} /></Section>
-          <HistoricalContextCard placeId={id} className="mt-4" />
-          <Section title="FFR Activity" collapsible defaultCollapsed><PlaceAlterationHistory placeId={id} /></Section>
-          <Section title="Activity Trend" collapsible defaultCollapsed><PopulationTrendChart placeId={id} /></Section>
-        </TabPanel>
-
-        <TabPanel tabId="media" activeTab={activeTab}>
-          <Section title="Photos">
-            <MediaGallery entityType="place" entityId={place.place_id} allowUpload={true} includeRelated={true} defaultMediaType="site_photo" allowedMediaTypes={["site_photo", "evidence"]} />
-          </Section>
-        </TabPanel>
-      </div>
+      {/* ── Media Tab ── */}
+      <TabPanel tabId="media" activeTab={activeTab}>
+        <Section title="Photos">
+          <MediaGallery entityType="place" entityId={place.place_id} allowUpload={true} includeRelated={true} defaultMediaType="site_photo" allowedMediaTypes={["site_photo", "evidence"]} />
+        </Section>
+      </TabPanel>
     </div>
   );
 
