@@ -23,7 +23,7 @@ import { RequestPreviewContent } from "@/components/preview/RequestPreviewConten
 import { Icon } from "@/components/ui/Icon";
 import { TnrProgressBar } from "@/components/ui/TnrProgressBar";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
-import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider, ActiveFilterTags } from "@/components/filters";
+import { FilterBar, FilterChip, SearchInput, FilterDivider, ActiveFilterTags } from "@/components/filters";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -1152,40 +1152,32 @@ function RequestsPageContent() {
           size="sm"
         />
         <FilterDivider />
-        <ToggleButtonGroup
+        <FilterChip
+          label="Trapper"
           options={[
             { value: "pending", label: "Needs Trapper" },
             { value: "mine", label: "My Assigned" },
           ]}
           value={filters.trapper}
           onChange={(v) => setFilter("trapper", v)}
-          allowDeselect
-          size="sm"
-          aria-label="Trapper filter"
         />
-        <ToggleButtonGroup
+        <FilterChip
+          label="Priority"
           options={[{ value: "urgent", label: "Urgent" }]}
           value={filters.priority}
           onChange={(v) => setFilter("priority", v)}
-          allowDeselect
-          size="sm"
-          aria-label="Priority filter"
         />
-        <ToggleButtonGroup
+        <FilterChip
+          label="Kittens"
           options={[{ value: "true", label: "Has Kittens" }]}
           value={filters.kittens}
           onChange={(v) => setFilter("kittens", v)}
-          allowDeselect
-          size="sm"
-          aria-label="Kittens filter"
         />
-        <ToggleButtonGroup
-          options={[{ value: "true", label: "Archived" }]}
+        <FilterChip
+          label="Archived"
+          options={[{ value: "true", label: "Show Archived" }]}
           value={filters.showArchived}
           onChange={(v) => setFilter("showArchived", v)}
-          allowDeselect
-          size="sm"
-          aria-label="Archive filter"
         />
         <FilterDivider />
         {/* Sort Dropdown */}

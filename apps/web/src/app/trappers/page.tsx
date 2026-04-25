@@ -12,7 +12,7 @@ import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { TrapperPreviewContent } from "@/components/preview/TrapperPreviewContent";
 import { EditTrapperDrawer } from "@/components/trappers/EditTrapperDrawer";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
-import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider } from "@/components/filters";
+import { FilterBar, FilterChip, SearchInput, FilterDivider } from "@/components/filters";
 import { Pagination } from "@/components/ui/Pagination";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/feedback/EmptyState";
@@ -864,54 +864,41 @@ function TrappersPageInner() {
           size="sm"
         />
         <FilterDivider />
-        {/* Tier Chips */}
-        <ToggleButtonGroup
+        <FilterChip
+          label="Tier"
           options={[
-            { value: "all", label: "All" },
-            { value: "1", label: "FFSC Official", color: "#198754" },
-            { value: "2", label: "Community", color: "#fd7e14" },
-            { value: "3", label: "Legacy", color: "#6c757d" },
+            { value: "1", label: "FFSC Official" },
+            { value: "2", label: "Community" },
+            { value: "3", label: "Legacy" },
           ]}
-          value={filters.tier}
+          value={filters.tier === "all" ? "" : filters.tier}
           onChange={(v) => setFilters({ tier: v || "all", page: "0" })}
-          allowDeselect
-          defaultValue="all"
-          size="sm"
-          aria-label="Filter by tier"
         />
-        <FilterDivider />
-        {/* Availability Chips */}
-        <ToggleButtonGroup
+        <FilterChip
+          label="Availability"
           options={[
-            { value: "all", label: "All Status" },
             { value: "available", label: "Available" },
             { value: "busy", label: "Busy" },
             { value: "on_leave", label: "On Leave" },
           ]}
-          value={filters.availability}
+          value={filters.availability === "all" ? "" : filters.availability}
           onChange={(v) => setFilters({ availability: v || "all", page: "0" })}
-          allowDeselect
-          defaultValue="all"
-          size="sm"
-          aria-label="Filter by availability"
         />
-        <FilterDivider />
-        {/* Toggle Chips */}
-        <ToggleButtonGroup
-          options={[{ value: "true", label: "Active only" }]}
-          value={filters.active}
+        <FilterChip
+          label="Status"
+          options={[
+            { value: "true", label: "Active only" },
+          ]}
+          value={filters.active === "false" ? "" : filters.active}
           onChange={(v) => setFilters({ active: v || "false", page: "0" })}
-          allowDeselect
-          defaultValue="false"
-          size="sm"
         />
-        <ToggleButtonGroup
-          options={[{ value: "true", label: "Dormant" }]}
-          value={filters.dormant}
+        <FilterChip
+          label="Dormant"
+          options={[
+            { value: "true", label: "Dormant (90+ days)" },
+          ]}
+          value={filters.dormant === "false" ? "" : filters.dormant}
           onChange={(v) => setFilters({ dormant: v || "false", page: "0" })}
-          allowDeselect
-          defaultValue="false"
-          size="sm"
         />
         <FilterDivider />
         {/* Sort */}

@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { fetchApi } from "@/lib/api-client";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
 import { formatPhone } from "@/lib/formatters";
-import { FilterBar, FilterDivider, SearchInput, ToggleButtonGroup } from "@/components/filters";
+import { FilterBar, FilterChip, FilterDivider, SearchInput } from "@/components/filters";
 import { StatCard } from "@/components/ui/StatCard";
 import { DataTable, DataTablePagination, useDataTable } from "@/components/data-table";
 import { SkeletonTable, SkeletonList } from "@/components/feedback/Skeleton";
@@ -280,29 +280,24 @@ function FosterRosterContent() {
           placeholder="Search by name or email..."
         />
         <FilterDivider />
-        <ToggleButtonGroup
+        <FilterChip
+          label="Status"
           options={[
-            { value: "", label: "All" },
             { value: "active", label: "Active" },
             { value: "inactive", label: "Inactive" },
           ]}
           value={filters.status}
           onChange={(v) => setFilters({ status: v, page: "0" })}
-          allowDeselect
-          defaultValue=""
-          size="sm"
-          aria-label="Filter by status"
         />
         <FilterDivider />
-        <ToggleButtonGroup
+        <FilterChip
+          label="View"
           options={[
             { value: "table", label: "Table" },
             { value: "cards", label: "Cards" },
           ]}
           value={filters.view}
-          onChange={(v) => setFilter("view", v)}
-          size="sm"
-          aria-label="View mode"
+          onChange={(v) => setFilter("view", v || "table")}
         />
         <FilterDivider />
         <select

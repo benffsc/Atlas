@@ -12,7 +12,7 @@ import EntityPreview from "@/components/search/EntityPreview";
 import { CreatePersonModal } from "@/components/modals";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
 import { PersonPreviewContent } from "@/components/preview/PersonPreviewContent";
-import { FilterBar, SearchInput, ToggleButtonGroup, FilterDivider, ActiveFilterTags } from "@/components/filters";
+import { FilterChip, SearchInput } from "@/components/filters";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
@@ -226,31 +226,22 @@ function PeoplePageContent() {
         }}
       />
 
-      <FilterBar showClear={!isDefault} onClear={clearFilters}>
+      <div style={{ marginBottom: "0.75rem" }}>
         <SearchInput
           value={searchInput}
           onChange={setSearchInput}
           onDebouncedChange={(v) => setFilters({ q: v, page: "0" })}
           placeholder="Search by name..."
         />
-        <FilterDivider />
-        <ToggleButtonGroup
-          options={DEEP_SEARCH_OPTIONS}
+      </div>
+      <div className="filter-chips-row">
+        <FilterChip
+          label="Search Mode"
+          options={[{ value: "true", label: "Deep Search" }]}
           value={filters.deep}
           onChange={(v) => setFilters({ deep: v, page: "0" })}
-          aria-label="Search depth"
         />
-      </FilterBar>
-
-      <ActiveFilterTags
-        filters={filters}
-        defaults={FILTER_DEFAULTS}
-        labels={{ deep: "Search Mode" }}
-        valueLabels={{ deep: { true: "Deep Search" } }}
-        exclude={["q", "page", "pageSize", "sortDir", "selected"]}
-        onRemove={(key) => setFilter(key as keyof typeof FILTER_DEFAULTS, FILTER_DEFAULTS[key as keyof typeof FILTER_DEFAULTS])}
-        onClearAll={clearFilters}
-      />
+      </div>
 
       {error && <div className="empty" style={{ color: "red" }}>{error}</div>}
 
