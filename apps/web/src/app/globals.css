@@ -1276,11 +1276,11 @@ body.presentation-mode [data-admin-section="true"] {
 
 .story-impact-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 2rem;
   margin: 1.5rem 0;
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
 }
 
 .story-impact-stat {
