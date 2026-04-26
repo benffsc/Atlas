@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, FormEvent } from "react";
+import { usePathname } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { TippyFeedbackModal } from "@/components/modals";
 import { Icon } from "@/components/ui/Icon";
@@ -251,6 +252,10 @@ interface MapContext {
 }
 
 export function TippyChat() {
+  const pathname = usePathname();
+  const hiddenRoutes = ["/welcome", "/login", "/kiosk"];
+  const isHidden = hiddenRoutes.some((r) => pathname === r || pathname?.startsWith(r + "/"));
+
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -524,6 +529,8 @@ export function TippyChat() {
     setView("chat");
     setHasBriefed(false);
   }, []);
+
+  if (isHidden) return null;
 
   if (!isOpen) {
     return (

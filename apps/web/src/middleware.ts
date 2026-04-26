@@ -92,7 +92,6 @@ export async function middleware(request: NextRequest) {
 
     // Non-API routes redirect to login
     const welcomeUrl = new URL("/welcome", request.url);
-    welcomeUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(welcomeUrl);
   }
 

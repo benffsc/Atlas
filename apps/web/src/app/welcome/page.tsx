@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { fetchApi } from "@/lib/api-client";
 
 interface StoryData {
@@ -29,22 +28,6 @@ function formatCurrency(n: number): string {
 }
 
 export default function WelcomePage() {
-  return (
-    <Suspense fallback={
-      <div className="story-loading">
-        <img src="/beacon-logo.jpeg" alt="Beacon" style={{ width: 160, opacity: 0.7 }} />
-        <div className="story-loading-text">Loading&hellip;</div>
-      </div>
-    }>
-      <WelcomeContent />
-    </Suspense>
-  );
-}
-
-function WelcomeContent() {
-  const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/";
-  const loginHref = `/login?redirect=${encodeURIComponent(redirect)}`;
 
   const [data, setData] = useState<StoryData | null>(null);
   const [error, setError] = useState(false);
@@ -82,7 +65,7 @@ function WelcomeContent() {
     return (
       <div className="story-error">
         <p>Unable to load. Try refreshing.</p>
-        <a href={loginHref} className="story-cta">Sign In</a>
+        <a href="/login" className="story-cta">Sign In</a>
       </div>
     );
   }
@@ -101,7 +84,7 @@ function WelcomeContent() {
       {/* Top nav */}
       <nav className="welcome-nav">
         <img src="/beacon-logo.jpeg" alt="Beacon" className="welcome-nav-logo" />
-        <a href={loginHref} className="welcome-nav-signin">Sign In</a>
+        <a href="/login" className="welcome-nav-signin">Sign In</a>
       </nav>
 
       {/* Slideshow */}
@@ -166,7 +149,7 @@ function WelcomeContent() {
 
             <p className="story-body">{data.slides[2]?.body}</p>
 
-            <a href={loginHref} className="story-cta">
+            <a href="/login" className="story-cta">
               Get Started
               <span aria-hidden="true" style={{ marginLeft: "0.5rem" }}>→</span>
             </a>
