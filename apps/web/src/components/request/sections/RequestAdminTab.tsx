@@ -18,7 +18,7 @@ export function RequestAdminTab({ request, mapUrl, onUpgradeLegacy, onCreateColo
       {/* Colony Stats */}
       <div style={{ padding: "1rem", background: "var(--section-bg)", borderRadius: "8px" }}>
         <h4 style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem", fontWeight: 700, color: COLORS.successDark }}>Colony Summary</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.75rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: "0.75rem" }}>
           <div style={{ textAlign: "center", padding: "0.5rem", background: "var(--muted-bg)", borderRadius: "6px" }}>
             <div style={{ fontSize: "1.5rem", fontWeight: 700, color: COLORS.successDark }}>{request.colony_size_estimate ?? "?"}</div>
             <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase" }}>Estimated</div>

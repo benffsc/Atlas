@@ -326,9 +326,9 @@ export function PersonDetailShell({
     <>
       <div style={{ maxWidth: 1100 }}>
         {/* Breadcrumbs + Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
           <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: initialRole === "trapper" ? "Trappers" : "People", href: initialRole === "trapper" ? "/trappers" : "/people" }, { label: person.display_name }]} />
-          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, flexWrap: "wrap" }}>
             {actionButtons}
           </div>
         </div>

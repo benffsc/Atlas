@@ -125,7 +125,7 @@ export function CatDetailShell({ id }: CatDetailShellProps) {
     <>
       <div style={{ maxWidth: 1100 }}>
         {/* Breadcrumbs + Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
           <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Cats", href: "/cats" }, { label: cat.display_name }]} />
           {!editingBasic && (
             <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
@@ -138,9 +138,9 @@ export function CatDetailShell({ id }: CatDetailShellProps) {
 
         {/* ── Hero Card ── */}
         <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+          <div className="hero-card-layout" style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
             {/* Photo */}
-            <div style={{ width: 160, flexShrink: 0 }}>
+            <div className="hero-card-photo" style={{ width: 160, flexShrink: 0 }}>
               <MediaGallery
                 entityType="cat"
                 entityId={cat.cat_id}

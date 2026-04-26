@@ -195,11 +195,11 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
   ];
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "1rem" }}>
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0.75rem" }}>
       {/* Breadcrumbs + top actions */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
         <Breadcrumbs items={breadcrumbs} />
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
           <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
           {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
           <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
@@ -270,7 +270,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
         </div>
 
         {/* Attribute grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", padding: "0.75rem 0", borderTop: "1px solid var(--border)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem", padding: "0.75rem 0", borderTop: "1px solid var(--border)" }}>
           {heroAttributes.map((attr) => (
             <div key={attr.label}>
               <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>{attr.label}</div>

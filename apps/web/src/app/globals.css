@@ -3302,6 +3302,10 @@ body.presentation-mode [data-admin-section="true"] {
    RESPONSIVE / MOBILE STYLES
    ======================================================================== */
 
+/* Tab bar scroll — hide scrollbar */
+.tab-bar-scroll::-webkit-scrollbar { display: none; }
+.tab-bar-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* Tablet and below */
 @media (max-width: 768px) {
   /* Nav: make room for hamburger on left */
@@ -3323,6 +3327,12 @@ body.presentation-mode [data-admin-section="true"] {
   /* Stats grids collapse to 2 columns */
   .stats-grid {
     grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Hero card photo stacks on top */
+  .hero-card-photo {
+    width: 100% !important;
+    max-width: 200px;
   }
 
   /* Stack dashboard grids to single column */

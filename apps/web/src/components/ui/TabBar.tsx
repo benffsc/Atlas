@@ -42,11 +42,15 @@ export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProp
   return (
     <div
       role="tablist"
+      className="tab-bar-scroll"
       style={{
         display: "flex",
         gap: "0.25rem",
         borderBottom: "2px solid var(--border-default)",
         marginBottom: "1rem",
+        overflowX: "auto",
+        overflowY: "hidden",
+        WebkitOverflowScrolling: "touch",
       }}
     >
       {tabs.map((tab) => {
@@ -72,6 +76,8 @@ export function TabBar({ tabs, activeTab, onTabChange, size = "md" }: TabBarProp
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
               transition: "all 0.15s ease",
             }}
           >

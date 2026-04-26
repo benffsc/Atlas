@@ -162,9 +162,9 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
       {/* ── Overview Tab ── */}
       <TabPanel tabId="overview" activeTab={activeTab}>
         {/* Record Info + Location side by side */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
           <Section title="Record Info">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem" }}>
               <div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>Address</div>
                 <div style={{ fontWeight: 500 }}>{place.formatted_address || "Not set"}</div>
@@ -309,9 +309,9 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
     <>
       <div style={{ maxWidth: 1100 }}>
         {/* Breadcrumbs + Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
           <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Places", href: "/places" }, { label: place.display_name }]} />
-          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, flexWrap: "wrap" }}>
             <button onClick={startEditing} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 600, background: "var(--primary)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}>Edit</button>
             {place.coordinates && (
               <a href={`/map?lat=${place.coordinates.lat}&lng=${place.coordinates.lng}&zoom=17`} style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>Map</a>
