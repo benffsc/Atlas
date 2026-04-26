@@ -2,7 +2,7 @@
 
 import { useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 
 /**
  * This page redirects to the unified intake queue page with the submission
@@ -21,7 +21,7 @@ export default function SubmissionDetailPage({ params }: { params: Promise<{ id:
   // Show loading state while redirecting
   return (
     <div>
-      <BackButton fallbackHref="/intake/queue" />
+      <Breadcrumbs items={[{ label: "Intake Queue", href: "/intake/queue" }, { label: "Submission" }]} />
       <div style={{ marginTop: "2rem" }}>Redirecting to queue...</div>
     </div>
   );

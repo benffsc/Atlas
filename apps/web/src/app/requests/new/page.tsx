@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { extractPhones, formatPhone, isValidPhone } from "@/lib/formatters";
@@ -801,7 +801,7 @@ function NewRequestForm() {
 
   return (
     <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-      <BackButton fallbackHref="/requests" />
+      <Breadcrumbs items={[{ label: "Requests", href: "/requests" }, { label: "New Request" }]} />
 
       <h1 style={{ marginTop: "1rem", marginBottom: "0.5rem", fontSize: "1.5rem", fontWeight: 700, color: "var(--foreground)" }}>New Request</h1>
       <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>

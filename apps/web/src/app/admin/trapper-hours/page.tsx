@@ -5,7 +5,8 @@ import Link from "next/link";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { FilterBar, ToggleButtonGroup } from "@/components/filters";
+import { FilterBar, FilterChip } from "@/components/filters";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Pagination } from "@/components/ui/Pagination";
 import { StatCard } from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/Button";
@@ -978,13 +979,11 @@ const FILTER_DEFAULTS = {
 };
 
 const PERIOD_TYPE_OPTIONS = [
-  { value: "", label: "All" },
   { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
 ];
 
 const STATUS_FILTER_OPTIONS = [
-  { value: "", label: "All" },
   { value: "draft", label: "Draft" },
   { value: "submitted", label: "Submitted" },
   { value: "approved", label: "Approved" },
@@ -1093,6 +1092,7 @@ function TrapperHoursContent() {
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<HoursEntry | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<HoursEntry | null>(null);
 
   const limit = 20;
   const page = parseInt(filters.page) || 0;
@@ -1154,13 +1154,14 @@ function TrapperHoursContent() {
   };
 
   const handleDelete = async (entry: HoursEntry) => {
-    if (!window.confirm(`Delete this hours entry for ${entry.trapper_name}?`)) return;
     try {
       await fetchApi(`/api/admin/trapper-hours?entry_id=${entry.entry_id}`, { method: "DELETE" });
       toastSuccess("Hours entry deleted");
       fetchEntries();
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setPendingDelete(null);
     }
   };
 
@@ -1244,23 +1245,23 @@ function TrapperHoursContent() {
 
       {/* Filter bar */}
       <FilterBar showClear={!isDefault} onClear={clearFilters}>
-        <ToggleButtonGroup
+        <FilterChip
+          label="Period"
           options={PERIOD_TYPE_OPTIONS}
           value={filters.period_type}
           onChange={(val) => {
             setFilter("period_type", val);
             setFilter("page", "0");
           }}
-          aria-label="Filter by period type"
         />
-        <ToggleButtonGroup
+        <FilterChip
+          label="Status"
           options={STATUS_FILTER_OPTIONS}
           value={filters.status}
           onChange={(val) => {
             setFilter("status", val);
             setFilter("page", "0");
           }}
-          aria-label="Filter by status"
         />
       </FilterBar>
 
@@ -1339,7 +1340,7 @@ function TrapperHoursContent() {
                       onEdit={() => handleOpenEdit(entry)}
                       onSubmitForApproval={() => handleSubmitForApproval(entry)}
                       onApprove={() => handleApprove(entry)}
-                      onDelete={() => handleDelete(entry)}
+                      onDelete={() => setPendingDelete(entry)}
                     />
                   ))}
                 </tbody>
@@ -1369,6 +1370,16 @@ function TrapperHoursContent() {
         }}
         onSaved={fetchEntries}
         editEntry={editEntry}
+      />
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete hours entry?"
+        message={pendingDelete ? `Delete this hours entry for ${pendingDelete.trapper_name}? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => pendingDelete && handleDelete(pendingDelete)}
+        onCancel={() => setPendingDelete(null)}
       />
     </div>
   );

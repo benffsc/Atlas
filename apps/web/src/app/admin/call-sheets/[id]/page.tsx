@@ -10,6 +10,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
 import { EmptyState } from "@/components/feedback/EmptyState";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { formatPhone, formatDateLocal, formatRelativeTime } from "@/lib/formatters";
 import type {
   CallSheetSummary,
@@ -747,6 +748,7 @@ function CallSheetDetailContent() {
   const [updatingItem, setUpdatingItem] = useState<string | null>(null);
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [followUpItem, setFollowUpItem] = useState<CallSheetItemDetail | null>(null);
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -812,7 +814,6 @@ function CallSheetDetailContent() {
   };
 
   const handleRemoveItem = async (itemId: string) => {
-    if (!window.confirm("Remove this call from the sheet?")) return;
     try {
       await postApi(
         `/api/admin/call-sheets/${id}/items/${itemId}`,
@@ -823,6 +824,8 @@ function CallSheetDetailContent() {
       fetchDetail();
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to remove");
+    } finally {
+      setPendingRemoveId(null);
     }
   };
 
@@ -985,7 +988,7 @@ function CallSheetDetailContent() {
                 toastSuccess(`Converting ${item.contact_name} to assignment (not yet implemented)`);
               }}
               onSkip={() => handleSkipItem(item.item_id)}
-              onRemove={() => handleRemoveItem(item.item_id)}
+              onRemove={() => setPendingRemoveId(item.item_id)}
               isUpdating={updatingItem === item.item_id}
             />
           ))}
@@ -1007,6 +1010,16 @@ function CallSheetDetailContent() {
         sheetId={id}
         item={followUpItem}
         onSaved={fetchDetail}
+      />
+
+      <ConfirmDialog
+        open={!!pendingRemoveId}
+        title="Remove call?"
+        message="Remove this call from the sheet? This cannot be undone."
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={() => pendingRemoveId && handleRemoveItem(pendingRemoveId)}
+        onCancel={() => setPendingRemoveId(null)}
       />
     </div>
   );

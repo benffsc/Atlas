@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { FilterBar, SearchInput, ToggleButtonGroup } from "@/components/filters";
+import { FilterBar, SearchInput, FilterChip } from "@/components/filters";
+import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { Pagination } from "@/components/ui/Pagination";
 import { StatCard } from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/Button";
@@ -587,7 +588,6 @@ const FILTER_DEFAULTS = {
 };
 
 const STATUS_FILTER_OPTIONS = [
-  { value: "", label: "All" },
   { value: "draft", label: "Draft" },
   { value: "assigned", label: "Assigned" },
   { value: "in_progress", label: "In Progress" },
@@ -609,6 +609,7 @@ function CallSheetsContent() {
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(filters.search);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const limit = 20;
   const page = parseInt(filters.page) || 0;
@@ -654,13 +655,14 @@ function CallSheetsContent() {
   };
 
   const handleDelete = async (sheetId: string) => {
-    if (!window.confirm("Are you sure you want to delete this call sheet?")) return;
     try {
       await postApi(`/api/admin/call-sheets/${sheetId}`, {}, { method: "DELETE" });
       toastSuccess("Call sheet deleted");
       fetchSheets();
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setPendingDeleteId(null);
     }
   };
 
@@ -714,14 +716,14 @@ function CallSheetsContent() {
 
       {/* Filter bar */}
       <FilterBar showClear={!isDefault} onClear={clearFilters}>
-        <ToggleButtonGroup
+        <FilterChip
+          label="Status"
           options={STATUS_FILTER_OPTIONS}
           value={filters.status}
           onChange={(val) => {
             setFilter("status", val);
             setFilter("page", "0");
           }}
-          aria-label="Filter by status"
         />
         <SearchInput
           value={searchInput}
@@ -785,7 +787,7 @@ function CallSheetsContent() {
                   onClick={() => router.push(`/admin/call-sheets/${sheet.call_sheet_id}`)}
                   onPrint={() => router.push(`/admin/call-sheets/${sheet.call_sheet_id}/print`)}
                   onComplete={() => handleComplete(sheet.call_sheet_id)}
-                  onDelete={() => handleDelete(sheet.call_sheet_id)}
+                  onDelete={() => setPendingDeleteId(sheet.call_sheet_id)}
                 />
               ))}
             </div>
@@ -810,6 +812,16 @@ function CallSheetsContent() {
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onCreated={fetchSheets}
+      />
+
+      <ConfirmDialog
+        open={!!pendingDeleteId}
+        title="Delete call sheet?"
+        message="Are you sure you want to delete this call sheet? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => pendingDeleteId && handleDelete(pendingDeleteId)}
+        onCancel={() => setPendingDeleteId(null)}
       />
     </div>
   );

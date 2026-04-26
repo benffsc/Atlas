@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { formatDateLocal } from "@/lib/formatters";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { fetchApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
@@ -128,23 +128,20 @@ export default function PartnerOrgCatsPage() {
 
   return (
     <div style={{ padding: "1.5rem", maxWidth: "80rem", margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+      <Breadcrumbs items={[{ label: "Admin", href: "/admin" }, { label: "Partner Org Cats" }]} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.75rem", marginBottom: "1.5rem" }}>
         <div>
           <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Partner Org Cats</h1>
           <p style={{ color: "var(--text-muted)", marginTop: "0.25rem" }}>
             View cats that came from partner organizations (SCAS, Rohnert Park, etc.)
           </p>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <Link
-            href="/admin/partner-orgs"
-            style={{ color: "var(--primary)", textDecoration: "none" }}
-          >
-            Manage Orgs
-          </Link>
-          <span style={{ color: "var(--text-muted)" }}>|</span>
-          <BackButton fallbackHref="/admin" />
-        </div>
+        <Link
+          href="/admin/partner-orgs"
+          style={{ color: "var(--primary)", textDecoration: "none" }}
+        >
+          Manage Orgs
+        </Link>
       </div>
 
       {/* Summary Cards */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { TabBar } from "@/components/ui/TabBar";
 import { StatCard } from "@/components/ui/StatCard";
@@ -182,7 +182,8 @@ export default function ColonyEstimationPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: "0.25rem" }}>Colony Estimation Settings</h1>
+      <Breadcrumbs items={[{ label: "Admin", href: "/admin" }, { label: "Colony Estimation" }]} />
+      <h1 style={{ marginTop: "0.75rem", marginBottom: "0.25rem" }}>Colony Estimation Settings</h1>
       <p className="text-muted" style={{ marginBottom: "1.5rem" }}>
         Configure how colony sizes are estimated from multiple data sources.
       </p>
@@ -677,10 +678,6 @@ export default function ColonyEstimationPage() {
         onCancel={() => setPendingDelete(null)}
       />
 
-      {/* Back link */}
-      <div style={{ marginTop: "2rem" }}>
-        <BackButton fallbackHref="/admin" />
-      </div>
     </div>
   );
 }

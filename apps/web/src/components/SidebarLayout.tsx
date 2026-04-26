@@ -271,27 +271,27 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
 
   return (
     <div style={{ display: "flex", minHeight: "calc(100vh - 56px)", margin: "0 -1rem" }}>
-      {/* Mobile Menu Toggle */}
+      {/* Mobile Menu Toggle — fixed in top bar area, left of logo */}
       {isMobile && (
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           style={{
             position: "fixed",
-            bottom: "1rem",
-            right: "1rem",
+            top: "8px",
+            left: "0.75rem",
             zIndex: 1001,
-            width: "48px",
-            height: "48px",
-            borderRadius: "50%",
-            background: "var(--primary, #3b82f6)",
-            color: "#fff",
-            border: "none",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+            width: "40px",
+            height: "40px",
+            borderRadius: "8px",
+            background: mobileMenuOpen ? "var(--primary, #3b82f6)" : "var(--card-bg, #fff)",
+            color: mobileMenuOpen ? "#fff" : "var(--foreground)",
+            border: mobileMenuOpen ? "none" : "1px solid var(--border, #e5e7eb)",
+            boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.1))",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "1.25rem",
+            fontSize: "1.1rem",
           }}
           aria-label="Toggle menu"
         >

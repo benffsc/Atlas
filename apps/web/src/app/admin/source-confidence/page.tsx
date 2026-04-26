@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { SkeletonTable } from "@/components/feedback/Skeleton";
@@ -109,7 +109,8 @@ export default function SourceConfidencePage() {
 
   return (
     <div>
-      <h1>Source Confidence Scores</h1>
+      <Breadcrumbs items={[{ label: "Admin", href: "/admin" }, { label: "Source Confidence" }]} />
+      <h1 style={{ marginTop: "0.75rem" }}>Source Confidence Scores</h1>
       <p className="text-muted" style={{ marginBottom: "1.5rem" }}>
         Configure trust levels for different data sources. Higher scores mean
         data from that source is more trusted during identity resolution.
@@ -376,10 +377,6 @@ export default function SourceConfidencePage() {
         </>
       )}
 
-      {/* Back link */}
-      <div style={{ marginTop: "2rem" }}>
-        <BackButton fallbackHref="/admin" />
-      </div>
 
       <ConfirmDialog
         open={!!pendingDelete}

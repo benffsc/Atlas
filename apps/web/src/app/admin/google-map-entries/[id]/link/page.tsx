@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 
@@ -117,7 +117,7 @@ export default function LinkGoogleMapEntryPage() {
       <div className="p-8">
         <div className="text-red-600">Error: {error || "Failed to load"}</div>
         <div className="mt-4">
-          <BackButton fallbackHref="/map" />
+          <Breadcrumbs items={[{ label: "Map", href: "/map" }, { label: "Link Entry" }]} />
         </div>
       </div>
     );
@@ -130,7 +130,7 @@ export default function LinkGoogleMapEntryPage() {
           <p className="text-green-800">This entry is already linked to a place.</p>
         </div>
         <div className="mt-4">
-          <BackButton fallbackHref="/map" />
+          <Breadcrumbs items={[{ label: "Map", href: "/map" }, { label: "Link Entry" }]} />
         </div>
       </div>
     );
@@ -143,7 +143,7 @@ export default function LinkGoogleMapEntryPage() {
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
-          <BackButton fallbackHref="/map" />
+          <Breadcrumbs items={[{ label: "Map", href: "/map" }, { label: "Link Entry" }]} />
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">

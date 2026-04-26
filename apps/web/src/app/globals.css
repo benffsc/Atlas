@@ -3304,6 +3304,27 @@ body.presentation-mode [data-admin-section="true"] {
 
 /* Tablet and below */
 @media (max-width: 768px) {
+  /* Nav: make room for hamburger on left */
+  .nav-inner {
+    padding-left: 3.5rem;
+    gap: 0.5rem;
+  }
+
+  /* Hide logo text, shrink logo */
+  .nav-logo {
+    height: 28px;
+  }
+
+  /* Hide username, just show avatar */
+  .nav-user-name {
+    display: none;
+  }
+
+  /* Stats grids collapse to 2 columns */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
   /* Stack dashboard grids to single column */
   .dashboard-grid {
     grid-template-columns: 1fr !important;

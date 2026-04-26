@@ -338,7 +338,6 @@ export function PersonDetailShell({
           <EntityHeader
             personId={person.person_id}
             displayName={person.display_name}
-            backHref={navContext.backHref}
             email={data.primaryEmail}
             phone={data.primaryPhone}
             badges={<>{badgeElements}</>}

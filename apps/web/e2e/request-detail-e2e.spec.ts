@@ -89,8 +89,8 @@ test.describe('Request Detail Page @smoke', () => {
     await expectTabBarVisible(page);
 
     // Actual tab labels from the component:
-    // "Linked Cats", "Trip Reports", "Photos", "Activity", "Admin"
-    const expectedTabs = ['Linked Cats', 'Trip Reports', 'Photos', 'Activity', 'Admin'];
+    // "Case", "People", "Cats", "Trip Reports", "Photos", "Activity", "Admin"
+    const expectedTabs = ['Case', 'People', 'Cats', 'Trip Reports', 'Photos', 'Activity', 'Admin'];
     for (const tabName of expectedTabs) {
       const tab = page.locator(`[role="tab"]:has-text("${tabName}")`).first();
       await expect(tab).toBeVisible({ timeout: 5000 });
@@ -110,7 +110,7 @@ test.describe('Request Detail Page @smoke', () => {
     await expectTabBarVisible(page);
 
     // Click each tab and verify it becomes selected
-    const tabs = ['Linked Cats', 'Trip Reports', 'Photos', 'Activity', 'Admin'];
+    const tabs = ['Case', 'People', 'Cats', 'Trip Reports', 'Photos', 'Activity', 'Admin'];
     for (const tabName of tabs) {
       await switchToTabBarTab(page, tabName);
 

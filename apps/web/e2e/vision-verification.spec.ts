@@ -88,7 +88,7 @@ test.describe("@vision-api Request Page Verification", () => {
     expect(result.passed).toBe(true);
   });
 
-  test("Request sidebar shows key stats", async ({ page, request }) => {
+  test("Request hero card shows key stats", async ({ page, request }) => {
     const requestId = await findRealEntity(request, "requests");
     test.skip(!requestId, "No requests in database");
 
@@ -98,15 +98,15 @@ test.describe("@vision-api Request Page Verification", () => {
     const result = await verifyPageWithVision(page, {
       pageType: "request-detail",
       expectations: [
-        "Sidebar section labeled 'Colony Summary' or similar",
-        "Stats showing cat counts (reported, trapped, returned)",
-        "Location information is displayed",
+        "Hero card with attribute grid showing Location, Requester, Est. Colony, Coverage",
+        "Status and priority badges visible in header",
+        "Tab bar with Case, People, Cats, Trip Reports, Photos, Activity, Admin tabs",
       ],
       knownGaps: [
-        "Cat counts may all be 0 for new requests",
-        "Map preview may not load if no coordinates",
+        "Colony stats may show dashes for new requests without linked cats",
+        "Some attributes may show dashes if data is missing",
       ],
-      context: "Focus on the right sidebar area",
+      context: "Focus on the hero card and tab bar area",
     });
 
     expect(result.passed).toBe(true);

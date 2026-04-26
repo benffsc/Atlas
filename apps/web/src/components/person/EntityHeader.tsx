@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, ReactNode } from "react";
-import { BackButton } from "@/components/common";
 import { TrapperBadge, VolunteerBadge } from "@/components/badges";
 import { ContactInfoCard } from "./ContactInfoCard";
 import { AvailabilityBadge } from "./AvailabilityBadge";
@@ -11,8 +10,6 @@ import { postApi } from "@/lib/api-client";
 interface EntityHeaderProps {
   personId: string;
   displayName: string;
-  /** Back button destination */
-  backHref: string;
   /** Primary email (high-confidence) */
   email?: string | null;
   /** Primary phone */
@@ -90,7 +87,6 @@ export { EntityTypeBadge, DataSourceBadge };
 export function EntityHeader({
   personId,
   displayName,
-  backHref,
   email,
   phone,
   badges,
@@ -158,9 +154,7 @@ export function EntityHeader({
 
   return (
     <div>
-      <BackButton fallbackHref={backHref} />
-
-      <div style={{ marginTop: "1rem" }}>
+      <div>
         {/* Name row with edit */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
           {editingName ? (

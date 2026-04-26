@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/feedback/EmptyState";
@@ -226,7 +226,7 @@ export default function EmailHistoryPage() {
             View all emails sent from the system
           </p>
         </div>
-        <BackButton fallbackHref="/admin" />
+        <Breadcrumbs items={[{ label: "Admin", href: "/admin" }, { label: "Email History" }]} />
       </div>
 
       {/* Stats */}

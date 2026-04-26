@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PlaceResolver } from "@/components/forms";
 import { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { postApi, ApiError } from "@/lib/api-client";
 
 export default function NewPlacePage() {
@@ -58,7 +58,7 @@ export default function NewPlacePage() {
 
   return (
     <div>
-      <BackButton fallbackHref="/places" />
+      <Breadcrumbs items={[{ label: "Places", href: "/places" }, { label: "New Place" }]} />
       <h1 style={{ marginTop: "1rem", marginBottom: "1.5rem" }}>New Place</h1>
 
       {/* Step 1: Find or create a place */}

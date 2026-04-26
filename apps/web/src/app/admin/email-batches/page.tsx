@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { TabBar } from "@/components/ui/TabBar";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
@@ -283,7 +283,7 @@ export default function EmailBatchesPage() {
             Batch emails for trapper assignments
           </p>
         </div>
-        <BackButton fallbackHref="/admin" />
+        <Breadcrumbs items={[{ label: "Admin", href: "/admin" }, { label: "Email Batches" }]} />
       </div>
 
       {/* Error */}

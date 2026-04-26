@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { BackButton } from "@/components/common";
+import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { formatPhone, formatPhoneAsYouType } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
@@ -555,7 +555,7 @@ export default function CallSheetEntryPage() {
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto" }}>
       <div style={{ marginBottom: "1.5rem" }}>
-        <BackButton fallbackHref="/intake/queue" />
+        <Breadcrumbs items={[{ label: "Intake Queue", href: "/intake/queue" }, { label: "Call Sheet" }]} />
         <h1 style={{ margin: "0.5rem 0 0 0" }}>Enter Call Sheet</h1>
         <p className="text-muted">Transcribe a completed paper call sheet into Beacon</p>
       </div>
