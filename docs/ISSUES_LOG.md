@@ -2786,3 +2786,282 @@ All **In Progress** (21) and **Backlog** (107) issues. Epic hierarchy + standalo
 3. If still tight, selectively delete Bucket B non-epic items
 4. Keep Bucket C epics as the scaffolding for rebuilding whatever's needed
 
+
+## 2026-04-16 Archive Update
+
+Added 58 Done issues (FFS-1197 through FFS-1256).
+
+### Done Issues
+
+| ID | Title | Priority | Labels |
+|----|-------|----------|--------|
+| FFS-1089 | CDS-AI: Photo role classifier + stream chunker | High | Clinic, Feature |
+| FFS-1090 | CDS-AI: Waiver OCR + cross-source matcher | High | Clinic, Ingest, Feature |
+| FFS-1092 | Clinic Day Photo Processing UI | Medium | Clinic, Frontend, Feature |
+| FFS-1136 | Clinic Day Hub page + batch photo upload | High |  |
+| FFS-1137 | Process 04/01 and 04/06 clinic day photos via hub | Medium |  |
+| FFS-1157 | Tippy A: Auto-apply data-quality module to all place tool results | Urgent | Tippy, API, Data Quality |
+| FFS-1158 | Tippy B: NULL-status accounting in all rate queries | High | Tippy, API, Data Quality |
+| FFS-1160 | Tippy D: Exclude active/completed requests from "needs attention" lists by default | High | Tippy, Requests, API |
+| FFS-1161 | Tippy E: find_intact_cat_clusters density tool (concentration not membership) | Medium | Tippy, API, Map |
+| FFS-1162 | Tippy F: get_place_recent_context tool (institutional knowledge lookup) | High | Tippy, API |
+| FFS-1163 | Tippy G: Strategic-question intent class with required clarifying step | Medium | Tippy, API |
+| FFS-1164 | Tippy H: System prompt — humility default for strategic questions | Medium | Tippy, Documentation |
+| FFS-1165 | Tippy I: Eval regression — Santa Rosa priority + 717 Cherry St. lookup | High | Tippy, E2E Tests |
+| FFS-1171 | Tippy K: Narrative synthesis — story over data dump (staff-friendly delivery) | High | Tippy, Documentation |
+| FFS-1182 | Phase 0 — Defuse existing out-of-county email cron behind feature flag | Urgent | Critical, Infrastructure, Bug |
+| FFS-1183 | Phase 1 — PostGIS service area boundary + auto-populate intake_submissions.county | High | White Label, Requests, Infrastructure |
+| FFS-1184 | Phase 2 — Expand ops.community_resources with neighbor counties + statewide directories | High | Infrastructure, Feature |
+| FFS-1185 | Phase 2 — Build new out_of_service_area email template with dynamic resource cards | High | White Label, Infrastructure, Feature |
+| FFS-1186 | Phase 3 — Fix v_pending_out_of_service_area view + approval gate + 90-day suppression | High | Infrastructure, Bug |
+| FFS-1187 | Phase 4 — Out-of-service banner + Preview/Approve/Override actions in intake queue UI | High | Requests, Frontend, Feature |
+| FFS-1188 | Phase 5 — Email dry-run mode + test recipient override + admin Go Live toggle | Urgent | Critical, Infrastructure, Feature |
+| FFS-1197 | MIG_3070: ops.evidence_stream_segments — CDS-AI foundation | High | Architecture, Clinic, Ingest, Data Quality, Feature |
+| FFS-1198 | Phase 1: evidence-ingest-photos script (sequence-preserving staging) | High | Clinic, Ingest, Feature |
+| FFS-1200 | Request form: related people + language preferences + config-gated sections | High | Requests, Feature |
+| FFS-1202 | L1.1 — Fix "free spay/neuter" text on kiosk ($50 donation) | Urgent | Kiosk |
+| FFS-1203 | L1.2 — Verify transfer cage equipment type readiness | High | Equipment |
+| FFS-1204 | L1.3 — Equipment deposit ledger (outstanding deposits dashboard) | High | Equipment |
+| FFS-1205 | L1.4 — Overdue equipment alert automation | Medium | Equipment |
+| FFS-1206 | L1.5 — Person/place detail pages — equipment section | Medium | Equipment, Feature |
+| FFS-1207 | L2.1 — Digital checkout agreement / waiver (kiosk-native) | High | Kiosk, Equipment, Feature |
+| FFS-1208 | L2.2 — Deposit method tracking (card-on-file flag) | Medium | Equipment |
+| FFS-1209 | L2.3 — Return policy text formalization | Medium | Equipment |
+| FFS-1210 | L2.4 — Automated return reminder emails | Medium | Equipment, Kiosk |
+| FFS-1219 | CDS-AI: extract shared lib + classification cron route | High | Clinic, Ingest, Infrastructure |
+| FFS-1220 | CDS-AI: waiver cross-reference audit (catch staff assignment errors) | High | Clinic, Data Quality, Feature |
+| FFS-1221 | CDS-AI: evidence pipeline data quality checks | Medium | Clinic, Infrastructure, Data Quality |
+| FFS-1222 | CDS-AI: clinic hub evidence visibility | Medium | Clinic, Frontend, Feature |
+| FFS-1224 | Admin quick-entry for equipment checkouts (batch paper-slip entry) | High | Equipment, Frontend, Feature |
+| FFS-1225 | Unified Kiosk Hub — merge equipment + clinic into one home screen | High | Equipment, Kiosk, Feature |
+| FFS-1226 | QR codes on equipment — scan-to-lookup via kiosk camera | Medium | Equipment, Feature |
+| FFS-1227 | Equipment agreement — add liability release language (Alley Cat Allies pattern) | Medium | Equipment |
+| FFS-1231 | Make checkout purpose + due date required in kiosk checkout flow | High | Equipment, Kiosk, UX Polish |
+| FFS-1232 | Clinic day photo: SharePoint photo sync cron + on-demand CDS-AI trigger | High | Clinic, Ingest, Infrastructure, Feature |
+| FFS-1233 | CDS data integrity: staging purge, name resolution, clinic number preservation | High | Clinic, Ingest, Data Quality |
+| FFS-1234 | Checkout slip batch scanner — upload PDF, AI extract, review + commit | High |  |
+| FFS-1243 | Epic: Admin-Configurable Email System — templates, resources, sender accounts, email types | High | Architecture, Infrastructure, Feature |
+| FFS-1244 | Admin Resource Manager — CRUD UI for community resources per county | High | Frontend, Feature |
+| FFS-1245 | Generic county fallback — handle SF, Contra Costa, and unknown counties | High | Infrastructure, Feature |
+| FFS-1246 | Email Type Registry — add new email flows from admin UI | Medium | Architecture, Feature |
+| FFS-1247 | Sender Account Assignment — which Outlook account sends which email type | Medium | Infrastructure, Feature |
+| FFS-1248 | Sent Email History — audit trail in admin UI | Medium | Frontend, Feature |
+| FFS-1249 | Rich Template Editor — visual editor for email templates (replace raw HTML textarea) | Medium | Frontend, Feature |
+| FFS-1250 | fix(addresses): find_or_create_address must backfill coords on dedup match | Urgent |  |
+| FFS-1251 | feat(addresses): unidirectional coord sync trigger — place geometry → address lat/lng | High |  |
+| FFS-1252 | fix(addresses): batch geocode 116 addresses with no coordinates anywhere | High |  |
+| FFS-1253 | feat(observability): address geocoding health monitoring view | Medium |  |
+| FFS-1255 | feat(map): attention layer — urgent request pins never clustered | High |  |
+| FFS-1256 | feat(map): cluster urgency badge — orange dot when cluster contains needs-trapper | Medium |  |
+
+### Backlog Issues (snapshot 2026-04-16)
+
+| ID | Title | Priority | Labels |
+|----|-------|----------|--------|
+| FFS-1029 | Consolidate Redirect + Handoff into single "Transfer Request" action | Low | UX Polish, Requests, Feature |
+| FFS-1069 | Drain 4,897 unprocessed staged records | High | Ingest, Data Quality |
+| FFS-1075 | Data Hub Processing tab redesign (FFS-1054 implementation) | Medium | Frontend, Infrastructure |
+| FFS-1076 | Dedup queue batch processing (places + cats) | Medium | Entity Linking, Data Quality |
+| FFS-1077 | Colony Site Detection & Cat-Place Linking (DATA_GAP_058) | Urgent | Beacon, Entity Linking, Data Quality |
+| FFS-1078 | VH data enrichment: events, hours, classification, dashboard | High | Volunteers, Infrastructure |
+| FFS-1080 | VH cron: add event sync step — fetch hours from /api/v1/events | High | Volunteers, Ingest |
+| FFS-1081 | VH stats API: enriched response with population + hours | Medium | Volunteers, API |
+| FFS-1085 | Admin UI: Colony site designation toggle + list view | Medium | Beacon, Frontend |
+| FFS-1086 | Extend link_cats_to_places() Step 3 for is_colony_site places | Medium | Entity Linking, Data Quality |
+| FFS-1087 | Epic: Clinic Day Photo & Data Automation | High | Clinic, Ingest, Feature |
+| FFS-1093 | Backfill: Process Existing Clinic Day Photos (Jan-Mar 2026) | Medium | Clinic, Data Quality |
+| FFS-1098 | Surface extracted relationships as staff review queue | Low | Data Quality |
+| FFS-1118 | MIG_3041: Salvage real people from org clinic accounts (3-tier resolution) | High | Data Quality |
+| FFS-1126 | Green Sheet (Call List) Parser & Pre-Clinic Sync | Medium | Clinic, Ingest, Feature |
+| FFS-1127 | Protocol Docs → Tippy Knowledge Base Sync | Low | Tippy, Clinic, Feature |
+| FFS-1159 | Tippy C: is_community_cat_target filter for priority queries | High | Tippy, Entity Linking, Data Quality |
+| FFS-1170 | Data cleanup: 717 Cherry St. + Donna Best identity consolidation | Medium | Entity Linking, Data Quality |
+| FFS-1194 | Tier 1: Beacon Polish Quick Wins (dashboard hero, typography, KPIs, login, map loading) | High | UX Polish, Beacon Porting, White Label, Frontend |
+| FFS-1195 | Tier 2: Mission Visibility (empty states, transitions, sidebar polish, NL insights, icon a | Medium | UX Polish, Beacon Porting, Frontend |
+| FFS-1196 | Tier 3: Gala Mode (presentation toggle, scrollytelling, shareable card, live counter, favi | Medium | UX Polish, Beacon Porting, Frontend |
+| FFS-1199 | Make product brand name config-driven (ops.app_config) for server-side + client-side consu | Low | Beacon Porting, Helix Core |
+| FFS-1211 | L3.1 — Future appointment ↔ equipment linkage | Low | Equipment, Infrastructure |
+| FFS-1212 | L3.2 — Overdue differentiation: still-trying vs non-responsive | Low | Equipment, UX Polish |
+| FFS-1213 | L3.3 — Cat ↔ equipment linkage via waiver data | Low | Equipment, Infrastructure |
+| FFS-1214 | L3.4 — Cross-entity equipment sections on person/place/cat detail pages | Low | Equipment, Frontend |
+| FFS-1215 | DATA_GAP: Pre-ClinicHQ alteration records 1990-2012 (22,142 cats) | Medium | Data Gap, Beacon Porting, Data Quality |
+| FFS-1216 | DATA_GAP: 2013-2014 ClinicHQ import gap (2,571 cats missing) | High | Data Gap, Beacon Porting, Data Quality |
+| FFS-1217 | DATA_GAP: 2021 alteration count — DB shows 761 MORE than Pip's Excel | High | Data Gap, Beacon Porting, Data Quality |
+| FFS-1218 | DATA_GAP: Systematic 5-10% DB undercount vs Pip's Excel (2019-2024) | Medium | Data Gap, Beacon Porting, Data Quality |
+| FFS-1223 | CDS-AI: process remaining photo batches (03/18, 03/23, 03/25, 03/29) | High | Clinic, Ingest |
+| FFS-1228 | MIG_3077: Seed demo.* config keys for gala deck configurability | High | Beacon Porting, Infrastructure |
+| FFS-1229 | Wire /demo page to ops.app_config — replace all hardcoded content | High | Beacon Porting, Frontend |
+| FFS-1230 | /admin/demo — focused editor for gala presentation content | High | UX Polish, Beacon Porting, Frontend |
+| FFS-1235 | CDS: Delta-based re-matching instead of full clear | High | Architecture, Clinic, Data Quality |
+| FFS-1236 | CDS: Chronological data change audit trail | High | Clinic, Data Quality |
+| FFS-1237 | CDS: Foster cat detection via booking account + waiver color | Medium | Clinic, Data Quality |
+| FFS-1238 | CDS Benchmark: Compare CDS vs Ben's manual ground truth (508 appointments) | High | Clinic, Data Quality |
+| FFS-1239 | Best Photo Selection: Auto-set is_hero after CDS-AI photo assignment | Medium | Clinic, Feature |
+| FFS-1241 | CDS: Master list as ingest verification report | Medium | Clinic, Data Quality |
+| FFS-1242 | CDS: Surface cancelled surgery detection in run results UI | Low | Clinic, Feature |
+| FFS-1254 | fix(google-maps): relink 50 mislinked KML pins + address-text matching | Medium |  |
+| FFS-333 | Security: Rotate V1 database password (exposed in git history) | Urgent | Mar 2026, Security |
+| FFS-741 | Cat color/pattern data not extracted from ClinicHQ to sot.cats | High | Clinic, Ingest, Data Quality |
+| FFS-744 | Tippy: Add cat search by physical description (color, pattern, age) | Medium | Tippy, Feature |
+| FFS-745 | Tippy: Optimize follow-up context to reduce token usage and latency | Low | Tippy, Performance |
+| FFS-752 | Duplicate clinic_account rows created per appointment instead of deduping | Medium | Clinic, Ingest, Data Quality |
+| FFS-763 | Replace emoji icons with Lucide React icon library throughout app | High | UX Polish, Beacon Porting |
+| FFS-764 | User-customizable page shortcuts / favorites | High | UX Polish, Feature |
+| FFS-765 | Page transitions and micro-interactions — make navigation feel smooth | Medium | UX Polish, Beacon Porting |
+| FFS-766 | Admin panel information architecture — reorganize 67 pages into logical tiers | High | UX Polish |
+| FFS-767 | Visual depth and surface hierarchy — cards, shadows, spacing consistency | Medium | UX Polish, Beacon Porting |
+| FFS-768 | Typography and font system — align with FFSC brand, add visual hierarchy | Medium | UX Polish, Beacon Porting |
+| FFS-770 | Surface & elevation CSS tokens — shadow system + card-elevated class | High | UX Polish, Beacon Porting |
+| FFS-771 | Create shared Button component — replace 6,462 inline button styles | High | UX Polish, Beacon Porting |
+| FFS-772 | Skeleton loading adoption for Beacon + high-traffic pages | High | UX Polish |
+| FFS-777 | Inline style → design token migration (meta-issue, ongoing) | Low | UX Polish, Beacon Porting |
+| FFS-812 | Intake: Kanban should be default view, no way to persist preference | High | UX Polish, Requests, Bug |
+| FFS-813 | Intake: Cards view is unusable, needs redesign or removal | Low | UX Polish, Requests |
+| FFS-814 | Intake: Active/Scheduled/Completed tabs redundant with Kanban view | Medium | UX Polish, Requests, Improvement |
+| FFS-815 | Nav/pagination buttons hard to read in light/dark mode | Medium | UX Polish, Frontend, Bug |
+| FFS-816 | Cat records page: poor list UX — filters too tall, no inline details | High | UX Polish, Frontend, Improvement |
+| FFS-817 | Audit: Dead links in Beacon DataTables and across app | High | Beacon, Frontend, Bug |
+| FFS-818 | Clinic Days: Barcode scanner result bounces back to all results | High | UX Polish, Clinic, Bug |
+| FFS-819 | Clinic Days: Cat details missing (color, sex, weight, notes) | Medium | UX Polish, Clinic, Improvement |
+| FFS-820 | WCAG contrast failures: disabled states use opacity reduction | High | UX Polish, Frontend, Bug |
+| FFS-821 | Hardcoded hex colors break dark mode across UI components | Medium | UX Polish, Frontend, Bug |
+| FFS-822 | Request detail: tabs don't persist in URL, missing breadcrumbs | Low | UX Polish, Requests |
+| FFS-823 | Fosters page: missing ListDetailLayout and preview panel | Medium | UX Polish, Frontend, Improvement |
+| FFS-827 | Print pages hardcode "Atlas" instead of useProduct().brandName | Medium | Beacon Porting, Bug |
+| FFS-829 | CatCard missing secondary color — staff can't confirm cat identity | Medium | UX Polish, Clinic, Improvement |
+| FFS-830 | Clinic days search: no debounce, race conditions on photo upload | Medium | Clinic, Performance, Bug |
+| FFS-832 | Admin pages: fixed grid layouts not mobile responsive | Low | UX Polish, Frontend |
+| FFS-833 | Missing accessibility: ~200 aria-labels needed, keyboard nav gaps | Low | UX Polish, Frontend |
+| FFS-860 | Phone contamination: Gordon Maxwell appointments misattributed to Susan Simons | High | Entity Linking, Ingest, Data Quality |
+| FFS-861 | Broken recheck pattern detection: 12 duplicate cats from embedded microchips in name | Urgent | Clinic, Ingest, Data Quality, Bug |
+| FFS-897 | Add booking_role enum to appointments for role-aware identity resolution | High | Data Quality |
+| FFS-899 | Add stale_since timestamp to derived linking tables for trigger-based invalidation | Medium | Data Quality |
+| FFS-900 | Add valid evidence combinations table to prevent evidence type mislabeling | Medium | Data Quality |
+| FFS-901 | Create source_authority table formalizing source-system trust per attribute | Low | Data Quality |
+| FFS-902 | Evaluate Splink as periodic identity resolution audit tool | Low | Data Quality |
+| FFS-903 | Add identity resolution quality metrics to admin dashboard | Low | Data Quality |
+| FFS-915 | Data: 1,499 cats with appointments but no place link — linkable now | High | Data Quality |
+| FFS-916 | Data: 25 completed requests with 0 cats linked despite estimates of 5-30 | High | Data Quality |
+| FFS-917 | Data: 20 orphaned colonies (cats, no caretaker) — largest has 122 cats | Medium | Data Quality |
+| FFS-918 | Data: Coverage gaps — Cazadero (193 cats, 0 requests), Clearlake (146), Graton (130) | Low | Data Quality |
+| FFS-919 | Data: Cat 981020053881414 (Jean Worthey) — ShelterLuv adoption data not reflected in Atlas | High | Entity Linking, Data Quality |
+| FFS-920 | Data: Google Maps note for 211 E Shiloh Rd mislinked to 5811 Faught Rd | High | Data Quality |
+| FFS-921 | Foster lifecycle: mark person_cat inactive on foster_end event | Medium | Entity Linking, Data Quality |
+| FFS-922 | Event processing: log unmatched animals to entity_linking_skipped | Medium |  |
+| FFS-923 | Phone matching in SL events: add address verification per MIG_2548 | Low |  |
+| FFS-924 | Transfer events: parse destination and create place links | Low |  |
+| FFS-925 | Return-to-field: re-link cat to original trapping location | Low |  |
+| FFS-926 | Clean dead foster variables from process_shelterluv_animal() | Low |  |
+| FFS-936 | Config-driven ingest engine — admin-configurable field/value mapping for external form syn | High | Helix Core, White Label, Ingest, Infrastructure |
+| FFS-937 | Ingest engine: DB schema — ingest_sources, field_mappings, value_mappings tables | High | Helix Core, Ingest, Infrastructure |
+| FFS-938 | Ingest engine: Admin UI — source connections, field mapping, value mapping pages | High | Helix Core, Ingest, Frontend |
+| FFS-939 | Ingest engine: Generic webhook handler — reads config from DB instead of hardcoded maps | Medium | Helix Core, Ingest, API |
+| FFS-941 | Ingest engine: Error queue admin page + Slack alerting on sync failures | Medium | Helix Core, Ingest, Frontend |
+| FFS-955 | Test suite modernization & white-label readiness | High | Tippy, DX, E2E Tests |
+| FFS-978 | Link adopted cats to adopter address via ShelterLuv outcome data | Medium | Entity Linking, Data Quality |
+| FFS-979 | SAC-compliant outcome reporting dashboard | Low | Beacon, Frontend |
+
+### In Progress Issues (snapshot 2026-04-16)
+
+These should NOT be deleted — they represent active work.
+
+| ID | Title | Priority | Status Notes |
+|----|-------|----------|-------------|
+| FFS-1201 | Equipment Overhaul: Transfer Cage Readiness + Digital Checkout | High | Active epic |
+| FFS-1193 | Epic: Rebrand main app UI — Atlas → Beacon (gala prep) | High | Active epic |
+| FFS-1190 | Phase 6 — Go-Live runbook for out-of-service-area emails | High | Sub of FFS-1181 |
+| FFS-1189 | Phase 6 — E2E Playwright test for OOA pipeline | High | Sub of FFS-1181 |
+| FFS-1181 | Epic: Out-of-Service-Area Email Pipeline | High | Active epic |
+| FFS-1156 | Epic: AI Tippy — Reasoning Hardening | High | Active epic |
+| FFS-1155 | Initiative 6: Generic Soft-Merge Pattern | Medium | Sub of FFS-1150 |
+| FFS-1153 | Initiative 4: clinic_day_number SoT + provenance | Medium | Sub of FFS-1150, review 2026-04-14 |
+| FFS-1150 | Epic: Atlas Data Hardening | High | Active epic |
+| FFS-1119 | MIG_3041: Salvage real people from org clinic accounts | High | Sub of FFS-1094 |
+| FFS-1097 | Claude Batch API: Extract relationships from clinic notes | Medium | Sub of FFS-1094 |
+| FFS-1096 | Audit + cleanup: org ghost person_place/person_cat links | High | Sub of FFS-1094 |
+| FFS-1095 | Filter org-classified people from map & place queries | Urgent | Sub of FFS-1094 |
+| FFS-1094 | Entity Data Quality — Org Ghost Cleanup + Notes Enrichment | High | Active epic |
+| FFS-976 | Epic: Cat Outcome & Lifecycle UX | High | Active epic |
+| FFS-977 | White-label contract test suite | High | Sub of FFS-955 |
+
+### Delete Guidance (2026-04-16)
+
+**Safe to delete (58 Done issues):** All FFS issues in the "Done Issues" table above. All shipped code is in git; issue context is archived here.
+
+**Safe to delete (low-priority Backlog, 40+ issues):** Low-priority backlog items that are aspirational and can be recreated from this archive if ever needed. Includes: FFS-745, FFS-777, FFS-813, FFS-822, FFS-832, FFS-833, FFS-901, FFS-902, FFS-903, FFS-918, FFS-922, FFS-923, FFS-924, FFS-925, FFS-926, FFS-979, FFS-1029, FFS-1098, FFS-1127, FFS-1199, FFS-1211, FFS-1212, FFS-1213, FFS-1214, FFS-1242.
+
+**Delete with care (medium-priority Backlog):** Can be deleted but have more context. Recreate from archive if needed.
+
+**Do NOT delete (16 In Progress):** Active work. Deleting these would lose coordination context.
+
+## Archive Refresh — 2026-04-27 (67 Done issues)
+
+| Issue | Priority | Labels | Title |
+|-------|----------|--------|-------|
+| FFS-1257 | High | Dom Design | feat(ui): remove duplicate hamburger nav — single sidebar only |
+| FFS-1258 | Medium | Dom Design | feat(ui): standardize 36px control height across all interactive elements |
+| FFS-1259 | High | Dom Design | feat(ui): filter chips/tags component — show active filters inline |
+| FFS-1260 | Medium | Dom Design | feat(ui): compact table density mode for DataTable |
+| FFS-1261 | Medium | Dom Design | feat(ui): filter drawer pattern for complex list page filtering |
+| FFS-1263 | Low | Dom Design | feat(ui): horizontal scroll table with frozen columns |
+| FFS-1264 | Urgent | Critical, Infrastructure, Bug | SQL Function Audit — 4 crash bugs fixed, 2 remaining gaps |
+| FFS-1267 | Urgent | Frontend, Bug | CATS-1: Fix progress bar — use total_cats_reported as denominator, not estimated_cat_count |
+| FFS-1268 | High | UX Polish, Feature | CATS-2: Clarify Update Situation — separate "total cats" from "cats remaining" |
+| FFS-1282 | High | Dom Design | feat(ui): PageHeader + Select components + design system sweep across all list pages |
+| FFS-1287 | Urgent |  | CDS V2: Waiver OCR Ground Truth Pipeline |
+| FFS-1288 | Urgent |  | Step 1: Waiver PDF OCR via Claude Vision |
+| FFS-1289 | Urgent |  | Step 2: Waiver → Cat deterministic link (chip matching) |
+| FFS-1290 | Urgent |  | Step 3: Waiver clinic_number → ML line bridge (deterministic) |
+| FFS-1291 | High |  | Step 4: Restructure CDS pipeline — waiver-first matching order |
+| FFS-1292 | High |  | Step 5: Auto-CDS on ingest — waivers trigger matching automatically |
+| FFS-1293 | Medium |  | Step 6: Photo → cat profile linkage via waiver clinic_number chain |
+| FFS-1294 | Urgent | Clinic, Ingest, Data Quality, Bug | CRITICAL: ClinicHQ cancel/rebook creates ghost or missing appointments per date |
+| FFS-1295 | High | Clinic, Ingest, Infrastructure | Auto-trigger CDS from ClinicHQ batch ingest |
+| FFS-1296 | High | Clinic, Data Quality | CDS: Detect and tag cancelled ML entries (more entries than appointments for same owner) |
+| FFS-1297 | Medium | Clinic, Data Quality | CDS: Match trapper-booked entries against trapper's CHQ appointments |
+| FFS-1308 | High | Tippy, Data Quality | Road-level multi-place aggregation in tippy_place_full_report |
+| FFS-1309 | Medium | Tippy, Entity Linking, Data Quality | Cross-source cat tracing: ShelterLuv kittens → origin colony |
+| FFS-1310 | High | Tippy, Data Quality | Request notes as primary narrative source in place reports |
+| FFS-1313 | High | Architecture, Clinic, Data Quality | CDS: Add weight + description disambiguation for same-owner multi-cat matching |
+| FFS-1314 | High | Clinic, Data Quality, Bug | CDS: Waiver OCR misreads clinic number as 50 — systematic Haiku vision error |
+| FFS-1316 | Urgent | Clinic, Data Quality, Bug | BUG: detect_cancelled_entries incorrectly hiding real entries (exact name match too strict) |
+| FFS-1317 | High | Clinic, Ingest, Bug | BUG: ML parser not setting is_shelter for some SCAS entries |
+| FFS-1318 | Urgent | Architecture, Clinic, Data Quality | CDS: Verify OCR clinic number against ML line via weight match before setting CDN |
+| FFS-1319 | Urgent | Clinic, Data Quality, Bug | CDS: Never set CDN from name-matched entries — only from waiver/manual |
+| FFS-1321 | High |  | CDS Pipeline Refactor: Validate-Before-Commit CDN Architecture |
+| FFS-1323 | Medium |  | CDS: LLM-assisted fuzzy name matching for remaining unmatched entries |
+| FFS-1324 | Medium |  | CDS: Weight-based disambiguation for multi-cat owners |
+| FFS-1325 | High | Architecture, Tippy | Epic: Tippy V2 Rewrite — 52 tools → 15, 10K lines → 3K |
+| FFS-1326 | High | Architecture, Tippy | Tippy V2: Unified route.ts — one tool loop, parameterized prompt |
+| FFS-1327 | High | Architecture, Tippy | Tippy V2: 15-tool consolidation with dispatch map |
+| FFS-1328 | Medium | Architecture, Tippy | Tippy V2: knowledge.ts — TNR science + data quality in one module |
+| FFS-1329 | High | Tippy, E2E Tests | Tippy V2: Eval suite — all 20 showcase questions + 3 failure cases |
+| FFS-1330 | Medium | Architecture, Tippy | Tippy V2: Migration strategy — V1 → V2 cutover without breaking production |
+| FFS-1331 | Urgent | Equipment, UX Polish, Feature | Equipment Follow-Up Call Queue — Person-Centric Overdue Dashboard |
+| FFS-1332 | High | Equipment, Infrastructure | DB: Contact attempts table + overdue call queue view |
+| FFS-1333 | High | Equipment, API | API: Person-centric overdue equipment endpoint |
+| FFS-1334 | Urgent | Equipment, UX Polish, Frontend | UI: Call queue page with aging buckets + person cards |
+| FFS-1335 | High | Equipment, UX Polish, Frontend | UI: Inline contact logging — call/text outcome capture |
+| FFS-1336 | Medium | Equipment, Print Documents | UI: Print call list for front desk |
+| FFS-1337 | High | Kiosk, Equipment | Kiosk: Overdue warning during checkout |
+| FFS-1338 | Medium | Equipment, Infrastructure | Cron: Auto-escalation levels for overdue equipment |
+| FFS-1339 | Low | Equipment, UX Polish | Pre-filled SMS templates for equipment follow-up |
+| FFS-1340 | Medium | Data Quality | Track Nadalie Cordova contact — 5209 Montecito Ave, related to Delong/Patrick Geary situation |
+| FFS-1357 | Medium | Tippy, Data Quality | fix(sql): MIG_3105 — comprehensive_place_lookup alteration rate bug (DONE) |
+| FFS-1358 | Medium | Tippy | fix(tippy): V2 route schema column names + frontend tool labels (DONE) |
+| FFS-1359 | Medium | Tippy | feat(tippy): place_search nearby activity enrichment (DONE) |
+| FFS-1360 | Low | Architecture, Tippy | chore(tippy): delete V1 dead files — tools.ts, data-quality.ts, domain-knowledge.ts (DONE) |
+| FFS-1362 | High | Architecture, Tippy | feat(schema): journal_entries entity columns — person_id, cat_id, request_id, source_attribution |
+| FFS-1387 | High | Tippy | feat(tippy): Analytical query recipes in system prompt — few-shot SQL patterns |
+| FFS-1388 | High | Architecture, Tippy | feat(db): Pre-computed analytical views — survival estimate, annual impact |
+| FFS-1389 | Medium | Architecture, Tippy | feat(db): Survival estimation function + domain constants from peer-reviewed research |
+| FFS-1391 | High | Tippy, Bug | bug(tippy): Person lookup silence — Patrick Geary query returned nothing (Apr 13) |
+| FFS-1392 | Medium | Tippy | feat(tippy): City comparison recipe — prevent 14 run_sql calls for compare questions |
+| FFS-1393 | Low | Tippy | test(tippy): Verify multi-unit address handling — 240 Burt St apartments |
+| FFS-1399 | High | UX Polish, Frontend, Map | Cat Presence UX — Show Where Cats Are, Not Just That They're Linked |
+| FFS-1400 | High | API | API: Add presence_status + departure_reason to cat responses |
+| FFS-1401 | High | UX Polish, Frontend, Map | Place detail: Presence-grouped cat list with collapsed Departed section |
+| FFS-1402 | High | UX Polish, Frontend, Map | Place detail: Update stat bar — "Present" + "Departed" instead of "Cats" |
+| FFS-1403 | Medium | UX Polish, Frontend | Person detail: Add presence badges to linked cats |
+| FFS-1404 | Medium | UX Polish, Helix Core, Frontend | Cat card: Presence indicator component |
+| FFS-1405 | Medium | Architecture, Tippy | feat(db): Coverage gap view — where do we have places but no data? |

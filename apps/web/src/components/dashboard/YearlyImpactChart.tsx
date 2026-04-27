@@ -1,17 +1,24 @@
 "use client";
 
 /**
- * YearlyImpactChart — Year-over-year alteration line chart with range slider.
+ * YearlyImpactChart — Year-over-year alteration area chart.
  *
- * SVG line chart (no external chart library). Shows the growth trend
- * clearly with filled area underneath. Hover tooltips on data points.
- * Dual-thumb range slider lets users select any year window.
+ * SVG area chart (no external chart library). Shows the growth trend
+ * with filled gradient area underneath. Hover tooltips on data points.
+ * Preset buttons for time range selection.
+ *
+ * Fixes (FFS-1415):
+ * - Removed range slider (FFS-1417) — preset buttons only
+ * - Projection uses annualized pace instead of raw partial count (FFS-1416)
+ * - Stat labels above numbers, charity:water pattern (FFS-1418)
+ * - Y-axis: more ticks, solid gridlines, round numbers (FFS-1419)
+ * - Stronger gradient fill (FFS-1420)
  *
  * Data source: /api/dashboard/impact/yearly
- * Epic: FFS-1193 (Beacon Polish)
+ * Epic: FFS-1415 (Dashboard Impact Chart Redesign)
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { ImpactMethodologyDrawer, type ImpactMetric } from "./ImpactMethodologyDrawer";
@@ -32,12 +39,24 @@ interface YearlyData {
   end_year: number;
 }
 
-/** Nice Y-axis ticks: round to nearest 500/1000/5000 */
-function niceMax(val: number): number {
-  if (val <= 100) return Math.ceil(val / 10) * 10;
-  if (val <= 1000) return Math.ceil(val / 100) * 100;
-  if (val <= 5000) return Math.ceil(val / 500) * 500;
-  return Math.ceil(val / 1000) * 1000;
+/** Generate nice round Y-axis tick values */
+function niceYTicks(maxVal: number): number[] {
+  if (maxVal <= 0) return [0];
+  // Pick a nice step size
+  const rough = maxVal / 4;
+  let step: number;
+  if (rough <= 50) step = Math.ceil(rough / 10) * 10;
+  else if (rough <= 250) step = Math.ceil(rough / 50) * 50;
+  else if (rough <= 1000) step = Math.ceil(rough / 250) * 250;
+  else step = Math.ceil(rough / 500) * 500;
+
+  const ticks: number[] = [0];
+  let v = step;
+  while (v <= maxVal * 1.05) {
+    ticks.push(v);
+    v += step;
+  }
+  return ticks;
 }
 
 // ── Preset quick-select buttons ─────────────────────────────────────────────
@@ -54,151 +73,6 @@ const PRESETS: Preset[] = [
   { label: "Last 5 years", getRange: (_, max) => [max - 4, max] },
 ];
 
-// ── Dual-thumb range slider ─────────────────────────────────────────────────
-
-function YearRangeSlider({
-  min,
-  max,
-  startYear,
-  endYear,
-  onChange,
-}: {
-  min: number;
-  max: number;
-  startYear: number;
-  endYear: number;
-  onChange: (start: number, end: number) => void;
-}) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef<"start" | "end" | null>(null);
-
-  const yearToPercent = (year: number) => ((year - min) / (max - min)) * 100;
-  const percentToYear = (pct: number) => Math.round(min + (pct / 100) * (max - min));
-
-  const getYearFromEvent = useCallback(
-    (e: MouseEvent | React.MouseEvent) => {
-      const track = trackRef.current;
-      if (!track) return min;
-      const rect = track.getBoundingClientRect();
-      const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-      return percentToYear(pct);
-    },
-    [min, max] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  const handleMouseDown = useCallback(
-    (thumb: "start" | "end") => (e: React.MouseEvent) => {
-      e.preventDefault();
-      dragging.current = thumb;
-
-      const handleMove = (ev: MouseEvent) => {
-        const year = getYearFromEvent(ev);
-        if (dragging.current === "start") {
-          onChange(Math.min(year, endYear), endYear);
-        } else {
-          onChange(startYear, Math.max(year, startYear));
-        }
-      };
-
-      const handleUp = () => {
-        dragging.current = null;
-        document.removeEventListener("mousemove", handleMove);
-        document.removeEventListener("mouseup", handleUp);
-      };
-
-      document.addEventListener("mousemove", handleMove);
-      document.addEventListener("mouseup", handleUp);
-    },
-    [getYearFromEvent, onChange, startYear, endYear]
-  );
-
-  // Click on track to move nearest thumb
-  const handleTrackClick = useCallback(
-    (e: React.MouseEvent) => {
-      const year = getYearFromEvent(e);
-      const distToStart = Math.abs(year - startYear);
-      const distToEnd = Math.abs(year - endYear);
-      if (distToStart <= distToEnd) {
-        onChange(Math.min(year, endYear), endYear);
-      } else {
-        onChange(startYear, Math.max(year, startYear));
-      }
-    },
-    [getYearFromEvent, onChange, startYear, endYear]
-  );
-
-  const leftPct = yearToPercent(startYear);
-  const rightPct = yearToPercent(endYear);
-
-  // Year tick marks — sparse
-  const span = max - min;
-  const tickInterval = span > 30 ? 10 : span > 15 ? 5 : span > 8 ? 2 : 1;
-  const ticks: number[] = [];
-  for (let y = min; y <= max; y++) {
-    if (y === min || y === max || y % tickInterval === 0) ticks.push(y);
-  }
-
-  return (
-    <div style={{ padding: "0.25rem 0", userSelect: "none" }}>
-      <div
-        ref={trackRef}
-        onClick={handleTrackClick}
-        style={{ position: "relative", height: 18, cursor: "pointer" }}
-      >
-        {/* Track background */}
-        <div style={{
-          position: "absolute", top: 7, left: 0, right: 0, height: 4,
-          borderRadius: 2, background: "var(--card-border, #e5e7eb)",
-        }} />
-        {/* Active range */}
-        <div style={{
-          position: "absolute", top: 7,
-          left: `${leftPct}%`, width: `${rightPct - leftPct}%`,
-          height: 4, borderRadius: 2,
-          background: "var(--primary, #2563eb)", opacity: 0.5,
-        }} />
-        {/* Thumbs */}
-        {(["start", "end"] as const).map((which) => (
-          <div
-            key={which}
-            onMouseDown={handleMouseDown(which)}
-            style={{
-              position: "absolute", top: 3,
-              left: `${which === "start" ? leftPct : rightPct}%`,
-              transform: "translateX(-50%)",
-              width: 12, height: 12, borderRadius: "50%",
-              background: "#fff",
-              border: "2px solid var(--primary, #2563eb)",
-              cursor: "grab", zIndex: 2,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-            }}
-          />
-        ))}
-      </div>
-      {/* Tick labels */}
-      <div style={{ position: "relative", height: 14 }}>
-        {ticks.map((year) => (
-          <span
-            key={year}
-            style={{
-              position: "absolute",
-              left: `${yearToPercent(year)}%`,
-              transform: "translateX(-50%)",
-              fontSize: "0.6rem",
-              color: year >= startYear && year <= endYear
-                ? "var(--text-secondary, #6b7280)"
-                : "var(--text-muted, #d1d5db)",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {year}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── Main chart component ────────────────────────────────────────────────────
 
 export function YearlyImpactChart() {
@@ -214,7 +88,6 @@ export function YearlyImpactChart() {
 
   useEffect(() => {
     let cancelled = false;
-    // Fetch yearly data + methodology in parallel
     Promise.all([
       fetchApi<YearlyData>("/api/dashboard/impact/yearly").catch(() => null),
       fetchApi<{ methodology: ImpactMethodology; start_year: number }>("/api/dashboard/impact").catch(() => null),
@@ -246,68 +119,83 @@ export function YearlyImpactChart() {
   const minYear = Math.min(...allYears.map((y) => y.year));
   const maxYear = Math.max(...allYears.map((y) => y.year));
   const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1; // 1-12
 
   const filtered = allYears.filter((y) => y.year >= yearRange[0] && y.year <= yearRange[1]);
   if (filtered.length === 0) return null;
 
-  // Exclude the current partial year from the max calculation so it
-  // doesn't compress the scale, but still show it as a dashed projection
+  // Separate completed years from current partial year
   const completedYears = filtered.filter((y) => y.year < currentYear);
   const partialYear = filtered.find((y) => y.year === currentYear);
 
+  // Annualize partial year: project full-year pace instead of showing raw dip
+  const projectedCount = partialYear && currentMonth > 0
+    ? Math.round((partialYear.donor_facing_count / currentMonth) * 12)
+    : null;
+
   const displayYears = completedYears.length > 0 ? completedYears : filtered;
-  const rawMax = Math.max(...displayYears.map((y) => y.donor_facing_count));
+  const rawMax = Math.max(
+    ...displayYears.map((y) => y.donor_facing_count),
+    projectedCount ?? 0,
+  );
   if (rawMax === 0) return null;
 
-  const maxCount = niceMax(rawMax);
+  // Y-axis ticks — nice round numbers, 4-5 ticks
+  const yTicks = niceYTicks(rawMax);
+  const maxCount = yTicks[yTicks.length - 1];
+
   const rangeTotal = filtered.reduce((sum, y) => sum + y.donor_facing_count, 0);
 
-  // Chart geometry — taller for readability
+  // Chart geometry
   const chartW = 700;
-  const chartH = 220;
-  const padL = 48;
+  const chartH = 240;
+  const padL = 52;
   const padR = 16;
-  const padT = 8;
+  const padT = 12;
   const padB = 28;
   const plotW = chartW - padL - padR;
   const plotH = chartH - padT - padB;
 
-  // Map data to SVG coordinates
-  const points = filtered.map((row, i) => ({
-    x: padL + (filtered.length === 1 ? plotW / 2 : (i / (filtered.length - 1)) * plotW),
+  // Map data to SVG coordinates (completed years only for main line)
+  const completedPts = completedYears.map((row, i) => ({
+    x: padL + (completedYears.length === 1 ? plotW / 2 : (i / Math.max(completedYears.length + (partialYear ? 1 : 0) - 1, 1)) * plotW),
     y: padT + plotH - (Math.min(row.donor_facing_count, maxCount) / maxCount) * plotH,
     row,
-    isPartial: row.year === currentYear,
   }));
 
-  // Split into completed line and partial (dashed) segment
-  const completedPts = points.filter((p) => !p.isPartial);
-  const lastCompleted = completedPts[completedPts.length - 1];
-  const partialPt = points.find((p) => p.isPartial);
+  // Projected point for current year (annualized)
+  const projectedPt = partialYear && projectedCount !== null ? {
+    x: padL + plotW, // rightmost position
+    y: padT + plotH - (Math.min(projectedCount, maxCount) / maxCount) * plotH,
+    row: { ...partialYear, donor_facing_count: projectedCount },
+    actualCount: partialYear.donor_facing_count,
+  } : null;
 
-  // Main line path (completed years only)
+  // All points for hover targets
+  const allPoints = [
+    ...completedPts.map(p => ({ ...p, isPartial: false, actualCount: p.row.donor_facing_count })),
+    ...(projectedPt ? [{ ...projectedPt, isPartial: true }] : []),
+  ];
+
+  const lastCompleted = completedPts[completedPts.length - 1];
+
+  // Main line path (completed years)
   const mainLine = completedPts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
 
-  // Filled area (completed years only)
+  // Filled area (completed years)
   const areaPath = completedPts.length > 1
     ? `${mainLine} L${lastCompleted.x},${padT + plotH} L${completedPts[0].x},${padT + plotH} Z`
     : "";
 
-  // Dashed line from last completed to partial year
-  const dashedLine = lastCompleted && partialPt
-    ? `M${lastCompleted.x},${lastCompleted.y} L${partialPt.x},${partialPt.y}`
+  // Dashed + faded projection line from last completed to projected point
+  const dashedLine = lastCompleted && projectedPt
+    ? `M${lastCompleted.x},${lastCompleted.y} L${projectedPt.x},${projectedPt.y}`
     : "";
 
-  // Y-axis ticks
-  const yTicks = [0, 0.5, 1].map((pct) => ({
-    y: padT + plotH - pct * plotH,
-    label: Math.round(maxCount * pct).toLocaleString(),
-  }));
-
   // X-axis labels (sparse)
-  const labelInterval = filtered.length > 20 ? 5 : filtered.length > 12 ? 3 : filtered.length > 8 ? 2 : 1;
+  const labelInterval = allPoints.length > 20 ? 5 : allPoints.length > 12 ? 3 : allPoints.length > 8 ? 2 : 1;
 
-  const hovered = hoveredIdx !== null ? points[hoveredIdx] : null;
+  const hovered = hoveredIdx !== null ? allPoints[hoveredIdx] : null;
 
   const activePreset = PRESETS.find((p) => {
     const [ps, pe] = p.getRange(minYear, maxYear);
@@ -316,7 +204,7 @@ export function YearlyImpactChart() {
 
   const rangeLabel = yearRange[0] === yearRange[1]
     ? String(yearRange[0])
-    : `${yearRange[0]}–${yearRange[1]}`;
+    : `${yearRange[0]}\u2013${yearRange[1]}`;
 
   // Computed impact stats for selected range
   const kMult = kittensMultiplier ?? 10;
@@ -337,7 +225,7 @@ export function YearlyImpactChart() {
 
   return (
     <section className="impact-chart-card" aria-label="Year-over-year alterations">
-      {/* Header with impact stats */}
+      {/* Header with preset buttons */}
       <div className="impact-chart-header">
         <div>
           <h3 className="impact-chart-title">Our impact ({rangeLabel})</h3>
@@ -359,19 +247,19 @@ export function YearlyImpactChart() {
         </div>
       </div>
 
-      {/* Impact stats strip — reacts to slider, clickable for methodology */}
+      {/* Impact stats strip — label ABOVE number (charity:water pattern) */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(3, 1fr)",
+        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
         gap: "1rem",
-        padding: "0.5rem 0 0.75rem",
+        padding: "0.75rem 0",
         borderBottom: "1px solid var(--card-border, #e5e7eb)",
-        marginBottom: "0.5rem",
+        marginBottom: "0.75rem",
       }}>
         {([
-          { metric: "cats_altered" as ImpactMetric, value: fmtBig(rangeTotal), label: "cats altered", color: "var(--text-primary)" },
-          { metric: "kittens_prevented" as ImpactMetric, value: `~${fmtBig(kittensPrevented)}`, label: "kittens prevented", color: "var(--primary, #2563eb)" },
-          { metric: "shelter_cost_avoided" as ImpactMetric, value: fmtCurrency(shelterCostAvoided), label: "shelter costs avoided", color: "var(--text-primary)" },
+          { metric: "cats_altered" as ImpactMetric, value: fmtBig(rangeTotal), label: "Cats Altered", color: "var(--foreground)" },
+          { metric: "kittens_prevented" as ImpactMetric, value: `~${fmtBig(kittensPrevented)}`, label: "Kittens Prevented", color: "var(--primary, #2563eb)" },
+          { metric: "shelter_cost_avoided" as ImpactMetric, value: fmtCurrency(shelterCostAvoided), label: "Shelter Costs Avoided", color: "var(--foreground)" },
         ]).map((stat) => (
           <button
             key={stat.metric}
@@ -385,89 +273,83 @@ export function YearlyImpactChart() {
             }}
             title={methodology ? "Click to see the math" : undefined}
           >
-            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: stat.color }}>
-              {stat.value}
-            </div>
-            <div style={{ fontSize: "0.72rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
               {stat.label}
             </div>
+            <div style={{ fontSize: "1.75rem", fontWeight: 700, color: stat.color, lineHeight: 1.1 }}>
+              {stat.value}
+            </div>
             {methodology && (
-              <div style={{ fontSize: "0.65rem", color: "var(--primary)", marginTop: "0.15rem" }}>
-                See the math →
+              <div style={{ fontSize: "0.7rem", color: "var(--primary)", marginTop: "0.25rem" }}>
+                See the math &rarr;
               </div>
             )}
           </button>
         ))}
       </div>
 
-      {/* Range slider */}
-      <YearRangeSlider
-        min={minYear}
-        max={maxYear}
-        startYear={yearRange[0]}
-        endYear={yearRange[1]}
-        onChange={handleRangeChange}
-      />
-
-      {/* SVG Line Chart */}
+      {/* SVG Area Chart */}
       <div style={{ position: "relative" }}>
         <svg
           viewBox={`0 0 ${chartW} ${chartH}`}
           style={{ width: "100%", height: "auto", display: "block" }}
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* Grid lines */}
-          {yTicks.map((tick, i) => (
-            <g key={i}>
-              <line
-                x1={padL} y1={tick.y} x2={chartW - padR} y2={tick.y}
-                stroke="var(--card-border, #e5e7eb)"
-                strokeWidth={0.5}
-                strokeDasharray={i === 0 ? "none" : "4 3"}
-              />
-              <text
-                x={padL - 8} y={tick.y + 3}
-                textAnchor="end" fontSize="10"
-                fill="var(--text-muted, #9ca3af)" fontFamily="inherit"
-              >
-                {tick.label}
-              </text>
-            </g>
-          ))}
+          <defs>
+            <linearGradient id="impactAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--primary, #2563eb)" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="var(--primary, #2563eb)" stopOpacity="0.03" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid lines — solid, light */}
+          {yTicks.map((val, i) => {
+            const y = padT + plotH - (val / maxCount) * plotH;
+            return (
+              <g key={i}>
+                <line
+                  x1={padL} y1={y} x2={chartW - padR} y2={y}
+                  stroke="var(--card-border, #e5e7eb)"
+                  strokeWidth={i === 0 ? 1 : 0.5}
+                  opacity={i === 0 ? 0.6 : 0.35}
+                />
+                <text
+                  x={padL - 8} y={y + 4}
+                  textAnchor="end" fontSize="11"
+                  fill="var(--text-muted, #9ca3af)" fontFamily="inherit"
+                >
+                  {val.toLocaleString()}
+                </text>
+              </g>
+            );
+          })}
 
           {/* Filled area under completed line */}
           {areaPath && (
-            <path d={areaPath} fill="url(#areaGrad)" />
+            <path d={areaPath} fill="url(#impactAreaGrad)" />
           )}
-
-          <defs>
-            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.01" />
-            </linearGradient>
-          </defs>
 
           {/* Main line (completed years) */}
           {mainLine && (
             <path
               d={mainLine} fill="none"
-              stroke="#2563eb" strokeWidth={2.5}
+              stroke="var(--primary, #2563eb)" strokeWidth={2.5}
               strokeLinejoin="round" strokeLinecap="round"
             />
           )}
 
-          {/* Dashed line to current partial year */}
+          {/* Dashed + faded projection line to annualized pace */}
           {dashedLine && (
             <path
               d={dashedLine} fill="none"
-              stroke="#2563eb" strokeWidth={2}
-              strokeDasharray="6 4" opacity={0.5}
+              stroke="var(--primary, #2563eb)" strokeWidth={2}
+              strokeDasharray="6 4" opacity={0.4}
             />
           )}
 
-          {/* Hover target areas — invisible wide columns for easier hovering */}
-          {points.map((p, i) => {
-            const colW = plotW / Math.max(filtered.length - 1, 1);
+          {/* Hover target areas */}
+          {allPoints.map((p, i) => {
+            const colW = plotW / Math.max(allPoints.length - 1, 1);
             return (
               <rect
                 key={`ht-${p.row.year}`}
@@ -481,39 +363,53 @@ export function YearlyImpactChart() {
             );
           })}
 
-          {/* Hovered dot only */}
+          {/* Hovered dot + vertical line */}
           {hovered && (
             <>
               <line
                 x1={hovered.x} y1={padT}
                 x2={hovered.x} y2={padT + plotH}
-                stroke="#2563eb" strokeWidth={0.5} opacity={0.3}
+                stroke="var(--primary, #2563eb)" strokeWidth={0.5} opacity={0.3}
               />
               <circle
                 cx={hovered.x} cy={hovered.y} r={5}
-                fill="#2563eb" stroke="#fff" strokeWidth={2}
+                fill="var(--primary, #2563eb)" stroke="#fff" strokeWidth={2}
               />
             </>
           )}
 
-          {/* Partial year indicator dot */}
-          {partialPt && hoveredIdx !== points.indexOf(partialPt) && (
+          {/* Projected year indicator dot (when not hovered) */}
+          {projectedPt && hoveredIdx !== allPoints.length - 1 && (
             <circle
-              cx={partialPt.x} cy={partialPt.y} r={3}
-              fill="none" stroke="#2563eb" strokeWidth={1.5}
-              strokeDasharray="2 2" opacity={0.5}
+              cx={projectedPt.x} cy={projectedPt.y} r={4}
+              fill="none" stroke="var(--primary, #2563eb)" strokeWidth={1.5}
+              opacity={0.5}
             />
           )}
 
+          {/* "On track" annotation at projected point */}
+          {projectedPt && !hovered && (
+            <text
+              x={projectedPt.x} y={projectedPt.y - 12}
+              textAnchor="end" fontSize="10"
+              fill="var(--primary, #2563eb)" fontFamily="inherit"
+              opacity={0.7}
+            >
+              On track for ~{projectedPt.row.donor_facing_count.toLocaleString()}
+            </text>
+          )}
+
           {/* X-axis labels */}
-          {points.map((p, i) => {
-            if (i % labelInterval !== 0 && i !== points.length - 1) return null;
+          {allPoints.map((p, i) => {
+            if (i % labelInterval !== 0 && i !== allPoints.length - 1) return null;
             return (
               <text
                 key={`xl-${p.row.year}`}
                 x={p.x} y={chartH - 6}
-                textAnchor="middle" fontSize="10"
-                fill="var(--text-muted, #9ca3af)" fontFamily="inherit"
+                textAnchor="middle" fontSize="11"
+                fill={p.isPartial ? "var(--primary, #2563eb)" : "var(--text-muted, #9ca3af)"}
+                fontFamily="inherit"
+                fontWeight={p.isPartial ? 600 : 400}
               >
                 {p.row.year}
               </text>
@@ -535,9 +431,14 @@ export function YearlyImpactChart() {
           >
             <strong>
               {hovered.row.year}
-              {hovered.isPartial && " (year to date)"}
+              {hovered.isPartial && ` (projected)`}
             </strong>
-            <div>{hovered.row.donor_facing_count.toLocaleString()} cats</div>
+            <div>
+              {hovered.isPartial
+                ? `${hovered.actualCount.toLocaleString()} so far → ~${hovered.row.donor_facing_count.toLocaleString()} pace`
+                : `${hovered.row.donor_facing_count.toLocaleString()} cats`
+              }
+            </div>
           </div>
         )}
       </div>
