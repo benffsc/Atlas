@@ -356,65 +356,13 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
       {/* ClinicHQ Notes */}
       {request.place_id && <ClinicNotesSection placeId={request.place_id} />}
 
-      {/* ═══ Tab Bar ═══ */}
-      <div style={{ marginTop: "1.5rem" }}>
-        <TabBar
-          tabs={[
-            { id: "case", label: "Case", icon: "file-text" },
-            { id: "people", label: "People", icon: "users", count: (relatedPeople.length || 0) + (request.requester_person_id ? 1 : 0) },
-            { id: "cats", label: "Cats", icon: "cat", count: request.linked_cat_count || 0 },
-            { id: "trip-reports", label: "Trip Reports", icon: "clipboard-list", count: tripReports.length },
-            { id: "photos", label: "Photos", icon: "camera" },
-            { id: "activity", label: "Activity", icon: "pencil", count: journalEntries.length },
-            { id: "admin", label: "Admin", icon: "settings" },
-          ]}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          size={isNarrow ? "sm" : "md"}
-        />
+      {isPanel ? (
+        /* ═══ Panel Layout: no tabs, single scrollable column ═══ */
+        <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {/* Journal — always visible, top priority for triage */}
+          <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshAndNotify(); fetchJournalEntries(); }} />
 
-        {/* Case Tab */}
-        <TabPanel tabId="case" activeTab={activeTab}>
-          {REQUEST_SECTIONS.map((sectionConfig) => (
-            <RequestSection
-              key={sectionConfig.id}
-              config={sectionConfig}
-              request={request}
-              onSaved={refreshAndNotify}
-            />
-          ))}
-
-          {request.intake_extended_data && Object.keys(request.intake_extended_data).length > 0 && (
-            <CaseSection title="Intake Details" icon="file-text" color="#8b5cf6">
-              <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem", margin: 0 }}>
-                {Object.entries(request.intake_extended_data)
-                  .filter(([, v]) => v != null && v !== "" && v !== false)
-                  .map(([key, value]) => (
-                    <SmartField
-                      key={key}
-                      label={key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-                      value={typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
-                    />
-                  ))}
-              </dl>
-            </CaseSection>
-          )}
-
-          <CaseSection title="Assigned Trappers" icon="user" color="#ec4899">
-            <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={refreshAndNotify} />
-            {request.scheduled_date && (
-              <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", display: "flex", gap: "1rem", alignItems: "center" }}>
-                <span style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Icon name="calendar" size={14} /> Scheduled:</span>
-                <span>{new Date(request.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
-                {request.scheduled_time_range && <span style={{ color: "var(--muted)" }}>({request.scheduled_time_range})</span>}
-              </div>
-            )}
-          </CaseSection>
-        </TabPanel>
-
-        {/* People Tab */}
-        <TabPanel tabId="people" activeTab={activeTab}>
-          {/* Contact Card */}
+          {/* Contact */}
           <ContactCard
             requester={request.requester_person_id ? {
               personId: request.requester_person_id,
@@ -439,100 +387,231 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
               modals.preview.open("person", personId);
             }}
           />
-          {request.preferred_language && request.preferred_language !== "en" && (
-            <div style={{ marginTop: "0.5rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-              <span style={{
-                fontSize: "0.7rem", fontWeight: 600, padding: "2px 8px", borderRadius: "10px",
-                background: "#eef2ff", color: "#4338ca", textTransform: "uppercase",
-              }}>
-                {getShortLabel(LANGUAGE_OPTIONS, request.preferred_language)} — {getLabel(LANGUAGE_OPTIONS, request.preferred_language)}
-              </span>
-            </div>
+
+          {/* Trappers */}
+          <CaseSection title="Assigned Trappers" icon="user" color="#ec4899">
+            <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={refreshAndNotify} />
+            {request.scheduled_date && (
+              <div style={{ marginTop: "0.75rem", padding: "0.5rem 0.75rem", background: "#fef3c7", borderRadius: "6px", display: "flex", gap: "0.75rem", alignItems: "center", fontSize: "0.85rem" }}>
+                <span style={{ fontWeight: 600 }}>Scheduled:</span>
+                <span>{new Date(request.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                {request.scheduled_time_range && <span style={{ color: "var(--muted)" }}>({request.scheduled_time_range})</span>}
+              </div>
+            )}
+          </CaseSection>
+
+          {/* Case fields */}
+          {REQUEST_SECTIONS.map((sectionConfig) => (
+            <RequestSection
+              key={sectionConfig.id}
+              config={sectionConfig}
+              request={request}
+              onSaved={refreshAndNotify}
+            />
+          ))}
+
+          {/* Linked cats summary row */}
+          {(request.linked_cat_count || 0) > 0 && (
+            <a href={`/requests/${requestId}?from=requests`} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "0.6rem 0.75rem", background: "var(--section-bg, #f9fafb)",
+              border: "1px solid var(--border)", borderRadius: "8px",
+              textDecoration: "none", color: "var(--foreground)", fontSize: "0.85rem",
+            }}>
+              <span><strong>{request.linked_cat_count}</strong> linked cat{request.linked_cat_count === 1 ? "" : "s"}</span>
+              <span style={{ color: "var(--primary)", fontSize: "0.8rem" }}>View →</span>
+            </a>
           )}
 
-          {/* Location Card */}
-          <div style={{ marginTop: "1rem", background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", overflow: "hidden" }}>
-            <div style={{ padding: "0.75rem 1rem", background: "linear-gradient(135deg, #166534 0%, #22c55e 100%)", color: "#fff" }}>
-              <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <Icon name="map-pin" size={16} color="#fff" />
-                Location
-              </h3>
-            </div>
-            <div style={{ padding: "1rem" }}>
-              {request.place_id ? (
-                <div>
-                  <a href={`/places/${request.place_id}`} onClick={modals.preview.handleClick("place", request.place_id)} style={{ fontWeight: 600, fontSize: "1.1rem", color: "var(--foreground)", textDecoration: "none" }}>
-                    {request.place_name || formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true })}
-                  </a>
-                  <div style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: "0.25rem" }}>
-                    {formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code })}
-                  </div>
-                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
-                    {request.place_service_zone && <span className="badge" style={{ background: COLORS.primaryDark, color: "#fff", fontSize: "0.7rem" }}>Zone: {request.place_service_zone}</span>}
-                  </div>
-                  {request.location_description && (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
-                      {request.location_description}
-                    </div>
-                  )}
-                  {request.requester_home_place_id && request.requester_home_place_id !== request.place_id && request.requester_home_address && (
-                    <div style={{ marginTop: "0.5rem", padding: "0.4rem 0.6rem", background: "#eef2ff", borderRadius: "6px", fontSize: "0.8rem", color: "#4338ca" }}>
-                      <span style={{ fontWeight: 600 }}>Requester lives at:</span> {request.requester_home_address}
-                    </div>
-                  )}
-                  {request.place_coordinates && (
-                    <div style={{ marginTop: "0.75rem" }}>
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${request.place_coordinates.lat},${request.place_coordinates.lng}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85rem", color: "#166534", textDecoration: "none" }}>
-                        Open in Google Maps →
-                      </a>
-                    </div>
-                  )}
+          {/* Trip reports summary row */}
+          {tripReports.length > 0 && (
+            <a href={`/requests/${requestId}?from=requests`} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "0.6rem 0.75rem", background: "var(--section-bg, #f9fafb)",
+              border: "1px solid var(--border)", borderRadius: "8px",
+              textDecoration: "none", color: "var(--foreground)", fontSize: "0.85rem",
+            }}>
+              <span><strong>{tripReports.length}</strong> trip report{tripReports.length === 1 ? "" : "s"}</span>
+              <span style={{ color: "var(--primary)", fontSize: "0.8rem" }}>View →</span>
+            </a>
+          )}
+        </div>
+      ) : (
+        /* ═══ Full Page: tabs ═══ */
+        <div style={{ marginTop: "1.5rem" }}>
+          <TabBar
+            tabs={[
+              { id: "case", label: "Case" },
+              { id: "people", label: "People", count: (relatedPeople.length || 0) + (request.requester_person_id ? 1 : 0) },
+              { id: "cats", label: "Cats", count: request.linked_cat_count || 0 },
+              { id: "trip-reports", label: "Trip Reports", count: tripReports.length },
+              { id: "photos", label: "Photos" },
+              { id: "activity", label: "Activity", count: journalEntries.length },
+              { id: "admin", label: "Admin" },
+            ]}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+
+          {/* Case Tab */}
+          <TabPanel tabId="case" activeTab={activeTab}>
+            {REQUEST_SECTIONS.map((sectionConfig) => (
+              <RequestSection
+                key={sectionConfig.id}
+                config={sectionConfig}
+                request={request}
+                onSaved={refreshAndNotify}
+              />
+            ))}
+
+            {request.intake_extended_data && Object.keys(request.intake_extended_data).length > 0 && (
+              <CaseSection title="Intake Details" icon="file-text" color="#8b5cf6">
+                <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem", margin: 0 }}>
+                  {Object.entries(request.intake_extended_data)
+                    .filter(([, v]) => v != null && v !== "" && v !== false)
+                    .map(([key, value]) => (
+                      <SmartField
+                        key={key}
+                        label={key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                        value={typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
+                      />
+                    ))}
+                </dl>
+              </CaseSection>
+            )}
+
+            <CaseSection title="Assigned Trappers" icon="user" color="#ec4899">
+              <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={refreshAndNotify} />
+              {request.scheduled_date && (
+                <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", display: "flex", gap: "1rem", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Icon name="calendar" size={14} /> Scheduled:</span>
+                  <span>{new Date(request.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                  {request.scheduled_time_range && <span style={{ color: "var(--muted)" }}>({request.scheduled_time_range})</span>}
                 </div>
-              ) : (
-                <p style={{ color: "var(--muted)", margin: 0, fontStyle: "italic" }}>No location linked</p>
               )}
+            </CaseSection>
+          </TabPanel>
+
+          {/* People Tab */}
+          <TabPanel tabId="people" activeTab={activeTab}>
+            <ContactCard
+              requester={request.requester_person_id ? {
+                personId: request.requester_person_id,
+                name: request.requester_name,
+                email: request.requester_email,
+                phone: request.requester_phone,
+                role: request.requester_role_at_submission,
+                isSiteContact: request.requester_is_site_contact,
+              } : undefined}
+              siteContact={request.site_contact_person_id && !request.requester_is_site_contact ? {
+                personId: request.site_contact_person_id,
+                name: request.site_contact_name,
+                email: request.site_contact_email,
+                phone: request.site_contact_phone,
+              } : undefined}
+              onEmailClick={() => modals.open("email")}
+              onSiteContactChange={handleSiteContactChange}
+              savingSiteContact={savingSiteContact}
+              onPersonClick={(personId, e) => {
+                if (e.metaKey || e.ctrlKey) return;
+                e.preventDefault();
+                modals.preview.open("person", personId);
+              }}
+            />
+            {request.preferred_language && request.preferred_language !== "en" && (
+              <div style={{ marginTop: "0.5rem", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                <span style={{
+                  fontSize: "0.7rem", fontWeight: 600, padding: "2px 8px", borderRadius: "10px",
+                  background: "#eef2ff", color: "#4338ca", textTransform: "uppercase",
+                }}>
+                  {getShortLabel(LANGUAGE_OPTIONS, request.preferred_language)} — {getLabel(LANGUAGE_OPTIONS, request.preferred_language)}
+                </span>
+              </div>
+            )}
+
+            {/* Location Card */}
+            <div style={{ marginTop: "1rem", background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", overflow: "hidden" }}>
+              <div style={{ padding: "0.75rem 1rem", background: "linear-gradient(135deg, #166534 0%, #22c55e 100%)", color: "#fff" }}>
+                <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Icon name="map-pin" size={16} color="#fff" />
+                  Location
+                </h3>
+              </div>
+              <div style={{ padding: "1rem" }}>
+                {request.place_id ? (
+                  <div>
+                    <a href={`/places/${request.place_id}`} onClick={modals.preview.handleClick("place", request.place_id)} style={{ fontWeight: 600, fontSize: "1.1rem", color: "var(--foreground)", textDecoration: "none" }}>
+                      {request.place_name || formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true })}
+                    </a>
+                    <div style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: "0.25rem" }}>
+                      {formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code })}
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+                      {request.place_service_zone && <span className="badge" style={{ background: COLORS.primaryDark, color: "#fff", fontSize: "0.7rem" }}>Zone: {request.place_service_zone}</span>}
+                    </div>
+                    {request.location_description && (
+                      <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
+                        {request.location_description}
+                      </div>
+                    )}
+                    {request.requester_home_place_id && request.requester_home_place_id !== request.place_id && request.requester_home_address && (
+                      <div style={{ marginTop: "0.5rem", padding: "0.4rem 0.6rem", background: "#eef2ff", borderRadius: "6px", fontSize: "0.8rem", color: "#4338ca" }}>
+                        <span style={{ fontWeight: 600 }}>Requester lives at:</span> {request.requester_home_address}
+                      </div>
+                    )}
+                    {request.place_coordinates && (
+                      <div style={{ marginTop: "0.75rem" }}>
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${request.place_coordinates.lat},${request.place_coordinates.lng}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85rem", color: "#166534", textDecoration: "none" }}>
+                          Open in Google Maps →
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ color: "var(--muted)", margin: 0, fontStyle: "italic" }}>No location linked</p>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Related People */}
-          <RelatedPeopleSection
-            requestId={requestId}
-            relatedPeople={relatedPeople}
-            fetchRelatedPeople={fetchRelatedPeople}
-            onPersonClick={(personId) => modals.preview.open("person", personId)}
-          />
-        </TabPanel>
+            <RelatedPeopleSection
+              requestId={requestId}
+              relatedPeople={relatedPeople}
+              fetchRelatedPeople={fetchRelatedPeople}
+              onPersonClick={(personId) => modals.preview.open("person", personId)}
+            />
+          </TabPanel>
 
-        {/* Cats Tab */}
-        <TabPanel tabId="cats" activeTab={activeTab}>
-          <LinkedCatsSection cats={request.cats} context="request" emptyMessage="No cats linked yet" showCount={false} title="" onEntityClick={(t, id) => modals.preview.open(t as "cat", id)} />
-        </TabPanel>
+          {/* Cats Tab */}
+          <TabPanel tabId="cats" activeTab={activeTab}>
+            <LinkedCatsSection cats={request.cats} context="request" emptyMessage="No cats linked yet" showCount={false} title="" onEntityClick={(t, id) => modals.preview.open(t as "cat", id)} />
+          </TabPanel>
 
-        {/* Trip Reports Tab */}
-        <TabPanel tabId="trip-reports" activeTab={activeTab}>
-          <TripReportsTab tripReports={tripReports} onLogSession={() => modals.open("tripReport")} />
-        </TabPanel>
+          {/* Trip Reports Tab */}
+          <TabPanel tabId="trip-reports" activeTab={activeTab}>
+            <TripReportsTab tripReports={tripReports} onLogSession={() => modals.open("tripReport")} />
+          </TabPanel>
 
-        {/* Photos Tab */}
-        <TabPanel tabId="photos" activeTab={activeTab}>
-          <MediaGallery entityType="request" entityId={requestId} allowUpload={true} includeRelated={true} showCatDescription={true} defaultMediaType="cat_photo" allowedMediaTypes={["cat_photo", "site_photo", "evidence"]} />
-        </TabPanel>
+          {/* Photos Tab */}
+          <TabPanel tabId="photos" activeTab={activeTab}>
+            <MediaGallery entityType="request" entityId={requestId} allowUpload={true} includeRelated={true} showCatDescription={true} defaultMediaType="cat_photo" allowedMediaTypes={["cat_photo", "site_photo", "evidence"]} />
+          </TabPanel>
 
-        {/* Activity Tab */}
-        <TabPanel tabId="activity" activeTab={activeTab}>
-          <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshAndNotify(); fetchJournalEntries(); }} />
-        </TabPanel>
+          {/* Activity Tab */}
+          <TabPanel tabId="activity" activeTab={activeTab}>
+            <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshAndNotify(); fetchJournalEntries(); }} />
+          </TabPanel>
 
-        {/* Admin Tab */}
-        <TabPanel tabId="admin" activeTab={activeTab}>
-          <RequestAdminTab
-            request={request}
-            mapUrl={mapUrl}
-            onUpgradeLegacy={() => modals.open("upgrade")}
-            onCreateColony={() => modals.open("colony")}
-          />
-        </TabPanel>
-      </div>
+          {/* Admin Tab */}
+          <TabPanel tabId="admin" activeTab={activeTab}>
+            <RequestAdminTab
+              request={request}
+              mapUrl={mapUrl}
+              onUpgradeLegacy={() => modals.open("upgrade")}
+              onCreateColony={() => modals.open("colony")}
+            />
+          </TabPanel>
+        </div>
+      )}
 
       {/* All modals rendered by hook */}
       {modals.element}
