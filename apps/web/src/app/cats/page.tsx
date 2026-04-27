@@ -4,18 +4,15 @@ import { useState, useEffect, Suspense } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatDateLocal } from "@/lib/formatters";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { useEntityDetail } from "@/hooks/useEntityDetail";
 import { useListData } from "@/hooks/useListData";
 import { CatHealthBadges } from "@/components/badges";
 import type { HealthFlag } from "@/components/badges/CatHealthBadges";
-import type { CatDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
-import { CatPreviewContent } from "@/components/preview/CatPreviewContent";
+import { CatDetailShell } from "@/components/cat/CatDetailShell";
 import { FilterChip, SearchInput } from "@/components/filters";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
-import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Cat {
   cat_id: string;
@@ -175,19 +172,13 @@ function CatsPageContent() {
 
   const [searchInput, setSearchInput] = useState(filters.q);
 
-  const { items: cats, total, loading, error } = useListData<Cat>({
+  const { items: cats, total, loading, error, refetch: refetchCats } = useListData<Cat>({
     endpoint: "/api/cats",
     filters,
     apiParams,
     buildParams: buildCatParams,
     dataKey: "cats",
   });
-
-  // Panel preview
-  const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
-    filters.selected ? "cat" : null,
-    filters.selected || null,
-  );
 
   // Sync search input on external clear
   useEffect(() => {
@@ -198,13 +189,13 @@ function CatsPageContent() {
     setFilter("selected", filters.selected === catId ? "" : catId);
   };
 
-  const panelContent = filters.selected && selectedDetail && !detailLoading ? (
-    <CatPreviewContent
-      cat={selectedDetail as CatDetail}
+  const panelContent = filters.selected ? (
+    <CatDetailShell
+      id={filters.selected}
+      mode="panel"
       onClose={() => setFilter("selected", "")}
+      onDataUpdated={() => refetchCats()}
     />
-  ) : filters.selected && detailLoading ? (
-    <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
   ) : null;
 
   return (

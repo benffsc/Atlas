@@ -104,6 +104,10 @@ function QuickActions({ request, onStatusChange, onOpenComplete, onOpenHold }: {
 // --- Main Component ---
 
 /**
+ * @deprecated Use `RequestDetailShell` with `mode="panel"` instead.
+ * This component is superseded by the unified shell that renders the full
+ * detail page inside the drawer panel. Kept temporarily for reference.
+ *
  * Rich request preview panel for the split-view on the requests list page.
  * Shows contact info, colony stats, trapping logistics, and quick actions
  * so staff can triage without opening the full page.

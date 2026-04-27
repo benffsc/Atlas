@@ -12,8 +12,9 @@ interface PersonPreviewContentProps {
 }
 
 /**
- * Maps PersonDetail data to EntityPreviewPanel props.
- * Used in the split-view panel on the people list page.
+ * @deprecated Use `PersonDetailShell` with `mode="panel"` instead.
+ * This component is superseded by the unified shell that renders the full
+ * detail page inside the drawer panel. Kept temporarily for reference.
  */
 export function PersonPreviewContent({ person, onClose }: PersonPreviewContentProps) {
   const relTime = formatRelativeTime(person.last_appointment_date);

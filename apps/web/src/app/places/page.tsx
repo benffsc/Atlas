@@ -3,21 +3,18 @@
 import { useState, useEffect, Suspense } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { useEntityDetail } from "@/hooks/useEntityDetail";
 import { useListData } from "@/hooks/useListData";
 import { formatPlaceKind } from "@/lib/display-labels";
 import { formatRelativeTime } from "@/lib/formatters";
 import { PlaceRiskBadges } from "@/components/badges";
 import type { DiseaseFlag } from "@/components/badges/PlaceRiskBadges";
-import type { PlaceDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
-import { PlacePreviewContent } from "@/components/preview/PlacePreviewContent";
+import { PlaceDetailShell } from "@/components/place/PlaceDetailShell";
 import { FilterChip, SearchInput } from "@/components/filters";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
-import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Place {
   place_id: string;
@@ -185,19 +182,13 @@ function PlacesPageContent() {
 
   const [searchInput, setSearchInput] = useState(filters.q);
 
-  const { items: places, total, loading, error } = useListData<Place>({
+  const { items: places, total, loading, error, refetch: refetchPlaces } = useListData<Place>({
     endpoint: "/api/places",
     filters,
     apiParams,
     buildParams: buildPlaceParams,
     dataKey: "places",
   });
-
-  // Panel preview
-  const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
-    filters.selected ? "place" : null,
-    filters.selected || null,
-  );
 
   // Sync search input on external clear
   useEffect(() => {
@@ -208,13 +199,13 @@ function PlacesPageContent() {
     setFilter("selected", filters.selected === placeId ? "" : placeId);
   };
 
-  const panelContent = filters.selected && selectedDetail && !detailLoading ? (
-    <PlacePreviewContent
-      place={selectedDetail as PlaceDetail}
+  const panelContent = filters.selected ? (
+    <PlaceDetailShell
+      id={filters.selected}
+      mode="panel"
       onClose={() => setFilter("selected", "")}
+      onDataUpdated={() => refetchPlaces()}
     />
-  ) : filters.selected && detailLoading ? (
-    <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
   ) : null;
 
   return (

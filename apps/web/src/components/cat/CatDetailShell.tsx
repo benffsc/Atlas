@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useCatDetail } from "@/hooks/useCatDetail";
 import { TabBar } from "@/components/ui";
 import { BackButton, EditHistory, QuickActions, useCatQuickActionState } from "@/components/common";
@@ -10,6 +11,7 @@ import { ReportDeceasedModal, RecordBirthModal, AppointmentDetailModal } from "@
 import { OwnershipTransferWizard } from "@/components/forms";
 import { VerificationBadge, LastVerified, AtlasCatIdBadge, MicrochipStatusBadge } from "@/components/badges";
 import { MediaGallery } from "@/components/media";
+import { Icon } from "@/components/ui/Icon";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { formatDateLocal } from "@/lib/formatters";
@@ -25,12 +27,17 @@ import { ConnectionsTab } from "./sections/ConnectionsTab";
 
 interface CatDetailShellProps {
   id: string;
+  mode?: "page" | "panel";
+  onClose?: () => void;
+  onDataUpdated?: () => void;
 }
 
-export function CatDetailShell({ id }: CatDetailShellProps) {
+export function CatDetailShell({ id, mode = "page", onClose, onDataUpdated }: CatDetailShellProps) {
   const data = useCatDetail(id);
   const preview = useEntityPreviewModal();
   const navContext = useNavigationContext(data.cat?.display_name);
+  const { ref: containerRef, isNarrow } = useContainerWidth();
+  const isPanel = mode === "panel";
 
   const [activeTab, setActiveTab] = useState("overview");
   const [showHistory, setShowHistory] = useState(false);
@@ -87,14 +94,14 @@ export function CatDetailShell({ id }: CatDetailShellProps) {
 
   // Loading / Error states
   if (data.loading) {
-    return <div className="loading">Loading cat details...</div>;
+    return <div className="loading" style={isPanel ? { padding: "1rem" } : undefined}>Loading cat details...</div>;
   }
 
   if (data.error) {
     return (
-      <div>
-        <BackButton fallbackHref="/cats" />
-        <div className="empty" style={{ marginTop: "2rem" }}>
+      <div style={isPanel ? { padding: "1rem" } : undefined}>
+        {!isPanel && <BackButton fallbackHref="/cats" />}
+        <div className="empty" style={{ marginTop: isPanel ? "0.5rem" : "2rem" }}>
           <h2 style={{ color: "#dc3545" }}>{data.error}</h2>
           <p className="text-muted" style={{ marginTop: "0.5rem" }}>Cat ID: <code>{id}</code></p>
         </div>
@@ -121,26 +128,54 @@ export function CatDetailShell({ id }: CatDetailShellProps) {
     { id: "connections", label: "Connections", count: (cat.owners?.length || 0) + (cat.places?.length || 0) || undefined },
   ];
 
+  const actionButtons = !editingBasic ? (
+    <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+      <button onClick={startEditingBasic} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 600, background: "var(--primary)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}>Edit</button>
+      <button onClick={() => setShowHistory(!showHistory)} title="History" style={{ padding: "0.4rem 0.6rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", cursor: "pointer" }}>{"\u22EE"}</button>
+    </div>
+  ) : null;
+
   return (
     <>
-      <div style={{ maxWidth: 1100 }}>
-        {/* Breadcrumbs + Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-          <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Cats", href: "/cats" }, { label: cat.display_name }]} />
-          {!editingBasic && (
-            <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
-              <button onClick={startEditingBasic} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 600, background: "var(--primary)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}>Edit</button>
-              <button onClick={() => setShowHistory(!showHistory)} title="History" style={{ padding: "0.4rem 0.6rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", cursor: "pointer" }}>{"\u22EE"}</button>
-              <button onClick={() => {}} title="More actions" style={{ padding: "0.4rem 0.6rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", cursor: "pointer" }}>{"\u22EE"}</button>
+      <div ref={containerRef} style={{ maxWidth: isPanel ? undefined : 1100, padding: isPanel ? (isNarrow ? "0.5rem" : "0.75rem") : undefined }}>
+        {/* Panel header */}
+        {isPanel && (
+          <div style={{
+            position: "sticky", top: 0, zIndex: 10, background: "var(--background, #fff)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "0.5rem 0", marginBottom: "0.5rem", borderBottom: "1px solid var(--border)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--text-muted)", flexShrink: 0 }} title="Close panel">
+                <Icon name="x" size={18} />
+              </button>
+              <span style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {cat.display_name}
+              </span>
             </div>
-          )}
-        </div>
+            <a href={`/cats/${id}?from=cats`} style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+              Open Full Profile →
+            </a>
+          </div>
+        )}
+
+        {/* Breadcrumbs + Actions (page mode only) */}
+        {!isPanel && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+            <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Cats", href: "/cats" }, { label: cat.display_name }]} />
+            {actionButtons}
+          </div>
+        )}
 
         {/* ── Hero Card ── */}
-        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: isNarrow ? "1rem" : "1.5rem", marginBottom: isNarrow ? "1rem" : "1.5rem" }}>
+          {/* Panel-mode action buttons */}
+          {isPanel && actionButtons && (
+            <div style={{ marginBottom: "0.75rem" }}>{actionButtons}</div>
+          )}
           <div className="hero-card-layout" style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
             {/* Photo */}
-            <div className="hero-card-photo" style={{ width: 160, flexShrink: 0 }}>
+            <div className="hero-card-photo" style={{ width: isNarrow ? 100 : 160, flexShrink: 0 }}>
               <MediaGallery
                 entityType="cat"
                 entityId={cat.cat_id}
@@ -171,7 +206,7 @@ export function CatDetailShell({ id }: CatDetailShellProps) {
 
             {/* Info */}
             <div style={{ flex: 1, minWidth: 200 }}>
-              <h1 style={{ margin: "0 0 0.5rem", fontSize: "1.5rem", fontWeight: 700, color: cat.is_deceased ? "var(--muted)" : "inherit" }}>
+              <h1 style={{ margin: "0 0 0.5rem", fontSize: isNarrow ? "1.1rem" : "1.5rem", fontWeight: 700, color: cat.is_deceased ? "var(--muted)" : "inherit" }}>
                 {cat.display_name}
               </h1>
 
@@ -281,8 +316,8 @@ export function CatDetailShell({ id }: CatDetailShellProps) {
         </div>
 
         {/* ── Tab Bar ── */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <TabBar tabs={tabDefs} activeTab={activeTab} onTabChange={setActiveTab} />
+        <div style={{ marginBottom: isNarrow ? "1rem" : "1.5rem" }}>
+          <TabBar tabs={tabDefs} activeTab={activeTab} onTabChange={setActiveTab} size={isNarrow ? "sm" : "md"} />
         </div>
 
         {/* ── Tab Content ── */}

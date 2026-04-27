@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, ReactNode } from "react";
+import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { usePersonDetail } from "@/hooks/usePersonDetail";
 import { detectRoles, getRoleConfig } from "@/lib/person-roles/configs";
 import type { RoleType, SectionDefinition } from "@/lib/person-roles/types";
@@ -14,6 +15,7 @@ import { SendEmailModal } from "@/components/modals";
 import { BackButton } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
+import { Icon } from "@/components/ui/Icon";
 import { EntityHeader } from "./EntityHeader";
 import { SectionRenderer } from "./SectionRenderer";
 import { formatDateLocal } from "@/lib/formatters";
@@ -119,6 +121,9 @@ interface PersonDetailShellProps {
   initialRole?: RoleType;
   /** Back button destination */
   backHref?: string;
+  mode?: "page" | "panel";
+  onClose?: () => void;
+  onDataUpdated?: () => void;
 }
 
 /**
@@ -127,14 +132,20 @@ interface PersonDetailShellProps {
  * Uses usePersonDetail for data, getRoleConfig for layout config,
  * and SectionRenderer for content. Both /people/[id] and /trappers/[id]
  * render this component with different initialRole props.
+ * Supports mode="panel" for rendering inside list page split-view.
  */
 export function PersonDetailShell({
   id,
   initialRole,
   backHref = "/people",
+  mode = "page",
+  onClose,
+  onDataUpdated,
 }: PersonDetailShellProps) {
   const data = usePersonDetail(id, { initialRole });
   const preview = useEntityPreviewModal();
+  const { ref: containerRef, isNarrow } = useContainerWidth();
+  const isPanel = mode === "panel";
   const navContext = useNavigationContext(data.person?.display_name);
 
   // Determine active tab - trapper tab first if accessed via /trappers
@@ -216,14 +227,14 @@ export function PersonDetailShell({
 
   // Loading / Error states
   if (data.loading) {
-    return <div className="loading">Loading person details...</div>;
+    return <div className="loading" style={isPanel ? { padding: "1rem" } : undefined}>Loading person details...</div>;
   }
 
   if (data.error) {
     return (
-      <div>
-        <BackButton fallbackHref={backHref} />
-        <div className="empty" style={{ marginTop: "2rem" }}>
+      <div style={isPanel ? { padding: "1rem" } : undefined}>
+        {!isPanel && <BackButton fallbackHref={backHref} />}
+        <div className="empty" style={{ marginTop: isPanel ? "0.5rem" : "2rem" }}>
           <h2 style={{ color: "#dc3545" }}>{data.error}</h2>
           <p className="text-muted" style={{ marginTop: "0.5rem" }}>Person ID: <code>{id}</code></p>
           {initialRole === "trapper" && (
@@ -322,19 +333,50 @@ export function PersonDetailShell({
   // Get sections for active tab
   const sectionsForTab = resolvedSections.filter(s => s.tab === activeTab);
 
+  const detailHref = initialRole === "trapper" ? `/trappers/${id}` : `/people/${id}`;
+
   return (
     <>
-      <div style={{ maxWidth: 1100 }}>
-        {/* Breadcrumbs + Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-          <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: initialRole === "trapper" ? "Trappers" : "People", href: initialRole === "trapper" ? "/trappers" : "/people" }, { label: person.display_name }]} />
-          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, flexWrap: "wrap" }}>
-            {actionButtons}
+      <div ref={containerRef} style={{ maxWidth: isPanel ? undefined : 1100, padding: isPanel ? (isNarrow ? "0.5rem" : "0.75rem") : undefined }}>
+        {/* Panel header */}
+        {isPanel && (
+          <div style={{
+            position: "sticky", top: 0, zIndex: 10, background: "var(--background, #fff)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "0.5rem 0", marginBottom: "0.5rem", borderBottom: "1px solid var(--border)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--text-muted)", flexShrink: 0 }} title="Close panel">
+                <Icon name="x" size={18} />
+              </button>
+              <span style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {person.display_name}
+              </span>
+            </div>
+            <a href={`${detailHref}?from=${initialRole === "trapper" ? "trappers" : "people"}`} style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+              Open Full Profile →
+            </a>
           </div>
-        </div>
+        )}
+
+        {/* Breadcrumbs + Actions (page mode only) */}
+        {!isPanel && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+            <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: initialRole === "trapper" ? "Trappers" : "People", href: initialRole === "trapper" ? "/trappers" : "/people" }, { label: person.display_name }]} />
+            <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, flexWrap: "wrap" }}>
+              {actionButtons}
+            </div>
+          </div>
+        )}
 
         {/* Hero Card */}
-        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: isNarrow ? "1rem" : "1.5rem", marginBottom: isNarrow ? "1rem" : "1.5rem" }}>
+          {/* Panel-mode action buttons inside hero card */}
+          {isPanel && (
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+              {actionButtons}
+            </div>
+          )}
           <EntityHeader
             personId={person.person_id}
             displayName={person.display_name}
@@ -378,8 +420,8 @@ export function PersonDetailShell({
         </div>
 
         {/* Tab Bar */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <TabBar tabs={tabDefs} activeTab={activeTab} onTabChange={setActiveTab} />
+        <div style={{ marginBottom: isNarrow ? "1rem" : "1.5rem" }}>
+          <TabBar tabs={tabDefs} activeTab={activeTab} onTabChange={setActiveTab} size={isNarrow ? "sm" : "md"} />
         </div>
 
         {/* Tab Content */}

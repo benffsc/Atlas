@@ -3,21 +3,18 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
-import { useEntityDetail } from "@/hooks/useEntityDetail";
 import { useListData } from "@/hooks/useListData";
 import { formatRelativeTime } from "@/lib/formatters";
 import { PersonStatusBadges } from "@/components/badges";
-import type { PersonDetail } from "@/hooks/useEntityDetail";
 import EntityPreview from "@/components/search/EntityPreview";
 import { CreatePersonModal } from "@/components/modals";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
-import { PersonPreviewContent } from "@/components/preview/PersonPreviewContent";
+import { PersonDetailShell } from "@/components/person/PersonDetailShell";
 import { FilterChip, SearchInput } from "@/components/filters";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, useDataTable } from "@/components/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
-import { SkeletonList } from "@/components/feedback/Skeleton";
 
 interface Person {
   person_id: string;
@@ -178,12 +175,6 @@ function PeoplePageContent() {
     dataKey: "people",
   });
 
-  // Panel preview
-  const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
-    filters.selected ? "person" : null,
-    filters.selected || null,
-  );
-
   // Sync search input on external clear
   useEffect(() => {
     if (filters.q !== searchInput) setSearchInput(filters.q);
@@ -193,13 +184,13 @@ function PeoplePageContent() {
     setFilter("selected", filters.selected === personId ? "" : personId);
   };
 
-  const panelContent = filters.selected && selectedDetail && !detailLoading ? (
-    <PersonPreviewContent
-      person={selectedDetail as PersonDetail}
+  const panelContent = filters.selected ? (
+    <PersonDetailShell
+      id={filters.selected}
+      mode="panel"
       onClose={() => setFilter("selected", "")}
+      onDataUpdated={() => refetchPeople()}
     />
-  ) : filters.selected && detailLoading ? (
-    <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
   ) : null;
 
   return (

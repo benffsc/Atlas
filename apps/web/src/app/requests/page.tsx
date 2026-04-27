@@ -16,10 +16,8 @@ import { useTriageFlags } from "@/hooks/useTriageFlags";
 import { SKELETON_LINE, SKELETON_BLOCK, FLEX_BETWEEN } from "./styles";
 import { SkeletonStats, SkeletonList } from "@/components/feedback/Skeleton";
 import { EmptyState, EmptyFilteredResults } from "@/components/feedback/EmptyState";
-import { useEntityDetail } from "@/hooks/useEntityDetail";
-import type { RequestDetail } from "@/hooks/useEntityDetail";
 import { ListDetailLayout } from "@/components/layouts/ListDetailLayout";
-import { RequestPreviewContent } from "@/components/preview/RequestPreviewContent";
+import { RequestDetailShell } from "@/components/request/RequestDetailShell";
 import { Icon } from "@/components/ui/Icon";
 import { TnrProgressBar } from "@/components/ui/TnrProgressBar";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
@@ -932,10 +930,6 @@ function RequestsPageContent() {
 
   // Panel preview (table/cards views)
   const isKanban = filters.view === "kanban";
-  const { detail: selectedDetail, loading: detailLoading } = useEntityDetail(
-    filters.selected && !isKanban ? "request" : null,
-    filters.selected && !isKanban ? filters.selected : null,
-  );
 
   // Kanban modal preview (opens modal instead of panel)
   const [kanbanPreviewId, setKanbanPreviewId] = useState<string | null>(null);
@@ -1084,14 +1078,13 @@ function RequestsPageContent() {
     }
   };
 
-  const panelContent = filters.selected && !isKanban && selectedDetail && !detailLoading ? (
-    <RequestPreviewContent
-      request={selectedDetail as RequestDetail}
+  const panelContent = filters.selected && !isKanban ? (
+    <RequestDetailShell
+      id={filters.selected}
+      mode="panel"
       onClose={() => setFilter("selected", "")}
       onRequestUpdated={() => setRefreshTrigger((n) => n + 1)}
     />
-  ) : filters.selected && !isKanban && detailLoading ? (
-    <div style={{ padding: "2rem" }}><SkeletonList items={6} /></div>
   ) : null;
 
   return (

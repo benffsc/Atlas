@@ -12,8 +12,9 @@ interface PlacePreviewContentProps {
 }
 
 /**
- * Maps PlaceDetail data to EntityPreviewPanel props.
- * Used in the split-view panel on the places list page.
+ * @deprecated Use `PlaceDetailShell` with `mode="panel"` instead.
+ * This component is superseded by the unified shell that renders the full
+ * detail page inside the drawer panel. Kept temporarily for reference.
  */
 export function PlacePreviewContent({ place, onClose }: PlacePreviewContentProps) {
   const relTime = formatRelativeTime(place.last_appointment_date);

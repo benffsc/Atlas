@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { usePlaceDetail } from "@/hooks/usePlaceDetail";
 import { JournalSection, ObservationsSection, PlaceLinksSection, DiseaseStatusSection, ClinicHistorySection, ClinicNotesSection, LinkedPeopleSection, LinkedCatsSection } from "@/components/sections";
 import { BackButton, EditHistory, SubmissionsSection } from "@/components/common";
@@ -17,6 +18,7 @@ import { MediaGallery } from "@/components/media";
 import { Section } from "@/components/layouts";
 import { TabBar, TabPanel } from "@/components/ui";
 import { AssociatedPeopleCard } from "@/components/verification";
+import { Icon } from "@/components/ui/Icon";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { formatDateLocal, formatPhone, formatRelativeTime } from "@/lib/formatters";
@@ -28,13 +30,18 @@ import { PlaceKindBadge, ContextBadge, PLACE_KINDS } from "./helpers";
 
 interface PlaceDetailShellProps {
   id: string;
+  mode?: "page" | "panel";
+  onClose?: () => void;
+  onDataUpdated?: () => void;
 }
 
-export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
+export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: PlaceDetailShellProps) {
   const { addToast } = useToast();
   const data = usePlaceDetail(id);
   const preview = useEntityPreviewModal();
   const navContext = useNavigationContext(data.place?.display_name);
+  const { ref: containerRef, isNarrow } = useContainerWidth();
+  const isPanel = mode === "panel";
 
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -121,12 +128,12 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
   };
 
   // Loading / Error states
-  if (data.loading) return <div className="loading">Loading place details...</div>;
+  if (data.loading) return <div className="loading" style={isPanel ? { padding: "1rem" } : undefined}>Loading place details...</div>;
   if (data.error) {
     return (
-      <div>
-        <BackButton fallbackHref="/places" />
-        <div className="empty" style={{ marginTop: "2rem" }}>
+      <div style={isPanel ? { padding: "1rem" } : undefined}>
+        {!isPanel && <BackButton fallbackHref="/places" />}
+        <div className="empty" style={{ marginTop: isPanel ? "0.5rem" : "2rem" }}>
           <h2 style={{ color: "#dc3545" }}>{data.error}</h2>
           <p className="text-muted" style={{ marginTop: "0.5rem" }}>Place ID: <code>{id}</code></p>
         </div>
@@ -155,8 +162,8 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
   const mainContent = (
     <div>
       {/* Tab Bar */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <TabBar tabs={placeTabDefs} activeTab={activeTab} onTabChange={setActiveTab} />
+      <div style={{ marginBottom: isNarrow ? "1rem" : "1.5rem" }}>
+        <TabBar tabs={placeTabDefs} activeTab={activeTab} onTabChange={setActiveTab} size={isNarrow ? "sm" : "md"} />
       </div>
 
       {/* ── Overview Tab ── */}
@@ -305,25 +312,54 @@ export function PlaceDetailShell({ id }: PlaceDetailShellProps) {
     </div>
   );
 
+  const placeActionButtons = (
+    <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, flexWrap: "wrap" }}>
+      <button onClick={startEditing} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 600, background: "var(--primary)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}>Edit</button>
+      {place.coordinates && (
+        <a href={`/map?lat=${place.coordinates.lat}&lng=${place.coordinates.lng}&zoom=17`} style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>Map</a>
+      )}
+      <button onClick={() => setShowHistory(!showHistory)} title="History" style={{ padding: "0.4rem 0.6rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", cursor: "pointer" }}>{"\u22EE"}</button>
+    </div>
+  );
+
   return (
     <>
-      <div style={{ maxWidth: 1100 }}>
-        {/* Breadcrumbs + Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-          <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Places", href: "/places" }, { label: place.display_name }]} />
-          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, flexWrap: "wrap" }}>
-            <button onClick={startEditing} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 600, background: "var(--primary)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}>Edit</button>
-            {place.coordinates && (
-              <a href={`/map?lat=${place.coordinates.lat}&lng=${place.coordinates.lng}&zoom=17`} style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", textDecoration: "none", color: "inherit" }}>Map</a>
-            )}
-            <button onClick={() => setShowHistory(!showHistory)} title="History" style={{ padding: "0.4rem 0.6rem", fontSize: "0.85rem", background: "transparent", border: "1px solid var(--border)", borderRadius: "6px", cursor: "pointer" }}>{"\u22EE"}</button>
+      <div ref={containerRef} style={{ maxWidth: isPanel ? undefined : 1100, padding: isPanel ? (isNarrow ? "0.5rem" : "0.75rem") : undefined }}>
+        {/* Panel header */}
+        {isPanel && (
+          <div style={{
+            position: "sticky", top: 0, zIndex: 10, background: "var(--background, #fff)",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "0.5rem 0", marginBottom: "0.5rem", borderBottom: "1px solid var(--border)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--text-muted)", flexShrink: 0 }} title="Close panel">
+                <Icon name="x" size={18} />
+              </button>
+              <span style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {place.display_name}
+              </span>
+            </div>
+            <a href={`/places/${id}?from=places`} style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+              Open Full Profile →
+            </a>
           </div>
-        </div>
+        )}
+
+        {/* Breadcrumbs + Actions (page mode only) */}
+        {!isPanel && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+            <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Places", href: "/places" }, { label: place.display_name }]} />
+            {placeActionButtons}
+          </div>
+        )}
 
         {/* Hero Card */}
-        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.5rem" }}>
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: isNarrow ? "1rem" : "1.5rem", marginBottom: isNarrow ? "1rem" : "1.5rem" }}>
+          {/* Panel-mode action buttons */}
+          {isPanel && <div style={{ marginBottom: "0.75rem" }}>{placeActionButtons}</div>}
           <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
-            <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700 }}>{place.display_name}</h1>
+            <h1 style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", fontWeight: 700 }}>{place.display_name}</h1>
             <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
               <PlaceKindBadge kind={place.place_kind} />
               {place.contexts?.map((ctx) => <ContextBadge key={ctx.context_id} context={ctx} />)}

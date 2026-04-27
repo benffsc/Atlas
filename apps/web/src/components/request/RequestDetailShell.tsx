@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments, ClinicNotesSection } from "@/components/sections";
 import { EditHistory, ContactCard } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
@@ -38,14 +39,26 @@ function LegacyBadge() {
 
 interface RequestDetailShellProps {
   id: string;
+  mode?: "page" | "panel";
+  onClose?: () => void;
+  onRequestUpdated?: () => void;
 }
 
-export function RequestDetailShell({ id }: RequestDetailShellProps) {
+export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdated }: RequestDetailShellProps) {
   const requestId = id;
   const data = useRequestDetail(requestId);
   const { request, loading, error, previousStatus, journalEntries, tripReports, relatedPeople, mapUrl, refreshRequest, fetchJournalEntries, fetchTripReports, fetchRelatedPeople, setPreviousStatus, setError } = data;
 
-  const modals = useRequestModals({ requestId, request, refreshRequest, fetchJournalEntries, fetchTripReports });
+  const { ref: containerRef, isNarrow } = useContainerWidth();
+  const isPanel = mode === "panel";
+
+  // Wrap refreshRequest to also notify parent list of mutations
+  const refreshAndNotify = useCallback(async () => {
+    await refreshRequest();
+    onRequestUpdated?.();
+  }, [refreshRequest, onRequestUpdated]);
+
+  const modals = useRequestModals({ requestId, request, refreshRequest: refreshAndNotify, fetchJournalEntries, fetchTripReports });
 
   const requestTitle = request?.summary || request?.place_name || "FFR Request";
   const { breadcrumbs } = useNavigationContext(requestTitle);
@@ -88,7 +101,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
     try {
       await postApi(`/api/requests/${requestId}`, { status: newStatus, updated_at: request.updated_at }, { method: "PATCH" });
       setPreviousStatus(oldStatus);
-      await refreshRequest();
+      await refreshAndNotify();
     } catch (err) {
       const apiErr = err as ApiError;
       setError(apiErr.message || "Failed to update status");
@@ -103,7 +116,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
     setError(null);
     try {
       await fetchApi(`/api/requests/${requestId}/archive`, { method: "DELETE" });
-      await refreshRequest();
+      await refreshAndNotify();
     } catch (err) {
       const apiErr = err as ApiError;
       setError(apiErr.message || "Failed to restore request");
@@ -122,7 +135,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
     setSavingRename(true);
     try {
       await postApi(`/api/requests/${requestId}`, { summary: renameValue.trim(), updated_at: request?.updated_at }, { method: "PATCH" });
-      await refreshRequest();
+      await refreshAndNotify();
       setRenaming(false);
     } catch {
       setError("Failed to rename");
@@ -141,7 +154,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
         tags: ["contact_change"],
         body: personId ? `Set site contact` : `Removed site contact`,
       }).catch(() => {});
-      await refreshRequest();
+      await refreshAndNotify();
     } catch (err) {
       console.error("Failed to update site contact:", err);
     } finally {
@@ -152,9 +165,9 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
   // ─── Loading ───
   if (loading) {
     return (
-      <div style={PAGE_CONTAINER}>
-        <Breadcrumbs items={breadcrumbs} />
-        <div style={{ marginTop: SPACING['2xl'] }}>
+      <div style={isPanel ? { padding: "0.5rem" } : PAGE_CONTAINER}>
+        {!isPanel && <Breadcrumbs items={breadcrumbs} />}
+        <div style={{ marginTop: isPanel ? SPACING.md : SPACING['2xl'] }}>
           <div style={{ ...SKELETON_LINE, width: '40%', height: '1.5rem', marginBottom: SPACING.lg }} />
           <div style={{ display: 'flex', gap: SPACING.sm, marginBottom: SPACING.xl }}>
             <div style={{ ...SKELETON_LINE, width: '5rem', borderRadius: BORDERS.radius.full }} />
@@ -172,7 +185,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
   if (error && !request) {
     return (
       <div>
-        <Breadcrumbs items={breadcrumbs} />
+        {!isPanel && <Breadcrumbs items={breadcrumbs} />}
         <ErrorState title="Request not found" description={error || undefined} />
       </div>
     );
@@ -195,30 +208,53 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
   ];
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0.75rem" }}>
-      {/* Breadcrumbs + top actions */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
-        <Breadcrumbs items={breadcrumbs} />
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-          <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
-          {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
-          <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
+    <div ref={containerRef} style={{ maxWidth: isPanel ? undefined : "900px", margin: "0 auto", padding: isNarrow ? "0.5rem" : "0.75rem" }}>
+      {/* Panel header — sticky close + title + expand link */}
+      {isPanel && (
+        <div style={{
+          position: "sticky", top: 0, zIndex: 10, background: "var(--background, #fff)",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: "0.5rem 0", marginBottom: "0.5rem", borderBottom: "1px solid var(--border)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--text-muted)", flexShrink: 0 }} title="Close panel">
+              <Icon name="x" size={18} />
+            </button>
+            <span style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {request.summary || request.place_name || "Request"}
+            </span>
+          </div>
+          <a href={`/requests/${requestId}?from=requests`} style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+            Open Full Profile →
+          </a>
         </div>
-      </div>
+      )}
+
+      {/* Breadcrumbs + top actions (page mode only) */}
+      {!isPanel && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+          <Breadcrumbs items={breadcrumbs} />
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
+            {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
+            <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
+          </div>
+        </div>
+      )}
 
       {/* ═══ Hero Card ═══ */}
-      <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
+      <div className="card" style={{ padding: isNarrow ? "0.75rem" : "1.25rem", marginBottom: "1rem" }}>
         {/* Title row */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isNarrow ? "0.5rem" : "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
           {renaming ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <input type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") setRenaming(false); }} autoFocus style={{ fontSize: "1.5rem", fontWeight: 700, padding: "0.25rem 0.5rem", border: "2px solid var(--primary)", borderRadius: "4px", width: "400px" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", width: "100%" }}>
+              <input type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") setRenaming(false); }} autoFocus style={{ fontSize: isNarrow ? "1.1rem" : "1.5rem", fontWeight: 700, padding: "0.25rem 0.5rem", border: "2px solid var(--primary)", borderRadius: "4px", width: "100%" }} />
               <button onClick={handleRename} disabled={savingRename} className="btn btn-sm">{savingRename ? "..." : "Save"}</button>
               <button onClick={() => setRenaming(false)} className="btn btn-sm btn-secondary">Cancel</button>
             </div>
           ) : (
             <>
-              <h1 style={{ margin: 0, fontSize: "1.5rem", lineHeight: 1.2 }}>{request.summary || request.place_name || "FFR Request"}</h1>
+              <h1 style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", lineHeight: 1.2 }}>{request.summary || request.place_name || "FFR Request"}</h1>
               <button onClick={startRename} title="Rename" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem", color: "var(--muted)", opacity: 0.7 }}><Icon name="pencil" size={14} /></button>
             </>
           )}
@@ -238,6 +274,15 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
           {request.hold_reason && <span className="badge" style={{ background: COLORS.warning, color: COLORS.black }}>Hold: {request.hold_reason.replace(/_/g, " ")}</span>}
           {request.is_archived && <span className="badge" style={{ background: COLORS.gray500, color: COLORS.white }}>Archived</span>}
         </div>
+
+        {/* Panel-mode action buttons (moved inside hero card) */}
+        {isPanel && (
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+            <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
+            {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
+            <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
+          </div>
+        )}
 
         {/* GuidedActionBar */}
         <GuidedActionBar
@@ -346,6 +391,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
           ]}
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          size={isNarrow ? "sm" : "md"}
         />
 
         {/* Case Tab */}
@@ -355,7 +401,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
               key={sectionConfig.id}
               config={sectionConfig}
               request={request}
-              onSaved={refreshRequest}
+              onSaved={refreshAndNotify}
             />
           ))}
 
@@ -376,7 +422,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
           )}
 
           <CaseSection title="Assigned Trappers" icon="user" color="#ec4899">
-            <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={refreshRequest} />
+            <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={refreshAndNotify} />
             {request.scheduled_date && (
               <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "6px", display: "flex", gap: "1rem", alignItems: "center" }}>
                 <span style={{ fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Icon name="calendar" size={14} /> Scheduled:</span>
@@ -495,7 +541,7 @@ export function RequestDetailShell({ id }: RequestDetailShellProps) {
 
         {/* Activity Tab */}
         <TabPanel tabId="activity" activeTab={activeTab}>
-          <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshRequest(); fetchJournalEntries(); }} />
+          <JournalSection entityType="request" entityId={requestId} entries={journalEntries} onEntryAdded={() => { refreshAndNotify(); fetchJournalEntries(); }} />
         </TabPanel>
 
         {/* Admin Tab */}
