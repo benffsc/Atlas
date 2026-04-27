@@ -1078,6 +1078,8 @@ function RequestsPageContent() {
     }
   };
 
+  const selectedRequest = filters.selected ? requests.find(r => r.request_id === filters.selected) : null;
+
   const panelContent = filters.selected && !isKanban ? (
     <RequestDetailShell
       id={filters.selected}
@@ -1092,6 +1094,8 @@ function RequestsPageContent() {
       isDetailOpen={!!filters.selected && !isKanban}
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
+      panelTitle={selectedRequest?.summary || selectedRequest?.place_name || "Request"}
+      panelDetailHref={filters.selected ? `/requests/${filters.selected}?from=requests` : undefined}
     >
       <PageHeader
         title="Requests"

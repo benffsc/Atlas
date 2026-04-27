@@ -209,27 +209,6 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
   return (
     <div ref={containerRef} style={{ maxWidth: isPanel ? undefined : "900px", margin: "0 auto", padding: isNarrow ? "0.5rem" : "0.75rem" }}>
-      {/* Panel header — sticky close + title + expand link */}
-      {isPanel && (
-        <div style={{
-          position: "sticky", top: 0, zIndex: 10, background: "var(--background, #fff)",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          padding: "0.5rem 0", marginBottom: "0.5rem", borderBottom: "1px solid var(--border)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
-            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--text-muted)", flexShrink: 0 }} title="Close panel">
-              <Icon name="x" size={18} />
-            </button>
-            <span style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {request.summary || request.place_name || "Request"}
-            </span>
-          </div>
-          <a href={`/requests/${requestId}?from=requests`} style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
-            Open Full Profile →
-          </a>
-        </div>
-      )}
-
       {/* Breadcrumbs + top actions (page mode only) */}
       {!isPanel && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>

@@ -16,6 +16,10 @@ interface ListDetailLayoutProps {
   panelSize?: PanelSize;
   /** Callback when panel size changes (for parent state sync) */
   onPanelSizeChange?: (size: PanelSize) => void;
+  /** Title shown in the panel toolbar (used by unified shells) */
+  panelTitle?: string;
+  /** Link to the full detail page (shown as "Open →" in toolbar) */
+  panelDetailHref?: string;
 }
 
 /**
@@ -37,6 +41,8 @@ export function ListDetailLayout({
   detailWidth = "45%",
   panelSize: controlledSize,
   onPanelSizeChange,
+  panelTitle,
+  panelDetailHref,
 }: ListDetailLayoutProps) {
   const [internalSize, setInternalSize] = useState<PanelSize>("default");
   const size = controlledSize ?? internalSize;
@@ -115,15 +121,26 @@ export function ListDetailLayout({
             borderLeft: size === "full" ? "none" : "1px solid var(--border, #e5e7eb)",
             overflowY: "auto",
             background: "var(--background, #fff)",
-            transition: "flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-left 0.2s ease",
+            boxShadow: size === "full" ? "none" : "-4px 0 12px rgba(0,0,0,0.06)",
+            transition: "flex 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-left 0.2s ease, box-shadow 0.2s ease",
             minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
           }}
           className="list-detail-panel"
           data-panel-size={size}
         >
-          {/* Panel size controls */}
-          <PanelSizeBar size={size} onSizeChange={setSize} onClose={onDetailClose} />
-          {detailPanel}
+          {/* Unified panel toolbar */}
+          <PanelToolbar
+            size={size}
+            onSizeChange={setSize}
+            onClose={onDetailClose}
+            title={panelTitle}
+            detailHref={panelDetailHref}
+          />
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {detailPanel}
+          </div>
         </div>
       )}
 
@@ -142,54 +159,88 @@ export function ListDetailLayout({
 }
 
 /**
- * Thin bar at the top of the panel with expand/collapse/close controls.
- * Appears as a subtle toolbar that doesn't compete with the content.
+ * Unified panel toolbar: [X close] [title...] [size toggles] [Open →]
+ * Single bar that handles all panel chrome so shells don't need their own headers.
  */
-function PanelSizeBar({
+function PanelToolbar({
   size,
   onSizeChange,
   onClose,
+  title,
+  detailHref,
 }: {
   size: PanelSize;
   onSizeChange: (size: PanelSize) => void;
   onClose: () => void;
+  title?: string;
+  detailHref?: string;
 }) {
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
-        gap: "2px",
-        padding: "4px 0",
+        gap: "0.5rem",
+        padding: "0.35rem 0.75rem",
         borderBottom: "1px solid var(--border, #e5e7eb)",
         background: "var(--section-bg, #f9fafb)",
+        flexShrink: 0,
       }}
     >
-      <SizeButton
-        active={size === "default"}
-        onClick={() => onSizeChange("default")}
-        title="Side panel"
-        aria-label="Side panel view"
+      {/* Close */}
+      <button
+        onClick={onClose}
+        title="Close panel (Esc)"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: "24px", height: "24px", border: "none", borderRadius: "4px",
+          cursor: "pointer", background: "transparent", color: "var(--text-muted, #9ca3af)",
+          flexShrink: 0,
+        }}
       >
-        <SidebarIcon />
-      </SizeButton>
-      <SizeButton
-        active={size === "half"}
-        onClick={() => onSizeChange("half")}
-        title="Expanded"
-        aria-label="Expanded view"
-      >
-        <HalfIcon />
-      </SizeButton>
-      <SizeButton
-        active={size === "full"}
-        onClick={() => onSizeChange("full")}
-        title="Full width"
-        aria-label="Full width view"
-      >
-        <FullIcon />
-      </SizeButton>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      {/* Title */}
+      {title && (
+        <span style={{
+          flex: 1, minWidth: 0, fontWeight: 600, fontSize: "0.8rem",
+          color: "var(--foreground)", overflow: "hidden",
+          textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {title}
+        </span>
+      )}
+      {!title && <span style={{ flex: 1 }} />}
+
+      {/* Size toggles */}
+      <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+        <SizeButton active={size === "default"} onClick={() => onSizeChange("default")} title="Side panel" aria-label="Side panel view">
+          <SidebarIcon />
+        </SizeButton>
+        <SizeButton active={size === "half"} onClick={() => onSizeChange("half")} title="Expanded" aria-label="Expanded view">
+          <HalfIcon />
+        </SizeButton>
+        <SizeButton active={size === "full"} onClick={() => onSizeChange("full")} title="Full width" aria-label="Full width view">
+          <FullIcon />
+        </SizeButton>
+      </div>
+
+      {/* Open full page link */}
+      {detailHref && (
+        <a
+          href={detailHref}
+          style={{
+            fontSize: "0.7rem", color: "var(--primary, #3b82f6)",
+            textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0,
+            fontWeight: 500,
+          }}
+        >
+          Open →
+        </a>
+      )}
     </div>
   );
 }

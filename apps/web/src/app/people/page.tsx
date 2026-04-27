@@ -184,6 +184,8 @@ function PeoplePageContent() {
     setFilter("selected", filters.selected === personId ? "" : personId);
   };
 
+  const selectedPerson = filters.selected ? people.find(p => p.person_id === filters.selected) : null;
+
   const panelContent = filters.selected ? (
     <PersonDetailShell
       id={filters.selected}
@@ -198,6 +200,8 @@ function PeoplePageContent() {
       isDetailOpen={!!filters.selected}
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
+      panelTitle={selectedPerson?.display_name || "Person"}
+      panelDetailHref={filters.selected ? `/people/${filters.selected}?from=people` : undefined}
     >
       <PageHeader
         title="People"

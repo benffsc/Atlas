@@ -15,7 +15,6 @@ import { SendEmailModal } from "@/components/modals";
 import { BackButton } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
-import { Icon } from "@/components/ui/Icon";
 import { EntityHeader } from "./EntityHeader";
 import { SectionRenderer } from "./SectionRenderer";
 import { formatDateLocal } from "@/lib/formatters";
@@ -333,32 +332,9 @@ export function PersonDetailShell({
   // Get sections for active tab
   const sectionsForTab = resolvedSections.filter(s => s.tab === activeTab);
 
-  const detailHref = initialRole === "trapper" ? `/trappers/${id}` : `/people/${id}`;
-
   return (
     <>
       <div ref={containerRef} style={{ maxWidth: isPanel ? undefined : 1100, padding: isPanel ? (isNarrow ? "0.5rem" : "0.75rem") : undefined }}>
-        {/* Panel header */}
-        {isPanel && (
-          <div style={{
-            position: "sticky", top: 0, zIndex: 10, background: "var(--background, #fff)",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "0.5rem 0", marginBottom: "0.5rem", borderBottom: "1px solid var(--border)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
-              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--text-muted)", flexShrink: 0 }} title="Close panel">
-                <Icon name="x" size={18} />
-              </button>
-              <span style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {person.display_name}
-              </span>
-            </div>
-            <a href={`${detailHref}?from=${initialRole === "trapper" ? "trappers" : "people"}`} style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
-              Open Full Profile →
-            </a>
-          </div>
-        )}
-
         {/* Breadcrumbs + Actions (page mode only) */}
         {!isPanel && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>

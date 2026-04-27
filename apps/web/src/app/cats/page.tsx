@@ -189,6 +189,8 @@ function CatsPageContent() {
     setFilter("selected", filters.selected === catId ? "" : catId);
   };
 
+  const selectedCat = filters.selected ? cats.find(c => c.cat_id === filters.selected) : null;
+
   const panelContent = filters.selected ? (
     <CatDetailShell
       id={filters.selected}
@@ -203,6 +205,8 @@ function CatsPageContent() {
       isDetailOpen={!!filters.selected}
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
+      panelTitle={selectedCat?.display_name || "Cat"}
+      panelDetailHref={filters.selected ? `/cats/${filters.selected}?from=cats` : undefined}
     >
       <PageHeader title="Cats" />
 

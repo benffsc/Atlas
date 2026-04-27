@@ -199,6 +199,8 @@ function PlacesPageContent() {
     setFilter("selected", filters.selected === placeId ? "" : placeId);
   };
 
+  const selectedPlace = filters.selected ? places.find(p => p.place_id === filters.selected) : null;
+
   const panelContent = filters.selected ? (
     <PlaceDetailShell
       id={filters.selected}
@@ -213,6 +215,8 @@ function PlacesPageContent() {
       isDetailOpen={!!filters.selected}
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
+      panelTitle={selectedPlace?.display_name || "Place"}
+      panelDetailHref={filters.selected ? `/places/${filters.selected}?from=places` : undefined}
     >
       <PageHeader
         title="Places"
