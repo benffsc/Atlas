@@ -150,8 +150,8 @@ export function YearlyImpactChart() {
   const chartW = 700;
   const chartH = 240;
   const padL = 52;
-  const padR = 16;
-  const padT = 12;
+  const padR = 24;
+  const padT = 24;
   const padB = 28;
   const plotW = chartW - padL - padR;
   const plotH = chartH - padT - padB;
@@ -182,9 +182,13 @@ export function YearlyImpactChart() {
   // Main line path (completed years)
   const mainLine = completedPts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
 
-  // Filled area (completed years)
-  const areaPath = completedPts.length > 1
-    ? `${mainLine} L${lastCompleted.x},${padT + plotH} L${completedPts[0].x},${padT + plotH} Z`
+  // Filled area — extends to projected point if available
+  const areaEndPt = projectedPt || lastCompleted;
+  const areaLinePath = projectedPt
+    ? `${mainLine} L${projectedPt.x},${projectedPt.y}`
+    : mainLine;
+  const areaPath = completedPts.length > 1 && areaEndPt
+    ? `${areaLinePath} L${areaEndPt.x},${padT + plotH} L${completedPts[0].x},${padT + plotH} Z`
     : "";
 
   // Dashed + faded projection line from last completed to projected point
@@ -289,7 +293,7 @@ export function YearlyImpactChart() {
       </div>
 
       {/* SVG Area Chart */}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", overflow: "visible" }}>
         <svg
           viewBox={`0 0 ${chartW} ${chartH}`}
           style={{ width: "100%", height: "auto", display: "block" }}
@@ -390,12 +394,13 @@ export function YearlyImpactChart() {
           {/* "On track" annotation at projected point */}
           {projectedPt && !hovered && (
             <text
-              x={projectedPt.x} y={projectedPt.y - 12}
-              textAnchor="end" fontSize="10"
+              x={projectedPt.x - 4} y={projectedPt.y - 10}
+              textAnchor="end" fontSize="9.5"
               fill="var(--primary, #2563eb)" fontFamily="inherit"
-              opacity={0.7}
+              fontWeight="600"
+              opacity={0.65}
             >
-              On track for ~{projectedPt.row.donor_facing_count.toLocaleString()}
+              ~{projectedPt.row.donor_facing_count.toLocaleString()} pace
             </text>
           )}
 
@@ -423,7 +428,7 @@ export function YearlyImpactChart() {
             className="impact-chart-tooltip"
             style={{
               position: "absolute",
-              left: `${(hovered.x / chartW) * 100}%`,
+              left: `clamp(60px, ${(hovered.x / chartW) * 100}%, calc(100% - 60px))`,
               top: `${(hovered.y / chartH) * 100}%`,
               transform: "translate(-50%, -120%)",
               pointerEvents: "none",

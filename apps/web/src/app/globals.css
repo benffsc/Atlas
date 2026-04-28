@@ -3566,6 +3566,7 @@ a:focus-visible {
   border-radius: 12px;
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.5rem;
+  overflow: hidden;
 }
 
 .impact-chart-header {
