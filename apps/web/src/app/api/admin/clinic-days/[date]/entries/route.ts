@@ -98,8 +98,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         -- Cancellation + CDN (MIG_3096/3088)
         e.cancellation_reason,
         a.clinic_day_number,
+        -- Cat identity: from appointment match OR waiver rescue (Phase 11.5)
+        e.cat_id::text AS cat_id,
         -- Matched appointment details
-        a.cat_id::text AS matched_cat_id,
+        COALESCE(a.cat_id, e.cat_id)::text AS matched_cat_id,
         COALESCE(c.display_name, c.name) AS matched_cat_name,
         c.sex AS matched_cat_sex,
         ci.id_value AS matched_microchip,
@@ -109,13 +111,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       LEFT JOIN sot.people trapper ON trapper.person_id = e.trapper_person_id
         AND trapper.merged_into_person_id IS NULL
       LEFT JOIN ops.appointments a ON a.appointment_id = e.matched_appointment_id
-      LEFT JOIN sot.cats c ON c.cat_id = a.cat_id
+      LEFT JOIN sot.cats c ON c.cat_id = COALESCE(a.cat_id, e.cat_id)
         AND c.merged_into_cat_id IS NULL
-      LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = a.cat_id
+      LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = COALESCE(a.cat_id, e.cat_id)
         AND ci.id_type = 'microchip'
       LEFT JOIN LATERAL (
         SELECT weight_lbs FROM ops.cat_vitals
-        WHERE cat_id = a.cat_id ORDER BY recorded_at DESC LIMIT 1
+        WHERE cat_id = COALESCE(a.cat_id, e.cat_id) ORDER BY recorded_at DESC LIMIT 1
       ) cv ON true
       WHERE cd.clinic_date = $1
       ORDER BY e.line_number NULLS LAST, e.created_at

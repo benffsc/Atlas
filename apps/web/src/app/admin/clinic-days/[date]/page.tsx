@@ -118,6 +118,7 @@ interface EntryRow {
   match_score: number | null;
   matched_appointment_id: string | null;
   matched_cat_id: string | null;
+  cat_id: string | null;
   matched_cat_name: string | null;
   matched_microchip: string | null;
   matched_cat_weight: number | null;
@@ -216,7 +217,8 @@ export default function ClinicDayHubPage() {
 
   // Upload photo to a cat (from file picker, camera, or paste)
   const handleRosterPhotoUpload = async (files: File[], entry: EntryRow) => {
-    if (!entry.matched_cat_id) {
+    const catId = entry.matched_cat_id || entry.cat_id;
+    if (!catId) {
       addToast({ type: "error", message: "No cat matched to this entry — can't upload" });
       return;
     }
@@ -227,7 +229,7 @@ export default function ClinicDayHubPage() {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("entity_type", "cat");
-        formData.append("entity_id", entry.matched_cat_id);
+        formData.append("entity_id", catId);
         formData.append("media_type", "cat_photo");
         formData.append("cat_identification_confidence", "confirmed");
         formData.append("caption", `Clinic ${date} #${entry.clinic_day_number || entry.line_number}`);
@@ -1101,7 +1103,7 @@ export default function ClinicDayHubPage() {
                     }}
                   />
                   <span style={{ fontSize: "0.75rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
-                    {entries.filter(e => !e.cancellation_reason).length} cats
+                    {entries.length} cats
                   </span>
                 </div>
 
@@ -1122,9 +1124,8 @@ export default function ClinicDayHubPage() {
                   </div>
                 )}
 
-                {/* Card roster (filtered) */}
+                {/* Card roster (filtered) — cancelled entries included so photos can be uploaded */}
                 {entries
-                  .filter(e => !e.cancellation_reason)
                   .filter(e => {
                     if (!rosterSearch) return true;
                     const q = rosterSearch.toLowerCase().replace(/^#/, "");
@@ -1150,7 +1151,8 @@ export default function ClinicDayHubPage() {
                         borderRadius: "8px",
                         background: isUploadTarget ? "var(--primary-bg)" : "var(--card-bg)",
                         border: `1px solid ${isUploadTarget ? "var(--primary)" : "var(--card-border)"}`,
-                        borderLeft: `4px solid ${entry.matched_cat_name ? "var(--success-text)" : "var(--warning-text)"}`,
+                        borderLeft: `4px solid ${entry.cancellation_reason ? "var(--muted)" : entry.matched_cat_name ? "var(--success-text)" : "var(--warning-text)"}`,
+                        opacity: entry.cancellation_reason ? 0.7 : 1,
                         cursor: "pointer",
                         transition: "background 0.1s",
                       }}
@@ -1181,11 +1183,16 @@ export default function ClinicDayHubPage() {
                           {entry.parsed_owner_name && entry.matched_cat_name && (
                             <span>{entry.parsed_owner_name}</span>
                           )}
+                          {entry.cancellation_reason && (
+                            <span style={{ color: "var(--warning-text)", fontStyle: "italic" }}>
+                              {entry.cancellation_reason.replace(/_/g, " ")}
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      {/* Photo upload button */}
-                      {entry.matched_cat_id && (
+                      {/* Photo upload button — show for any entry with a known cat */}
+                      {(entry.matched_cat_id || entry.cat_id) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
