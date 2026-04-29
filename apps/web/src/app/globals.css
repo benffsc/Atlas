@@ -4076,6 +4076,24 @@ a:focus-visible {
   background: #0a0a0f;
 }
 
+/* Walkthrough step backgrounds */
+.wt-slide-find {
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(245, 158, 11, 0.1) 0%, transparent 70%),
+              #0a0a0f;
+}
+.wt-slide-fix {
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(34, 197, 94, 0.1) 0%, transparent 70%),
+              #0a0a0f;
+}
+.wt-slide-return {
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(59, 130, 246, 0.1) 0%, transparent 70%),
+              #0a0a0f;
+}
+.wt-slide-analyze {
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(139, 92, 246, 0.1) 0%, transparent 70%),
+              #0a0a0f;
+}
+
 .demo-slide-map {
   background: #0a0a0f;
 }
