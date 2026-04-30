@@ -1319,11 +1319,11 @@ body.presentation-mode [data-admin-section="true"] {
 
 .story-impact-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 2rem;
   margin: 1.5rem 0;
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
 }
 
 .story-impact-stat {
@@ -1378,6 +1378,91 @@ body.presentation-mode [data-admin-section="true"] {
 
 .story-cta:active {
   transform: translateY(0);
+}
+
+/* ============================================================================
+   /welcome — Landing page for unauthenticated visitors
+   ============================================================================ */
+
+.welcome-page {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--background);
+}
+
+.welcome-page .story-container {
+  height: 100vh;
+}
+
+.welcome-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  background: var(--background);
+}
+
+.welcome-nav-logo {
+  height: 36px;
+  width: auto;
+}
+
+.welcome-nav-signin {
+  padding: 0.5rem 1.25rem;
+  background: var(--primary, #4291df);
+  color: var(--primary-foreground, #fff);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  transition: opacity var(--transition-fast);
+}
+
+.welcome-nav-signin:hover {
+  opacity: 0.9;
+  text-decoration: none;
+}
+
+/* Slide backgrounds — layered: radial accent + vertical blend into next slide */
+.welcome-slide-intro {
+  background:
+    radial-gradient(ellipse at center, rgba(120, 113, 108, 0.06) 0%, transparent 70%),
+    linear-gradient(180deg, var(--background) 0%, var(--background) 60%, rgba(245, 158, 11, 0.04) 100%);
+}
+
+.welcome-slide-find {
+  background:
+    radial-gradient(ellipse at 30% 50%, rgba(245, 158, 11, 0.07) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(245, 158, 11, 0.04) 0%, var(--background) 30%, var(--background) 60%, rgba(66, 145, 223, 0.05) 100%);
+}
+
+.welcome-slide-fix {
+  background:
+    radial-gradient(ellipse at 70% 40%, rgba(66, 145, 223, 0.1) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(66, 145, 223, 0.05) 0%, var(--background) 30%, var(--background) 60%, rgba(34, 197, 94, 0.04) 100%);
+}
+
+.welcome-slide-return {
+  background:
+    radial-gradient(ellipse at center, rgba(34, 197, 94, 0.07) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(34, 197, 94, 0.04) 0%, var(--background) 30%, var(--background) 60%, rgba(66, 145, 223, 0.06) 100%);
+}
+
+.welcome-slide-beacon {
+  background:
+    radial-gradient(ellipse at 60% 50%, rgba(66, 145, 223, 0.12) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(66, 145, 223, 0.06) 0%, var(--background) 30%, var(--background) 60%, rgba(245, 158, 11, 0.04) 100%);
+}
+
+.welcome-slide-cta {
+  background:
+    radial-gradient(ellipse at center, rgba(245, 158, 11, 0.06) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(245, 158, 11, 0.04) 0%, var(--background) 40%);
 }
 
 /* ============================================================================
