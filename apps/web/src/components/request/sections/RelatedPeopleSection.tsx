@@ -6,9 +6,11 @@ import { RowActionMenu } from "@/components/shared/RowActionMenu";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import { PersonReferencePicker } from "@/components/ui/PersonReferencePicker";
 import type { PersonReference } from "@/components/ui/PersonReferencePicker";
+import { AddFieldContactDrawer } from "@/components/request/AddFieldContactDrawer";
 import { RELATED_PERSON_RELATIONSHIP_OPTIONS, LANGUAGE_OPTIONS, getLabel, getShortLabel } from "@/lib/form-options";
 import { formatPhone } from "@/lib/formatters";
 import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 import type { RelatedPersonDisplay } from "@/hooks/useRequestDetail";
 
 interface RelatedPeopleSectionProps {
@@ -18,6 +20,23 @@ interface RelatedPeopleSectionProps {
   onPersonClick: (personId: string, e: React.MouseEvent) => void;
 }
 
+function buildBriefingText(people: RelatedPersonDisplay[]): string {
+  if (people.length === 0) return "No contacts on this request.";
+  return people.map((rp) => {
+    const parts: string[] = [];
+    parts.push(`${rp.display_name || "Unknown"} — ${getLabel(RELATED_PERSON_RELATIONSHIP_OPTIONS, rp.relationship_type)}`);
+    if (rp.phone) parts.push(`  Phone: ${formatPhone(rp.phone)}`);
+    if (rp.email) parts.push(`  Email: ${rp.email}`);
+    if (rp.preferred_language && rp.preferred_language !== "en") {
+      parts.push(`  Language: ${getLabel(LANGUAGE_OPTIONS, rp.preferred_language)}`);
+    }
+    if (rp.referred_by_display_name) parts.push(`  Referred by: ${rp.referred_by_display_name}`);
+    if (rp.relationship_notes) parts.push(`  Notes: ${rp.relationship_notes}`);
+    if (rp.info_completeness === "name_only") parts.push(`  [NAME ONLY — needs follow-up]`);
+    return parts.join("\n");
+  }).join("\n\n");
+}
+
 export function RelatedPeopleSection({
   requestId,
   relatedPeople,
@@ -25,6 +44,12 @@ export function RelatedPeopleSection({
   onPersonClick,
 }: RelatedPeopleSectionProps) {
   const [showAddPersonDrawer, setShowAddPersonDrawer] = useState(false);
+  const [showFieldContactDrawer, setShowFieldContactDrawer] = useState(false);
+  const [enrichRowId, setEnrichRowId] = useState<string | null>(null);
+  const [enrichPhone, setEnrichPhone] = useState("");
+  const [enrichEmail, setEnrichEmail] = useState("");
+  const [enrichSaving, setEnrichSaving] = useState(false);
+  const { success: toastSuccess } = useToast();
   const [addPersonRef, setAddPersonRef] = useState<PersonReference>({ person_id: null, display_name: "", is_resolved: false });
   const [addPersonRelType, setAddPersonRelType] = useState("");
   const [addPersonLanguage, setAddPersonLanguage] = useState("");
@@ -73,18 +98,49 @@ export function RelatedPeopleSection({
           {relatedPeople.length > 0 && (
             <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>({relatedPeople.length})</span>
           )}
-          <button
-            type="button"
-            onClick={() => { resetAddPersonForm(); setShowAddPersonDrawer(true); }}
-            style={{
-              marginLeft: "auto", padding: "2px 10px", fontSize: "0.75rem", fontWeight: 500,
-              color: "var(--primary)", background: "transparent",
-              border: "1px solid var(--primary)", borderRadius: "5px", cursor: "pointer",
-              display: "inline-flex", alignItems: "center", gap: "4px",
-            }}
-          >
-            <Icon name="plus" size={12} /> Add
-          </button>
+          <div style={{ marginLeft: "auto", display: "flex", gap: "4px" }}>
+            {relatedPeople.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(buildBriefingText(relatedPeople));
+                  toastSuccess("Contact briefing copied to clipboard");
+                }}
+                style={{
+                  padding: "2px 10px", fontSize: "0.75rem", fontWeight: 500,
+                  color: "var(--text-secondary)", background: "transparent",
+                  border: "1px solid var(--border)", borderRadius: "5px", cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: "4px",
+                }}
+              >
+                <Icon name="clipboard" size={12} /> Copy Briefing
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowFieldContactDrawer(true)}
+              style={{
+                padding: "2px 10px", fontSize: "0.75rem", fontWeight: 500,
+                color: "#166534", background: "transparent",
+                border: "1px solid #166534", borderRadius: "5px", cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: "4px",
+              }}
+            >
+              <Icon name="phone" size={12} /> Field Contact
+            </button>
+            <button
+              type="button"
+              onClick={() => { resetAddPersonForm(); setShowAddPersonDrawer(true); }}
+              style={{
+                padding: "2px 10px", fontSize: "0.75rem", fontWeight: 500,
+                color: "var(--primary)", background: "transparent",
+                border: "1px solid var(--primary)", borderRadius: "5px", cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: "4px",
+              }}
+            >
+              <Icon name="plus" size={12} /> Add
+            </button>
+          </div>
         </div>
         {relatedPeople.length > 0 && (
           <div style={{ padding: "0.5rem" }}>
@@ -99,17 +155,23 @@ export function RelatedPeopleSection({
                   borderBottom: "1px solid var(--border-light, #f3f4f6)",
                 }}
               >
-                <a
-                  href={`/people/${rp.person_id}`}
-                  onClick={(e) => {
-                    if (e.metaKey || e.ctrlKey) return;
-                    e.preventDefault();
-                    onPersonClick(rp.person_id, e);
-                  }}
-                  style={{ fontWeight: 500, fontSize: "0.9rem", color: "var(--foreground)", textDecoration: "none", minWidth: "120px" }}
-                >
-                  {rp.display_name || "Unknown"}
-                </a>
+                {rp.person_id ? (
+                  <a
+                    href={`/people/${rp.person_id}`}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey) return;
+                      e.preventDefault();
+                      onPersonClick(rp.person_id!, e);
+                    }}
+                    style={{ fontWeight: 500, fontSize: "0.9rem", color: "var(--foreground)", textDecoration: "none", minWidth: "120px" }}
+                  >
+                    {rp.display_name || "Unknown"}
+                  </a>
+                ) : (
+                  <span style={{ fontWeight: 500, fontSize: "0.9rem", color: "var(--foreground)", minWidth: "120px" }}>
+                    {rp.display_name || "Unknown"}
+                  </span>
+                )}
 
                 <span style={{
                   fontSize: "0.7rem", fontWeight: 500, padding: "1px 8px", borderRadius: "10px",
@@ -117,6 +179,23 @@ export function RelatedPeopleSection({
                 }}>
                   {getLabel(RELATED_PERSON_RELATIONSHIP_OPTIONS, rp.relationship_type)}
                 </span>
+
+                {(rp.info_completeness !== "full" || !rp.last_name) && (
+                  <span style={{
+                    fontSize: "0.65rem", fontWeight: 600, padding: "1px 6px", borderRadius: "8px",
+                    background: "#fff7ed", color: "#c2410c", whiteSpace: "nowrap",
+                  }}>
+                    PARTIAL
+                  </span>
+                )}
+
+                {rp.referred_by_display_name && (
+                  <span style={{
+                    fontSize: "0.75rem", fontStyle: "italic", color: "var(--text-muted)", whiteSpace: "nowrap",
+                  }}>
+                    via {rp.referred_by_display_name}
+                  </span>
+                )}
 
                 {rp.preferred_language && rp.preferred_language !== "en" && (
                   <span style={{
@@ -148,9 +227,17 @@ export function RelatedPeopleSection({
 
                 <RowActionMenu
                   actions={[
+                    ...(!rp.person_id ? [{
+                      label: "Add Contact Info",
+                      onClick: () => {
+                        setEnrichRowId(rp.id);
+                        setEnrichPhone(rp.contact_phone || "");
+                        setEnrichEmail(rp.contact_email || "");
+                      },
+                    }] : []),
                     {
                       label: "Remove",
-                      variant: "danger",
+                      variant: "danger" as const,
                       onClick: async () => {
                         try {
                           await fetchApi(`/api/requests/${requestId}/related-people?related_person_id=${rp.id}`, { method: "DELETE" });
@@ -250,6 +337,94 @@ export function RelatedPeopleSection({
               value={addPersonNotes}
               onChange={(e) => setAddPersonNotes(e.target.value)}
               placeholder="e.g., microchip owner, speaks only Spanish..."
+              style={{ width: "100%", padding: "6px 8px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px" }}
+            />
+          </div>
+        </div>
+      </ActionDrawer>
+
+      <AddFieldContactDrawer
+        isOpen={showFieldContactDrawer}
+        onClose={() => setShowFieldContactDrawer(false)}
+        requestId={requestId}
+        onContactAdded={fetchRelatedPeople}
+        existingPeople={relatedPeople}
+      />
+
+      <ActionDrawer
+        isOpen={!!enrichRowId}
+        onClose={() => setEnrichRowId(null)}
+        title="Add Contact Info"
+        width="sm"
+        footer={
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={() => setEnrichRowId(null)}
+              style={{ padding: "6px 16px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px", background: "transparent", cursor: "pointer", color: "var(--text-secondary)" }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={enrichSaving || (!enrichPhone.trim() && !enrichEmail.trim())}
+              onClick={async () => {
+                if (!enrichRowId) return;
+                setEnrichSaving(true);
+                try {
+                  await fetchApi(`/api/requests/${requestId}/field-contacts`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      related_person_row_id: enrichRowId,
+                      phone: enrichPhone.trim() || undefined,
+                      email: enrichEmail.trim() || undefined,
+                    }),
+                  });
+                  fetchRelatedPeople();
+                  setEnrichRowId(null);
+                  toastSuccess("Contact info added");
+                } catch {
+                  // Non-critical
+                } finally {
+                  setEnrichSaving(false);
+                }
+              }}
+              style={{
+                padding: "6px 16px", fontSize: "0.85rem", fontWeight: 500,
+                border: "none", borderRadius: "6px",
+                cursor: enrichSaving ? "wait" : "pointer",
+                background: "var(--primary)", color: "#fff",
+                opacity: enrichSaving || (!enrichPhone.trim() && !enrichEmail.trim()) ? 0.5 : 1,
+              }}
+            >
+              {enrichSaving ? "Saving..." : "Save & Resolve"}
+            </button>
+          </div>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+            Add a phone number or email to resolve this contact to a person record.
+          </p>
+          <div>
+            <label style={{ display: "block", marginBottom: "4px", fontSize: "0.8rem", fontWeight: 500 }}>Phone</label>
+            <input
+              type="tel"
+              value={enrichPhone}
+              onChange={(e) => setEnrichPhone(e.target.value)}
+              placeholder="707-555-1234"
+              autoFocus
+              style={{ width: "100%", padding: "6px 8px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px" }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", marginBottom: "4px", fontSize: "0.8rem", fontWeight: 500 }}>Email</label>
+            <input
+              type="email"
+              value={enrichEmail}
+              onChange={(e) => setEnrichEmail(e.target.value)}
+              placeholder="ruben@example.com"
               style={{ width: "100%", padding: "6px 8px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px" }}
             />
           </div>

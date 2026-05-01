@@ -26,14 +26,23 @@ interface TripReportRow {
 
 interface RelatedPersonDisplay {
   id: string;
-  person_id: string;
+  person_id: string | null;
   relationship_type: string;
   relationship_notes: string | null;
   notify_before_release: boolean;
   preferred_language: string | null;
   display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
+  referred_by_person_id: string | null;
+  referred_by_display_name: string | null;
+  info_completeness: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  contact_address: string | null;
 }
 
 export interface RequestDetailData {

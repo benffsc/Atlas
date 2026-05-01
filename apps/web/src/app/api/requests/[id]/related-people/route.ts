@@ -7,7 +7,7 @@ import { getSession } from "@/lib/auth";
 interface RelatedPersonRow {
   id: string;
   request_id: string;
-  person_id: string;
+  person_id: string | null;
   relationship_type: string;
   relationship_notes: string | null;
   notify_before_release: boolean;
@@ -18,11 +18,22 @@ interface RelatedPersonRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  // Joined from sot.people
+  referred_by_person_id: string | null;
+  info_completeness: string;
+  // COALESCE'd from sot.people → contact columns
   display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
   person_preferred_language: string | null;
+  // Contact columns (raw, for enrichment)
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  contact_address: string | null;
+  // Joined from referrer
+  referred_by_display_name: string | null;
 }
 
 /**
@@ -52,12 +63,22 @@ export const GET = withErrorHandling(async (
       rrp.created_by,
       rrp.created_at,
       rrp.updated_at,
-      p.display_name,
-      sot.get_email(p.person_id) AS email,
-      sot.get_phone(p.person_id) AS phone,
-      p.preferred_language AS person_preferred_language
+      rrp.referred_by_person_id::TEXT,
+      COALESCE(rrp.info_completeness, 'full') AS info_completeness,
+      COALESCE(p.display_name, rrp.contact_name) AS display_name,
+      COALESCE(p.first_name, split_part(rrp.contact_name, ' ', 1)) AS first_name,
+      p.last_name,
+      COALESCE(sot.get_email(p.person_id), rrp.contact_email) AS email,
+      COALESCE(sot.get_phone(p.person_id), rrp.contact_phone) AS phone,
+      p.preferred_language AS person_preferred_language,
+      rrp.contact_name,
+      rrp.contact_phone,
+      rrp.contact_email,
+      rrp.contact_address,
+      ref.display_name AS referred_by_display_name
     FROM ops.request_related_people rrp
-    JOIN sot.people p ON p.person_id = rrp.person_id
+    LEFT JOIN sot.people p ON p.person_id = rrp.person_id
+    LEFT JOIN sot.people ref ON ref.person_id = rrp.referred_by_person_id
     WHERE rrp.request_id = $1
     ORDER BY rrp.created_at ASC`,
     [id]

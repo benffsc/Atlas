@@ -388,6 +388,14 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             }}
           />
 
+          {/* Field contacts — visible in panel for trapper handoff */}
+          <RelatedPeopleSection
+            requestId={requestId}
+            relatedPeople={relatedPeople}
+            fetchRelatedPeople={fetchRelatedPeople}
+            onPersonClick={(personId) => modals.preview.open("person", personId)}
+          />
+
           {/* Trappers */}
           <CaseSection title="Assigned Trappers" icon="user" color="#ec4899">
             <TrapperAssignments requestId={requestId} placeId={request.place_id} onAssignmentChange={refreshAndNotify} />

@@ -821,7 +821,8 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
 - "draft_request": Create a draft FFR request from conversation.
 - "update_request": Update an existing request with new information.
 - "save_lookup": Save current research to staff member's personal lookups.
-- "add_note": Add a note to a place, person, cat, or request.`,
+- "add_note": Add a note to a place, person, cat, or request.
+- "add_field_contact": Create a new person record from field contact info (name + phone/address + relationship to a place/request). Creates person, place, links, and journal entry.`,
     input_schema: {
       type: "object" as const,
       properties: {
@@ -837,6 +838,7 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
             "update_request",
             "save_lookup",
             "add_note",
+            "add_field_contact",
           ],
           description: "Type of write operation to perform",
         },
@@ -972,6 +974,35 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
         source_description: {
           type: "string",
           description: "Source of info (for update_request)",
+        },
+        first_name: {
+          type: "string",
+          description: "First name (for add_field_contact)",
+        },
+        last_name: {
+          type: "string",
+          description: "Last name (for add_field_contact)",
+        },
+        phone: {
+          type: "string",
+          description: "Primary phone (for add_field_contact)",
+        },
+        phone2: {
+          type: "string",
+          description: "Secondary phone (for add_field_contact)",
+        },
+        email: {
+          type: "string",
+          description: "Email address (for add_field_contact)",
+        },
+        relationship_type: {
+          type: "string",
+          enum: ["neighbor", "caretaker", "cat_owner", "landlord", "tenant", "family_member", "transporter", "rescue_contact", "other"],
+          description: "Relationship to the place/request (for add_field_contact)",
+        },
+        referred_by: {
+          type: "string",
+          description: "Who referred this contact — person name or UUID (for add_field_contact)",
         },
       },
       required: ["action_type"],
@@ -3476,6 +3507,8 @@ async function logEvent(
       return saveLookupImpl(input, context);
     case "add_note":
       return addNoteImpl(input, context);
+    case "add_field_contact":
+      return addFieldContactImpl(input, context);
     default:
       return { success: false, error: `Unknown action_type: ${actionType}` };
   }
@@ -4290,6 +4323,195 @@ async function addNoteImpl(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to save note",
+    };
+  }
+}
+
+// =============================================================================
+// IMPLEMENTATION: add_field_contact (sub-action of log_event)
+// =============================================================================
+
+async function addFieldContactImpl(
+  input: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
+  const firstName = (input.first_name as string) || "";
+  const lastName = (input.last_name as string) || "";
+  const phone = (input.phone as string) || "";
+  const phone2 = (input.phone2 as string) || "";
+  const email = (input.email as string) || "";
+  const address = (input.address as string) || (input.location as string) || "";
+  const relationshipType = (input.relationship_type as string) || "other";
+  const notes = (input.notes as string) || "";
+  const requestId = (input.request_id as string) || (input.entity_id as string) || "";
+  const referredBy = (input.referred_by as string) || "";
+
+  if (!firstName && !lastName) {
+    return { success: false, error: "first_name or last_name is required for add_field_contact" };
+  }
+
+  const hasIdentifier = !!(phone || email);
+
+  // Normalize phone — strip non-digits
+  const normPhone = phone.replace(/\D/g, "");
+  const normPhone2 = phone2.replace(/\D/g, "");
+  const normEmail = email.trim().toLowerCase() || null;
+
+  // If emitActionCard exists, emit a confirmation card instead of creating directly
+  if (context?.emitActionCard) {
+    const displayName = `${firstName} ${lastName}`.trim();
+    const details: Record<string, unknown> = {
+      first_name: firstName, last_name: lastName,
+      phone: normPhone || null, phone2: normPhone2 || null,
+      email: normEmail, address: address || null,
+      relationship_type: relationshipType, notes: notes || null,
+      request_id: requestId || null,
+      referred_by: referredBy || null,
+    };
+
+    context.emitActionCard({
+      card_id: `field_contact_${Date.now()}`,
+      action_type: "add_field_contact",
+      entity_type: "person",
+      entity_id: null,
+      entity_name: displayName,
+      proposed_changes: details,
+      confidence: "high",
+      reasoning: `Create field contact: ${displayName} as ${relationshipType}${address ? ` at ${address}` : ""}`,
+    });
+
+    return {
+      success: true,
+      data: {
+        action: "confirmation_requested",
+        message: `Ready to create a record for ${displayName} as ${relationshipType}${address ? ` at ${address}` : ""}. Waiting for staff confirmation.`,
+      },
+    };
+  }
+
+  try {
+    // Resolve referral — could be UUID or name
+    let referredByPersonId: string | null = null;
+    if (referredBy) {
+      if (UUID_REGEX.test(referredBy)) {
+        referredByPersonId = referredBy;
+      } else if (requestId && UUID_REGEX.test(requestId)) {
+        // Try to match by name among related people on this request
+        const refMatch = await queryOne<{ person_id: string }>(
+          `SELECT p.person_id::TEXT FROM ops.request_related_people rrp
+           JOIN sot.people p ON p.person_id = rrp.person_id
+           WHERE rrp.request_id = $1 AND p.display_name ILIKE $2
+           LIMIT 1`,
+          [requestId, `%${referredBy}%`]
+        );
+        referredByPersonId = refMatch?.person_id || null;
+      }
+    }
+
+    // Compute info_completeness
+    const infoCompleteness = !hasIdentifier ? "name_only" : !lastName ? "partial" : "full";
+    const displayName = `${firstName} ${lastName}`.trim();
+
+    // 1. Create person (only if we have an identifier — no ghost records)
+    let personId: string | null = null;
+    if (hasIdentifier) {
+      const personResult = await queryOne<{ person_id: string }>(
+        `SELECT sot.find_or_create_person($1, $2, $3, $4, $5, 'atlas_ui')::TEXT AS person_id`,
+        [normEmail, normPhone || null, firstName || null, lastName || null, address || null]
+      );
+      if (!personResult?.person_id) {
+        return { success: false, error: "Failed to create person record" };
+      }
+      personId = personResult.person_id;
+    }
+    // Name-only: personId stays null, contact info stored on relationship row
+
+    // 2. Add second phone if provided (only if person resolved)
+    if (normPhone2 && personId) {
+      await execute(
+        `INSERT INTO sot.person_identifiers (person_id, id_type, id_value_raw, id_value_norm, confidence, source_system)
+         VALUES ($1, 'phone', $2, $3, 1.0, 'atlas_ui')
+         ON CONFLICT (id_type, id_value_norm) DO NOTHING`,
+        [personId, phone2, normPhone2]
+      );
+    }
+
+    // 3. Create/find place and link person→place if address provided and person resolved
+    let placeId: string | null = null;
+    if (address && personId) {
+      const placeResult = await queryOne<{ find_or_create_place_deduped: string }>(
+        `SELECT sot.find_or_create_place_deduped($1, NULL, NULL, NULL, 'atlas_ui')`,
+        [address]
+      );
+      placeId = placeResult?.find_or_create_place_deduped || null;
+
+      if (placeId) {
+        await execute(
+          `INSERT INTO sot.person_place (person_id, place_id, relationship_type, evidence_type, source_system)
+           VALUES ($1, $2, $3, 'manual', 'atlas_ui')
+           ON CONFLICT DO NOTHING`,
+          [personId, placeId, relationshipType]
+        );
+      }
+    }
+
+    // 4. Link to request if request_id provided
+    if (requestId && UUID_REGEX.test(requestId)) {
+      const conflictClause = personId
+        ? "(request_id, person_id, relationship_type) WHERE person_id IS NOT NULL"
+        : "(request_id, contact_name, relationship_type) WHERE person_id IS NULL";
+      await execute(
+        `INSERT INTO ops.request_related_people (
+          request_id, person_id, relationship_type, relationship_notes,
+          contact_name, contact_phone, contact_email, contact_address,
+          referred_by_person_id, info_completeness, source_system
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'atlas_ui')
+         ON CONFLICT ${conflictClause} DO NOTHING`,
+        [
+          requestId, personId, relationshipType, notes || null,
+          displayName, normPhone || null, normEmail, address || null,
+          referredByPersonId, infoCompleteness,
+        ]
+      );
+    }
+    const phoneParts: string[] = [];
+    if (normPhone) phoneParts.push(normPhone);
+    if (normPhone2) phoneParts.push(normPhone2);
+    const journalBody = `Field contact: ${displayName} (${relationshipType})${address ? ` at ${address}` : ""}. Phone: ${phoneParts.join(", ") || "none"}.${notes ? ` Notes: ${notes}` : ""}`;
+
+    await execute(
+      `INSERT INTO ops.journal_entries (
+        entry_kind, occurred_at, body, created_by, tags,
+        primary_person_id, primary_request_id, primary_place_id
+      ) VALUES (
+        'note', NOW(), $1, $2, ARRAY['field_contact'],
+        $3, $4, $5
+      )`,
+      [
+        journalBody,
+        context?.staffName || "tippy_ai",
+        personId,
+        (requestId && UUID_REGEX.test(requestId)) ? requestId : null,
+        placeId,
+      ]
+    );
+
+    return {
+      success: true,
+      data: {
+        person_id: personId,
+        place_id: placeId,
+        display_name: displayName,
+        relationship_type: relationshipType,
+        phones: phoneParts,
+        message: `Created field contact: ${displayName} as ${relationshipType}${address ? ` at ${address}` : ""}${requestId ? `, linked to request` : ""}.`,
+      },
+    };
+  } catch (error) {
+    console.error("addFieldContact error:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create field contact",
     };
   }
 }
