@@ -166,6 +166,7 @@ interface RequestDetailRow {
   previous_tnr: string | null;
   handleability: string | null;
   fixed_status: string | null;
+  best_trapping_time: string | null;
   ownership_status: string | null;
   has_medical_concerns: boolean;
   medical_description: string | null;
@@ -388,6 +389,7 @@ export async function GET(
         r.previous_tnr,
         r.handleability,
         r.fixed_status,
+        r.best_trapping_time,
         r.ownership_status,
         COALESCE(r.has_medical_concerns, FALSE) AS has_medical_concerns,
         r.medical_description,
