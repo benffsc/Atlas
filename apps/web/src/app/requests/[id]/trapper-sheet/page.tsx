@@ -49,6 +49,7 @@ interface TrapperSheetData {
   kitten_age_weeks: number | null;
   cats_are_friendly: boolean | null;
   preferred_contact_method: string | null;
+  preferred_language: string | null;
   scheduled_date: string | null;
   scheduled_time_range: string | null;
   created_at: string;
@@ -376,6 +377,11 @@ export default function TrapperSheetPage() {
             </div>
             {data.property_owner_contact && data.property_owner_contact !== data.requester_name && (
               <div style={{ fontSize: "8.5pt", marginTop: "2px" }}>Property owner: <strong>{data.property_owner_contact}</strong></div>
+            )}
+            {data.preferred_language && data.preferred_language !== "en" && (
+              <div style={{ marginTop: "3px", padding: "2px 6px", background: "#eef2ff", borderRadius: "3px", fontSize: "8.5pt", fontWeight: 700, color: "#4338ca", display: "inline-block" }}>
+                LANGUAGE: {data.preferred_language.toUpperCase()}
+              </div>
             )}
           </div>
           <div className="section" style={{ marginBottom: 0 }}>
