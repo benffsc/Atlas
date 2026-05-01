@@ -53,7 +53,8 @@ ALTER TABLE sot.person_place
     'transporter', 'referrer', 'neighbor', 'site_contact',
     'works_at', 'volunteers_at', 'contact_address',
     'owner', 'manager', 'caretaker', 'requester', 'trapper_at',
-    'tenant', 'family_member', 'cat_owner'
+    'tenant', 'family_member', 'cat_owner',
+    'booked_under_org'
   ));
 
 -- ============================================================================
