@@ -216,6 +216,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
             <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
             {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
+            <a href={`/requests/${requestId}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem", textDecoration: "none" }}>Trapper Sheet</a>
             <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
           </div>
         </div>
@@ -259,6 +260,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
             <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
             {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
+            <a href={`/requests/${requestId}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem", textDecoration: "none" }}>Trapper Sheet</a>
             <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
           </div>
         )}
@@ -394,6 +396,8 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             relatedPeople={relatedPeople}
             fetchRelatedPeople={fetchRelatedPeople}
             onPersonClick={(personId) => modals.preview.open("person", personId)}
+            briefingContext={request}
+            briefingJournal={journalEntries}
           />
 
           {/* Trappers */}
@@ -586,6 +590,8 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
               relatedPeople={relatedPeople}
               fetchRelatedPeople={fetchRelatedPeople}
               onPersonClick={(personId) => modals.preview.open("person", personId)}
+              briefingContext={request}
+              briefingJournal={journalEntries}
             />
           </TabPanel>
 

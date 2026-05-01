@@ -107,6 +107,29 @@ interface TrapperSheetData {
   }> | null;
 }
 
+interface RelatedPerson {
+  id: string;
+  person_id: string | null;
+  relationship_type: string;
+  relationship_notes: string | null;
+  notify_before_release: boolean;
+  preferred_language: string | null;
+  display_name: string | null;
+  email: string | null;
+  phone: string | null;
+  referred_by_display_name: string | null;
+  info_completeness: string;
+  contact_address: string | null;
+}
+
+interface JournalEntry {
+  id: string;
+  entry_kind: string;
+  body: string;
+  created_at: string;
+  created_by_staff_name: string | null;
+}
+
 export default function TrapperSheetPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -114,6 +137,8 @@ export default function TrapperSheetPage() {
   const { nameFull } = useOrgConfig();
 
   const [data, setData] = useState<TrapperSheetData | null>(null);
+  const [relatedPeople, setRelatedPeople] = useState<RelatedPerson[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [includeKittenPage, setIncludeKittenPage] = useState(false);
@@ -124,8 +149,14 @@ export default function TrapperSheetPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const result = await fetchApi<TrapperSheetData>(`/api/requests/${id}`);
+        const [result, rpData, jData] = await Promise.all([
+          fetchApi<TrapperSheetData>(`/api/requests/${id}`),
+          fetchApi<{ related_people: RelatedPerson[] }>(`/api/requests/${id}/related-people`).catch(() => ({ related_people: [] })),
+          fetchApi<{ entries: JournalEntry[] }>(`/api/journal?request_id=${id}&include_related=true`).catch(() => ({ entries: [] })),
+        ]);
         setData(result);
+        setRelatedPeople(rpData.related_people || []);
+        setJournalEntries((jData.entries || []).slice(0, 5));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading request");
       } finally {
@@ -480,6 +511,60 @@ export default function TrapperSheetPage() {
             })}
           </div>
         </div>
+
+        {/* Field Contacts */}
+        {relatedPeople.length > 0 && (
+          <div className="section">
+            <div className="section-title">Field Contacts ({relatedPeople.length})</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+              {relatedPeople.map((rp) => (
+                <div key={rp.id} style={{ display: "flex", gap: "6px", alignItems: "baseline", fontSize: "9pt", borderBottom: "1px solid #eee", paddingBottom: "2px" }}>
+                  <span style={{ fontWeight: 700, minWidth: "100px" }}>{rp.display_name || "Unknown"}</span>
+                  <span style={{ color: "#555", minWidth: "80px" }}>{formatPrintValue(rp.relationship_type)}</span>
+                  {rp.phone && <span>{formatPhone(rp.phone)}</span>}
+                  {rp.email && <span style={{ color: "#555" }}>{rp.email}</span>}
+                  {rp.contact_address && <span style={{ color: "#555" }}>{rp.contact_address}</span>}
+                  {rp.preferred_language && rp.preferred_language !== "en" && (
+                    <span style={{ fontWeight: 600, color: "#4338ca", fontSize: "8pt" }}>[{rp.preferred_language.toUpperCase()}]</span>
+                  )}
+                  {rp.notify_before_release && <span style={{ fontSize: "8pt", color: "#d97706" }}>NOTIFY</span>}
+                  {rp.referred_by_display_name && (
+                    <span style={{ fontSize: "8pt", color: "#555", fontStyle: "italic" }}>via {rp.referred_by_display_name}</span>
+                  )}
+                  {rp.info_completeness === "name_only" && (
+                    <span style={{ fontSize: "7.5pt", color: "#c2410c", fontWeight: 600 }}>NAME ONLY</span>
+                  )}
+                </div>
+              ))}
+              {relatedPeople.some(rp => rp.relationship_notes) && (
+                <div style={{ marginTop: "2px", fontSize: "8.5pt", color: "#555" }}>
+                  {relatedPeople.filter(rp => rp.relationship_notes).map(rp => (
+                    <div key={rp.id}><strong>{rp.display_name}:</strong> {rp.relationship_notes}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Journal */}
+        {journalEntries.length > 0 && (
+          <div className="section">
+            <div className="section-title">Recent Activity ({journalEntries.length})</div>
+            <div style={{ fontSize: "8.5pt", display: "flex", flexDirection: "column", gap: "3px" }}>
+              {journalEntries.map((entry) => (
+                <div key={entry.id} style={{ borderLeft: "2px solid #ccc", paddingLeft: "6px" }}>
+                  <span style={{ color: "#555" }}>
+                    {new Date(entry.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {entry.created_by_staff_name ? ` — ${entry.created_by_staff_name}` : ""}
+                  </span>
+                  {" "}
+                  <span>{entry.body.length > 200 ? entry.body.slice(0, 200) + "..." : entry.body}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Notes */}
         <div className="section">

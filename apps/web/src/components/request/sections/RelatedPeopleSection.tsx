@@ -13,28 +13,81 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
 import type { RelatedPersonDisplay } from "@/hooks/useRequestDetail";
 
+interface BriefingContext {
+  summary: string | null;
+  place_name: string | null;
+  place_address: string | null;
+  place_city: string | null;
+  estimated_cat_count: number | null;
+  status: string;
+  priority: string;
+  place_safety_concerns: string[] | null;
+  place_safety_notes: string | null;
+}
+
 interface RelatedPeopleSectionProps {
   requestId: string;
   relatedPeople: RelatedPersonDisplay[];
   fetchRelatedPeople: () => Promise<void>;
   onPersonClick: (personId: string, e: React.MouseEvent) => void;
+  /** Pass request data to enrich Copy Briefing with full case context */
+  briefingContext?: BriefingContext;
+  /** Recent journal entries to include in Copy Briefing */
+  briefingJournal?: Array<{ body: string; created_at: string; created_by_staff_name?: string | null }>;
 }
 
-function buildBriefingText(people: RelatedPersonDisplay[]): string {
-  if (people.length === 0) return "No contacts on this request.";
-  return people.map((rp) => {
-    const parts: string[] = [];
-    parts.push(`${rp.display_name || "Unknown"} — ${getLabel(RELATED_PERSON_RELATIONSHIP_OPTIONS, rp.relationship_type)}`);
-    if (rp.phone) parts.push(`  Phone: ${formatPhone(rp.phone)}`);
-    if (rp.email) parts.push(`  Email: ${rp.email}`);
-    if (rp.preferred_language && rp.preferred_language !== "en") {
-      parts.push(`  Language: ${getLabel(LANGUAGE_OPTIONS, rp.preferred_language)}`);
-    }
-    if (rp.referred_by_display_name) parts.push(`  Referred by: ${rp.referred_by_display_name}`);
-    if (rp.relationship_notes) parts.push(`  Notes: ${rp.relationship_notes}`);
-    if (rp.info_completeness === "name_only") parts.push(`  [NAME ONLY — needs follow-up]`);
-    return parts.join("\n");
-  }).join("\n\n");
+function buildBriefingText(
+  people: RelatedPersonDisplay[],
+  context?: BriefingContext,
+  journal?: Array<{ body: string; created_at: string; created_by_staff_name?: string | null }>,
+): string {
+  const sections: string[] = [];
+
+  // Case context header
+  if (context) {
+    const header: string[] = [];
+    header.push(`REQUEST: ${context.summary || "Untitled"} (${context.status}${context.priority !== "normal" ? ` / ${context.priority}` : ""})`);
+    const loc = [context.place_name, context.place_address, context.place_city].filter(Boolean).join(", ");
+    if (loc) header.push(`Location: ${loc}`);
+    if (context.estimated_cat_count != null) header.push(`Est. cats: ${context.estimated_cat_count}`);
+    if (context.place_safety_concerns?.length) header.push(`Safety: ${context.place_safety_concerns.join(", ").replace(/_/g, " ")}`);
+    if (context.place_safety_notes) header.push(`Safety notes: ${context.place_safety_notes}`);
+    sections.push(header.join("\n"));
+  }
+
+  // Contacts
+  if (people.length > 0) {
+    const contactLines = people.map((rp) => {
+      const parts: string[] = [];
+      parts.push(`${rp.display_name || "Unknown"} — ${getLabel(RELATED_PERSON_RELATIONSHIP_OPTIONS, rp.relationship_type)}`);
+      if (rp.phone) parts.push(`  Phone: ${formatPhone(rp.phone)}`);
+      if (rp.email) parts.push(`  Email: ${rp.email}`);
+      if (rp.contact_address) parts.push(`  Address: ${rp.contact_address}`);
+      if (rp.preferred_language && rp.preferred_language !== "en") {
+        parts.push(`  Language: ${getLabel(LANGUAGE_OPTIONS, rp.preferred_language)}`);
+      }
+      if (rp.referred_by_display_name) parts.push(`  Referred by: ${rp.referred_by_display_name}`);
+      if (rp.relationship_notes) parts.push(`  Notes: ${rp.relationship_notes}`);
+      if (rp.info_completeness === "name_only") parts.push(`  [NAME ONLY — needs follow-up]`);
+      return parts.join("\n");
+    }).join("\n\n");
+    sections.push(`CONTACTS:\n${contactLines}`);
+  } else {
+    sections.push("No contacts on this request.");
+  }
+
+  // Recent journal
+  if (journal && journal.length > 0) {
+    const journalLines = journal.slice(0, 3).map((e) => {
+      const date = new Date(e.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const by = e.created_by_staff_name ? ` (${e.created_by_staff_name})` : "";
+      const body = e.body.length > 150 ? e.body.slice(0, 150) + "..." : e.body;
+      return `  ${date}${by}: ${body}`;
+    }).join("\n");
+    sections.push(`RECENT NOTES:\n${journalLines}`);
+  }
+
+  return sections.join("\n\n---\n\n");
 }
 
 export function RelatedPeopleSection({
@@ -42,6 +95,8 @@ export function RelatedPeopleSection({
   relatedPeople,
   fetchRelatedPeople,
   onPersonClick,
+  briefingContext,
+  briefingJournal,
 }: RelatedPeopleSectionProps) {
   const [showAddPersonDrawer, setShowAddPersonDrawer] = useState(false);
   const [showFieldContactDrawer, setShowFieldContactDrawer] = useState(false);
@@ -103,7 +158,7 @@ export function RelatedPeopleSection({
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(buildBriefingText(relatedPeople));
+                  navigator.clipboard.writeText(buildBriefingText(relatedPeople, briefingContext, briefingJournal));
                   toastSuccess("Contact briefing copied to clipboard");
                 }}
                 style={{
@@ -212,9 +267,10 @@ export function RelatedPeopleSection({
                   </span>
                 )}
 
-                <div style={{ flex: 1, display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                <div style={{ flex: 1, display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "var(--text-muted)", flexWrap: "wrap" }}>
                   {rp.phone && <span>{formatPhone(rp.phone)}</span>}
                   {rp.email && <span>{rp.email}</span>}
+                  {rp.contact_address && <span style={{ fontSize: "0.75rem" }}>{rp.contact_address}</span>}
                 </div>
 
                 {rp.relationship_notes && (
