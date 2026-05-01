@@ -719,6 +719,23 @@ function TrappersPageInner() {
     downloadCsv(csv, `trappers-${date}.csv`);
   };
 
+  const copyEmails = () => {
+    if (!data) return;
+    const trappers = selectedIds.size > 0
+      ? data.trappers.filter((t) => selectedIds.has(t.person_id))
+      : data.trappers;
+    const emails = [...new Set(trappers.map((t) => t.email).filter(Boolean))] as string[];
+    if (emails.length === 0) {
+      addToast({ type: "error", message: "No emails available for current selection" });
+      return;
+    }
+    navigator.clipboard.writeText(emails.join("; ")).then(() => {
+      addToast({ type: "success", message: `${emails.length} email${emails.length === 1 ? "" : "s"} copied to clipboard` });
+    }).catch(() => {
+      addToast({ type: "error", message: "Failed to copy to clipboard" });
+    });
+  };
+
   const getTrapperActions = (trapper: Trapper) => [
     { label: "View Profile", onClick: () => router.push(`/trappers/${trapper.person_id}`) },
     { label: "Edit", onClick: () => setEditDrawerTrapper(trapper) },
@@ -1009,22 +1026,40 @@ function TrappersPageInner() {
             <div style={{ borderLeft: "1px solid var(--border-light)", height: "1.5rem", margin: "0 0.25rem" }} />
           </>
         )}
-        <button
-          onClick={exportCsv}
-          disabled={!data || data.trappers.length === 0}
-          style={{
-            padding: "0.3rem 0.75rem",
-            fontSize: "0.8rem",
-            background: "transparent",
-            border: "1px solid var(--border-light)",
-            borderRadius: "4px",
-            cursor: data && data.trappers.length > 0 ? "pointer" : "not-allowed",
-            opacity: data && data.trappers.length > 0 ? 1 : 0.5,
-            marginLeft: selectedIds.size > 0 ? "0" : "auto",
-          }}
-        >
-          Export CSV{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", marginLeft: selectedIds.size > 0 ? "0" : "auto" }}>
+          <button
+            onClick={copyEmails}
+            disabled={!data || data.trappers.length === 0}
+            style={{
+              padding: "0.3rem 0.75rem",
+              fontSize: "0.8rem",
+              background: "var(--accent-blue)",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: data && data.trappers.length > 0 ? "pointer" : "not-allowed",
+              opacity: data && data.trappers.length > 0 ? 1 : 0.5,
+              fontWeight: 500,
+            }}
+          >
+            Copy Emails{data ? ` (${[...new Set((selectedIds.size > 0 ? data.trappers.filter((t) => selectedIds.has(t.person_id)) : data.trappers).map((t) => t.email).filter(Boolean))].length})` : ""}
+          </button>
+          <button
+            onClick={exportCsv}
+            disabled={!data || data.trappers.length === 0}
+            style={{
+              padding: "0.3rem 0.75rem",
+              fontSize: "0.8rem",
+              background: "transparent",
+              border: "1px solid var(--border-light)",
+              borderRadius: "4px",
+              cursor: data && data.trappers.length > 0 ? "pointer" : "not-allowed",
+              opacity: data && data.trappers.length > 0 ? 1 : 0.5,
+            }}
+          >
+            Export CSV{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+          </button>
+        </div>
       </div>
 
       {/* Batch Confirm Modal */}
