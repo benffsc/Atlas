@@ -4,7 +4,7 @@ import {
   checkSuspiciousPatterns,
   matchesGapTrigger,
   KNOWN_GAPS,
-} from "@/app/api/tippy/data-quality";
+} from "@/app/api/tippy/knowledge";
 
 // =============================================================================
 // PR 1 (FFS-1157 + FFS-1158) — auto-applied data quality
