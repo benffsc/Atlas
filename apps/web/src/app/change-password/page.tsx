@@ -18,7 +18,9 @@ export default function ChangePasswordPage() {
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
-      .then((data) => {
+      .then((raw) => {
+        // Unwrap apiSuccess wrapper: { success: true, data: { authenticated, staff } }
+        const data = raw?.data || raw;
         if (data.authenticated && data.staff) {
           setStaffName(data.staff.display_name);
           setIsRequired(data.staff.password_change_required || false);
@@ -69,10 +71,11 @@ export default function ChangePasswordPage() {
         }),
       });
 
-      const data = await res.json();
+      const raw = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to change password");
+        const errMsg = raw?.error?.message || raw?.error || "Failed to change password";
+        throw new Error(errMsg);
       }
 
       setSuccess(true);
