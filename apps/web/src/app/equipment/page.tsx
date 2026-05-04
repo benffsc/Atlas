@@ -81,7 +81,10 @@ export default function EquipmentDashboard() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Equipment</h1>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <Button variant="primary" size="sm" icon="scan-barcode" onClick={() => window.open("/kiosk/equipment/scan", "_blank")}>
+          <Button variant="primary" size="sm" icon="plus" onClick={() => window.location.href = "/equipment/add"}>
+            Add Equipment
+          </Button>
+          <Button variant="outline" size="sm" icon="scan-barcode" onClick={() => window.open("/kiosk/equipment/scan", "_blank")}>
             Scan
           </Button>
           <Button variant="outline" size="sm" icon="upload-cloud" onClick={() => window.location.href = "/admin/equipment/scan-slips"}>
