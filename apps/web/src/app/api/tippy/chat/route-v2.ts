@@ -188,7 +188,18 @@ ANALYTICAL RECIPES (use with run_sql — ONE query, not schema exploration):
 9. TOTAL CATS HELPED / OVERALL IMPACT: SELECT * FROM ops.v_impact_at_a_glance — one row with total_cats_seen, total_altered, estimated_living, places_with_cats, active_requests, cities_covered, methodology
 10. PENDING INTAKES (kiosk/phone submissions): SELECT COUNT(*) FROM ops.intake_submissions WHERE status = 'pending' — These are NEW submissions from the kiosk or phone, NOT requests. Requests (ops.requests) are processed work items. When staff asks "pending intakes" use intake_submissions, when they ask "open requests" use ops.requests.
 11. COVERAGE GAPS / WHAT DON'T WE KNOW: SELECT city, total_places, places_with_cats, cat_coverage_pct, gap_score, last_activity_date FROM ops.v_coverage_gaps ORDER BY gap_score DESC LIMIT 15 — Higher gap_score = more underserved. Our data reflects what we've DISCOVERED, not what EXISTS. Low coverage means we haven't been there.
-Do NOT run "SELECT column_name FROM information_schema..." — the schema info above is sufficient.
+12. PERSON SEARCH (fallback): Use person_lookup tool FIRST. If it returns nothing: SELECT person_id::text, display_name, email FROM sot.people WHERE display_name ILIKE '%NAME%' AND merged_into_person_id IS NULL LIMIT 5
+13. RECENT ACTIVITY (last 30 days): SELECT appointment_date, COUNT(DISTINCT cat_id) as cats, COUNT(DISTINCT place_id) as places FROM ops.appointments WHERE appointment_date >= NOW() - INTERVAL '30 days' GROUP BY 1 ORDER BY 1
+
+CRITICAL: Do NOT run "SELECT column_name FROM information_schema..." — it is BLOCKED. The schema info and recipes above are sufficient. If you need a query not covered by a recipe, use the DATABASE SCHEMA section above to construct it directly.
+
+DO NOT USE run_sql FOR (use the right tool instead):
+- Person by name → person_lookup
+- Cat by name/chip → cat_lookup
+- Place by address → full_place_briefing
+- City comparison → area_stats (call twice)
+- "How many cats alive/living/surviving" → recipe #2
+- Overall impact → recipe #9
 
 METHODOLOGY DISCLOSURE (MANDATORY):
 When presenting estimated or derived numbers (survival estimates, population projections, coverage rates):

@@ -395,19 +395,19 @@ export const TIPPY_V2_TOOLS = [
   // 1. run_sql
   {
     name: "run_sql",
-    description: `Execute a read-only SQL query against the Atlas database. Use this to investigate data dynamically.
+    description: `Execute a read-only SQL query against the Atlas database. LAST RESORT — check ANALYTICAL RECIPES in your system prompt FIRST.
 
-IMPORTANT: Only SELECT queries are allowed. The query will be rejected if it contains INSERT, UPDATE, DELETE, DROP, etc.
+IMPORTANT: Only SELECT queries are allowed. Schema exploration (information_schema, pg_catalog) is BLOCKED — use the recipes and schema info in your system prompt instead.
 
-Use this tool to:
-- Explore data patterns you're curious about
-- Test hypotheses about the data
-- Answer questions that don't fit pre-built tools
-- Follow up on initial findings with deeper investigation
+DO NOT use run_sql for:
+- Person lookups → use person_lookup tool
+- Cat lookups → use cat_lookup tool
+- Place lookups → use full_place_briefing tool
+- City/region comparisons → use area_stats tool (call twice, once per city)
+- "How many cats alive/living" → recipe #2: SELECT * FROM ops.v_altered_cat_survival_estimate
+- Overall impact numbers → recipe #9: SELECT * FROM ops.v_impact_at_a_glance
 
-Example queries:
-- "SELECT COUNT(*) FROM sot.cats WHERE altered_status = 'intact'"
-- "SELECT city, COUNT(*) FROM sot.addresses GROUP BY city ORDER BY count DESC LIMIT 10"`,
+Use run_sql ONLY for questions that genuinely don't fit the 15 tools or 11+ recipes.`,
     input_schema: {
       type: "object" as const,
       properties: {
@@ -1032,6 +1032,24 @@ async function runReadOnlySql(
         success: false,
         error:
           "Only SELECT queries are allowed. This query appears to modify data.",
+      };
+    }
+  }
+
+  // Block schema exploration — recipes in system prompt are sufficient (FFS-1445)
+  const schemaExplorationPatterns = [
+    /information_schema/i,
+    /pg_catalog\./i,
+    /pg_tables/i,
+    /pg_views/i,
+    /pg_matviews/i,
+  ];
+  for (const pattern of schemaExplorationPatterns) {
+    if (pattern.test(normalizedSql)) {
+      return {
+        success: false,
+        error:
+          "Schema exploration is not needed. The ANALYTICAL RECIPES in your system prompt contain pre-built queries for common questions. Use those instead. Key recipes: #2 for survival/living cat estimates (ops.v_altered_cat_survival_estimate), #3 for city comparisons (ops.mv_city_stats or area_stats tool), #9 for overall impact (ops.v_impact_at_a_glance). For person lookups use person_lookup tool, for cat lookups use cat_lookup tool. The DATABASE SCHEMA section lists all relevant tables and columns.",
       };
     }
   }
@@ -3479,6 +3497,83 @@ async function sendMessageImpl(
 }
 
 // =============================================================================
+// Tippy Ticket auto-creation (FFS-1446)
+// =============================================================================
+
+const TICKET_TYPE_MAP: Record<string, string> = {
+  field_event: "site_observation",
+  site_observation: "site_observation",
+  flag_anomaly: "data_correction",
+  data_correction: "data_correction",
+  data_discrepancy: "data_correction",
+  add_field_contact: "person_intel",
+};
+
+async function maybeCreateTicket(params: {
+  action_type: string;
+  raw_input: string;
+  summary: string;
+  primary_place_id?: string | null;
+  primary_person_id?: string | null;
+  primary_cat_id?: string | null;
+  primary_request_id?: string | null;
+  staff_id?: string | null;
+  tags?: string[];
+}): Promise<string | null> {
+  const ticketType = TICKET_TYPE_MAP[params.action_type];
+  if (!ticketType) return null;
+
+  try {
+    // Dedup: skip if open ticket with same type + same primary entity in last 24h
+    const entityId =
+      params.primary_place_id ||
+      params.primary_person_id ||
+      params.primary_cat_id ||
+      params.primary_request_id;
+    if (entityId) {
+      const existing = await queryOne<{ ticket_id: string }>(
+        `SELECT ticket_id FROM ops.tippy_tickets
+         WHERE ticket_type = $1
+           AND (primary_place_id = $2::uuid OR primary_person_id = $2::uuid
+                OR primary_cat_id = $2::uuid OR primary_request_id = $2::uuid)
+           AND status NOT IN ('closed')
+           AND created_at > NOW() - INTERVAL '24 hours'
+         LIMIT 1`,
+        [ticketType, entityId]
+      );
+      if (existing) return existing.ticket_id;
+    }
+
+    const result = await queryOne<{ ticket_id: string }>(
+      `INSERT INTO ops.tippy_tickets (
+        ticket_type, status, priority, raw_input, summary,
+        primary_place_id, primary_person_id, primary_cat_id, primary_request_id,
+        reported_by, source, tags
+      ) VALUES (
+        $1, 'open', 'normal', $2, $3,
+        $4, $5, $6, $7,
+        $8, 'tippy_auto', $9
+      ) RETURNING ticket_id::text`,
+      [
+        ticketType,
+        params.raw_input,
+        params.summary,
+        params.primary_place_id || null,
+        params.primary_person_id || null,
+        params.primary_cat_id || null,
+        params.primary_request_id || null,
+        params.staff_id || null,
+        params.tags || [],
+      ]
+    );
+    return result?.ticket_id || null;
+  } catch (err) {
+    console.error("[maybeCreateTicket] non-blocking:", err);
+    return null;
+  }
+}
+
+// =============================================================================
 // IMPLEMENTATION: 15. log_event (dispatcher)
 // =============================================================================
 
@@ -3606,16 +3701,27 @@ async function logFieldEventImpl(
     ]
   );
 
+  // Auto-create tippy ticket (FFS-1446)
+  const placeName = place.display_name || place.formatted_address || location;
+  maybeCreateTicket({
+    action_type: "field_event",
+    raw_input: `${eventType} at ${placeName}${catCount ? `: ${catCount} cats` : ""}`,
+    summary: buildEventNotes(eventType, catCount, eartippedCount, notes),
+    primary_place_id: place.place_id,
+    staff_id: _context?.staffId,
+    tags: ["field_event", eventType],
+  }).catch(() => {}); // non-blocking
+
   return {
     success: true,
     data: {
       logged: true,
       place_id: place.place_id,
-      place_name: place.display_name || place.formatted_address,
+      place_name: placeName,
       event_type: eventType,
       cat_count: catCount,
       eartipped_count: eartippedCount,
-      message: `Logged ${eventType} event at "${place.display_name || place.formatted_address}"${catCount ? ` - ${catCount} cats reported` : ""}`,
+      message: `Logged ${eventType} event at "${placeName}"${catCount ? ` - ${catCount} cats reported` : ""}`,
     },
   };
 }
@@ -3672,6 +3778,15 @@ async function logSiteObservationImpl(
         }),
       ]
     );
+
+    // Auto-create tippy ticket (FFS-1446)
+    maybeCreateTicket({
+      action_type: "site_observation",
+      raw_input: `~${catCount} cats at ${address}`,
+      summary: title,
+      staff_id: context?.staffId,
+      tags: ["site_observation", "pending_verification"],
+    }).catch(() => {}); // non-blocking
 
     return {
       success: true,
@@ -3766,6 +3881,18 @@ async function flagAnomalyImpl(
         console.warn("Linear issue creation failed (non-blocking):", err)
       );
     }
+
+    // Auto-create tippy ticket (FFS-1446)
+    maybeCreateTicket({
+      action_type: "flag_anomaly",
+      raw_input: (input.description as string) || "Anomaly flagged",
+      summary: `${(input.anomaly_type as string) || "anomaly"}: ${(input.description as string) || ""}`.slice(0, 200),
+      primary_place_id: (input.entity_type === "place" ? input.entity_id as string : null),
+      primary_person_id: (input.entity_type === "person" ? input.entity_id as string : null),
+      primary_cat_id: (input.entity_type === "cat" ? input.entity_id as string : null),
+      staff_id: context?.staffId,
+      tags: ["anomaly", effectiveSeverity],
+    }).catch(() => {}); // non-blocking
 
     return {
       success: true,
