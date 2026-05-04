@@ -104,10 +104,10 @@ export const POST = withErrorHandling(async (
     return apiNotFound("equipment", id);
   }
 
-  // Check required fields for check_out (applies to the USER'S INTENT, before
+  // Check required fields for check_out/assign (applies to the USER'S INTENT, before
   // any auto-conversion below)
-  if (requestedEventType === "check_out" && !custodian_person_id && !custodian_name) {
-    throw new ApiError("custodian_person_id or custodian_name is required for check_out", 400);
+  if ((requestedEventType === "check_out" || requestedEventType === "assign") && !custodian_person_id && !custodian_name) {
+    throw new ApiError("custodian_person_id or custodian_name is required for check_out/assign", 400);
   }
 
   // ── Auto-transfer guard (trap 0106 fix 2026-04-08) ──────────────────────────
@@ -137,10 +137,13 @@ export const POST = withErrorHandling(async (
   if (event_type === "check_out" && equipment.custody_status !== "available") {
     throw new ApiError(`Cannot check out: equipment is currently ${equipment.custody_status}`, 400);
   }
-  if (event_type === "check_in" && equipment.custody_status !== "checked_out") {
+  if (event_type === "assign" && equipment.custody_status !== "available") {
+    throw new ApiError(`Cannot assign: equipment is currently ${equipment.custody_status}`, 400);
+  }
+  if (event_type === "check_in" && !["checked_out", "assigned"].includes(equipment.custody_status)) {
     throw new ApiError(`Cannot check in: equipment is currently ${equipment.custody_status}`, 400);
   }
-  if (event_type === "transfer" && equipment.custody_status !== "checked_out") {
+  if (event_type === "transfer" && !["checked_out", "assigned"].includes(equipment.custody_status)) {
     throw new ApiError(`Cannot transfer: equipment is currently ${equipment.custody_status}`, 400);
   }
   if (event_type === "maintenance_start" && equipment.custody_status !== "available") {
@@ -158,6 +161,7 @@ export const POST = withErrorHandling(async (
   if (event_type === "retired" && equipment.custody_status === "retired") {
     throw new ApiError("Cannot retire: equipment is already retired", 400);
   }
+  // 'correction' is always valid — metadata-only audit event
 
   // Validate UUIDs if provided
   if (actor_person_id) requireValidUUID(actor_person_id, "person");

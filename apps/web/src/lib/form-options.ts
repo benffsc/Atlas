@@ -777,6 +777,7 @@ export const SITE_VISIT_ISSUE_OPTIONS = [
 export const EQUIPMENT_CUSTODY_STATUS_OPTIONS = [
   { value: "available", label: "Available", shortLabel: "Avail" },
   { value: "checked_out", label: "Checked Out", shortLabel: "Out" },
+  { value: "assigned", label: "Assigned", shortLabel: "Assigned" },
   { value: "in_field", label: "In Field", shortLabel: "Field" },
   { value: "maintenance", label: "In Maintenance", shortLabel: "Maint" },
   { value: "missing", label: "Missing", shortLabel: "Missing" },
@@ -795,6 +796,7 @@ export const EQUIPMENT_CONDITION_OPTIONS = [
 export const EQUIPMENT_EVENT_TYPE_OPTIONS = [
   { value: "check_out", label: "Check Out", shortLabel: "Out" },
   { value: "check_in", label: "Check In", shortLabel: "In" },
+  { value: "assign", label: "Assign", shortLabel: "Assign" },
   { value: "transfer", label: "Transfer", shortLabel: "Transfer" },
   { value: "condition_change", label: "Condition Change", shortLabel: "Cond" },
   { value: "maintenance_start", label: "Maintenance Start", shortLabel: "Maint Start" },
@@ -802,6 +804,7 @@ export const EQUIPMENT_EVENT_TYPE_OPTIONS = [
   { value: "reported_missing", label: "Reported Missing", shortLabel: "Missing" },
   { value: "found", label: "Found", shortLabel: "Found" },
   { value: "retired", label: "Retired", shortLabel: "Retired" },
+  { value: "correction", label: "Correction", shortLabel: "Correct" },
   { value: "note", label: "Note", shortLabel: "Note" },
 ] as const satisfies readonly FormOption[];
 

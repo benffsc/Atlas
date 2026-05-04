@@ -277,9 +277,9 @@ export const CAT_SEX = ["male", "female", "unknown"] as const;
 // EQUIPMENT ENUMS
 // =============================================================================
 
-export const EQUIPMENT_CUSTODY_STATUS = getValues(_EQUIPMENT_CUSTODY_STATUS_OPTIONS) as unknown as readonly ["available", "checked_out", "in_field", "maintenance", "missing", "retired"];
+export const EQUIPMENT_CUSTODY_STATUS = getValues(_EQUIPMENT_CUSTODY_STATUS_OPTIONS) as unknown as readonly ["available", "checked_out", "assigned", "in_field", "maintenance", "missing", "retired"];
 export const EQUIPMENT_CONDITION = getValues(_EQUIPMENT_CONDITION_OPTIONS) as unknown as readonly ["new", "good", "fair", "poor", "damaged", "decommissioned"];
-export const EQUIPMENT_EVENT_TYPE = getValues(_EQUIPMENT_EVENT_TYPE_OPTIONS) as unknown as readonly ["check_out", "check_in", "transfer", "condition_change", "maintenance_start", "maintenance_end", "reported_missing", "found", "retired", "note"];
+export const EQUIPMENT_EVENT_TYPE = getValues(_EQUIPMENT_EVENT_TYPE_OPTIONS) as unknown as readonly ["check_out", "check_in", "assign", "transfer", "condition_change", "maintenance_start", "maintenance_end", "reported_missing", "found", "retired", "correction", "note"];
 export const EQUIPMENT_CATEGORY = getValues(_EQUIPMENT_CATEGORY_OPTIONS) as unknown as readonly ["trap", "cage", "camera", "accessory"];
 export const EQUIPMENT_FUNCTIONAL_STATUS = getValues(_EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS) as unknown as readonly ["functional", "needs_repair", "unknown"];
 export const EQUIPMENT_ITEM_TYPE = getValues(_EQUIPMENT_ITEM_TYPE_OPTIONS) as unknown as readonly ["Trap", "Wire Cage", "Gadget"];

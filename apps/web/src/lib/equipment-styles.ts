@@ -21,6 +21,7 @@ export interface StatusStyle {
 export const CUSTODY_STATUS_STYLES: Record<string, StatusStyle> = {
   available:   { bg: "var(--success-bg)",  border: "var(--success-border)", text: "var(--success-text)" },
   checked_out: { bg: "var(--warning-bg)",  border: "var(--warning-border)", text: "var(--warning-text)" },
+  assigned:    { bg: "var(--info-bg)",     border: "var(--info-border)",    text: "var(--info-text)" },
   in_field:    { bg: "var(--caution-bg)",  border: "var(--caution-border)", text: "var(--caution-text)" },
   maintenance: { bg: "var(--info-bg)",     border: "var(--info-border)",    text: "var(--info-text)" },
   missing:     { bg: "var(--danger-bg)",   border: "var(--danger-border)",  text: "var(--danger-text)" },
@@ -47,6 +48,7 @@ export const CONDITION_STATUS_STYLES: Record<string, StatusStyle> = {
 export const EVENT_TYPE_STYLES: Record<string, StatusStyle> = {
   check_out:        { bg: "var(--warning-bg)",   border: "var(--warning-border)",   text: "var(--warning-text)" },
   check_in:         { bg: "var(--success-bg)",   border: "var(--success-border)",   text: "var(--success-text)" },
+  assign:           { bg: "var(--info-bg)",      border: "var(--info-border)",      text: "var(--info-text)" },
   transfer:         { bg: "var(--info-bg)",      border: "var(--info-border)",      text: "var(--info-text)" },
   reported_missing: { bg: "var(--danger-bg)",    border: "var(--danger-border)",    text: "var(--danger-text)" },
   found:            { bg: "var(--success-bg)",   border: "var(--success-border)",   text: "var(--success-text)" },
@@ -54,6 +56,7 @@ export const EVENT_TYPE_STYLES: Record<string, StatusStyle> = {
   maintenance_start:{ bg: "var(--info-bg)",      border: "var(--info-border)",      text: "var(--info-text)" },
   maintenance_end:  { bg: "var(--success-bg)",   border: "var(--success-border)",   text: "var(--success-text)" },
   condition_change: { bg: "var(--caution-bg)",   border: "var(--caution-border)",   text: "var(--caution-text)" },
+  correction:       { bg: "var(--muted-bg, #f3f4f6)", border: "var(--border)", text: "var(--muted)" },
   note:             { bg: "var(--muted-bg, #f3f4f6)", border: "var(--border)", text: "var(--muted)" },
 };
 
