@@ -50,18 +50,14 @@ const DEFAULT_LOBBY_MODULES: LobbyModule[] = [
     icon: "warehouse",
     label: "Barn Cat Program",
     subtitle: "Adopt a working cat",
-    qr_url: "https://www.forgottenfelines.com/outdoor-app",
-    qr_title: "Barn Cat Program",
-    qr_description: "Scan the QR code with your phone to apply for a barn or working cat.",
+    route: "/kiosk/barn-cat",
   },
   {
     id: "adopt",
     icon: "heart",
     label: "Adopt a Cat",
     subtitle: "Find your new friend",
-    qr_url: "https://www.forgottenfelines.com/adoption",
-    qr_title: "Adopt a Cat",
-    qr_description: "Scan the QR code with your phone to view cats available for adoption.",
+    route: "/kiosk/cats",
   },
   {
     id: "rehome",
@@ -91,7 +87,6 @@ export default function KioskSplashPage() {
   const { value: title } = useAppConfig<string>("kiosk.splash_title");
   const { value: subtitle } = useAppConfig<string>("kiosk.splash_subtitle");
   const { value: volunteerUrl } = useAppConfig<string>("kiosk.volunteer_qr_url");
-  const { value: barnCatUrl } = useAppConfig<string>("kiosk.barn_cat_qr_url");
   const { value: adoptUrl } = useAppConfig<string>("kiosk.adopt_qr_url");
   const { nameShort } = useOrgConfig();
 
@@ -100,8 +95,8 @@ export default function KioskSplashPage() {
   // Use custom modules if configured, otherwise defaults with config-driven URLs
   const modules = customModules || DEFAULT_LOBBY_MODULES.map((m) => {
     if (m.id === "volunteer" && volunteerUrl) return { ...m, qr_url: volunteerUrl };
-    if (m.id === "barn_cat" && barnCatUrl) return { ...m, qr_url: barnCatUrl };
-    if (m.id === "adopt" && adoptUrl) return { ...m, qr_url: adoptUrl };
+    // barn_cat and adopt now use route (not QR) — skip config override
+    if (m.id === "adopt" && adoptUrl && !m.route) return { ...m, qr_url: adoptUrl };
     return m;
   });
 
@@ -300,7 +295,7 @@ export default function KioskSplashPage() {
                   lineHeight: 1.3,
                 }}
               >
-                {mod.qr_url ? "Scan QR code" : mod.subtitle}
+                {mod.qr_url && !mod.route ? "Scan QR code" : mod.subtitle}
               </div>
             </div>
           </button>
