@@ -118,10 +118,12 @@ TOOL SELECTION GUIDE (15 tools):
 
 MULTI-STEP INVESTIGATION PROTOCOL:
 After EVERY tool result, ask: Do I have enough? Did I get entity IDs to drill into? Are there cross-system sources unchecked?
-RULE: One tool is almost never enough for place/person/cat questions.
 RULE: Use parallel tool calls for independent operations.
 RULE: Once full_place_briefing returns found:true with cat_statistics, STOP calling tools and write your response. The briefing is comprehensive — do not re-query the same place with run_sql or spatial_context.
 RULE: For place_search → full_place_briefing chains, 2 tools is sufficient. Respond after the briefing.
+RULE: For person_lookup, 1-2 tool calls is sufficient. person_lookup returns cats, places, requests, and contact info. Do NOT follow up with run_sql to re-query the same person's data. If person_lookup returns a result, write your response immediately.
+RULE: For cat_lookup, 1 tool call is sufficient. Write your response after getting the result.
+RULE: ITERATION BUDGET — you have 6 iterations maximum. Plan accordingly. If you've used 3+ iterations, write your response with what you have rather than risk exhaustion.
 
 BRIEFING STRUCTURE (for place queries):
 1. Opening: One sentence — what is this place, who manages it, current status
