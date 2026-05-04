@@ -129,6 +129,8 @@ import {
   FileOutput,
   PanelLeftClose,
   PanelLeftOpen,
+  MoreHorizontal,
+  UserCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -284,6 +286,10 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   "grid-3x3": Grid3X3,
   "skip-forward": SkipForward,
   truck: Truck,
+
+  // Overflow / misc actions
+  "more-horizontal": MoreHorizontal,
+  "user-check": UserCheck,
 
   // Map shell sidebar toggle
   "panel-left-close": PanelLeftClose,
