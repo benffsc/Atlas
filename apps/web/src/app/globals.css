@@ -4739,3 +4739,22 @@ a:focus-visible {
   gap: 6px;
   margin-bottom: 1rem;
 }
+
+/* Navigation progress bar — thin sweep on route change */
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 101;
+  background: var(--primary);
+  animation: nav-progress-sweep 500ms ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes nav-progress-sweep {
+  0% { transform: scaleX(0); transform-origin: left; opacity: 1; }
+  70% { transform: scaleX(1); transform-origin: left; opacity: 1; }
+  100% { transform: scaleX(1); transform-origin: left; opacity: 0; }
+}

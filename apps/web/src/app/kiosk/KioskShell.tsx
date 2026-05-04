@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { ToastProvider } from "@/components/feedback/Toast";
 import { KioskGate } from "@/components/kiosk/KioskGate";
 import { KioskTabBar } from "@/components/kiosk/KioskTabBar";
@@ -29,6 +29,13 @@ import { useKioskPreview } from "@/hooks/useKioskPreview";
 export function KioskShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPreview = useKioskPreview();
+
+  // Register service worker for offline kiosk support
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
 
   const isPrintRoute = pathname?.includes("/print");
   const isSetupRoute = pathname?.startsWith("/kiosk/setup");

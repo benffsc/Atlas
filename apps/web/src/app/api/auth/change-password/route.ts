@@ -61,7 +61,15 @@ export async function POST(request: NextRequest) {
       [newHash, session.staff_id]
     );
 
-    return apiSuccess({ message: "Password changed successfully" });
+    const response = apiSuccess({ message: "Password changed successfully" });
+
+    // Clear the password change cookie so middleware stops redirecting
+    response.cookies.set("atlas_pwd_change", "", {
+      maxAge: 0,
+      path: "/",
+    });
+
+    return response;
   } catch (error) {
     console.error("Change password error:", error);
     return apiServerError("Failed to change password");

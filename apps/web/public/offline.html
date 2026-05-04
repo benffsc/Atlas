@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beacon - Offline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f9fafb;
+      color: #171717;
+      padding: 2rem;
+      text-align: center;
+    }
+    .container { max-width: 360px; }
+    .icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #fff3cd;
+      border: 2px solid #fcd34d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+      font-size: 2rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      font-size: 1rem;
+      color: #6b7280;
+      margin-bottom: 2rem;
+      line-height: 1.5;
+    }
+    button {
+      padding: 1rem 2.5rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      min-height: 56px;
+      min-width: 200px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { opacity: 0.85; }
+    .auto-retry {
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon" aria-hidden="true">&#x1F4E1;</div>
+    <h1>You are offline</h1>
+    <p>Please check your internet connection or ask a staff member for help.</p>
+    <button onclick="location.reload()">Tap to retry</button>
+    <div class="auto-retry">Auto-retrying every 15 seconds...</div>
+  </div>
+  <script>
+    setInterval(function() {
+      fetch("/api/version", { cache: "no-store" })
+        .then(function() { location.reload(); })
+        .catch(function() {});
+    }, 15000);
+  </script>
+</body>
+</html>

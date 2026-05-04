@@ -49,6 +49,8 @@ export async function POST(request: NextRequest) {
       [result.staff!.staff_id]
     );
 
+    const passwordChangeRequired = staffInfo?.password_change_required || false;
+
     // Create response with user data
     const response = apiSuccess({
       staff: {
@@ -57,11 +59,21 @@ export async function POST(request: NextRequest) {
         email: result.staff!.email,
         auth_role: result.staff!.auth_role,
       },
-      password_change_required: staffInfo?.password_change_required || false,
+      password_change_required: passwordChangeRequired,
     });
 
     // Set session cookie
     setSessionCookie(response, result.session!.token, result.session!.expiresAt);
+
+    // Set password change cookie so middleware can enforce the gate without a DB call
+    if (passwordChangeRequired) {
+      response.cookies.set("atlas_pwd_change", "1", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      });
+    }
 
     return response;
   } catch (error) {

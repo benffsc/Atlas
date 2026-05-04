@@ -100,17 +100,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Check for password change requirement
-  // Note: Full validation happens in API routes; this is just for redirecting UI
-  // The /api/auth/me endpoint will return password_change_required status
-  // The change-password page handles the enforcement on the client side
+  // Enforce password change: redirect to /change-password if cookie is set
+  const pwdChangeRequired = request.cookies.get("atlas_pwd_change")?.value;
+  if (
+    pwdChangeRequired === "1" &&
+    !pathname.startsWith("/change-password") &&
+    !pathname.startsWith("/api/")
+  ) {
+    return NextResponse.redirect(new URL("/change-password", request.url));
+  }
 
-  // Validate the session by calling the auth check endpoint
-  // This is done asynchronously to avoid blocking
-  // The actual validation happens in the API routes that need it
-
-  // For admin paths, we mark the request as needing admin validation
-  // The individual routes will check the actual role from the session
   const response = NextResponse.next();
   response.headers.set("X-Auth-Status", "authenticated");
   if (matchesPath(pathname, ADMIN_PATHS)) {

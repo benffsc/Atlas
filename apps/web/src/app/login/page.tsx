@@ -9,6 +9,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/";
+  const reason = searchParams.get("reason");
   const { nameFull, supportEmail } = useOrgConfig();
 
   const [email, setEmail] = useState("");
@@ -115,15 +116,32 @@ function LoginForm() {
           }}
         >
           <form onSubmit={handleSubmit}>
+            {/* Session expired banner */}
+            {reason === "session_expired" && !error && (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  background: "var(--info-bg)",
+                  border: "1px solid var(--info-border)",
+                  borderRadius: "6px",
+                  color: "var(--info-text)",
+                  marginBottom: "1.5rem",
+                  fontSize: "0.875rem",
+                }}
+              >
+                Your session has expired. Please sign in again.
+              </div>
+            )}
+
             {/* Error Message */}
             {error && (
               <div
                 style={{
                   padding: "0.75rem 1rem",
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
+                  background: "var(--danger-bg)",
+                  border: "1px solid var(--danger-border)",
                   borderRadius: "6px",
-                  color: "#dc2626",
+                  color: "var(--danger-text)",
                   marginBottom: "1.5rem",
                   fontSize: "0.875rem",
                 }}
@@ -227,7 +245,7 @@ function LoginForm() {
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.7 : 1,
                 transition: "opacity 200ms ease, box-shadow 200ms ease, transform 150ms ease",
-                boxShadow: "0 2px 6px rgba(66, 145, 223, 0.25)",
+                boxShadow: "var(--shadow-sm)",
               }}
             >
               {loading ? "Signing in..." : "Sign in"}

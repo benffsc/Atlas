@@ -8,6 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { ToastProvider } from "@/components/feedback/Toast";
 import { Icon } from "@/components/ui/Icon";
 import { usePresentationMode, PresentationModeIndicator } from "@/components/PresentationMode";
+import { NavigationProgress } from "@/components/NavigationProgress";
 import { fetchApi } from "@/lib/api-client";
 
 interface Staff {
@@ -101,6 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <CommandPaletteProvider>
+      <NavigationProgress />
       {/* Slim top bar */}
       <nav className="nav">
         <div className="nav-inner">
