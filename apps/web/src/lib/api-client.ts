@@ -60,8 +60,13 @@ export async function fetchApi<T>(
 ): Promise<T> {
   const response = await fetch(url, options);
 
-  // Redirect to login on 401 (session expired)
-  if (response.status === 401 && typeof window !== "undefined") {
+  // Redirect to login on 401 (session expired) — skip if already on login/change-password
+  if (
+    response.status === 401 &&
+    typeof window !== "undefined" &&
+    !window.location.pathname.startsWith("/login") &&
+    !window.location.pathname.startsWith("/change-password")
+  ) {
     const returnPath = window.location.pathname + window.location.search;
     window.location.href = `/login?redirect=${encodeURIComponent(returnPath)}&reason=session_expired`;
     return new Promise<T>(() => {}); // Never resolves — prevents callers from acting during redirect
@@ -118,8 +123,13 @@ export async function fetchApiWithMeta<T>(
 ): Promise<ApiResult<T>> {
   const response = await fetch(url, options);
 
-  // Redirect to login on 401 (session expired)
-  if (response.status === 401 && typeof window !== "undefined") {
+  // Redirect to login on 401 (session expired) — skip if already on login/change-password
+  if (
+    response.status === 401 &&
+    typeof window !== "undefined" &&
+    !window.location.pathname.startsWith("/login") &&
+    !window.location.pathname.startsWith("/change-password")
+  ) {
     const returnPath = window.location.pathname + window.location.search;
     window.location.href = `/login?redirect=${encodeURIComponent(returnPath)}&reason=session_expired`;
     return new Promise<ApiResult<T>>(() => {}); // Never resolves
