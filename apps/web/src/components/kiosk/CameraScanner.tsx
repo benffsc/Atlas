@@ -32,10 +32,17 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
     const scanner = new Html5Qrcode(SCANNER_REGION_ID);
     scannerRef.current = scanner;
 
-    scanner
-      .start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: isMobile ? 220 : 250, height: isMobile ? 90 : 100 }, aspectRatio: 1.777 },
+    // Request HD resolution + continuous autofocus for reliable barcode reads
+    const videoConstraints: MediaTrackConstraints = {
+      facingMode: "environment",
+      width: { ideal: 1920, min: 1280 },
+      height: { ideal: 1080, min: 720 },
+    };
+
+    // Apply continuous autofocus if the browser supports it
+    scanner.start(
+      videoConstraints,
+      { fps: 10, qrbox: { width: isMobile ? 280 : 320, height: isMobile ? 120 : 140 }, aspectRatio: 1.777 },
         (decodedText) => {
           // Prevent double-fire
           if (hasScannedRef.current) return;
@@ -57,6 +64,21 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
       )
       .then(() => {
         if (mounted) setStarting(false);
+        // Enable continuous autofocus if supported
+        try {
+          const videoElem = document.querySelector(`#${SCANNER_REGION_ID} video`) as HTMLVideoElement | null;
+          const track = videoElem?.srcObject instanceof MediaStream
+            ? videoElem.srcObject.getVideoTracks()[0]
+            : null;
+          if (track) {
+            const caps = track.getCapabilities?.() as MediaTrackCapabilities & { focusMode?: string[] } | undefined;
+            if (caps?.focusMode?.includes("continuous")) {
+              track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] } as MediaTrackConstraints).catch(() => {});
+            }
+          }
+        } catch {
+          // Focus control is best-effort
+        }
       })
       .catch((err) => {
         if (!mounted) return;
@@ -160,8 +182,8 @@ export function CameraScanner({ onScan, onClose }: CameraScannerProps) {
           {/* Viewfinder frame */}
           <div
             style={{
-              width: isMobile ? "min(280px, 85vw)" : "280px",
-              height: "120px",
+              width: isMobile ? "min(320px, 90vw)" : "340px",
+              height: isMobile ? "140px" : "160px",
               position: "relative",
             }}
           >

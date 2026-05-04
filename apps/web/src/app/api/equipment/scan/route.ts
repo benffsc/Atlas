@@ -66,6 +66,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       actions.push("reported_missing");
       primary_action = "check_in";
       break;
+    case "assigned":
+      actions.push("check_in");
+      actions.push("transfer");
+      actions.push("condition_change");
+      actions.push("reported_missing");
+      primary_action = "check_in";
+      break;
     case "maintenance":
       actions.push("maintenance_end");
       actions.push("condition_change");

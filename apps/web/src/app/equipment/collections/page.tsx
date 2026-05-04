@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/feedback/EmptyState";
 import { formatPhone } from "@/lib/formatters";
 import { PAPER_FORM } from "@/lib/paper-form-design";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { KioskPersonAutosuggest, type PersonReference } from "@/components/kiosk/KioskPersonAutosuggest";
 import type { OverdueQueueRow } from "@/lib/types/view-contracts";
 
 /**
@@ -284,10 +285,11 @@ function OverdueCard({
   const [actionMode, setActionMode] = useState<"none" | "extend" | "reassign" | "note">("none");
   const [actionNote, setActionNote] = useState("");
   const [newDueDate, setNewDueDate] = useState("");
-  const [reassignName, setReassignName] = useState("");
+  const [reassignPerson, setReassignPerson] = useState<PersonReference>({ person_id: null, display_name: "", is_resolved: false });
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [logNotes, setLogNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [justLogged, setJustLogged] = useState(false);
 
   // Contact history — fetched when card expands
   const [contactHistory, setContactHistory] = useState<Array<{
@@ -337,19 +339,22 @@ function OverdueCard({
     setLogNotes("");
     setSelectedOutcome(null);
     setHistoryLoaded(false); // refresh history after logging
+    // Brief green flash to confirm the log was saved
+    setJustLogged(true);
+    setTimeout(() => setJustLogged(false), 1500);
   };
 
   return (
     <div
       style={{
-        borderLeft: `4px solid ${tier.color}`,
+        borderLeft: `4px solid ${justLogged ? "var(--success-text)" : tier.color}`,
         borderRadius: 8,
-        border: `1px solid ${expanded ? tier.color : "var(--card-border, #e5e7eb)"}`,
+        border: `1px solid ${justLogged ? "var(--success-border, #bbf7d0)" : expanded ? tier.color : "var(--card-border, #e5e7eb)"}`,
         borderLeftWidth: 4,
-        borderLeftColor: tier.color,
-        background: "var(--card-bg, #fff)",
+        borderLeftColor: justLogged ? "var(--success-text)" : tier.color,
+        background: justLogged ? "var(--success-bg, #f0fdf4)" : "var(--card-bg, #fff)",
         marginBottom: "0.375rem",
-        transition: "border-color 0.15s",
+        transition: "all 0.3s ease",
       }}
     >
       {/* Clickable summary — tap to expand */}
@@ -493,12 +498,6 @@ function OverdueCard({
       {!isLogging && actionMode === "none" && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: "0.375rem", marginTop: "0.625rem" }}>
           <ActionTile icon="phone-call" label="Log Call" color="var(--primary)" onClick={() => { onStartLog(); setLogMethod("call"); }} />
-          {phoneDisplay && (
-            <ActionTile icon="message-square" label="Send Text" color="var(--primary)" onClick={() => {
-              window.open(`sms:${row.phone}?body=${smsBody}`, "_self");
-              onStartLog(); setLogMethod("text");
-            }} />
-          )}
           <ActionTile icon="check" label="Returned" color="var(--success-text)" onClick={onMarkReturned} />
           <ActionTile icon="calendar-days" label="Extend Date" color="var(--warning-text)" onClick={() => setActionMode("extend")} />
           <ActionTile icon="arrow-right" label="Reassign" color="var(--info-text)" onClick={() => setActionMode("reassign")} />
@@ -568,51 +567,39 @@ function OverdueCard({
           <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>
             Reassign from {row.holder_name} — who actually has {row.trap_count > 1 ? "these traps" : "this trap"}?
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div style={{ flex: 1 }}>
-              <input type="text" value={reassignName} onChange={(e) => setReassignName(e.target.value)} placeholder="e.g. Moria Zimbicki"
-                style={{ width: "100%", padding: "0.5rem", borderRadius: 6, border: "1px solid var(--card-border)", fontSize: "0.9rem", boxSizing: "border-box" }} />
-            </div>
-          </div>
+          <KioskPersonAutosuggest
+            value={reassignPerson}
+            onChange={setReassignPerson}
+            placeholder="Search by name..."
+            label="New holder"
+          />
           <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
             This will transfer all {row.trap_count} trap{row.trap_count !== 1 ? "s" : ""} ({row.trap_barcodes.join(", ")}) to the new holder.
           </div>
           <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.5rem" }}>
-            <Button variant="primary" size="sm" loading={actionSubmitting} disabled={!reassignName.trim()} onClick={async () => {
+            <Button variant="primary" size="sm" loading={actionSubmitting} disabled={!reassignPerson.display_name.trim()} onClick={async () => {
               setActionSubmitting(true);
               try {
-                // Try to find the person by name to link custodian_person_id
-                let personId: string | null = null;
-                try {
-                  const searchResult = await fetchApi<{ results: Array<{ entity_id: string; display_name: string }> }>(
-                    `/api/search?q=${encodeURIComponent(reassignName.trim())}&type=person&limit=1`
-                  );
-                  if (searchResult.results?.length > 0) {
-                    const match = searchResult.results[0];
-                    if (match.display_name.toLowerCase() === reassignName.trim().toLowerCase()) {
-                      personId = match.entity_id;
-                    }
-                  }
-                } catch { /* non-blocking */ }
-
                 for (const eqId of row.equipment_ids) {
                   await postApi(`/api/equipment/${eqId}/events`, {
                     event_type: "transfer",
-                    custodian_person_id: personId || undefined,
-                    custodian_name: reassignName.trim(),
-                    custodian_name_raw: reassignName.trim(),
+                    custodian_person_id: reassignPerson.person_id || undefined,
+                    custodian_name: reassignPerson.display_name.trim(),
+                    custodian_name_raw: reassignPerson.display_name.trim(),
                     notes: `Reassigned from ${row.holder_name}. ${actionNote}`.trim(),
                   });
                 }
-                toast.success(`Transferred to ${reassignName.trim()}${personId ? " (linked)" : ""}`);
-                setActionMode("none"); setExpanded(false); setReassignName(""); setActionNote("");
+                toast.success(`Transferred to ${reassignPerson.display_name.trim()}${reassignPerson.person_id ? " (linked)" : ""}`);
+                setActionMode("none"); setExpanded(false);
+                setReassignPerson({ person_id: null, display_name: "", is_resolved: false });
+                setActionNote("");
                 onRefresh();
               } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
               finally { setActionSubmitting(false); }
             }} style={{ borderRadius: 8 }}>
               Reassign
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => { setActionMode("none"); setReassignName(""); }} style={{ borderRadius: 8 }}>
+            <Button variant="ghost" size="sm" onClick={() => { setActionMode("none"); setReassignPerson({ person_id: null, display_name: "", is_resolved: false }); }} style={{ borderRadius: 8 }}>
               Cancel
             </Button>
           </div>

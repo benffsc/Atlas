@@ -27,7 +27,7 @@ export function KioskQRModal({ url, title, description, onClose }: KioskQRModalP
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
-  const qrSrc = `https://chart.googleapis.com/chart?cht=qr&chs=280x280&chl=${encodeURIComponent(url)}&choe=UTF-8`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(url)}`;
 
   return (
     <div

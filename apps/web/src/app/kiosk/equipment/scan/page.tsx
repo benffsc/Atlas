@@ -300,44 +300,9 @@ export default function KioskScanPage() {
         />
       </div>
 
-      {/* Quick links — staff tools accessible from the scan page */}
+      {/* Staff tools — collapsed into overflow menu */}
       {state === "idle" && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            marginBottom: "1rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <Button
-            variant="outline"
-            size="sm"
-            icon="plus"
-            onClick={() => { window.location.href = "/kiosk/equipment/add"; }}
-            style={{ borderRadius: 8, fontSize: "0.8rem" }}
-          >
-            Add Equipment
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            icon="list"
-            onClick={() => { window.location.href = "/kiosk/equipment/inventory"; }}
-            style={{ borderRadius: 8, fontSize: "0.8rem" }}
-          >
-            Inventory
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            icon="printer"
-            onClick={() => { window.location.href = "/equipment/print/slips"; }}
-            style={{ borderRadius: 8, fontSize: "0.8rem" }}
-          >
-            Print Slips
-          </Button>
-        </div>
+        <StaffToolsOverflow />
       )}
 
       <ScanSessionHistory
@@ -364,12 +329,12 @@ export default function KioskScanPage() {
           </div>
 
           <Button
-            variant="outline"
+            variant="ghost"
             size="lg"
             icon="camera"
             fullWidth
             onClick={() => setShowCamera(true)}
-            style={{ minHeight: "48px" }}
+            style={{ minHeight: "48px", color: "var(--text-secondary)" }}
           >
             Scan with Camera
           </Button>
@@ -562,6 +527,81 @@ export default function KioskScanPage() {
           description="Scan a barcode or type the 4-digit ID to look up equipment."
           size="lg"
         />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Staff tools overflow menu — keeps idle screen clean
+// ---------------------------------------------------------------------------
+
+function StaffToolsOverflow() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div style={{ position: "relative", marginBottom: "1rem" }}>
+      <Button
+        variant="ghost"
+        size="sm"
+        icon="more-horizontal"
+        onClick={() => setOpen((v) => !v)}
+        style={{ borderRadius: 8, fontSize: "0.8rem", color: "var(--text-secondary)" }}
+      >
+        Staff Tools
+      </Button>
+      {open && (
+        <>
+          {/* Backdrop to close */}
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 10 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              zIndex: 11,
+              background: "var(--card-bg, #fff)",
+              border: "1px solid var(--card-border, #e5e7eb)",
+              borderRadius: 10,
+              boxShadow: "var(--shadow-md, 0 4px 12px rgba(0,0,0,0.12))",
+              minWidth: 180,
+              overflow: "hidden",
+            }}
+          >
+            {[
+              { label: "Add Equipment", icon: "plus", href: "/kiosk/equipment/add" },
+              { label: "Inventory", icon: "list", href: "/kiosk/equipment/inventory" },
+              { label: "Print Slips", icon: "printer", href: "/equipment/print/slips" },
+            ].map((item) => (
+              <button
+                key={item.href}
+                onClick={() => { window.location.href = item.href; }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.625rem",
+                  width: "100%",
+                  padding: "0.75rem 1rem",
+                  background: "none",
+                  border: "none",
+                  borderBottom: "1px solid var(--card-border, #e5e7eb)",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                  color: "var(--text-primary)",
+                  fontFamily: "inherit",
+                  textAlign: "left",
+                }}
+              >
+                <Icon name={item.icon} size={16} color="var(--text-secondary)" />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

@@ -86,7 +86,7 @@ export function CheckoutForm({
       checkoutPurpose: "",
       selectedPurposes: [] as string[],
       clientStatedPurpose: "",
-      checkoutType: "",
+      checkoutType: "public", // Auto-default to public (most common)
       depositAmount: 50, // FFS-1231: default $50 (FFSC standard) — staff must actively waive
       customDeposit: "",
       depositMethod: "" as string, // FFS-1208: cash, card, waived, none
@@ -586,7 +586,7 @@ export function CheckoutForm({
           </div>
         )}
 
-        {/* ===================== TYPE + DEPOSIT (side by side) ===================== */}
+        {/* ===================== TYPE + DUE DATE (primary fields) ===================== */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "1rem" }}>
           {/* Checkout type */}
           <div>
@@ -628,194 +628,7 @@ export function CheckoutForm({
             </div>
           </div>
 
-          {/* Deposit */}
-          <div>
-            <label style={labelStyle}>Deposit</label>
-            <div style={{ display: "flex", gap: "0.375rem", marginBottom: "0.375rem" }}>
-              {DEPOSIT_PRESETS.map((amount) => {
-                const isSelected = depositAmount === amount && !customDeposit.trim();
-                return (
-                  <button
-                    key={amount}
-                    type="button"
-                    onClick={() => {
-                      setDepositAmount(amount);
-                      setCustomDeposit("");
-                    }}
-                    style={{
-                      flex: 1,
-                      minHeight: "44px",
-                      borderRadius: "10px",
-                      border: isSelected
-                        ? "2px solid var(--primary)"
-                        : "2px solid var(--card-border, #e5e7eb)",
-                      background: isSelected
-                        ? "var(--primary-bg, rgba(59,130,246,0.08))"
-                        : "var(--background, #fff)",
-                      color: isSelected ? "var(--primary)" : "var(--text-primary)",
-                      cursor: "pointer",
-                      fontSize: "0.85rem",
-                      fontWeight: isSelected ? 700 : 500,
-                      WebkitTapHighlightColor: "transparent",
-                    }}
-                  >
-                    {amount === 0 ? "$0" : `$${amount}`}
-                  </button>
-                );
-              })}
-            </div>
-            <input
-              type="number"
-              value={customDeposit}
-              onChange={(e) => setCustomDeposit(e.target.value)}
-              placeholder="Custom..."
-              min={0}
-              step={1}
-              style={{ ...inputStyle, minHeight: "36px", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
-            />
-            {/* FFS-1208 — deposit method (cash / card / waived) */}
-            {resolvedDeposit > 0 && (
-              <div style={{ marginTop: "0.375rem" }}>
-                <label style={{ ...labelStyle, marginBottom: "0.25rem" }}>Payment Method</label>
-                <div style={{ display: "flex", gap: "0.375rem" }}>
-                  {[
-                    { value: "cash", label: "Cash" },
-                    { value: "card", label: "Card" },
-                    { value: "waived", label: "Waived" },
-                  ].map((opt) => {
-                    const isSelected = saved.depositMethod === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setSaved((p) => ({ ...p, depositMethod: opt.value }))}
-                        style={{
-                          flex: 1,
-                          minHeight: "36px",
-                          borderRadius: "8px",
-                          border: isSelected
-                            ? "2px solid var(--primary)"
-                            : "2px solid var(--card-border, #e5e7eb)",
-                          background: isSelected
-                            ? "var(--primary-bg, rgba(59,130,246,0.08))"
-                            : "var(--background, #fff)",
-                          color: isSelected ? "var(--primary)" : "var(--text-primary)",
-                          cursor: "pointer",
-                          fontSize: "0.8rem",
-                          fontWeight: isSelected ? 700 : 500,
-                          WebkitTapHighlightColor: "transparent",
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ===================== CONTEXT AUTO-FILL ===================== */}
-        {custodianPersonId && (
-          <div
-            style={{
-              border: "1px solid var(--card-border, #e5e7eb)",
-              borderRadius: "10px",
-              overflow: "hidden",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setContextExpanded((v) => !v)}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.625rem 0.875rem",
-                background: "var(--section-bg, #f9fafb)",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                color: "var(--text-secondary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-              }}
-            >
-              <Icon
-                name={contextExpanded ? "chevron-down" : "chevron-right"}
-                size={14}
-                color="var(--muted)"
-              />
-              Context
-              {contextLoading && (
-                <Skeleton width={60} height={14} style={{ display: "inline-block", verticalAlign: "middle" }} />
-              )}
-              {!contextLoading && context && (
-                <span style={{ fontWeight: 400, textTransform: "none", color: "var(--muted)" }}>
-                  {[
-                    context.active_requests.length > 0 && `${context.active_requests.length} request${context.active_requests.length > 1 ? "s" : ""}`,
-                    context.upcoming_appointments.length > 0 && `${context.upcoming_appointments.length} appt`,
-                    context.service_places.length > 0 && `${context.service_places.length} place${context.service_places.length > 1 ? "s" : ""}`,
-                  ].filter(Boolean).join(", ") || "No linked data"}
-                </span>
-              )}
-            </button>
-
-            {contextExpanded && (
-              <div style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                {/* Linked request pill */}
-                {saved.linkedRequestId && (
-                  <ContextPill
-                    icon="clipboard-list"
-                    label="Request"
-                    value={saved.linkedRequestLabel || "Linked"}
-                    onDismiss={() => setLinkedRequest(null, null)}
-                  />
-                )}
-                {/* Linked appointment pill */}
-                {saved.linkedAppointmentId && (
-                  <ContextPill
-                    icon="calendar"
-                    label="Appointment"
-                    value={saved.linkedAppointmentLabel || "Linked"}
-                    onDismiss={() => setLinkedAppointment(null, null)}
-                  />
-                )}
-                {/* Linked place pill */}
-                {saved.linkedPlaceId && (
-                  <ContextPill
-                    icon="map-pin"
-                    label="Place"
-                    value={saved.linkedPlaceLabel || "Linked"}
-                    onDismiss={() => setLinkedPlace(null, null)}
-                  />
-                )}
-                {/* Show available context if nothing auto-filled */}
-                {!saved.linkedRequestId && !saved.linkedAppointmentId && !saved.linkedPlaceId && context && (
-                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", padding: "0.25rem 0" }}>
-                    {context.active_requests.length === 0 &&
-                      context.upcoming_appointments.length === 0 &&
-                      context.service_places.length === 0
-                      ? "No active requests, appointments, or service places found."
-                      : "Context available — auto-fill was cleared."}
-                  </div>
-                )}
-                {/* Recent checkouts reference */}
-                {context && context.recent_checkouts.length > 0 && (
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-                    Recent: {context.recent_checkouts.map((c) => c.equipment_name).join(", ")}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ===================== DUE DATE + NOTES ===================== */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "1rem" }}>
+          {/* Due Date */}
           <div>
             <label style={labelStyle}>Due Date</label>
             <input
@@ -825,79 +638,10 @@ export function CheckoutForm({
               style={inputStyle}
             />
           </div>
-          <div>
-            <label style={labelStyle}>Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes..."
-              rows={2}
-              style={{
-                ...inputStyle,
-                resize: "vertical",
-                fontFamily: "inherit",
-                minHeight: "48px",
-              }}
-            />
-          </div>
         </div>
 
-        {/* ===================== STAFF: PURPOSE (multi-select) ===================== */}
-        <div
-          style={{
-            border: "1px solid var(--card-border, #e5e7eb)",
-            borderRadius: "10px",
-            padding: "0.875rem",
-            background: "var(--section-bg, #f9fafb)",
-          }}
-        >
-          <label style={{ ...labelStyle, fontSize: "0.7rem", color: checkoutPurpose ? "var(--muted)" : "var(--danger-text, #dc2626)" }}>
-            Staff Use — Checkout Purpose * (select at least one)
-          </label>
-          <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "0.625rem" }}>
-            {(EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS as readonly { value: string; label: string; shortLabel: string }[]).map((opt) => {
-              const isSelected = (saved.selectedPurposes || []).includes(opt.value);
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => togglePurpose(opt.value)}
-                  style={{
-                    padding: "0.4rem 0.75rem",
-                    borderRadius: "8px",
-                    border: isSelected
-                      ? "2px solid var(--primary)"
-                      : "1px solid var(--card-border, #e5e7eb)",
-                    background: isSelected
-                      ? "var(--primary-bg, rgba(59,130,246,0.08))"
-                      : "var(--card-bg, #fff)",
-                    color: isSelected ? "var(--primary)" : "var(--text-primary)",
-                    cursor: "pointer",
-                    fontSize: "0.8rem",
-                    fontWeight: isSelected ? 700 : 500,
-                    fontFamily: "inherit",
-                    WebkitTapHighlightColor: "transparent",
-                  }}
-                >
-                  {opt.shortLabel || opt.label}
-                </button>
-              );
-            })}
-          </div>
-          <label style={{ ...labelStyle, fontSize: "0.7rem", color: "var(--muted)" }}>
-            Client-Stated Purpose (from paper slip)
-          </label>
-          <input
-            type="text"
-            value={saved.clientStatedPurpose || ""}
-            onChange={(e) => setClientStatedPurpose(e.target.value)}
-            placeholder="What the client wrote..."
-            style={{ ...inputStyle, minHeight: "36px", padding: "0.4rem 0.75rem", fontSize: "0.85rem" }}
-          />
-        </div>
-
-        {/* ===================== ACTIONS ===================== */}
-        <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.25rem" }}>
+        {/* ===================== ACTIONS (visible without scrolling) ===================== */}
+        <div style={{ display: "flex", gap: "0.75rem" }}>
           <Button
             variant="ghost"
             size="lg"
@@ -926,6 +670,34 @@ export function CheckoutForm({
             Check Out
           </Button>
         </div>
+
+        {/* ===================== STAFF DETAILS (collapsed by default) ===================== */}
+        <StaffDetailsSection
+          isMobile={isMobile}
+          labelStyle={labelStyle}
+          inputStyle={inputStyle}
+          depositAmount={depositAmount}
+          customDeposit={customDeposit}
+          setDepositAmount={setDepositAmount}
+          setCustomDeposit={setCustomDeposit}
+          DEPOSIT_PRESETS={DEPOSIT_PRESETS}
+          resolvedDeposit={resolvedDeposit}
+          saved={saved}
+          setSaved={setSaved}
+          notes={notes}
+          setNotes={setNotes}
+          checkoutPurpose={checkoutPurpose}
+          togglePurpose={togglePurpose}
+          setClientStatedPurpose={setClientStatedPurpose}
+          custodianPersonId={custodianPersonId}
+          contextLoading={contextLoading}
+          context={context}
+          contextExpanded={contextExpanded}
+          setContextExpanded={setContextExpanded}
+          setLinkedRequest={setLinkedRequest}
+          setLinkedAppointment={setLinkedAppointment}
+          setLinkedPlace={setLinkedPlace}
+        />
       </div>
     </KioskCard>
 
@@ -1008,7 +780,335 @@ function ContextPill({
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Staff Details — collapsible section containing deposit, context, purpose, notes
 // ---------------------------------------------------------------------------
 
+function StaffDetailsSection({
+  isMobile, labelStyle, inputStyle,
+  depositAmount, customDeposit, setDepositAmount, setCustomDeposit,
+  DEPOSIT_PRESETS, resolvedDeposit, saved, setSaved,
+  notes, setNotes, checkoutPurpose, togglePurpose, setClientStatedPurpose,
+  custodianPersonId, contextLoading, context, contextExpanded, setContextExpanded,
+  setLinkedRequest, setLinkedAppointment, setLinkedPlace,
+}: {
+  isMobile: boolean;
+  labelStyle: React.CSSProperties;
+  inputStyle: React.CSSProperties;
+  depositAmount: number;
+  customDeposit: string;
+  setDepositAmount: (v: number) => void;
+  setCustomDeposit: (v: string) => void;
+  DEPOSIT_PRESETS: number[];
+  resolvedDeposit: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  saved: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setSaved: any;
+  notes: string;
+  setNotes: (v: string) => void;
+  checkoutPurpose: string;
+  togglePurpose: (v: string) => void;
+  setClientStatedPurpose: (v: string) => void;
+  custodianPersonId: string | null;
+  contextLoading: boolean;
+  context: EquipmentContextResponse | null;
+  contextExpanded: boolean;
+  setContextExpanded: (fn: (v: boolean) => boolean) => void;
+  setLinkedRequest: (id: string | null, label: string | null) => void;
+  setLinkedAppointment: (id: string | null, label: string | null) => void;
+  setLinkedPlace: (id: string | null, label: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const missingPurpose = !checkoutPurpose;
 
+  return (
+    <div
+      style={{
+        border: "1px solid var(--card-border, #e5e7eb)",
+        borderRadius: "10px",
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.625rem 0.875rem",
+          background: "var(--section-bg, #f9fafb)",
+          border: "none",
+          cursor: "pointer",
+          fontSize: "0.8rem",
+          fontWeight: 600,
+          color: missingPurpose ? "var(--danger-text, #dc2626)" : "var(--text-secondary)",
+          fontFamily: "inherit",
+        }}
+      >
+        <Icon
+          name={open ? "chevron-down" : "chevron-right"}
+          size={14}
+          color={missingPurpose ? "var(--danger-text, #dc2626)" : "var(--muted)"}
+        />
+        Staff details
+        {missingPurpose && (
+          <span style={{ fontSize: "0.7rem", fontWeight: 500 }}>
+            — purpose required
+          </span>
+        )}
+        {!missingPurpose && resolvedDeposit > 0 && (
+          <span style={{ fontWeight: 400, color: "var(--muted)", fontSize: "0.8rem" }}>
+            — ${resolvedDeposit} deposit
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{ padding: "0.875rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Deposit */}
+          <div>
+            <label style={labelStyle}>Deposit</label>
+            <div style={{ display: "flex", gap: "0.375rem", marginBottom: "0.375rem" }}>
+              {DEPOSIT_PRESETS.map((amount: number) => {
+                const isSelected = depositAmount === amount && !customDeposit.trim();
+                return (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => { setDepositAmount(amount); setCustomDeposit(""); }}
+                    style={{
+                      flex: 1,
+                      minHeight: "44px",
+                      borderRadius: "10px",
+                      border: isSelected
+                        ? "2px solid var(--primary)"
+                        : "2px solid var(--card-border, #e5e7eb)",
+                      background: isSelected
+                        ? "var(--primary-bg, rgba(59,130,246,0.08))"
+                        : "var(--background, #fff)",
+                      color: isSelected ? "var(--primary)" : "var(--text-primary)",
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                      fontWeight: isSelected ? 700 : 500,
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    {amount === 0 ? "$0" : `$${amount}`}
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              type="number"
+              value={customDeposit}
+              onChange={(e) => setCustomDeposit(e.target.value)}
+              placeholder="Custom..."
+              min={0}
+              step={1}
+              style={{ ...inputStyle, minHeight: "36px", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+            />
+            {resolvedDeposit > 0 && (
+              <div style={{ marginTop: "0.375rem" }}>
+                <label style={{ ...labelStyle, marginBottom: "0.25rem" }}>Payment Method</label>
+                <div style={{ display: "flex", gap: "0.375rem" }}>
+                  {[
+                    { value: "cash", label: "Cash" },
+                    { value: "card", label: "Card" },
+                    { value: "waived", label: "Waived" },
+                  ].map((opt) => {
+                    const isSelected = saved.depositMethod === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setSaved((p: typeof saved) => ({ ...p, depositMethod: opt.value }))}
+                        style={{
+                          flex: 1,
+                          minHeight: "36px",
+                          borderRadius: "8px",
+                          border: isSelected
+                            ? "2px solid var(--primary)"
+                            : "2px solid var(--card-border, #e5e7eb)",
+                          background: isSelected
+                            ? "var(--primary-bg, rgba(59,130,246,0.08))"
+                            : "var(--background, #fff)",
+                          color: isSelected ? "var(--primary)" : "var(--text-primary)",
+                          cursor: "pointer",
+                          fontSize: "0.8rem",
+                          fontWeight: isSelected ? 700 : 500,
+                          WebkitTapHighlightColor: "transparent",
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Purpose (multi-select) */}
+          <div>
+            <label style={{ ...labelStyle, fontSize: "0.7rem", color: checkoutPurpose ? "var(--muted)" : "var(--danger-text, #dc2626)" }}>
+              Checkout Purpose * (select at least one)
+            </label>
+            <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "0.625rem" }}>
+              {(EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS as readonly { value: string; label: string; shortLabel: string }[]).map((opt) => {
+                const isSelected = (saved.selectedPurposes as string[] || []).includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => togglePurpose(opt.value)}
+                    style={{
+                      padding: "0.4rem 0.75rem",
+                      borderRadius: "8px",
+                      border: isSelected
+                        ? "2px solid var(--primary)"
+                        : "1px solid var(--card-border, #e5e7eb)",
+                      background: isSelected
+                        ? "var(--primary-bg, rgba(59,130,246,0.08))"
+                        : "var(--card-bg, #fff)",
+                      color: isSelected ? "var(--primary)" : "var(--text-primary)",
+                      cursor: "pointer",
+                      fontSize: "0.8rem",
+                      fontWeight: isSelected ? 700 : 500,
+                      fontFamily: "inherit",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    {opt.shortLabel || opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <label style={{ ...labelStyle, fontSize: "0.7rem", color: "var(--muted)" }}>
+              Client-Stated Purpose (from paper slip)
+            </label>
+            <input
+              type="text"
+              value={saved.clientStatedPurpose as string || ""}
+              onChange={(e) => setClientStatedPurpose(e.target.value)}
+              placeholder="What the client wrote..."
+              style={{ ...inputStyle, minHeight: "36px", padding: "0.4rem 0.75rem", fontSize: "0.85rem" }}
+            />
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes..."
+              rows={2}
+              style={{
+                ...inputStyle,
+                resize: "vertical",
+                fontFamily: "inherit",
+                minHeight: "48px",
+              }}
+            />
+          </div>
+
+          {/* Context auto-fill */}
+          {custodianPersonId && (
+            <div
+              style={{
+                border: "1px solid var(--card-border, #e5e7eb)",
+                borderRadius: "10px",
+                overflow: "hidden",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setContextExpanded((v: boolean) => !v)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.625rem 0.875rem",
+                  background: "var(--section-bg, #f9fafb)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  color: "var(--text-secondary)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  fontFamily: "inherit",
+                }}
+              >
+                <Icon
+                  name={contextExpanded ? "chevron-down" : "chevron-right"}
+                  size={14}
+                  color="var(--muted)"
+                />
+                Context
+                {contextLoading && (
+                  <Skeleton width={60} height={14} style={{ display: "inline-block", verticalAlign: "middle" }} />
+                )}
+                {!contextLoading && context && (
+                  <span style={{ fontWeight: 400, textTransform: "none", color: "var(--muted)" }}>
+                    {[
+                      context.active_requests.length > 0 && `${context.active_requests.length} request${context.active_requests.length > 1 ? "s" : ""}`,
+                      context.upcoming_appointments.length > 0 && `${context.upcoming_appointments.length} appt`,
+                      context.service_places.length > 0 && `${context.service_places.length} place${context.service_places.length > 1 ? "s" : ""}`,
+                    ].filter(Boolean).join(", ") || "No linked data"}
+                  </span>
+                )}
+              </button>
+
+              {contextExpanded && (
+                <div style={{ padding: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {saved.linkedRequestId && (
+                    <ContextPill
+                      icon="clipboard-list"
+                      label="Request"
+                      value={saved.linkedRequestLabel as string || "Linked"}
+                      onDismiss={() => setLinkedRequest(null, null)}
+                    />
+                  )}
+                  {saved.linkedAppointmentId && (
+                    <ContextPill
+                      icon="calendar"
+                      label="Appointment"
+                      value={saved.linkedAppointmentLabel as string || "Linked"}
+                      onDismiss={() => setLinkedAppointment(null, null)}
+                    />
+                  )}
+                  {saved.linkedPlaceId && (
+                    <ContextPill
+                      icon="map-pin"
+                      label="Place"
+                      value={saved.linkedPlaceLabel as string || "Linked"}
+                      onDismiss={() => setLinkedPlace(null, null)}
+                    />
+                  )}
+                  {!saved.linkedRequestId && !saved.linkedAppointmentId && !saved.linkedPlaceId && context && (
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", padding: "0.25rem 0" }}>
+                      {context.active_requests.length === 0 &&
+                        context.upcoming_appointments.length === 0 &&
+                        context.service_places.length === 0
+                        ? "No active requests, appointments, or service places found."
+                        : "Context available — auto-fill was cleared."}
+                    </div>
+                  )}
+                  {context && context.recent_checkouts.length > 0 && (
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                      Recent: {context.recent_checkouts.map((c) => c.equipment_name).join(", ")}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

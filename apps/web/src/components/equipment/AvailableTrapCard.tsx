@@ -72,30 +72,44 @@ export function AvailableTrapCard({
         </p>
       </div>
 
-      {/* Attribution prompt */}
+      {/* Primary action: Check Out — right after header */}
+      <Button
+        variant="primary"
+        size="lg"
+        icon="log-out"
+        fullWidth
+        onClick={onCheckOut}
+        style={{
+          minHeight: "52px",
+          borderRadius: "10px",
+          background: "var(--success-text, #16a34a)",
+          color: "#fff",
+          border: "1px solid transparent",
+          marginBottom: "0.75rem",
+        }}
+      >
+        Check Out
+      </Button>
+
+      {/* Attribution prompt — secondary */}
       {!showPicker ? (
-        <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>
-            Know who brought it back?
-          </p>
-          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-            <Button
-              variant="primary"
-              size="md"
-              icon="user"
-              onClick={() => setShowPicker(true)}
-            >
-              Yes
-            </Button>
-            <Button
-              variant="ghost"
-              size="md"
-              onClick={onComplete}
-            >
-              Skip
-            </Button>
-          </div>
-        </div>
+        <button
+          onClick={() => setShowPicker(true)}
+          style={{
+            width: "100%",
+            background: "none",
+            border: "none",
+            padding: "0.5rem 0",
+            cursor: "pointer",
+            fontSize: "0.85rem",
+            color: "var(--text-secondary)",
+            textDecoration: "underline",
+            textUnderlineOffset: "2px",
+            fontFamily: "inherit",
+          }}
+        >
+          Know who brought it back?
+        </button>
       ) : (
         <div
           style={{
@@ -137,26 +151,6 @@ export function AvailableTrapCard({
           </div>
         </div>
       )}
-
-      {/* Separator + Check Out */}
-      <div
-        style={{
-          marginTop: "1rem",
-          paddingTop: "0.75rem",
-          borderTop: "1px solid var(--border)",
-        }}
-      >
-        <Button
-          variant="outline"
-          size="lg"
-          icon="log-out"
-          fullWidth
-          onClick={onCheckOut}
-          style={{ minHeight: "48px", borderRadius: "10px" }}
-        >
-          Check Out
-        </Button>
-      </div>
     </div>
   );
 }

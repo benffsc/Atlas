@@ -138,6 +138,7 @@ export function EquipmentSectionAdapter({ personId }: SectionProps) {
           </a>
         );
       })}
+
     </div>
   );
 }

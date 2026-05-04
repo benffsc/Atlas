@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { compressImage } from "@/lib/image-utils";
 import { Icon } from "@/components/ui/Icon";
@@ -31,6 +31,7 @@ export function KioskPhotoCapture({
 }: KioskPhotoCaptureProps) {
   const isMobile = useIsMobile();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
 
   // Cleanup object URL on unmount
@@ -151,63 +152,86 @@ export function KioskPhotoCapture({
           </div>
         </div>
       ) : (
-        /* No photo — show capture target */
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
+        /* No photo — show capture + upload options */
+        <div
           style={{
-            width: "100%",
-            minHeight: "100px",
             display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
             gap: "0.5rem",
-            padding: "1.25rem",
-            border: autoPrompt
-              ? "2px dashed var(--warning-border, #fbbf24)"
-              : "2px dashed var(--card-border, #d1d5db)",
-            borderRadius: "12px",
-            background: autoPrompt
-              ? "var(--warning-bg, #fffbeb)"
-              : "var(--background, #fff)",
-            cursor: "pointer",
-            transition: "border-color 150ms ease, background 150ms ease",
-            WebkitTapHighlightColor: "transparent",
+            width: "100%",
           }}
         >
-          <div
+          {/* Take Photo button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
             style={{
-              width: 48,
-              height: 48,
-              borderRadius: "50%",
-              background: autoPrompt
-                ? "var(--warning-bg, #fffbeb)"
-                : "var(--bg-secondary, #f3f4f6)",
-              border: autoPrompt
-                ? "1px solid var(--warning-border, #fbbf24)"
-                : "1px solid var(--card-border, #e5e7eb)",
+              flex: 1,
+              minHeight: "90px",
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
+              gap: "0.375rem",
+              padding: "1rem 0.5rem",
+              border: autoPrompt
+                ? "2px dashed var(--warning-border, #fbbf24)"
+                : "2px dashed var(--card-border, #d1d5db)",
+              borderRadius: "12px",
+              background: autoPrompt
+                ? "var(--warning-bg, #fffbeb)"
+                : "var(--background, #fff)",
+              cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
             }}
           >
             <Icon
               name="camera"
-              size={24}
+              size={22}
               color={autoPrompt ? "var(--warning-text, #d97706)" : "var(--muted)"}
             />
-          </div>
-          <span
+            <span
+              style={{
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: autoPrompt ? "var(--warning-text, #d97706)" : "var(--text-secondary)",
+              }}
+            >
+              {autoPrompt ? "Photo recommended" : "Take Photo"}
+            </span>
+          </button>
+
+          {/* Upload Photo button */}
+          <button
+            type="button"
+            onClick={() => uploadInputRef.current?.click()}
             style={{
-              fontSize: "0.9rem",
-              fontWeight: 600,
-              color: autoPrompt ? "var(--warning-text, #d97706)" : "var(--text-secondary)",
+              flex: 1,
+              minHeight: "90px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.375rem",
+              padding: "1rem 0.5rem",
+              border: "2px dashed var(--card-border, #d1d5db)",
+              borderRadius: "12px",
+              background: "var(--background, #fff)",
+              cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
             }}
           >
-            {autoPrompt ? "Photo recommended" : "Tap to take photo"}
-          </span>
-        </button>
+            <Icon name="upload" size={22} color="var(--muted)" />
+            <span
+              style={{
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: "var(--text-secondary)",
+              }}
+            >
+              Upload Photo
+            </span>
+          </button>
+        </div>
       )}
 
       {helperText && (
@@ -228,6 +252,14 @@ export function KioskPhotoCapture({
         type="file"
         accept="image/*"
         capture={isMobile ? "environment" : undefined}
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+      />
+      {/* Hidden file input — no capture attr, opens photo library / file picker */}
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="image/*"
         onChange={handleFileChange}
         style={{ display: "none" }}
       />
