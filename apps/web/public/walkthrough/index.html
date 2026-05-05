@@ -11,171 +11,69 @@
     ╔══════════════════════════════════════════════════════════════════╗
     ║  BEACON GALA WALKTHROUGH — Dom's Design                         ║
     ║                                                                  ║
-    ║  To edit text: change content inside each <section> below.      ║
-    ║  To add a slide: copy a <section> and paste it in order.        ║
-    ║  To swap screenshots: replace images in the assets/ folder.     ║
-    ║  To change colors: edit styles.css (CSS variables at top).      ║
+    ║  Each slide is a full-screen image from Dom's Figma designs.    ║
+    ║  To swap a slide: replace the PNG in assets/ folder.            ║
+    ║  To edit text overlaid on a slide: change the HTML below.       ║
+    ║  To add a slide: copy a <section> block, add a new image.      ║
+    ║  To change transitions: edit styles.css.                        ║
+    ║                                                                  ║
+    ║  Slides are exported from Figma at 1920x1080 (16:9).           ║
+    ║  Node IDs for re-export:                                        ║
+    ║    Slide 0 (Title):   124:8832                                  ║
+    ║    Slide 1 (Find):    116:8440                                  ║
+    ║    Slide 2 (Fix):     119:8489                                  ║
+    ║    Slide 3 (Return):  119:8545                                  ║
+    ║    Slide 4 (Analyze): 119:8565                                  ║
+    ║    Slide 5 (CTA):     119:8584                                  ║
     ╚══════════════════════════════════════════════════════════════════╝
-
-    SCREENSHOTS: Drop app screenshots into /walkthrough/assets/
-    Name them: find-1.png, find-2.png, fix-1.png, fix-2.png, etc.
-    Then update the <img src="..."> tags below.
   -->
   <div class="walkthrough">
     <div class="slides" id="slides">
 
-      <!-- ══════════════════════════════════════════════════════════
-           SLIDE 0: Title — Map background + centered card
-           ══════════════════════════════════════════════════════════ -->
-      <section class="slide slide--title">
-        <div class="title-bg"></div>
-        <div class="title-card">
-          <img src="/beacon-logo.jpeg" alt="Beacon" class="logo" />
-          <h1>The next-generation technology for humane cat population reduction</h1>
-          <button class="title-cta" onclick="goToSlide(1)">
-            See the demo
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </button>
-        </div>
+      <!-- SLIDE 0: Title -->
+      <section class="slide">
+        <img src="/walkthrough/assets/slide-0-title.png" alt="Beacon — The next-generation technology for humane cat population reduction" class="slide-img" />
       </section>
 
-      <!-- ══════════════════════════════════════════════════════════
-           SLIDE 1: Find — Coral/red right panel
-           ══════════════════════════════════════════════════════════ -->
-      <section class="slide slide--split">
-        <div class="slide-left">
-          <div class="slide-label">Beacon Demo</div>
-          <h2 class="slide-step">Find</h2>
-          <h3 class="slide-subhead">Every cat counts.</h3>
-          <div class="slide-text">
-            <p>Every journey begins with a sighting.</p>
-            <p>A community member spots an unaltered cat at a park and reports it to us, turning a simple observation into the first step of a life-changing process.</p>
-          </div>
-        </div>
-        <div class="slide-right slide-right--find">
-          <div class="screenshots">
-            <!-- Replace these with your actual screenshots -->
-            <div class="screenshot-placeholder shot-main">
-              Screenshot: Intake Call form<br><br>
-              <small>Drop image at assets/find-1.png</small>
-            </div>
-            <div class="screenshot-placeholder shot-overlay">
-              Screenshot: Map with pin selected<br><br>
-              <small>Drop image at assets/find-2.png</small>
-            </div>
-          </div>
-        </div>
+      <!-- SLIDE 1: Find -->
+      <section class="slide">
+        <img src="/walkthrough/assets/slide-1-find.png" alt="Find — Every cat counts" class="slide-img" />
       </section>
 
-      <!-- ══════════════════════════════════════════════════════════
-           SLIDE 2: Fix — Gold right panel
-           ══════════════════════════════════════════════════════════ -->
-      <section class="slide slide--split">
-        <div class="slide-left">
-          <div class="slide-label">Beacon Demo</div>
-          <h2 class="slide-step">Fix</h2>
-          <h3 class="slide-subhead">Data-backed care.</h3>
-          <div class="slide-text">
-            <p>From the intake request, our experienced trappers head to the site, humanely trap the cat, and bring them to a clinic day.</p>
-            <p>Every cat's data is recorded into our database. This ensures accuracy in care today and fuels our decision making process for tomorrow!</p>
-          </div>
-        </div>
-        <div class="slide-right slide-right--fix">
-          <div class="screenshots">
-            <div class="screenshot-placeholder shot-main">
-              Screenshot: Clinic Days page<br><br>
-              <small>Drop image at assets/fix-1.png</small>
-            </div>
-            <div class="screenshot-placeholder shot-overlay">
-              Screenshot: Cat detail (Fishsticks)<br><br>
-              <small>Drop image at assets/fix-2.png</small>
-            </div>
-          </div>
-        </div>
+      <!-- SLIDE 2: Fix -->
+      <section class="slide">
+        <img src="/walkthrough/assets/slide-2-fix.png" alt="Fix — Data-backed care" class="slide-img" />
       </section>
 
-      <!-- ══════════════════════════════════════════════════════════
-           SLIDE 3: Return — Teal right panel
-           ══════════════════════════════════════════════════════════ -->
-      <section class="slide slide--split">
-        <div class="slide-left">
-          <div class="slide-label">Beacon Demo</div>
-          <h2 class="slide-step">Return</h2>
-          <h3 class="slide-subhead">One down, many more to go.</h3>
-          <div class="slide-text">
-            <p>The altered cat goes back to their home territory and appears as an interactive dot on Beacon's live map.</p>
-            <p>Zoom out, and you see the full landscape: how many cats remain unaltered, and exactly where to focus next!</p>
-          </div>
-        </div>
-        <div class="slide-right slide-right--return">
-          <div class="screenshots">
-            <div class="screenshot-placeholder shot-main" style="width:90%;height:90%;left:5%;top:5%;max-width:none">
-              Screenshot: Satellite map with heatmaps<br><br>
-              <small>Drop image at assets/return-1.png</small>
-            </div>
-          </div>
-        </div>
+      <!-- SLIDE 3: Return -->
+      <section class="slide">
+        <img src="/walkthrough/assets/slide-3-return.png" alt="Return — One down, many more to go" class="slide-img" />
       </section>
 
-      <!-- ══════════════════════════════════════════════════════════
-           SLIDE 4: Analyze — Blue right panel
-           ══════════════════════════════════════════════════════════ -->
-      <section class="slide slide--split">
-        <div class="slide-left">
+      <!-- SLIDE 4: Analyze (placeholder — replace with Figma export node 119:8565) -->
+      <section class="slide slide--placeholder">
+        <div class="placeholder-content">
           <div class="slide-label">Beacon Demo</div>
           <h2 class="slide-step">Analyze</h2>
           <h3 class="slide-subhead">One down, many more to go.</h3>
-          <div class="slide-text">
-            <p>Powered by this data, Beacon's analytics capabilities will show us measurable impacts of our efforts, and where we need to be focusing our efforts next.</p>
-          </div>
-        </div>
-        <div class="slide-right slide-right--analyze">
-          <div class="screenshots">
-            <div class="screenshot-placeholder shot-main">
-              Screenshot: Beacon analytics UI<br><br>
-              <small>Drop image at assets/analyze-1.png</small>
-            </div>
-            <div class="screenshot-placeholder shot-overlay">
-              Screenshot: Beacon feature<br><br>
-              <small>Drop image at assets/analyze-2.png</small>
-            </div>
-          </div>
+          <p class="slide-text">Powered by this data, Beacon's analytics capabilities will show us measurable impacts of our efforts, and where we need to be focusing our efforts next.</p>
+          <p class="slide-note">Replace with Figma export (node 119:8565)</p>
         </div>
       </section>
 
-      <!-- ══════════════════════════════════════════════════════════
-           SLIDE 5: CTA — Map background + white card + QR
-           ══════════════════════════════════════════════════════════ -->
-      <section class="slide slide--cta">
-        <div class="cta-bg"></div>
-        <div class="cta-card">
-          <!--
-          <div class="cat-photo-circle">
-            <img src="/walkthrough/assets/cat-photo.jpg" alt="Cat" />
-          </div>
-          <div class="speech-bubble">Thanks for all that you do!</div>
-          -->
-          <div class="cta-content">
-            <h2>Be part of the solution</h2>
-            <p>Beacon is only as powerful as its data, and its data is only as rich as our community's eyes and ears.</p>
-            <p class="cta-highlight">That's why we're rolling out this map to everyone!</p>
-            <p>Sign-up now to be notified when our public-facing site is live.</p>
-            <p>Every sighting submitted makes the map brighter and the outcomes for Sonoma County's cats better.</p>
-          </div>
-          <div class="cta-qr">
-            <img src="/beacon-logo.jpeg" alt="Beacon" class="logo-small" />
-            <div class="qr-label">Get notified at launch!</div>
-            <!-- Replace with actual QR code image -->
-            <div style="width:150px;height:150px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#999;font-size:0.75rem;text-align:center">
-              QR code here<br><small>assets/qr-code.png</small>
-            </div>
-          </div>
+      <!-- SLIDE 5: CTA (placeholder — replace with Figma export node 119:8584) -->
+      <section class="slide slide--placeholder slide--placeholder-light">
+        <div class="placeholder-content" style="color: #1a1a2e">
+          <h2 class="slide-step">Be part of<br>the solution</h2>
+          <p class="slide-text" style="color: #444">Beacon is only as powerful as its data, and its data is only as rich as our community's eyes and ears.</p>
+          <p class="slide-text" style="color: var(--color-analyze); font-weight: 700">That's why we're rolling out this map to everyone!</p>
+          <p class="slide-note">Replace with Figma export (node 119:8584)</p>
         </div>
       </section>
 
     </div>
 
-    <!-- Navigation — bottom left, matches Dom's Prev | 1/5 | Next pattern -->
+    <!-- Navigation — bottom left -->
     <div class="nav" id="nav">
       <button class="nav-btn" id="nav-prev" disabled>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
