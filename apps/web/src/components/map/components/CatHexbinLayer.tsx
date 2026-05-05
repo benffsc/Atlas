@@ -14,11 +14,22 @@ interface Tooltip {
   count: number;
 }
 
+export interface HexBinSelection {
+  /** Pins that fall within the clicked hexagon */
+  pins: AtlasPin[];
+  /** Center of the hexagon in lat/lng */
+  center: { lat: number; lng: number };
+}
+
 interface CatHexbinLayerProps {
   pins: AtlasPin[];
   enabled: boolean;
   hexRadius?: number;
   mode?: "density" | "intact" | "disease";
+  /** Called when user clicks a hexagon */
+  onHexClick?: (selection: HexBinSelection) => void;
+  /** Currently selected hex center (for highlight ring) */
+  selectedCenter?: { lat: number; lng: number } | null;
 }
 
 /**
@@ -30,10 +41,12 @@ interface CatHexbinLayerProps {
  * The SVG is pointer-events:none; tooltip hover is driven by a mousemove
  * listener on the parent container with manual hit-testing.
  */
-export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density" }: CatHexbinLayerProps) {
+export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density", onHexClick, selectedCenter }: CatHexbinLayerProps) {
   const map = useMap();
   const svgRef = useRef<SVGSVGElement | null>(null);
   const binsRef = useRef<Bin[]>([]);
+  /** Maps each bin (by index in binsRef) to the unique AtlasPin[] that contributed points */
+  const binPinsMapRef = useRef<Map<Bin, AtlasPin[]>>(new Map());
   const overlayRef = useRef<google.maps.OverlayView | null>(null);
   const [dims, setDims] = useState({ width: 0, height: 0 });
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
@@ -143,13 +156,19 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
     const { width, height } = dims;
     if (width === 0 || height === 0) return;
 
+    // Build weighted points AND track which pin each point came from
     const weightedPoints: [number, number][] = [];
-    for (const pin of pins) {
+    const pointPinIndex: number[] = []; // parallel array: weightedPoints[i] came from pins[pointPinIndex[i]]
+    for (let pi = 0; pi < pins.length; pi++) {
+      const pin = pins[pi];
       if (!pin.lat || !pin.lng) continue;
       const pt = project(pin.lat, pin.lng);
       if (!pt) continue;
       const w = getWeight(pin);
-      for (let i = 0; i < w; i++) weightedPoints.push(pt);
+      for (let i = 0; i < w; i++) {
+        weightedPoints.push(pt);
+        pointPinIndex.push(pi);
+      }
     }
 
     const hexbinGen = d3Hexbin<[number, number]>()
@@ -162,6 +181,28 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
     const bins = hexbinGen(weightedPoints);
     binsRef.current = bins;
 
+    // Build bin → unique pins mapping
+    const binPinsMap = new Map<Bin, AtlasPin[]>();
+    // d3-hexbin preserves point indices — bins[b] contains the original [x,y] tuples
+    // We need to match them back. Since we built weightedPoints in order, we can
+    // iterate all points per bin and look up the original index.
+    const pointToBinMap = new Map<string, Bin>();
+    for (const bin of bins) {
+      for (const pt of bin) {
+        pointToBinMap.set(`${pt[0]},${pt[1]}`, bin);
+      }
+    }
+    for (let i = 0; i < weightedPoints.length; i++) {
+      const key = `${weightedPoints[i][0]},${weightedPoints[i][1]}`;
+      const bin = pointToBinMap.get(key);
+      if (!bin) continue;
+      let arr = binPinsMap.get(bin);
+      if (!arr) { arr = []; binPinsMap.set(bin, arr); }
+      const pin = pins[pointPinIndex[i]];
+      if (!arr.includes(pin)) arr.push(pin);
+    }
+    binPinsMapRef.current = binPinsMap;
+
     const maxCount = d3.max(bins, (d) => d.length) ?? 1;
 
     const gradient =
@@ -173,7 +214,15 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
 
     const colorScale = d3.scaleSequential(gradient).domain([0, maxCount]);
 
-    d3.select(svg)
+    // Check if there's a selected hex to highlight
+    let selectedBinPx: [number, number] | null = null;
+    if (selectedCenter) {
+      selectedBinPx = project(selectedCenter.lat, selectedCenter.lng);
+    }
+
+    const svgSel = d3.select(svg);
+
+    svgSel
       .selectAll<SVGPathElement, Bin>("path.hexbin")
       .data(bins)
       .join(
@@ -187,7 +236,30 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
       .attr("fill-opacity", 0.72)
       .attr("stroke", "rgba(255,255,255,0.3)")
       .attr("stroke-width", 0.8);
-  }, [dims, project, hexRadius, pins, map, enabled, getWeight, mode]);
+
+    // Selection highlight ring
+    svgSel.selectAll("path.hexbin-selected").remove();
+    if (selectedBinPx) {
+      // Find the bin closest to the selected center
+      let closestBin: Bin | null = null;
+      let minDist = hexRadius + 2;
+      for (const bin of bins) {
+        const dist = Math.hypot(bin.x - selectedBinPx[0], bin.y - selectedBinPx[1]);
+        if (dist < minDist) { minDist = dist; closestBin = bin; }
+      }
+      if (closestBin) {
+        svgSel
+          .append("path")
+          .attr("class", "hexbin-selected")
+          .attr("d", hexbinGen.hexagon())
+          .attr("transform", `translate(${closestBin.x},${closestBin.y})`)
+          .attr("fill", "none")
+          .attr("stroke", "var(--primary, #3b82f6)")
+          .attr("stroke-width", 3)
+          .attr("stroke-opacity", 0.9);
+      }
+    }
+  }, [dims, project, hexRadius, pins, map, enabled, getWeight, mode, selectedCenter]);
 
   // Redraw on dependency changes
   useEffect(() => {
@@ -209,7 +281,45 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
     return () => google.maps.event.removeListener(listener);
   }, [map, drawHexbins, enabled]);
 
-  // Tooltip via mousemove on the parent map container
+  // Unproject pixel coords back to lat/lng
+  const unproject = useCallback(
+    (px: number, py: number): { lat: number; lng: number } | null => {
+      if (!map) return null;
+      const proj = map.getProjection();
+      if (!proj) return null;
+      const bounds = map.getBounds();
+      if (!bounds) return null;
+
+      const scale = Math.pow(2, map.getZoom()!);
+      const ne = proj.fromLatLngToPoint(bounds.getNorthEast())!;
+      const sw = proj.fromLatLngToPoint(bounds.getSouthWest())!;
+
+      const worldPt = new google.maps.Point(
+        px / scale + sw.x,
+        py / scale + ne.y,
+      );
+      const latLng = proj.fromPointToLatLng(worldPt);
+      if (!latLng) return null;
+      return { lat: latLng.lat(), lng: latLng.lng() };
+    },
+    [map],
+  );
+
+  // Find closest bin to a pixel coordinate
+  const findClosestBin = useCallback(
+    (mx: number, my: number): Bin | null => {
+      let closest: Bin | null = null;
+      let minDist = hexRadius + 2;
+      for (const bin of binsRef.current) {
+        const dist = Math.hypot(bin.x - mx, bin.y - my);
+        if (dist < minDist) { minDist = dist; closest = bin; }
+      }
+      return closest;
+    },
+    [hexRadius],
+  );
+
+  // Tooltip + click via mousemove/click on the parent map container
   useEffect(() => {
     if (!map || !enabled) return;
     const container = map.getDiv().closest(".map-container-v2") as HTMLElement | null;
@@ -223,16 +333,7 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
 
-      let closest: Bin | null = null;
-      let minDist = hexRadius + 2;
-
-      for (const bin of binsRef.current) {
-        const dist = Math.hypot(bin.x - mx, bin.y - my);
-        if (dist < minDist) {
-          minDist = dist;
-          closest = bin;
-        }
-      }
+      const closest = findClosestBin(mx, my);
 
       const sel = d3.select(svg).selectAll<SVGPathElement, Bin>("path.hexbin");
       if (closest) {
@@ -246,6 +347,24 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
       }
     };
 
+    const onClick = (e: MouseEvent) => {
+      if (!onHexClick) return;
+      const rect = map.getDiv().getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      const closest = findClosestBin(mx, my);
+      if (!closest) return;
+
+      const hexPins = binPinsMapRef.current.get(closest) || [];
+      if (hexPins.length === 0) return;
+
+      const center = unproject(closest.x, closest.y);
+      if (!center) return;
+
+      onHexClick({ pins: hexPins, center });
+    };
+
     const onMouseLeave = () => {
       setTooltip(null);
       if (svgRef.current) {
@@ -255,11 +374,13 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
 
     container.addEventListener("mousemove", onMouseMove);
     container.addEventListener("mouseleave", onMouseLeave);
+    container.addEventListener("click", onClick);
     return () => {
       container.removeEventListener("mousemove", onMouseMove);
       container.removeEventListener("mouseleave", onMouseLeave);
+      container.removeEventListener("click", onClick);
     };
-  }, [map, enabled, hexRadius]);
+  }, [map, enabled, hexRadius, onHexClick, findClosestBin, unproject]);
 
   if (!enabled) return null;
 

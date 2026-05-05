@@ -1314,6 +1314,24 @@
   right: 380px;
 }
 
+/* ── Hex Detail Panel ── */
+
+.hex-detail-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 380px;
+  max-width: 100vw;
+  height: 100vh;
+  background: var(--map-control-bg);
+  border-left: 1px solid var(--map-control-border);
+  box-shadow: var(--map-shadow-xl);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  animation: drawer-slide-in 0.3s ease-out;
+}
+
 @keyframes drawer-slide-in {
   from {
     transform: translateX(100%);

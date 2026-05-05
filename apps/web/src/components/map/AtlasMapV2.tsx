@@ -43,6 +43,8 @@ import { formatDistance } from "@/components/map/hooks/useMeasurement";
 import { GooglePinMarkers, PlaceMarkers, VolunteerMarkers, ClinicClientMarkers, TrapperTerritoryMarkers } from "@/components/map/components/LayerMarkers";
 import { ZoneBoundaries } from "@/components/map/components/ZoneBoundaries";
 import { CatHexbinLayer } from "@/components/map/components/CatHexbinLayer";
+import type { HexBinSelection } from "@/components/map/components/CatHexbinLayer";
+import { HexDetailPanel } from "@/components/map/components/HexDetailPanel";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
 import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
 import type { BasemapType } from "@/components/map/components/MapControls";
@@ -178,6 +180,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     syncDatesToUrl, syncViewportToUrl,
   } = useMapUrlState();
   const [selectedPin, setSelectedPin] = useState<AtlasPin | null>(null);
+  const [selectedHex, setSelectedHex] = useState<HexBinSelection | null>(null);
   const [comparisonPlaceIds, setComparisonPlaceIds] = useState<string[]>([]);
 
   // ── Add Point state (Step 5/12) ──
@@ -1086,12 +1089,12 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   // ── Keyboard shortcuts (Step 4) — use refs to avoid constant re-registration ──
   const kbStateRef = useRef({
     addPointMode, measureActive, selectedPin, selectedPlaceId,
-    selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu,
+    selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu, selectedHex,
   });
   useEffect(() => {
     kbStateRef.current = {
       addPointMode, measureActive, selectedPin, selectedPlaceId,
-      selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu,
+      selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu, selectedHex,
     };
   });
 
@@ -1124,6 +1127,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             setSelectedCatId(null);
           } else if (st.selectedPersonId) {
             setSelectedPersonId(null);
+          } else if (st.selectedHex) {
+            setSelectedHex(null);
           } else if (st.selectedAnnotationId) {
             setSelectedAnnotationId(null);
           } else if (st.selectedPin) {
@@ -1424,7 +1429,16 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       </Map>
 
       {/* ── Hexbin density overlay (D3) ── */}
-      <CatHexbinLayer pins={atlasPins} enabled={hexbinEnabled} mode={hexbinMode} />
+      <CatHexbinLayer
+        pins={atlasPins}
+        enabled={hexbinEnabled}
+        mode={hexbinMode}
+        onHexClick={(sel) => {
+          setSelectedHex(sel);
+          setSelectedPin(null);
+        }}
+        selectedCenter={selectedHex?.center ?? null}
+      />
 
       {/* ── Search bar — portalled into top bar when MapShell present ── */}
       <PortalOrInline
@@ -1891,6 +1905,18 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           onClose={() => { setStreetViewCoords(null); setStreetViewFullscreen(false); }}
           onPositionChange={(lat, lng) => { streetViewCoordsRef.current = { lat, lng }; }}
           onHeadingChange={setStreetViewHeading}
+        />
+      )}
+
+      {/* ── Hex Detail Panel ── */}
+      {selectedHex && (
+        <HexDetailPanel
+          selection={selectedHex}
+          onClose={() => setSelectedHex(null)}
+          onPlaceClick={(placeId) => {
+            setSelectedPlaceId(placeId);
+            setSelectedHex(null);
+          }}
         />
       )}
 
