@@ -255,7 +255,15 @@ export function TippyChat() {
   const [streamPhase, setStreamPhase] = useState<StreamPhase | null>(null);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const [conversationId, setConversationId] = useState<string | undefined>();
+  const [conversationId, setConversationIdRaw] = useState<string | undefined>(() => {
+    if (typeof window !== "undefined") return sessionStorage.getItem("tippy-conversation-id") || undefined;
+    return undefined;
+  });
+  const setConversationId = useCallback((id: string | undefined) => {
+    setConversationIdRaw(id);
+    if (id) sessionStorage.setItem("tippy-conversation-id", id);
+    else sessionStorage.removeItem("tippy-conversation-id");
+  }, []);
   const [mapContext, setMapContext] = useState<MapContext | null>(null);
   const [hasBriefed, setHasBriefed] = useState(false);
   const [view, setView] = useState<"chat" | "history">("chat");
@@ -569,7 +577,7 @@ export function TippyChat() {
     } catch {
       // If load fails, stay in history view
     }
-  }, []);
+  }, [setConversationId]);
 
   // FFS-863: Start new conversation
   const startNewConversation = useCallback(() => {
@@ -577,7 +585,17 @@ export function TippyChat() {
     setConversationId(undefined);
     setView("chat");
     setHasBriefed(false);
-  }, []);
+    setActionCards(new Map());
+  }, [setConversationId]);
+
+  // Restore last conversation when panel opens (survives close/reopen)
+  useEffect(() => {
+    if (isOpen && conversationId && messages.length === 0 && !isLoading) {
+      loadConversation(conversationId).catch(() => {
+        setConversationId(undefined);
+      });
+    }
+  }, [isOpen, conversationId, messages.length, isLoading, loadConversation, setConversationId]);
 
   // Dismiss speech bubble after 8 seconds
   useEffect(() => {
