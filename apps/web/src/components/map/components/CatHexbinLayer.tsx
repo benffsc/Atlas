@@ -30,6 +30,8 @@ interface CatHexbinLayerProps {
   onHexClick?: (selection: HexBinSelection) => void;
   /** Currently selected hex center (for highlight ring) */
   selectedCenter?: { lat: number; lng: number } | null;
+  /** When true, render risk score labels on each hex cell */
+  showInsights?: boolean;
 }
 
 /**
@@ -41,8 +43,24 @@ interface CatHexbinLayerProps {
  * The SVG is pointer-events:none; tooltip hover is driven by a mousemove
  * listener on the parent container with manual hit-testing.
  */
-export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density", onHexClick, selectedCenter }: CatHexbinLayerProps) {
+/**
+ * Compute hex radius from zoom level.
+ * Larger hexes at low zoom for overview, smaller at high zoom for detail.
+ */
+function hexRadiusForZoom(zoom: number): number {
+  if (zoom <= 8) return 40;
+  if (zoom <= 10) return 34;
+  if (zoom <= 12) return 28;
+  if (zoom <= 14) return 22;
+  if (zoom <= 16) return 18;
+  return 14;
+}
+
+export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode = "density", onHexClick, selectedCenter, showInsights = false }: CatHexbinLayerProps) {
   const map = useMap();
+  // Dynamic hex radius: use prop override if provided, otherwise derive from zoom
+  const [zoomDerivedRadius, setZoomDerivedRadius] = useState(26);
+  const hexRadius = hexRadiusProp ?? zoomDerivedRadius;
   const svgRef = useRef<SVGSVGElement | null>(null);
   const binsRef = useRef<Bin[]>([]);
   /** Maps each bin (by index in binsRef) to the unique AtlasPin[] that contributed points */
@@ -212,7 +230,35 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
           ? d3.interpolateOranges
           : d3.interpolateYlOrRd;
 
-    const colorScale = d3.scaleSequential(gradient).domain([0, maxCount]);
+    const densityColorScale = d3.scaleSequential(gradient).domain([0, maxCount]);
+
+    // Risk color scale: green (1) → yellow (4) → orange (6) → red (10)
+    const riskColorScale = d3.scaleLinear<string>()
+      .domain([1, 4, 7, 10])
+      .range(["#16a34a", "#eab308", "#ea580c", "#dc2626"])
+      .clamp(true);
+
+    // Pre-compute risk score per bin (used for insights coloring + labels)
+    const binRiskScores = new Map<Bin, number>();
+    if (showInsights) {
+      for (const bin of bins) {
+        const hexPins = binPinsMap.get(bin);
+        if (!hexPins || hexPins.length === 0) { binRiskScores.set(bin, 1); continue; }
+        const totalCats = hexPins.reduce((s, p) => s + p.cat_count, 0);
+        const totalAltered = hexPins.reduce((s, p) => s + (p.total_altered || 0), 0);
+        const altRate = totalCats > 0 ? totalAltered / totalCats : 0;
+        const intact = Math.max(totalCats - totalAltered, 0);
+        let risk = 0;
+        if (altRate < 0.3) risk += 3;
+        else if (altRate < 0.5) risk += 2;
+        else if (altRate < 0.75) risk += 1;
+        if (intact > 20) risk += 2;
+        else if (intact > 10) risk += 1;
+        if (hexPins.filter(p => p.disease_risk).length >= 3) risk += 2;
+        else if (hexPins.some(p => p.disease_risk)) risk += 1;
+        binRiskScores.set(bin, Math.min(10, Math.max(1, risk)));
+      }
+    }
 
     // Check if there's a selected hex to highlight
     let selectedBinPx: [number, number] | null = null;
@@ -232,7 +278,7 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
       )
       .attr("d", hexbinGen.hexagon())
       .attr("transform", (d) => `translate(${d.x},${d.y})`)
-      .attr("fill", (d) => colorScale(d.length))
+      .attr("fill", (d) => showInsights ? riskColorScale(binRiskScores.get(d) ?? 1) : densityColorScale(d.length))
       .attr("fill-opacity", 0.72)
       .attr("stroke", "rgba(255,255,255,0.3)")
       .attr("stroke-width", 0.8);
@@ -259,7 +305,32 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
           .attr("stroke-opacity", 0.9);
       }
     }
-  }, [dims, project, hexRadius, pins, map, enabled, getWeight, mode, selectedCenter]);
+
+    // Insights labels — show risk score on each hex
+    svgSel.selectAll("text.hexbin-label").remove();
+    if (showInsights) {
+      for (const bin of bins) {
+        const risk = binRiskScores.get(bin);
+        if (risk == null) continue;
+
+        svgSel
+          .append("text")
+          .attr("class", "hexbin-label")
+          .attr("x", bin.x)
+          .attr("y", bin.y + 1)
+          .attr("text-anchor", "middle")
+          .attr("dominant-baseline", "middle")
+          .attr("font-size", Math.max(9, hexRadius * 0.4))
+          .attr("font-weight", "700")
+          .attr("fill", "white")
+          .attr("stroke", "rgba(0,0,0,0.4)")
+          .attr("stroke-width", 2)
+          .attr("paint-order", "stroke")
+          .attr("pointer-events", "none")
+          .text(risk);
+      }
+    }
+  }, [dims, project, hexRadius, pins, map, enabled, getWeight, mode, selectedCenter, showInsights]);
 
   // Redraw on dependency changes
   useEffect(() => {
@@ -272,14 +343,19 @@ export function CatHexbinLayer({ pins, enabled, hexRadius = 26, mode = "density"
   }, [drawHexbins, enabled]);
 
   // Redraw on map idle (pan/zoom) — also triggers overlay.draw() for repositioning
+  // Update hex radius based on zoom level
   useEffect(() => {
     if (!map || !enabled) return;
     const listener = map.addListener("idle", () => {
+      const zoom = map.getZoom();
+      if (zoom != null && !hexRadiusProp) {
+        setZoomDerivedRadius(hexRadiusForZoom(zoom));
+      }
       overlayRef.current?.draw();
       drawHexbins();
     });
     return () => google.maps.event.removeListener(listener);
-  }, [map, drawHexbins, enabled]);
+  }, [map, drawHexbins, enabled, hexRadiusProp]);
 
   // Unproject pixel coords back to lat/lng
   const unproject = useCallback(

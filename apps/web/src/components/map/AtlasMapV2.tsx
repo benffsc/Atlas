@@ -245,7 +245,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     atlasLayerEnabled, riskFilter, diseaseFilter, dataFilter,
     atlasMapLayerGroups, atlasSubLayerCounts,
     apiLayers: layers, heatmapEnabled, heatmapMode,
-    hexbinEnabled, hexbinMode,
+    hexbinEnabled, hexbinMode, hexInsightsEnabled,
   } = useMapLayers({ atlasPins });
 
   const { customViews, activeViewId, handleApplyView, handleSaveView, handleDeleteView } = useMapViews({
@@ -1438,6 +1438,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setSelectedPin(null);
         }}
         selectedCenter={selectedHex?.center ?? null}
+        showInsights={hexInsightsEnabled}
       />
 
       {/* ── Search bar — portalled into top bar when MapShell present ── */}

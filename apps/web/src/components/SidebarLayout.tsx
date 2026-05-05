@@ -100,8 +100,11 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
 
   const isActive = (href: string) => {
     if (href === pathname) return true;
-    // Handle nested routes
-    if (href !== "/" && pathname?.startsWith(href + "/")) return true;
+    // Handle nested routes — but exclude section index pages (e.g. "/beacon", "/")
+    // which should only match exactly, not highlight for all sub-routes
+    const segments = href.split("/").filter(Boolean);
+    const isIndexPage = segments.length <= 1; // "/" or "/beacon" or "/admin"
+    if (!isIndexPage && pathname?.startsWith(href + "/")) return true;
     return false;
   };
 

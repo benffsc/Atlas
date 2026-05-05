@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { AtlasPin } from "@/components/map";
 import type { HexBinSelection } from "./CatHexbinLayer";
+import { HexForecastSection } from "./HexForecastSection";
 
 interface HexDetailPanelProps {
   selection: HexBinSelection;
@@ -327,6 +328,9 @@ export function HexDetailPanel({ selection, onClose, onPlaceClick }: HexDetailPa
 
         {/* ── Places List ── */}
         <PlacesList places={sortedPlaces} onPlaceClick={onPlaceClick} styleLookup={STYLE_LABELS} />
+
+        {/* ── Population Forecast ── */}
+        <HexForecastSection pins={pins} />
       </div>
     </div>
   );
