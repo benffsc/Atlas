@@ -30,10 +30,10 @@ export async function GET(request: NextRequest) {
     }>(
       `SELECT
         c.conversation_id,
-        c.started_at,
-        c.ended_at,
-        c.message_count,
-        c.summary,
+        c.started_at::text,
+        c.updated_at::text AS ended_at,
+        (SELECT COUNT(*)::int FROM ops.tippy_messages m WHERE m.conversation_id = c.conversation_id) AS message_count,
+        NULL::text AS summary,
         (
           SELECT LEFT(m.content, 100)
           FROM ops.tippy_messages m
@@ -45,15 +45,16 @@ export async function GET(request: NextRequest) {
         ) AS first_message
       FROM ops.tippy_conversations c
       WHERE c.staff_id = $1
-        AND c.is_archived = false
-        AND c.message_count > 0
       ORDER BY c.started_at DESC
       LIMIT $2 OFFSET $3`,
       [session.staff_id, limit + 1, offset]
     );
 
-    const hasMore = conversations.length > limit;
-    const results = hasMore ? conversations.slice(0, limit) : conversations;
+    // Filter out empty conversations (no messages) in application code
+    const nonEmpty = conversations.filter(c => c.message_count > 0);
+
+    const hasMore = nonEmpty.length > limit;
+    const results = hasMore ? nonEmpty.slice(0, limit) : nonEmpty;
 
     return apiSuccess({
       conversations: results,

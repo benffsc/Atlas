@@ -271,7 +271,7 @@ export function TippyChat() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [anomalyCount, setAnomalyCount] = useState(0);
   const [actionCards, setActionCards] = useState<Map<string, ActionCardData>>(new Map());
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [showBubble, setShowBubble] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
