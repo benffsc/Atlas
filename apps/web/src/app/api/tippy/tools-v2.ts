@@ -1869,12 +1869,41 @@ async function getPlaceRecentContext(
     [placeId]
   );
 
+  // 7. Tippy tickets (open tickets referencing this place or linked entities)
+  const tippyTickets = await queryRows<{
+    ticket_id: string;
+    ticket_type: string;
+    status: string;
+    priority: string;
+    summary: string | null;
+    raw_input: string;
+    tags: string[];
+    created_at: string;
+    linked_entities: unknown[];
+  }>(
+    `
+    SELECT ticket_id::text, ticket_type, status, priority, summary,
+      LEFT(raw_input, 500) as raw_input, tags,
+      created_at::TEXT as created_at, linked_entities
+    FROM ops.tippy_tickets
+    WHERE status NOT IN ('closed')
+      AND (primary_place_id = $1
+           OR linked_entities @> $2::jsonb)
+    ORDER BY
+      CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+      created_at DESC
+    LIMIT 10
+    `,
+    [placeId, JSON.stringify([{ entity_id: placeId }])]
+  ).catch(() => []);
+
   const hasContext =
     googleMapsNotes.length > 0 ||
     recentRequests.length > 0 ||
     clinicAccountNotes.length > 0 ||
     journalEntries.length > 0 ||
-    extractedEntities.length > 0;
+    extractedEntities.length > 0 ||
+    tippyTickets.length > 0;
 
   const summaryParts: string[] = [];
   if (googleMapsNotes.length > 0)
@@ -1893,6 +1922,10 @@ async function getPlaceRecentContext(
     summaryParts.push(
       `${extractedEntities.length} extracted note entity record(s)`
     );
+  if (tippyTickets.length > 0)
+    summaryParts.push(
+      `${tippyTickets.length} open tippy ticket(s)`
+    );
 
   const wrapped = wrapPlaceResult(
     {
@@ -1909,6 +1942,7 @@ async function getPlaceRecentContext(
       clinic_account_notes: clinicAccountNotes,
       journal_entries: journalEntries,
       extracted_note_entities: extractedEntities,
+      tippy_tickets: tippyTickets.length > 0 ? tippyTickets : undefined,
       summary: hasContext
         ? `Found context for ${place.display_name || place.formatted_address}: ${summaryParts.join(", ")}.`
         : `No notes, requests, journal entries, or Google Maps context on file for ${place.display_name || place.formatted_address} in the last ${lookbackDays} days.`,
