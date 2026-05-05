@@ -263,6 +263,8 @@ export function TippyChat() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [anomalyCount, setAnomalyCount] = useState(0);
   const [actionCards, setActionCards] = useState<Map<string, ActionCardData>>(new Map());
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showBubble, setShowBubble] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const streamingMsgIdRef = useRef<string | null>(null);
@@ -543,6 +545,13 @@ export function TippyChat() {
     }
   }, [view, fetchHistory]);
 
+  // Auto-fetch history when expanding
+  useEffect(() => {
+    if (isExpanded && historyList.length === 0 && !historyLoading) {
+      fetchHistory();
+    }
+  }, [isExpanded, historyList.length, historyLoading, fetchHistory]);
+
   // FFS-863: Load a past conversation
   const loadConversation = useCallback(async (id: string) => {
     try {
@@ -569,9 +578,6 @@ export function TippyChat() {
     setView("chat");
     setHasBriefed(false);
   }, []);
-
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showBubble, setShowBubble] = useState(true);
 
   // Dismiss speech bubble after 8 seconds
   useEffect(() => {
@@ -693,7 +699,7 @@ export function TippyChat() {
         position: "fixed",
         bottom: "16px",
         right: "16px",
-        width: isExpanded ? "min(680px, calc(100vw - 32px))" : "400px",
+        width: isExpanded ? "min(780px, calc(100vw - 32px))" : "400px",
         height: isExpanded ? "min(85vh, 800px)" : "520px",
         background: "var(--card-bg, #fff)",
         border: "1px solid var(--card-border, #e5e7eb)",
@@ -755,25 +761,30 @@ export function TippyChat() {
           >
             <Icon name="plus" size={16} />
           </button>
+          {!isExpanded && (
+            <button
+              onClick={toggleHistory}
+              title="Conversation history"
+              style={{
+                background: view === "history" ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.2)",
+                border: "none",
+                borderRadius: "8px",
+                padding: "6px",
+                cursor: "pointer",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="clock" size={16} />
+            </button>
+          )}
           <button
-            onClick={toggleHistory}
-            title="Conversation history"
-            style={{
-              background: view === "history" ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.2)",
-              border: "none",
-              borderRadius: "8px",
-              padding: "6px",
-              cursor: "pointer",
-              color: "#fff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+            onClick={() => {
+              if (isExpanded) setView("chat"); // collapse → always show chat
+              setIsExpanded(!isExpanded);
             }}
-          >
-            <Icon name="clock" size={16} />
-          </button>
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
             title={isExpanded ? "Compact view" : "Expand chat"}
             style={{
               background: "rgba(255,255,255,0.2)",
@@ -808,19 +819,106 @@ export function TippyChat() {
         </div>
       </div>
 
-      {/* Content area — chat or history view */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "16px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px",
-        }}
-      >
-        {view === "history" ? (
-          /* FFS-863: Conversation history view */
+      {/* Content area — sidebar + chat in expanded, or toggle in compact */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+        {/* History sidebar — always visible in expanded mode */}
+        {isExpanded && (
+          <div
+            style={{
+              width: "220px",
+              flexShrink: 0,
+              borderRight: "1px solid var(--border, #e5e7eb)",
+              display: "flex",
+              flexDirection: "column",
+              background: "var(--bg-secondary, #f9fafb)",
+            }}
+          >
+            <div style={{
+              padding: "10px 12px",
+              borderBottom: "1px solid var(--border, #e5e7eb)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>Conversations</span>
+              <button
+                onClick={startNewConversation}
+                title="New conversation"
+                style={{
+                  background: "none", border: "1px solid var(--border, #e5e7eb)", borderRadius: "6px",
+                  padding: "2px 6px", cursor: "pointer", fontSize: "0.75rem", color: "var(--text-secondary)",
+                  display: "flex", alignItems: "center", gap: "3px",
+                }}
+              >
+                <Icon name="plus" size={12} /> New
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "6px" }}>
+              {historyLoading ? (
+                <div style={{ textAlign: "center", padding: "16px 0", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                  Loading...
+                </div>
+              ) : historyList.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "16px 8px", color: "var(--text-muted)", fontSize: "0.78rem", lineHeight: 1.4 }}>
+                  No conversations yet. Start one!
+                </div>
+              ) : (
+                historyList.map((conv) => (
+                  <button
+                    key={conv.conversation_id}
+                    onClick={() => loadConversation(conv.conversation_id)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "8px 10px",
+                      marginBottom: "2px",
+                      background: conv.conversation_id === conversationId ? "var(--card-bg, #fff)" : "transparent",
+                      border: conv.conversation_id === conversationId ? "1px solid var(--border, #e5e7eb)" : "1px solid transparent",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (conv.conversation_id !== conversationId)
+                        e.currentTarget.style.background = "var(--card-bg, #fff)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (conv.conversation_id !== conversationId)
+                        e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <div style={{
+                      fontSize: "0.78rem", fontWeight: 500, overflow: "hidden",
+                      textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      color: "var(--foreground)",
+                    }}>
+                      {(conv.first_message || conv.summary || "Conversation")?.slice(0, 45)}
+                    </div>
+                    <div style={{ fontSize: "0.65rem", color: "var(--text-muted, #9ca3af)", marginTop: "2px", display: "flex", gap: "6px" }}>
+                      <span>{relativeDate(conv.started_at)}</span>
+                      <span>{conv.message_count} msg{conv.message_count !== 1 ? "s" : ""}</span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Chat column (scroll area + input) */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+        {!isExpanded && view === "history" ? (
+          /* Compact mode: history replaces chat */
           historyLoading ? (
             <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)" }}>
               <div style={{ fontSize: "0.85rem" }}>Loading conversations...</div>
@@ -1043,6 +1141,7 @@ export function TippyChat() {
           borderTop: "1px solid var(--card-border, #e5e7eb)",
           display: "flex",
           gap: "8px",
+          flexShrink: 0,
         }}
       >
         <input
@@ -1082,6 +1181,8 @@ export function TippyChat() {
           Send
         </button>
       </form>
+      </div>{/* close chat column */}
+      </div>{/* close outer flex wrapper */}
 
       <style jsx global>{`
         @keyframes typing {
