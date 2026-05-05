@@ -425,6 +425,9 @@ export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode =
 
     const onClick = (e: MouseEvent) => {
       if (!onHexClick) return;
+      // Don't intercept clicks on map controls, buttons, or other UI overlays
+      const target = e.target as HTMLElement;
+      if (target.closest(".map-control-btn, .map-controls, .map-zoom-controls, .map-bottom-controls, .map-layer-panel, .map-basemap-menu, .map-add-point-menu, button, a, input, select")) return;
       const rect = map.getDiv().getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;

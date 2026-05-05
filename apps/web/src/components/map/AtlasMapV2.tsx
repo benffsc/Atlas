@@ -1780,23 +1780,25 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           ) : null
         }
       >
-        {/* Portalled sidebar content — always visible when sidebar is open */}
-        <div className="map-layer-panel" style={{ position: "static", width: "100%", maxHeight: "none", border: "none", borderRadius: 0, boxShadow: "none", background: "transparent" }}>
-          <div className="map-layer-panel__header">
-            <div className="map-layer-panel__title">Map Layers</div>
-            <div className="map-layer-panel__subtitle">{totalMarkers.toLocaleString()} markers shown</div>
+        {/* Portalled sidebar content — only visible when layer panel is open */}
+        {showLayerPanel && (
+          <div className="map-layer-panel" style={{ position: "static", width: "100%", maxHeight: "none", border: "none", borderRadius: 0, boxShadow: "none", background: "transparent" }}>
+            <div className="map-layer-panel__header">
+              <div className="map-layer-panel__title">Map Layers</div>
+              <div className="map-layer-panel__subtitle">{totalMarkers.toLocaleString()} markers shown</div>
+            </div>
+            <SavedViewsPanel customViews={customViews} activeViewId={activeViewId} onApplyView={handleApplyView} onSaveView={handleSaveView} onDeleteView={handleDeleteView} />
+            <div className="map-layer-panel__zone">
+              <div className="map-layer-panel__zone-label">Service Zone</div>
+              <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="map-layer-panel__zone-select">
+                {SERVICE_ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
+              </select>
+            </div>
+            <div className="map-layer-panel__layers">
+              <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
+            </div>
           </div>
-          <SavedViewsPanel customViews={customViews} activeViewId={activeViewId} onApplyView={handleApplyView} onSaveView={handleSaveView} onDeleteView={handleDeleteView} />
-          <div className="map-layer-panel__zone">
-            <div className="map-layer-panel__zone-label">Service Zone</div>
-            <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="map-layer-panel__zone-select">
-              {SERVICE_ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
-            </select>
-          </div>
-          <div className="map-layer-panel__layers">
-            <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
-          </div>
-        </div>
+        )}
       </PortalOrInline>
 
       {/* ── Date range filter — bottom center of map ── */}
