@@ -4,167 +4,193 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Beacon — Gala Walkthrough</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700;900&family=Raleway:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="/walkthrough/styles.css" />
 </head>
 <body>
   <!--
     ╔══════════════════════════════════════════════════════════════════╗
-    ║  BEACON GALA WALKTHROUGH                                        ║
+    ║  BEACON GALA WALKTHROUGH — Dom's Design                         ║
     ║                                                                  ║
-    ║  To edit: change text inside the <section> blocks below.        ║
-    ║  To add a slide: copy a <section> block and paste it in order.  ║
-    ║  To remove a slide: delete the entire <section> block.          ║
+    ║  To edit text: change content inside each <section> below.      ║
+    ║  To add a slide: copy a <section> and paste it in order.        ║
+    ║  To swap screenshots: replace images in the assets/ folder.     ║
     ║  To change colors: edit styles.css (CSS variables at top).      ║
-    ║  To change transitions: edit script.js.                         ║
-    ║                                                                  ║
-    ║  Navigation: Arrow keys, spacebar, or the dots at the bottom.   ║
     ╚══════════════════════════════════════════════════════════════════╝
+
+    SCREENSHOTS: Drop app screenshots into /walkthrough/assets/
+    Name them: find-1.png, find-2.png, fix-1.png, fix-2.png, etc.
+    Then update the <img src="..."> tags below.
   -->
   <div class="walkthrough">
     <div class="slides" id="slides">
 
-      <!-- ════════════════════════════════════════════════════════════
-           SLIDE: Title
-           ════════════════════════════════════════════════════════════ -->
+      <!-- ══════════════════════════════════════════════════════════
+           SLIDE 0: Title — Map background + centered card
+           ══════════════════════════════════════════════════════════ -->
       <section class="slide slide--title">
-        <div class="slide-inner">
+        <div class="title-bg"></div>
+        <div class="title-card">
           <img src="/beacon-logo.jpeg" alt="Beacon" class="logo" />
-          <h1 class="headline">Beacon</h1>
-          <p class="tagline">See how we find, fix, and return community cats &mdash; and track every one.</p>
-          <p class="tagline org-name">Forgotten Felines of Sonoma County</p>
-          <div class="hint">Press <kbd>&rarr;</kbd> to begin</div>
+          <h1>The next-generation technology for humane cat population reduction</h1>
+          <button class="title-cta" onclick="goToSlide(1)">
+            See the demo
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
         </div>
       </section>
 
-      <!-- ════════════════════════════════════════════════════════════
-           SLIDE: Step 1 — Find
-           ════════════════════════════════════════════════════════════ -->
-      <section class="slide slide--find" data-label="Find" data-color="#f59e0b">
-        <div class="slide-inner">
-          <div class="step-badge" style="background: #f59e0b">Step 1: Find</div>
-          <h2 class="slide-title">A community member reports cats on their street</h2>
-          <p class="slide-body">
-            Every request starts with a person reaching out. We capture the location,
-            the situation, and how to help &mdash; then find it on the map.
-          </p>
-          <div class="iframe-wrapper">
-            <iframe src="/intake/queue/new" title="Find" loading="eager"></iframe>
+      <!-- ══════════════════════════════════════════════════════════
+           SLIDE 1: Find — Coral/red right panel
+           ══════════════════════════════════════════════════════════ -->
+      <section class="slide slide--split">
+        <div class="slide-left">
+          <div class="slide-label">Beacon Demo</div>
+          <h2 class="slide-step">Find</h2>
+          <h3 class="slide-subhead">Every cat counts.</h3>
+          <div class="slide-text">
+            <p>Every journey begins with a sighting.</p>
+            <p>A community member spots an unaltered cat at a park and reports it to us, turning a simple observation into the first step of a life-changing process.</p>
           </div>
         </div>
-      </section>
-
-      <!-- ════════════════════════════════════════════════════════════
-           SLIDE: Step 2 — Fix
-           ════════════════════════════════════════════════════════════ -->
-      <section class="slide slide--fix" data-label="Fix" data-color="#22c55e">
-        <div class="slide-inner">
-          <div class="step-badge" style="background: #22c55e">Step 2: Fix</div>
-          <h2 class="slide-title">We bring them to our clinic</h2>
-          <p class="slide-body">
-            FFSC is the only dedicated spay/neuter clinic for community cats in
-            Sonoma County. Every cat gets a medical record, microchip, and ear tip.
-          </p>
-          <div class="iframe-wrapper">
-            <iframe src="/admin/clinic-days" title="Fix" loading="eager"></iframe>
-          </div>
-        </div>
-      </section>
-
-      <!-- ════════════════════════════════════════════════════════════
-           SLIDE: Step 3 — Return
-           ════════════════════════════════════════════════════════════ -->
-      <section class="slide slide--return" data-label="Return" data-color="#3b82f6">
-        <div class="slide-inner">
-          <div class="step-badge" style="background: #3b82f6">Step 3: Return</div>
-          <h2 class="slide-title">They go home &mdash; and we track the whole neighborhood</h2>
-          <p class="slide-body">
-            Each site isn&rsquo;t isolated. Beacon connects every colony to the places
-            around it, building a regional picture of progress.
-          </p>
-          <div class="iframe-wrapper">
-            <iframe src="/map?center=38.44,-122.72&zoom=12" title="Return" loading="lazy"></iframe>
-          </div>
-        </div>
-      </section>
-
-      <!-- ════════════════════════════════════════════════════════════
-           SLIDE: Step 4 — Analyze
-           ════════════════════════════════════════════════════════════ -->
-      <section class="slide slide--analyze" data-label="Analyze" data-color="#8b5cf6">
-        <div class="slide-inner">
-          <div class="step-badge" style="background: #8b5cf6">Step 4: Analyze</div>
-          <h2 class="slide-title">Beacon shows us where to focus next</h2>
-          <p class="slide-body">
-            Population estimates, alteration rates, seasonal trends &mdash;
-            data-driven decisions for every zone in the county.
-          </p>
-          <div class="iframe-wrapper">
-            <iframe src="/beacon" title="Analyze" loading="lazy"></iframe>
-          </div>
-        </div>
-      </section>
-
-      <!-- ════════════════════════════════════════════════════════════
-           SLIDE: Thank You
-           ════════════════════════════════════════════════════════════ -->
-      <section class="slide slide--thankyou">
-        <div class="slide-inner">
-          <h2 class="slide-title" style="font-size: 1.75rem">
-            With your support, we can reach every colony
-          </h2>
-          <p class="slide-body" style="margin-bottom: 2rem">
-            Every dollar goes directly to helping community cats.
-          </p>
-
-          <div class="unit-grid">
-            <div class="unit-card">
-              <div class="unit-amount">$50</div>
-              <div class="unit-equals">=</div>
-              <div class="unit-outcome">Spay/neuter one cat</div>
+        <div class="slide-right slide-right--find">
+          <div class="screenshots">
+            <!-- Replace these with your actual screenshots -->
+            <div class="screenshot-placeholder shot-main">
+              Screenshot: Intake Call form<br><br>
+              <small>Drop image at assets/find-1.png</small>
             </div>
-            <div class="unit-card">
-              <div class="unit-amount">$250</div>
-              <div class="unit-equals">=</div>
-              <div class="unit-outcome">Cover a full clinic day for a colony</div>
-            </div>
-            <div class="unit-card">
-              <div class="unit-amount">$1,000</div>
-              <div class="unit-equals">=</div>
-              <div class="unit-outcome">Stabilize an entire neighborhood</div>
+            <div class="screenshot-placeholder shot-overlay">
+              Screenshot: Map with pin selected<br><br>
+              <small>Drop image at assets/find-2.png</small>
             </div>
           </div>
+        </div>
+      </section>
 
-          <p class="tagline thankyou-text">Thank you</p>
+      <!-- ══════════════════════════════════════════════════════════
+           SLIDE 2: Fix — Gold right panel
+           ══════════════════════════════════════════════════════════ -->
+      <section class="slide slide--split">
+        <div class="slide-left">
+          <div class="slide-label">Beacon Demo</div>
+          <h2 class="slide-step">Fix</h2>
+          <h3 class="slide-subhead">Data-backed care.</h3>
+          <div class="slide-text">
+            <p>From the intake request, our experienced trappers head to the site, humanely trap the cat, and bring them to a clinic day.</p>
+            <p>Every cat's data is recorded into our database. This ensures accuracy in care today and fuels our decision making process for tomorrow!</p>
+          </div>
+        </div>
+        <div class="slide-right slide-right--fix">
+          <div class="screenshots">
+            <div class="screenshot-placeholder shot-main">
+              Screenshot: Clinic Days page<br><br>
+              <small>Drop image at assets/fix-1.png</small>
+            </div>
+            <div class="screenshot-placeholder shot-overlay">
+              Screenshot: Cat detail (Fishsticks)<br><br>
+              <small>Drop image at assets/fix-2.png</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════
+           SLIDE 3: Return — Teal right panel
+           ══════════════════════════════════════════════════════════ -->
+      <section class="slide slide--split">
+        <div class="slide-left">
+          <div class="slide-label">Beacon Demo</div>
+          <h2 class="slide-step">Return</h2>
+          <h3 class="slide-subhead">One down, many more to go.</h3>
+          <div class="slide-text">
+            <p>The altered cat goes back to their home territory and appears as an interactive dot on Beacon's live map.</p>
+            <p>Zoom out, and you see the full landscape: how many cats remain unaltered, and exactly where to focus next!</p>
+          </div>
+        </div>
+        <div class="slide-right slide-right--return">
+          <div class="screenshots">
+            <div class="screenshot-placeholder shot-main" style="width:90%;height:90%;left:5%;top:5%;max-width:none">
+              Screenshot: Satellite map with heatmaps<br><br>
+              <small>Drop image at assets/return-1.png</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════
+           SLIDE 4: Analyze — Blue right panel
+           ══════════════════════════════════════════════════════════ -->
+      <section class="slide slide--split">
+        <div class="slide-left">
+          <div class="slide-label">Beacon Demo</div>
+          <h2 class="slide-step">Analyze</h2>
+          <h3 class="slide-subhead">One down, many more to go.</h3>
+          <div class="slide-text">
+            <p>Powered by this data, Beacon's analytics capabilities will show us measurable impacts of our efforts, and where we need to be focusing our efforts next.</p>
+          </div>
+        </div>
+        <div class="slide-right slide-right--analyze">
+          <div class="screenshots">
+            <div class="screenshot-placeholder shot-main">
+              Screenshot: Beacon analytics UI<br><br>
+              <small>Drop image at assets/analyze-1.png</small>
+            </div>
+            <div class="screenshot-placeholder shot-overlay">
+              Screenshot: Beacon feature<br><br>
+              <small>Drop image at assets/analyze-2.png</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════════
+           SLIDE 5: CTA — Map background + white card + QR
+           ══════════════════════════════════════════════════════════ -->
+      <section class="slide slide--cta">
+        <div class="cta-bg"></div>
+        <div class="cta-card">
+          <!--
+          <div class="cat-photo-circle">
+            <img src="/walkthrough/assets/cat-photo.jpg" alt="Cat" />
+          </div>
+          <div class="speech-bubble">Thanks for all that you do!</div>
+          -->
+          <div class="cta-content">
+            <h2>Be part of the solution</h2>
+            <p>Beacon is only as powerful as its data, and its data is only as rich as our community's eyes and ears.</p>
+            <p class="cta-highlight">That's why we're rolling out this map to everyone!</p>
+            <p>Sign-up now to be notified when our public-facing site is live.</p>
+            <p>Every sighting submitted makes the map brighter and the outcomes for Sonoma County's cats better.</p>
+          </div>
+          <div class="cta-qr">
+            <img src="/beacon-logo.jpeg" alt="Beacon" class="logo-small" />
+            <div class="qr-label">Get notified at launch!</div>
+            <!-- Replace with actual QR code image -->
+            <div style="width:150px;height:150px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#999;font-size:0.75rem;text-align:center">
+              QR code here<br><small>assets/qr-code.png</small>
+            </div>
+          </div>
         </div>
       </section>
 
     </div>
 
-    <!-- Step progress pills (top center) -->
-    <div class="progress" id="progress">
-      <span class="progress-pill" data-step="Find" data-color="#f59e0b">Find</span>
-      <span class="progress-pill" data-step="Fix" data-color="#22c55e">Fix</span>
-      <span class="progress-pill" data-step="Return" data-color="#3b82f6">Return</span>
-      <span class="progress-pill" data-step="Analyze" data-color="#8b5cf6">Analyze</span>
-    </div>
-
-    <!-- Navigation -->
-    <div class="nav">
-      <button class="nav-btn" id="nav-prev" aria-label="Previous">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+    <!-- Navigation — bottom left, matches Dom's Prev | 1/5 | Next pattern -->
+    <div class="nav" id="nav">
+      <button class="nav-btn" id="nav-prev" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+        Prev
       </button>
-      <div class="dots" id="dots"></div>
-      <button class="nav-btn" id="nav-next" aria-label="Next">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+      <span class="nav-counter" id="nav-counter">1/5</span>
+      <button class="nav-btn" id="nav-next">
+        Next
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
       </button>
     </div>
 
     <button class="exit-btn" id="exit-btn">ESC to exit</button>
   </div>
 
-  <script src="script.js"></script>
+  <script src="/walkthrough/script.js"></script>
 </body>
 </html>
