@@ -570,64 +570,117 @@ export function TippyChat() {
     setHasBriefed(false);
   }, []);
 
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showBubble, setShowBubble] = useState(true);
+
+  // Dismiss speech bubble after 8 seconds
+  useEffect(() => {
+    if (!isOpen && showBubble) {
+      const timer = setTimeout(() => setShowBubble(false), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, showBubble]);
+
   if (!isOpen) {
     return (
-      <button
-        className="tippy-fab"
-        onClick={() => setIsOpen(true)}
+      <div
         style={{
           position: "fixed",
-          bottom: "24px",
-          right: "24px",
-          width: "56px",
-          height: "56px",
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          border: "none",
-          cursor: "pointer",
-          boxShadow: "0 4px 12px rgba(102, 126, 234, 0.4)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "transform 0.2s, box-shadow 0.2s",
+          bottom: "16px",
+          right: "16px",
           zIndex: 1000,
+          display: "flex",
+          alignItems: "flex-end",
+          gap: "8px",
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "scale(1.05)";
-          e.currentTarget.style.boxShadow =
-            "0 6px 16px rgba(102, 126, 234, 0.5)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "scale(1)";
-          e.currentTarget.style.boxShadow =
-            "0 4px 12px rgba(102, 126, 234, 0.4)";
-        }}
-        title="Ask Tippy"
       >
-        <span style={{ fontSize: "1.75rem" }}>🐱</span>
-        {anomalyCount > 0 && (
-          <span
+        {/* Speech bubble */}
+        {showBubble && (
+          <div
+            className="tippy-speech-bubble"
+            onClick={() => { setShowBubble(false); setIsOpen(true); }}
             style={{
-              position: "absolute",
-              top: "-2px",
-              right: "-2px",
-              width: "18px",
-              height: "18px",
-              borderRadius: "50%",
-              background: "#ef4444",
-              color: "#fff",
-              fontSize: "0.65rem",
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "2px solid var(--background, #fff)",
+              background: "var(--card-bg, #fff)",
+              border: "1px solid var(--border, #e5e7eb)",
+              borderRadius: "16px 16px 4px 16px",
+              padding: "8px 14px",
+              boxShadow: "var(--shadow-md, 0 4px 12px rgba(0,0,0,0.1))",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              color: "var(--foreground)",
+              fontWeight: 500,
+              animation: "tippy-bubble-in 0.4s ease-out",
+              maxWidth: "180px",
             }}
           >
-            {anomalyCount > 9 ? "9+" : anomalyCount}
-          </span>
+            How can I help?
+          </div>
         )}
-      </button>
+
+        {/* Mascot button */}
+        <button
+          className="tippy-fab"
+          onClick={() => setIsOpen(true)}
+          style={{
+            position: "relative",
+            width: "64px",
+            height: "64px",
+            borderRadius: "50%",
+            background: "var(--card-bg, #fff)",
+            border: "2px solid var(--border, #e5e7eb)",
+            cursor: "pointer",
+            boxShadow: "var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12))",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "transform 0.2s, box-shadow 0.2s",
+            padding: 0,
+            overflow: "hidden",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "scale(1.08)";
+            setShowBubble(true);
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+          }}
+          title="Ask Tippy"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/tippy-mascot.png"
+            alt="Tippy"
+            style={{
+              width: "48px",
+              height: "48px",
+              objectFit: "contain",
+              animation: "tippy-idle 3s ease-in-out infinite",
+            }}
+          />
+          {anomalyCount > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: "0px",
+                right: "0px",
+                width: "18px",
+                height: "18px",
+                borderRadius: "50%",
+                background: "#ef4444",
+                color: "#fff",
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "2px solid var(--background, #fff)",
+              }}
+            >
+              {anomalyCount > 9 ? "9+" : anomalyCount}
+            </span>
+          )}
+        </button>
+      </div>
     );
   }
 
@@ -636,18 +689,19 @@ export function TippyChat() {
       className="tippy-chat-panel"
       style={{
         position: "fixed",
-        bottom: "24px",
-        right: "24px",
-        width: "380px",
-        height: "500px",
+        bottom: "16px",
+        right: "16px",
+        width: isExpanded ? "min(680px, calc(100vw - 32px))" : "400px",
+        height: isExpanded ? "min(85vh, 800px)" : "520px",
         background: "var(--card-bg, #fff)",
         border: "1px solid var(--card-border, #e5e7eb)",
         borderRadius: "16px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+        boxShadow: "var(--shadow-lg, 0 8px 32px rgba(0,0,0,0.12))",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
         zIndex: 1000,
+        transition: "width 0.25s ease, height 0.25s ease",
       }}
     >
       {/* Header */}
@@ -661,8 +715,13 @@ export function TippyChat() {
           justifyContent: "space-between",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ fontSize: "1.5rem" }}>🐱</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/tippy-mascot.png"
+            alt="Tippy"
+            style={{ width: "32px", height: "32px", objectFit: "contain", filter: "brightness(10)" }}
+          />
           <div>
             <div style={{ fontWeight: 600 }}>Tippy</div>
             <div style={{ fontSize: "0.75rem", opacity: 0.9 }}>
@@ -704,6 +763,23 @@ export function TippyChat() {
             }}
           >
             <Icon name="clock" size={16} />
+          </button>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            title={isExpanded ? "Compact view" : "Expand chat"}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
+              borderRadius: "8px",
+              padding: "6px",
+              cursor: "pointer",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name={isExpanded ? "minimize-2" : "maximize-2"} size={16} />
           </button>
           <button
             onClick={() => setIsOpen(false)}
@@ -777,16 +853,20 @@ export function TippyChat() {
           )
         ) : messages.length === 0 ? (
           <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <div
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/tippy-mascot.png"
+              alt="Tippy"
               style={{
-                fontSize: "2.5rem",
+                width: "80px",
+                height: "80px",
+                objectFit: "contain",
                 marginBottom: "12px",
+                animation: "tippy-idle 3s ease-in-out infinite",
               }}
-            >
-              🐱
-            </div>
+            />
             <div style={{ fontWeight: 600, marginBottom: "8px" }}>
-              Hi! I'm Tippy
+              Hi! I&apos;m Tippy
             </div>
             <div
               style={{
@@ -1000,6 +1080,20 @@ export function TippyChat() {
           }
         }
 
+        @keyframes tippy-idle {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-2px); }
+        }
+
+        @keyframes tippy-bubble-in {
+          0% { opacity: 0; transform: scale(0.8) translateY(8px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .tippy-fab:hover .tippy-mascot-img {
+          animation-duration: 1s;
+        }
+
         .tippy-markdown p {
           margin: 0 0 0.5em 0;
         }
@@ -1029,6 +1123,21 @@ export function TippyChat() {
           padding: 0.1em 0.3em;
           border-radius: 3px;
           font-size: 0.9em;
+        }
+        .tippy-markdown table {
+          border-collapse: collapse;
+          font-size: 0.8em;
+          margin: 0.5em 0;
+          width: 100%;
+        }
+        .tippy-markdown th, .tippy-markdown td {
+          border: 1px solid var(--border, #e5e7eb);
+          padding: 4px 8px;
+          text-align: left;
+        }
+        .tippy-markdown th {
+          background: var(--bg-secondary, #f9fafb);
+          font-weight: 600;
         }
       `}</style>
 
