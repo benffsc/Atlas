@@ -8,6 +8,7 @@ import type { LayerGroup } from "@/components/map/GroupedLayerControl";
 export const ATLAS_SUB_LAYER_IDS = ["atlas_all", "atlas_disease", "atlas_watch", "atlas_needs_tnr", "atlas_needs_trapper"] as const;
 export const DISEASE_FILTER_IDS = ["dis_felv", "dis_fiv", "dis_ringworm", "dis_heartworm", "dis_panleuk"] as const;
 export const HEATMAP_LAYER_IDS = ["heatmap_density", "heatmap_intact", "heatmap_disease"] as const;
+export const HEXBIN_LAYER_IDS = ["hexbin_density", "hexbin_intact", "hexbin_disease"] as const;
 
 export const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
   { id: "atlas_data", label: "Atlas Data", icon: "\u{1F4CD}", color: MAP_COLORS.layers.places, defaultExpanded: true, exclusive: true, children: [
@@ -28,6 +29,9 @@ export const ATLAS_MAP_LAYER_GROUPS_BASE: LayerGroup[] = [
     { id: "heatmap_density", label: "Cat Density Heatmap", color: MAP_COLORS.layers.heatmap_density, defaultEnabled: false },
     { id: "heatmap_intact", label: "Intact Cat Heatmap", color: MAP_COLORS.layers.heatmap_intact, defaultEnabled: false },
     { id: "heatmap_disease", label: "Disease Heatmap", color: MAP_COLORS.layers.heatmap_disease, defaultEnabled: false },
+    { id: "hexbin_density", label: "Cat Density Hexbin", color: MAP_COLORS.layers.heatmap_density, defaultEnabled: false },
+    { id: "hexbin_intact", label: "Intact Cat Hexbin", color: MAP_COLORS.layers.heatmap_intact, defaultEnabled: false },
+    { id: "hexbin_disease", label: "Disease Hexbin", color: MAP_COLORS.layers.heatmap_disease, defaultEnabled: false },
   ]},
   { id: "operational", label: "Operational", icon: "\u{1F4CA}", color: MAP_COLORS.layers.zones, defaultExpanded: false, children: [
     { id: "zones", label: "Observation Zones", color: MAP_COLORS.layers.zones, defaultEnabled: false },
@@ -134,6 +138,7 @@ export function useMapLayers({ atlasPins }: { atlasPins: AtlasPin[] }) {
       if ((ATLAS_SUB_LAYER_IDS as readonly string[]).includes(id)) s.add("atlas_pins");
       else if ((DISEASE_FILTER_IDS as readonly string[]).includes(id)) { /* client-only */ }
       else if ((HEATMAP_LAYER_IDS as readonly string[]).includes(id)) s.add("atlas_pins");
+      else if ((HEXBIN_LAYER_IDS as readonly string[]).includes(id)) s.add("atlas_pins");
       else s.add(id);
     }
     return Array.from(s);
@@ -144,5 +149,11 @@ export function useMapLayers({ atlasPins }: { atlasPins: AtlasPin[] }) {
     : enabledLayers.heatmap_intact ? "intact"
     : "density";
 
-  return { enabledLayers, setEnabledLayers, toggleLayer, atlasLayerEnabled, riskFilter, diseaseFilter, dataFilter, atlasMapLayerGroups, atlasSubLayerCounts, apiLayers, heatmapEnabled, heatmapMode };
+  const hexbinEnabled = !!(enabledLayers.hexbin_density || enabledLayers.hexbin_intact || enabledLayers.hexbin_disease);
+  const hexbinMode: "density" | "intact" | "disease" =
+    enabledLayers.hexbin_disease ? "disease"
+    : enabledLayers.hexbin_intact ? "intact"
+    : "density";
+
+  return { enabledLayers, setEnabledLayers, toggleLayer, atlasLayerEnabled, riskFilter, diseaseFilter, dataFilter, atlasMapLayerGroups, atlasSubLayerCounts, apiLayers, heatmapEnabled, heatmapMode, hexbinEnabled, hexbinMode };
 }

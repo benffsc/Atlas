@@ -42,9 +42,9 @@ import {
 import { formatDistance } from "@/components/map/hooks/useMeasurement";
 import { GooglePinMarkers, PlaceMarkers, VolunteerMarkers, ClinicClientMarkers, TrapperTerritoryMarkers } from "@/components/map/components/LayerMarkers";
 import { ZoneBoundaries } from "@/components/map/components/ZoneBoundaries";
+import { CatHexbinLayer } from "@/components/map/components/CatHexbinLayer";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
 import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
-import { MapTimeSlider } from "@/components/map/components/MapTimeSlider";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type {
   AtlasPin,
@@ -168,8 +168,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   const initialUrlState = useMemo(() => readMapInitialUrlState(), []);
   const [dateFrom, setDateFrom] = useState<string | null>(initialUrlState.dateFrom);
   const [dateTo, setDateTo] = useState<string | null>(initialUrlState.dateTo);
-  // Time slider visible by default in analystMode, toggleable elsewhere
-  const [showTimeSlider, setShowTimeSlider] = useState<boolean>(analystMode);
 
   // ── URL-synced drawer state (Phase 3) ──
   const {
@@ -244,6 +242,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     atlasLayerEnabled, riskFilter, diseaseFilter, dataFilter,
     atlasMapLayerGroups, atlasSubLayerCounts,
     apiLayers: layers, heatmapEnabled, heatmapMode,
+    hexbinEnabled, hexbinMode,
   } = useMapLayers({ atlasPins });
 
   const { customViews, activeViewId, handleApplyView, handleSaveView, handleDeleteView } = useMapViews({
@@ -772,6 +771,33 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     }
     return () => { document.body.classList.remove("map-heatmap-active"); };
   }, [heatmapEnabled]);
+
+  // Boost pin visibility when hexbin overlay is active — add white halo so pins
+  // pop against the colored hexagons. Pins render in Google Maps' markerLayer
+  // (above the hexbin overlayLayer) so they're already on top; this just makes
+  // them visually distinct.
+  useEffect(() => {
+    const STYLE_ID = "atlas-map-hexbin-boost";
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = [
+        "body.map-hexbin-active .atlas-pin-active svg {" +
+        "  filter: drop-shadow(0 0 3px white) drop-shadow(0 0 6px white) drop-shadow(0 2px 2px rgba(0,0,0,0.4));" +
+        "}",
+        "body.map-hexbin-active .atlas-pin-ref > div {" +
+        "  box-shadow: 0 0 0 3px white, 0 2px 4px rgba(0,0,0,0.4);" +
+        "}",
+      ].join("\n");
+      document.head.appendChild(style);
+    }
+    if (hexbinEnabled) {
+      document.body.classList.add("map-hexbin-active");
+    } else {
+      document.body.classList.remove("map-hexbin-active");
+    }
+    return () => { document.body.classList.remove("map-hexbin-active"); };
+  }, [hexbinEnabled]);
 
   // ── Route polyline (Step 9) ──
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
@@ -1397,6 +1423,9 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         )}
       </Map>
 
+      {/* ── Hexbin density overlay (D3) ── */}
+      <CatHexbinLayer pins={atlasPins} enabled={hexbinEnabled} mode={hexbinMode} />
+
       {/* ── Search bar — portalled into top bar when MapShell present ── */}
       <PortalOrInline
         portalId="map-search-portal"
@@ -1579,13 +1608,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         </BottomSheet>
       )}
 
-      {/* ── Basemap toggle — portalled into top bar ── */}
-      <PortalOrInline portalId="map-basemap-portal" fallback={null}>
-        <div className="map-basemap-segmented">
-          <button data-active={basemap === "street"} onClick={() => setBasemap("street")}>Street</button>
-          <button data-active={basemap === "satellite"} onClick={() => setBasemap("satellite")}>Satellite</button>
-        </div>
-      </PortalOrInline>
+      {/* Basemap toggle removed — basemap switching now handled by MapControls Basemap button */}
 
       {/* ── Action buttons — portalled into top bar ── */}
       <PortalOrInline
@@ -1608,10 +1631,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             onBasemapChange={setBasemap}
             measureActive={measureActive}
             onMeasureToggle={handleMeasureToggle}
-            isFullscreen={isFullscreen}
-            onFullscreenToggle={handleFullscreenToggle}
-            onZoomIn={() => map?.setZoom((map.getZoom() || 11) + 1)}
-            onZoomOut={() => map?.setZoom((map.getZoom() || 11) - 1)}
             onExportCsv={handleExportCsv}
             onExportGeoJson={handleExportGeoJson}
             exportPinCount={atlasPins.length}
@@ -1742,11 +1761,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
               <div className="map-layer-panel__layers">
                 <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
               </div>
-              <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
             </div>
-          ) : (
-            <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
-          )
+          ) : null
         }
       >
         {/* Portalled sidebar content — always visible when sidebar is open */}
@@ -1756,9 +1772,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             <div className="map-layer-panel__subtitle">{totalMarkers.toLocaleString()} markers shown</div>
           </div>
           <SavedViewsPanel customViews={customViews} activeViewId={activeViewId} onApplyView={handleApplyView} onSaveView={handleSaveView} onDeleteView={handleDeleteView} />
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--map-control-border)" }}>
-            <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} inline />
-          </div>
           <div className="map-layer-panel__zone">
             <div className="map-layer-panel__zone-label">Service Zone</div>
             <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)} className="map-layer-panel__zone-select">
@@ -1771,13 +1784,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         </div>
       </PortalOrInline>
 
-      {/* ── Time slider (FFS-1174) ── */}
-      {showTimeSlider && (
-        <MapTimeSlider
-          value={dateTo}
-          onChange={(iso) => handleDateRangeChange(dateFrom, iso)}
-        />
-      )}
+      {/* ── Date range filter — bottom center of map ── */}
+      <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />
 
       {/* ── Legend — bottom-left of map viewport ── */}
       <div className="map-legend-shell">
