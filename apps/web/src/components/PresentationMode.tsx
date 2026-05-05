@@ -95,7 +95,7 @@ export function PresentationModeIndicator({
   if (!enabled) return null;
 
   // Don't show the demo button if we're already on a demo page
-  const isOnDemo = typeof window !== "undefined" && window.location.pathname.startsWith("/demo");
+  const isOnDemo = typeof window !== "undefined" && (window.location.pathname.startsWith("/demo") || window.location.pathname.startsWith("/walkthrough"));
 
   return (
     <div className="presentation-indicator" role="status" aria-live="polite">
@@ -103,7 +103,7 @@ export function PresentationModeIndicator({
       <span className="presentation-indicator-text">{config.text}</span>
       {!isOnDemo && (
         <a
-          href="/demo/walkthrough"
+          href="/walkthrough/"
           className="presentation-indicator-demo"
           aria-label="Start product walkthrough"
         >

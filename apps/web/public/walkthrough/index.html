@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beacon — Gala Walkthrough</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700;900&family=Raleway:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!--
+    Content is loaded dynamically from /api/walkthrough-config.
+    Edit slides at /admin/walkthrough in the app.
+    Edit transitions/layout in styles.css and script.js.
+  -->
+  <div class="walkthrough">
+    <div class="slides" id="slides">
+      <!-- Slides are injected by script.js from the API -->
+      <section class="slide slide--title">
+        <div class="slide-inner" style="color: rgba(255,255,255,0.4); font-size: 0.9rem">
+          Loading walkthrough...
+        </div>
+      </section>
+    </div>
+
+    <div class="progress" id="progress" style="display: none"></div>
+
+    <div class="nav">
+      <button class="nav-btn" id="nav-prev" aria-label="Previous" disabled>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+      <div class="dots"></div>
+      <button class="nav-btn" id="nav-next" aria-label="Next">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+    </div>
+
+    <button class="exit-btn" id="exit-btn">ESC to exit</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

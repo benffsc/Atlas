@@ -131,6 +131,7 @@ import {
   PanelLeftOpen,
   MoreHorizontal,
   UserCheck,
+  Presentation,
   type LucideIcon,
 } from "lucide-react";
 
@@ -189,6 +190,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   flag: Flag,
   compass: Compass,
   shield: Shield,
+  presentation: Presentation,
 
   // Admin - Developer
   "code-2": Code2,
