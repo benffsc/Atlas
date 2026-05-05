@@ -420,7 +420,6 @@ const ADMIN_SIDEBAR_FALLBACK: NavSection[] = [
       { label: "All Settings", href: "/admin/settings", icon: "settings" },
       { label: "Kiosk Config", href: "/admin/kiosk", icon: "tablet" },
       { label: "Demo Deck", href: "/admin/demo", icon: "monitor" },
-      { label: "Gala Walkthrough", href: "/admin/walkthrough", icon: "presentation" },
     ],
   },
   {

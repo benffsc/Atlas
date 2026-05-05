@@ -11,33 +11,154 @@
 </head>
 <body>
   <!--
-    Content is loaded dynamically from /api/walkthrough-config.
-    Edit slides at /admin/walkthrough in the app.
-    Edit transitions/layout in styles.css and script.js.
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║  BEACON GALA WALKTHROUGH                                        ║
+    ║                                                                  ║
+    ║  To edit: change text inside the <section> blocks below.        ║
+    ║  To add a slide: copy a <section> block and paste it in order.  ║
+    ║  To remove a slide: delete the entire <section> block.          ║
+    ║  To change colors: edit styles.css (CSS variables at top).      ║
+    ║  To change transitions: edit script.js.                         ║
+    ║                                                                  ║
+    ║  Navigation: Arrow keys, spacebar, or the dots at the bottom.   ║
+    ╚══════════════════════════════════════════════════════════════════╝
   -->
   <div class="walkthrough">
     <div class="slides" id="slides">
-      <!-- Slides are injected by script.js from the API -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           SLIDE: Title
+           ════════════════════════════════════════════════════════════ -->
       <section class="slide slide--title">
-        <div class="slide-inner" style="color: rgba(255,255,255,0.4); font-size: 0.9rem">
-          Loading walkthrough...
+        <div class="slide-inner">
+          <img src="/beacon-logo.jpeg" alt="Beacon" class="logo" />
+          <h1 class="headline">Beacon</h1>
+          <p class="tagline">See how we find, fix, and return community cats &mdash; and track every one.</p>
+          <p class="tagline org-name">Forgotten Felines of Sonoma County</p>
+          <div class="hint">Press <kbd>&rarr;</kbd> to begin</div>
         </div>
       </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SLIDE: Step 1 — Find
+           ════════════════════════════════════════════════════════════ -->
+      <section class="slide slide--find" data-label="Find" data-color="#f59e0b">
+        <div class="slide-inner">
+          <div class="step-badge" style="background: #f59e0b">Step 1: Find</div>
+          <h2 class="slide-title">A community member reports cats on their street</h2>
+          <p class="slide-body">
+            Every request starts with a person reaching out. We capture the location,
+            the situation, and how to help &mdash; then find it on the map.
+          </p>
+          <div class="iframe-wrapper">
+            <iframe src="/intake/queue/new" title="Find" loading="eager"></iframe>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SLIDE: Step 2 — Fix
+           ════════════════════════════════════════════════════════════ -->
+      <section class="slide slide--fix" data-label="Fix" data-color="#22c55e">
+        <div class="slide-inner">
+          <div class="step-badge" style="background: #22c55e">Step 2: Fix</div>
+          <h2 class="slide-title">We bring them to our clinic</h2>
+          <p class="slide-body">
+            FFSC is the only dedicated spay/neuter clinic for community cats in
+            Sonoma County. Every cat gets a medical record, microchip, and ear tip.
+          </p>
+          <div class="iframe-wrapper">
+            <iframe src="/admin/clinic-days" title="Fix" loading="eager"></iframe>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SLIDE: Step 3 — Return
+           ════════════════════════════════════════════════════════════ -->
+      <section class="slide slide--return" data-label="Return" data-color="#3b82f6">
+        <div class="slide-inner">
+          <div class="step-badge" style="background: #3b82f6">Step 3: Return</div>
+          <h2 class="slide-title">They go home &mdash; and we track the whole neighborhood</h2>
+          <p class="slide-body">
+            Each site isn&rsquo;t isolated. Beacon connects every colony to the places
+            around it, building a regional picture of progress.
+          </p>
+          <div class="iframe-wrapper">
+            <iframe src="/map?center=38.44,-122.72&zoom=12" title="Return" loading="lazy"></iframe>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SLIDE: Step 4 — Analyze
+           ════════════════════════════════════════════════════════════ -->
+      <section class="slide slide--analyze" data-label="Analyze" data-color="#8b5cf6">
+        <div class="slide-inner">
+          <div class="step-badge" style="background: #8b5cf6">Step 4: Analyze</div>
+          <h2 class="slide-title">Beacon shows us where to focus next</h2>
+          <p class="slide-body">
+            Population estimates, alteration rates, seasonal trends &mdash;
+            data-driven decisions for every zone in the county.
+          </p>
+          <div class="iframe-wrapper">
+            <iframe src="/beacon" title="Analyze" loading="lazy"></iframe>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SLIDE: Thank You
+           ════════════════════════════════════════════════════════════ -->
+      <section class="slide slide--thankyou">
+        <div class="slide-inner">
+          <h2 class="slide-title" style="font-size: 1.75rem">
+            With your support, we can reach every colony
+          </h2>
+          <p class="slide-body" style="margin-bottom: 2rem">
+            Every dollar goes directly to helping community cats.
+          </p>
+
+          <div class="unit-grid">
+            <div class="unit-card">
+              <div class="unit-amount">$50</div>
+              <div class="unit-equals">=</div>
+              <div class="unit-outcome">Spay/neuter one cat</div>
+            </div>
+            <div class="unit-card">
+              <div class="unit-amount">$250</div>
+              <div class="unit-equals">=</div>
+              <div class="unit-outcome">Cover a full clinic day for a colony</div>
+            </div>
+            <div class="unit-card">
+              <div class="unit-amount">$1,000</div>
+              <div class="unit-equals">=</div>
+              <div class="unit-outcome">Stabilize an entire neighborhood</div>
+            </div>
+          </div>
+
+          <p class="tagline thankyou-text">Thank you</p>
+        </div>
+      </section>
+
     </div>
 
-    <div class="progress" id="progress" style="display: none"></div>
+    <!-- Step progress pills (top center) -->
+    <div class="progress" id="progress">
+      <span class="progress-pill" data-step="Find" data-color="#f59e0b">Find</span>
+      <span class="progress-pill" data-step="Fix" data-color="#22c55e">Fix</span>
+      <span class="progress-pill" data-step="Return" data-color="#3b82f6">Return</span>
+      <span class="progress-pill" data-step="Analyze" data-color="#8b5cf6">Analyze</span>
+    </div>
 
+    <!-- Navigation -->
     <div class="nav">
-      <button class="nav-btn" id="nav-prev" aria-label="Previous" disabled>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
+      <button class="nav-btn" id="nav-prev" aria-label="Previous">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
       </button>
-      <div class="dots"></div>
+      <div class="dots" id="dots"></div>
       <button class="nav-btn" id="nav-next" aria-label="Next">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 18l6-6-6-6" />
-        </svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6" /></svg>
       </button>
     </div>
 
