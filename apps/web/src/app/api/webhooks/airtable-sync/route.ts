@@ -79,14 +79,17 @@ async function processTrapperAgreement(record: AirtableRecord, tableId: string) 
   const f = record.fields;
   const str = (key: string) => (typeof f[key] === "string" ? (f[key] as string).trim() : null) || null;
 
-  const firstName = str("First Name");
-  const lastName = str("Last Name");
-  const email = str("Email")?.toLowerCase() || null;
-  const phone = str("Phone");
-  const address = str("Address");
-  const availability = str("Availability");
-  const signature = str("Signature") || str("E-Signature");
-  const submissionId = str("Jotform Submission ID") || str("Submission ID");
+  // Field names: Airtable uses mixed case/snake_case from Jotform→Zapier mapping
+  const firstName = str("first_name") || str("First Name");
+  const lastName = str("last_name") || str("Last Name");
+  const email = (str("Email") || str("email"))?.toLowerCase() || null;
+  const phone = str("Phone") || str("phone");
+  const address = str("address") || str("Address");
+  const availability = str("Availability") || str("availability");
+  // Signature can be a string OR an Airtable attachment array
+  const sigField = f["Signature"] || f["E-Signature"] || f["signature"];
+  const signature = sigField ? (Array.isArray(sigField) ? sigField.length > 0 : !!sigField) : false;
+  const submissionId = str("Jotform Submission ID") || str("Submission ID") || str("submission_id");
 
   if (!firstName || !lastName) {
     await updateAirtableRecord(tableId, record.id, "error", "Missing first/last name");
@@ -120,7 +123,7 @@ async function processTrapperAgreement(record: AirtableRecord, tableId: string) 
   );
 
   // Create/update trapper profile
-  const hasSigned = !!signature;
+  const hasSigned = !!signature;  // true if signature attachment exists
   const profileNotes = availability ? `Availability: ${availability}` : null;
 
   await queryOne(
