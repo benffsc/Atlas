@@ -132,6 +132,10 @@ import {
   MoreHorizontal,
   UserCheck,
   Presentation,
+  Maximize2,
+  Minimize2,
+  Expand,
+  Shrink,
   type LucideIcon,
 } from "lucide-react";
 
@@ -296,6 +300,12 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   // Map shell sidebar toggle
   "panel-left-close": PanelLeftClose,
   "panel-left-open": PanelLeftOpen,
+
+  // Tippy chat panel
+  "maximize-2": Maximize2,
+  "minimize-2": Minimize2,
+  expand: Expand,
+  shrink: Shrink,
 };
 
 export type IconName = keyof typeof ICON_MAP;

@@ -623,26 +623,28 @@ export function TippyChat() {
           onClick={() => setIsOpen(true)}
           style={{
             position: "relative",
-            width: "64px",
-            height: "64px",
+            width: "60px",
+            height: "60px",
             borderRadius: "50%",
-            background: "var(--card-bg, #fff)",
-            border: "2px solid var(--border, #e5e7eb)",
+            background: "linear-gradient(145deg, #f8f8ff 0%, #e8f5e9 100%)",
+            border: "none",
             cursor: "pointer",
-            boxShadow: "var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12))",
+            boxShadow: "0 4px 20px rgba(102, 126, 234, 0.25), 0 2px 8px rgba(0,0,0,0.08)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             transition: "transform 0.2s, box-shadow 0.2s",
             padding: 0,
-            overflow: "hidden",
+            overflow: "visible",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.08)";
+            e.currentTarget.style.transform = "scale(1.1)";
+            e.currentTarget.style.boxShadow = "0 6px 24px rgba(102, 126, 234, 0.35), 0 3px 12px rgba(0,0,0,0.1)";
             setShowBubble(true);
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "scale(1)";
+            e.currentTarget.style.boxShadow = "0 4px 20px rgba(102, 126, 234, 0.25), 0 2px 8px rgba(0,0,0,0.08)";
           }}
           title="Ask Tippy"
         >
@@ -651,8 +653,8 @@ export function TippyChat() {
             src="/tippy-mascot.png"
             alt="Tippy"
             style={{
-              width: "48px",
-              height: "48px",
+              width: "42px",
+              height: "42px",
               objectFit: "contain",
               animation: "tippy-idle 3s ease-in-out infinite",
             }}
@@ -716,20 +718,26 @@ export function TippyChat() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/tippy-mascot.png"
-            alt="Tippy"
-            style={{ width: "32px", height: "32px", objectFit: "contain", filter: "brightness(10)" }}
-          />
-          <div>
-            <div style={{ fontWeight: 600 }}>Tippy</div>
-            <div style={{ fontSize: "0.75rem", opacity: 0.9 }}>
+          <div style={{
+            width: "36px", height: "36px", borderRadius: "50%",
+            background: "rgba(255,255,255,0.2)", display: "flex",
+            alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/tippy-mascot.png"
+              alt="Tippy"
+              style={{ width: "28px", height: "28px", objectFit: "contain" }}
+            />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Tippy</div>
+            <div style={{ fontSize: "0.7rem", opacity: 0.85 }}>
               Beacon Assistant
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "2px", flexShrink: 0 }}>
           <button
             onClick={startNewConversation}
             title="New conversation"
@@ -852,31 +860,37 @@ export function TippyChat() {
             ))
           )
         ) : messages.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/tippy-mascot.png"
-              alt="Tippy"
-              style={{
-                width: "80px",
-                height: "80px",
-                objectFit: "contain",
-                marginBottom: "12px",
-                animation: "tippy-idle 3s ease-in-out infinite",
-              }}
-            />
-            <div style={{ fontWeight: 600, marginBottom: "8px" }}>
+          <div style={{ textAlign: "center", padding: "20px 8px 8px" }}>
+            <div style={{
+              width: "100px", height: "100px", margin: "0 auto 16px",
+              borderRadius: "50%", background: "linear-gradient(135deg, #f0f0ff 0%, #e8f5e9 100%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 12px rgba(102, 126, 234, 0.15)",
+            }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/tippy-mascot.png"
+                alt="Tippy"
+                style={{
+                  width: "72px",
+                  height: "72px",
+                  objectFit: "contain",
+                  animation: "tippy-idle 3s ease-in-out infinite",
+                }}
+              />
+            </div>
+            <div style={{ fontWeight: 600, fontSize: "1.05rem", marginBottom: "6px", color: "var(--foreground)" }}>
               Hi! I&apos;m Tippy
             </div>
             <div
               style={{
-                fontSize: "0.85rem",
+                fontSize: "0.82rem",
                 color: "var(--text-muted)",
                 marginBottom: "16px",
+                lineHeight: 1.4,
               }}
             >
-              I can help you navigate Beacon and answer questions about TNR
-              operations.
+              Your Beacon assistant. Ask me about cats, places, requests, or anything in the system.
             </div>
 
             {/* FFS-866: Context-aware quick actions */}
