@@ -3422,6 +3422,53 @@ body.presentation-mode [data-admin-section="true"] {
   box-shadow: var(--shadow-md);
 }
 
+/* Utility button classes — theme-aware, usable outside map context */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: var(--foreground, #374151);
+  color: var(--background, #fff);
+  text-decoration: none;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+}
+
+.btn-primary {
+  background: var(--primary, #3b82f6);
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--foreground, #374151);
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+.btn-secondary:hover {
+  background: var(--section-bg, #f3f4f6);
+}
+
 /* Buttons: active state dip, consistent 200ms transitions */
 .btn,
 button[type="submit"],

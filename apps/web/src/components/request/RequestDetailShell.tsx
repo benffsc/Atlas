@@ -27,6 +27,7 @@ import { useRequestModals } from "./RequestModals";
 import { ResolutionBanner } from "./sections/ResolutionBanner";
 import { RelatedPeopleSection } from "./sections/RelatedPeopleSection";
 import { TripReportsTab } from "./sections/TripReportsTab";
+import { IntelligenceSection } from "./sections/IntelligenceSection";
 import { RequestAdminTab } from "./sections/RequestAdminTab";
 
 function LegacyBadge() {
@@ -47,7 +48,7 @@ interface RequestDetailShellProps {
 export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdated }: RequestDetailShellProps) {
   const requestId = id;
   const data = useRequestDetail(requestId);
-  const { request, loading, error, previousStatus, journalEntries, tripReports, relatedPeople, mapUrl, refreshRequest, fetchJournalEntries, fetchTripReports, fetchRelatedPeople, setPreviousStatus, setError } = data;
+  const { request, loading, error, previousStatus, journalEntries, tripReports, relatedPeople, tippyTickets, mapUrl, refreshRequest, fetchJournalEntries, fetchTripReports, fetchRelatedPeople, setPreviousStatus, setError } = data;
 
   const { ref: containerRef, isNarrow } = useContainerWidth();
   const isPanel = mode === "panel";
@@ -273,6 +274,14 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
           onOpenModal={modals.handleOpenActionBarModal}
         />
 
+        {/* Inline error banner for status changes */}
+        {error && request && (
+          <div style={{ padding: "0.5rem 0.75rem", marginBottom: "0.5rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", color: "#991b1b", fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>{error}</span>
+            <button onClick={() => setError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontWeight: 600, padding: "0 0.25rem" }}>&times;</button>
+          </div>
+        )}
+
         {/* Secondary actions */}
         <div style={{ display: "flex", gap: SPACING.sm, flexWrap: "wrap", marginBottom: SPACING.lg }}>
           {request.status !== "redirected" && request.status !== "handed_off" && !isResolved && (
@@ -399,6 +408,9 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             briefingContext={request}
             briefingJournal={journalEntries}
           />
+
+          {/* Field Intelligence (tippy tickets) */}
+          <IntelligenceSection tickets={tippyTickets} />
 
           {/* Trappers */}
           <CaseSection title="Assigned Trappers" icon="user" color="#ec4899">
@@ -593,6 +605,9 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
               briefingContext={request}
               briefingJournal={journalEntries}
             />
+
+            {/* Field Intelligence (tippy tickets) */}
+            <IntelligenceSection tickets={tippyTickets} />
           </TabPanel>
 
           {/* Cats Tab */}

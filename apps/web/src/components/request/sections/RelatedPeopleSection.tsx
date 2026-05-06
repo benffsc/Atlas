@@ -405,6 +405,7 @@ export function RelatedPeopleSection({
         requestId={requestId}
         onContactAdded={fetchRelatedPeople}
         existingPeople={relatedPeople}
+        placeAddress={briefingContext?.place_address}
       />
 
       <ActionDrawer

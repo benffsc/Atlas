@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   const placeId = searchParams.get("place_id");
   const personId = searchParams.get("person_id");
   const catId = searchParams.get("cat_id");
+  const requestId = searchParams.get("request_id");
   const includeResolved = searchParams.get("include_resolved") === "true";
 
   try {
@@ -58,6 +59,11 @@ export async function GET(request: NextRequest) {
       conditions.push(`(t.primary_cat_id = $${paramIdx} OR t.linked_entities @> $${paramIdx + 1}::jsonb)`);
       params.push(catId, JSON.stringify([{ entity_id: catId }]));
       paramIdx += 2;
+    }
+
+    if (requestId) {
+      conditions.push(`t.primary_request_id = $${paramIdx++}`);
+      params.push(requestId);
     }
 
     const whereClause = conditions.length > 0

@@ -6,6 +6,18 @@ import type { ApiError } from "@/lib/api-client";
 import type { JournalEntry } from "@/components/sections";
 import type { RequestDetail } from "@/app/requests/[id]/types";
 
+export interface TippyTicket {
+  ticket_id: string;
+  ticket_type: string;
+  status: string;
+  priority: string;
+  summary: string | null;
+  raw_input: string;
+  tags: string[];
+  created_at: string;
+  followup_date: string | null;
+}
+
 interface TripReportRow {
   report_id: string;
   trapper_name: string | null;
@@ -53,6 +65,7 @@ export interface RequestDetailData {
   journalEntries: JournalEntry[];
   tripReports: TripReportRow[];
   relatedPeople: RelatedPersonDisplay[];
+  tippyTickets: TippyTicket[];
   mapUrl: string | null;
   refreshRequest: () => Promise<void>;
   fetchJournalEntries: () => Promise<void>;
@@ -72,7 +85,35 @@ export function useRequestDetail(requestId: string): RequestDetailData {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [tripReports, setTripReports] = useState<TripReportRow[]>([]);
   const [relatedPeople, setRelatedPeople] = useState<RelatedPersonDisplay[]>([]);
+  const [tippyTickets, setTippyTickets] = useState<TippyTicket[]>([]);
   const [mapUrl, setMapUrl] = useState<string | null>(null);
+
+  const fetchTippyTickets = useCallback(async (placeId?: string | null) => {
+    try {
+      // Fetch tickets linked directly to this request OR to its place
+      const params = new URLSearchParams();
+      params.set("request_id", requestId);
+      const data = await fetchApi<{ tickets: TippyTicket[] }>(`/api/tippy-tickets?${params}`);
+      let tickets = data.tickets || [];
+
+      // Also fetch place-level tickets if place_id is available
+      if (placeId) {
+        const placeParams = new URLSearchParams();
+        placeParams.set("place_id", placeId);
+        const placeData = await fetchApi<{ tickets: TippyTicket[] }>(`/api/tippy-tickets?${placeParams}`);
+        const placeTickets = placeData.tickets || [];
+        // Merge, dedup by ticket_id
+        const seen = new Set(tickets.map(t => t.ticket_id));
+        for (const t of placeTickets) {
+          if (!seen.has(t.ticket_id)) tickets.push(t);
+        }
+      }
+
+      setTippyTickets(tickets);
+    } catch {
+      // Non-critical
+    }
+  }, [requestId]);
 
   const fetchRelatedPeople = useCallback(async () => {
     try {
@@ -118,6 +159,8 @@ export function useRequestDetail(requestId: string): RequestDetailData {
         if (data.place_coordinates) {
           setMapUrl(`https://maps.googleapis.com/maps/api/staticmap?center=${data.place_coordinates.lat},${data.place_coordinates.lng}&zoom=16&size=400x200&markers=color:green%7C${data.place_coordinates.lat},${data.place_coordinates.lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`);
         }
+        // Fetch tippy tickets after we know the place_id
+        fetchTippyTickets(data.place_id);
       } catch (err) {
         const apiErr = err as ApiError;
         setError(apiErr.code === 404 ? "Request not found" : apiErr.message || "Failed to load request");
@@ -129,7 +172,7 @@ export function useRequestDetail(requestId: string): RequestDetailData {
     fetchJournalEntries();
     fetchTripReports();
     fetchRelatedPeople();
-  }, [requestId, fetchJournalEntries, fetchTripReports, fetchRelatedPeople]);
+  }, [requestId, fetchJournalEntries, fetchTripReports, fetchRelatedPeople, fetchTippyTickets]);
 
   return {
     request,
@@ -139,6 +182,7 @@ export function useRequestDetail(requestId: string): RequestDetailData {
     journalEntries,
     tripReports,
     relatedPeople,
+    tippyTickets,
     mapUrl,
     refreshRequest,
     fetchJournalEntries,

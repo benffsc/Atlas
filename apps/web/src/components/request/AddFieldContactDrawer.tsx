@@ -13,6 +13,8 @@ interface AddFieldContactDrawerProps {
   requestId: string;
   onContactAdded: () => void;
   existingPeople?: RelatedPersonDisplay[];
+  /** Request's place address — used to pre-populate neighbor context */
+  placeAddress?: string | null;
 }
 
 export function AddFieldContactDrawer({
@@ -21,6 +23,7 @@ export function AddFieldContactDrawer({
   requestId,
   onContactAdded,
   existingPeople = [],
+  placeAddress,
 }: AddFieldContactDrawerProps) {
   const [name, setName] = useState("");
   const [showLastName, setShowLastName] = useState(false);
@@ -232,6 +235,11 @@ export function AddFieldContactDrawer({
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          {relationshipType === "neighbor" && placeAddress && (
+            <div style={{ marginTop: "4px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+              Neighbor to <strong>{placeAddress}</strong>
+            </div>
+          )}
         </div>
 
         {referrablePeople.length > 0 && (

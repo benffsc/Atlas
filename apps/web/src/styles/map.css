@@ -2091,44 +2091,8 @@
   cursor: not-allowed;
 }
 
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all var(--map-transition-fast);
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  border: none;
-}
-
-.btn-primary:hover {
-  filter: brightness(1.1);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: transparent;
-  color: var(--map-control-text);
-  border: 1px solid var(--map-control-border);
-}
-
-.btn-secondary:hover {
-  background: var(--map-control-hover);
-}
+/* Buttons — base .btn, .btn-sm, .btn-secondary, .btn-primary defined in globals.css.
+   Map-specific overrides only below. */
 
 /* Drawer Footer */
 .drawer-footer {

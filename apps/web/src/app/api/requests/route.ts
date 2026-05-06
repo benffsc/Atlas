@@ -659,9 +659,11 @@ export async function POST(request: NextRequest) {
       return apiBadRequest("Invalid reference - referenced entity does not exist");
     }
 
-    // CHECK constraint violations (enum values)
+    // CHECK constraint violations (enum values) — extract which constraint failed
     if (errorMessage.includes("violates check constraint")) {
-      return apiBadRequest("Invalid field value - check status/priority/handleability values");
+      const constraintName = errorMessage.match(/constraint "([^"]+)"/)?.[1] || "";
+      const field = constraintName.replace("requests_", "").replace("chk_requests_", "").replace("_check", "");
+      return apiBadRequest(`Invalid value for "${field}" — check that the selected option is valid`);
     }
 
     // NOT NULL constraint violations
