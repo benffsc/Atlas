@@ -70,6 +70,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
   // Checkout form state — persists across "check out another" scans
   const [checkoutPerson, setCheckoutPerson] = useState<CollectedPerson>(EMPTY_PERSON);
   const [checkoutPlace, setCheckoutPlace] = useState<ResolvedPlace | null>(null);
+  const [checkoutUnit, setCheckoutUnit] = useState("");
   const [checkoutNotes, setCheckoutNotes] = useState("");
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkedOutItems, setCheckedOutItems] = useState<CheckedOutItem[]>([]);
@@ -89,6 +90,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       setActionCount(0);
       setCheckoutPerson(EMPTY_PERSON);
       setCheckoutPlace(null);
+      setCheckoutUnit("");
       setCheckoutNotes("");
       setCheckedOutItems([]);
     }
@@ -212,7 +214,12 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
 
       const noteParts: string[] = [];
       if (checkoutNotes.trim()) noteParts.push(checkoutNotes.trim());
-      if (checkoutPlace) noteParts.push(`Address: ${checkoutPlace.formatted_address || checkoutPlace.display_name}`);
+      if (checkoutPlace) {
+        const addr = checkoutPlace.formatted_address || checkoutPlace.display_name;
+        noteParts.push(`Address: ${addr}${checkoutUnit.trim() ? `, ${checkoutUnit.trim()}` : ""}`);
+      } else if (checkoutUnit.trim()) {
+        noteParts.push(`Unit: ${checkoutUnit.trim()}`);
+      }
 
       await postApi(`/api/equipment/${equipment.equipment_id}/events`, {
         event_type: "check_out",
@@ -411,6 +418,29 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
                     value={checkoutPlace}
                     onChange={setCheckoutPlace}
                     placeholder="Search for an address..."
+                  />
+                </div>
+
+                {/* Unit / Apt */}
+                <div>
+                  <label style={{
+                    display: "block", fontSize: "0.8rem", fontWeight: 600,
+                    color: "var(--text-secondary)", textTransform: "uppercase",
+                    letterSpacing: "0.04em", marginBottom: "0.375rem",
+                  }}>
+                    Apt / Unit <span style={{ fontWeight: 400, textTransform: "none" }}>(if applicable)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={checkoutUnit}
+                    onChange={(e) => setCheckoutUnit(e.target.value)}
+                    placeholder="e.g. Apt 5, Unit B, Space 12"
+                    style={{
+                      width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8,
+                      border: "1px solid var(--card-border)", background: "var(--background, #fff)",
+                      fontSize: "0.85rem", fontFamily: "inherit", color: "var(--text-primary)",
+                      boxSizing: "border-box",
+                    }}
                   />
                 </div>
 
