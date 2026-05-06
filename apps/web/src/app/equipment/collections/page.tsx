@@ -786,12 +786,13 @@ function PrintCallList({
   };
 
   const entryWrapStyle: React.CSSProperties = {
-    borderBottom: `1px solid ${pf.color.hairline}`,
+    borderBottom: `1.5px solid ${pf.color.border}`,
     pageBreakInside: "avoid",
+    marginBottom: "2pt",
   };
 
   const rowStyle: React.CSSProperties = {
-    paddingTop: pf.spacing.fieldGap,
+    paddingTop: "6pt",
     paddingBottom: "2pt",
     display: "flex",
     gap: pf.spacing.columnGap,
@@ -903,43 +904,35 @@ function PrintCallList({
                     )}
                   </div>
 
-                  {/* Write-in: outcome checkboxes + return date + notes */}
+                  {/* Write-in area — full width, generous spacing for pen */}
                   <div style={{
                     paddingLeft: `calc(${pf.checkbox.size} + ${pf.checkbox.labelGap} + ${pf.spacing.columnGap})`,
-                    paddingBottom: pf.spacing.fieldGap,
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "2pt 10pt",
-                    alignItems: "center",
+                    paddingRight: "4pt",
+                    paddingTop: "4pt",
+                    paddingBottom: "8pt",
                     fontSize: pf.font.label,
                     color: pf.color.muted,
                   }}>
-                    {/* Outcome checkboxes */}
-                    {["Connected", "Voicemail", "No answer", "Wrong #", "Needs time"].map((label) => (
-                      <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: "2pt" }}>
-                        <span style={{ display: "inline-block", width: "8pt", height: "8pt", border: `0.75pt solid ${pf.color.border}`, borderRadius: "1pt" }} />
-                        {label}
+                    {/* Row 1: outcome checkboxes + return date — spread full width */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6pt" }}>
+                      <div style={{ display: "flex", gap: "12pt", alignItems: "center" }}>
+                        {["Connected", "VM", "No ans.", "Wrong #", "More time"].map((label) => (
+                          <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: "3pt" }}>
+                            <span style={{ display: "inline-block", width: "9pt", height: "9pt", border: `0.75pt solid ${pf.color.border}`, borderRadius: "1pt" }} />
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                      <span style={{ display: "inline-flex", alignItems: "baseline", gap: "3pt" }}>
+                        Return by:
+                        <span style={{ display: "inline-block", borderBottom: `1pt solid ${pf.color.border}`, width: "1.2in", height: "12pt" }} />
                       </span>
-                    ))}
-                    {/* Return date write-in */}
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "2pt", marginLeft: "4pt" }}>
-                      Return:
-                      <span style={{ display: "inline-block", borderBottom: `1pt solid ${pf.color.border}`, width: "0.8in", height: "10pt" }} />
-                    </span>
-                  </div>
-
-                  {/* Notes write-in line */}
-                  <div style={{
-                    paddingLeft: `calc(${pf.checkbox.size} + ${pf.checkbox.labelGap} + ${pf.spacing.columnGap})`,
-                    paddingBottom: pf.spacing.fieldGap,
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: "3pt",
-                    fontSize: pf.font.label,
-                    color: pf.color.muted,
-                  }}>
-                    Notes:
-                    <span style={{ flex: 1, borderBottom: `1pt solid ${pf.color.hairline}`, height: "10pt" }} />
+                    </div>
+                    {/* Row 2: notes line — full width */}
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "4pt" }}>
+                      <span style={{ flexShrink: 0 }}>Notes:</span>
+                      <span style={{ flex: 1, borderBottom: `1pt solid ${pf.color.hairline}`, height: "14pt" }} />
+                    </div>
                   </div>
                 </div>
               );
