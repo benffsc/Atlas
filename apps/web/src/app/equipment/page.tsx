@@ -82,7 +82,10 @@ export default function EquipmentDashboard() {
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Equipment</h1>
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <Button variant="primary" size="sm" icon="plus" onClick={() => window.location.href = "/equipment/add"}>
-            Add Equipment
+            Add
+          </Button>
+          <Button variant="outline" size="sm" icon="log-in" onClick={() => window.location.href = "/equipment/check-in"}>
+            Check In
           </Button>
           <Button variant="outline" size="sm" icon="scan-barcode" onClick={() => window.open("/kiosk/equipment/scan", "_blank")}>
             Scan
