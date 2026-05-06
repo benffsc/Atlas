@@ -80,20 +80,64 @@ export default function EquipmentDashboard() {
       {/* ═══ HEADER ═══ */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Equipment</h1>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <Button variant="primary" size="sm" icon="plus" onClick={() => window.location.href = "/equipment/add"}>
+        <div style={{ display: "flex", gap: "0.375rem" }}>
+          <Button variant="outline" size="sm" icon="plus" onClick={() => window.location.href = "/equipment/add"}>
             Add
-          </Button>
-          <Button variant="outline" size="sm" icon="log-in" onClick={() => window.location.href = "/equipment/check-in"}>
-            Check In
           </Button>
           <Button variant="outline" size="sm" icon="scan-barcode" onClick={() => window.open("/kiosk/equipment/scan", "_blank")}>
             Scan
           </Button>
-          <Button variant="outline" size="sm" icon="upload-cloud" onClick={() => window.location.href = "/admin/equipment/scan-slips"}>
-            Process Slips
-          </Button>
         </div>
+      </div>
+
+      {/* ═══ BIG ACTION BUTTONS ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1.25rem" }}>
+        <button
+          onClick={() => window.location.href = "/equipment/check-out"}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            padding: "1.25rem 1rem",
+            borderRadius: 12,
+            border: "2px solid var(--warning-border, #fbbf24)",
+            background: "var(--warning-bg, #fffbeb)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            transition: "box-shadow 150ms ease",
+          }}
+        >
+          <Icon name="log-out" size={28} color="var(--warning-text)" />
+          <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--warning-text)" }}>Check Out</span>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+            {stats.traps.available} traps available
+          </span>
+        </button>
+        <button
+          onClick={() => window.location.href = "/equipment/check-in"}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            padding: "1.25rem 1rem",
+            borderRadius: 12,
+            border: "2px solid var(--success-border, #bbf7d0)",
+            background: "var(--success-bg, #f0fdf4)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            transition: "box-shadow 150ms ease",
+          }}
+        >
+          <Icon name="log-in" size={28} color="var(--success-text)" />
+          <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--success-text)" }}>Check In</span>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+            {stats.traps.out} traps out
+          </span>
+        </button>
       </div>
 
       {/* ═══ TRAP STATS ═══ */}
