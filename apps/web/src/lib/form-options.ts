@@ -875,7 +875,6 @@ export const EQUIPMENT_CHECKOUT_TYPE_OPTIONS = [
   { value: "foster", label: "Foster", shortLabel: "Foster" },
   { value: "relo", label: "Relocation", shortLabel: "Relo" },
   { value: "clinic", label: "Clinic", shortLabel: "Clinic" },
-  { value: "client", label: "Client", shortLabel: "Client" },
   { value: "internal", label: "Internal", shortLabel: "Internal" },
 ] as const satisfies readonly FormOption[];
 
