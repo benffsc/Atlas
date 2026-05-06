@@ -86,7 +86,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
   const [checkoutPurpose, setCheckoutPurpose] = useState("");
   const [checkoutType, setCheckoutType] = useState("");
   const [checkoutDueDate, setCheckoutDueDate] = useState("");
-  const [checkoutDeposit, setCheckoutDeposit] = useState("");
+  const [checkoutDeposit, setCheckoutDeposit] = useState("0");
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
 
   const abortRef = useRef<AbortController>();
@@ -110,7 +110,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       setCheckoutPurpose("");
       setCheckoutType("");
       setCheckoutDueDate("");
-      setCheckoutDeposit("");
+      setCheckoutDeposit("0");
     }
     return () => { abortRef.current?.abort(); };
   }, [isOpen]);
@@ -250,7 +250,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
     setCheckoutPurpose("");
     setCheckoutType("");
     setCheckoutDueDate("");
-    setCheckoutDeposit("");
+    setCheckoutDeposit("0");
   }, []);
 
   // ── Add to cart from AvailableTrapCard ──
