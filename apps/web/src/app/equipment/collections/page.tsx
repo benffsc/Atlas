@@ -238,7 +238,7 @@ export default function CollectionsPage() {
         .print-call-list { display: none; }
 
         @media print {
-          nav, header, [data-sidebar], button, input, [data-no-print] { display: none !important; }
+          nav, header, aside, [data-sidebar], button, input, [data-no-print] { display: none !important; }
           .screen-ui { display: none !important; }
 
           .print-call-list {
@@ -881,9 +881,16 @@ function PrintCallList({
                   <div style={rowStyle}>
                     <div style={checkboxStyle} />
                     <span style={nameStyle}>{row.holder_name}</span>
-                    <span style={phoneStyle}>{phoneDisplay || "No phone"}</span>
+                    {phoneDisplay ? (
+                      <span style={phoneStyle}>{phoneDisplay}</span>
+                    ) : (
+                      <span style={phoneStyle}>
+                        <span style={{ fontSize: pf.font.label, color: pf.color.muted }}>Ph: </span>
+                        <span style={{ display: "inline-block", borderBottom: `1pt solid ${pf.color.border}`, minWidth: "1.2in", height: "12pt" }} />
+                      </span>
+                    )}
                     <span style={barcodesStyle}>{row.trap_barcodes.join(", ")}</span>
-                    <span style={daysStyle}>{row.max_days_overdue} days</span>
+                    <span style={daysStyle}>{row.max_days_overdue}d</span>
                   </div>
 
                   {/* Detail line: email + last contact */}
@@ -894,6 +901,45 @@ function PrintCallList({
                     {row.last_contact_notes && (
                       <span style={{ fontStyle: "italic" }}>{` \u2014 \u201C${row.last_contact_notes}\u201D`}</span>
                     )}
+                  </div>
+
+                  {/* Write-in: outcome checkboxes + return date + notes */}
+                  <div style={{
+                    paddingLeft: `calc(${pf.checkbox.size} + ${pf.checkbox.labelGap} + ${pf.spacing.columnGap})`,
+                    paddingBottom: pf.spacing.fieldGap,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "2pt 10pt",
+                    alignItems: "center",
+                    fontSize: pf.font.label,
+                    color: pf.color.muted,
+                  }}>
+                    {/* Outcome checkboxes */}
+                    {["Connected", "Voicemail", "No answer", "Wrong #", "Needs time"].map((label) => (
+                      <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: "2pt" }}>
+                        <span style={{ display: "inline-block", width: "8pt", height: "8pt", border: `0.75pt solid ${pf.color.border}`, borderRadius: "1pt" }} />
+                        {label}
+                      </span>
+                    ))}
+                    {/* Return date write-in */}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "2pt", marginLeft: "4pt" }}>
+                      Return:
+                      <span style={{ display: "inline-block", borderBottom: `1pt solid ${pf.color.border}`, width: "0.8in", height: "10pt" }} />
+                    </span>
+                  </div>
+
+                  {/* Notes write-in line */}
+                  <div style={{
+                    paddingLeft: `calc(${pf.checkbox.size} + ${pf.checkbox.labelGap} + ${pf.spacing.columnGap})`,
+                    paddingBottom: pf.spacing.fieldGap,
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: "3pt",
+                    fontSize: pf.font.label,
+                    color: pf.color.muted,
+                  }}>
+                    Notes:
+                    <span style={{ flex: 1, borderBottom: `1pt solid ${pf.color.hairline}`, height: "10pt" }} />
                   </div>
                 </div>
               );
