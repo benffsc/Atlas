@@ -104,12 +104,19 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       return;
     }
     let cancelled = false;
-    fetchApi<{ primary_place_id: string | null; primary_address: string | null }>(
+    fetchApi<{
+      primary_place_id: string | null;
+      primary_address: string | null;
+      places: Array<{ place_id: string; formatted_address: string | null }> | null;
+    }>(
       `/api/people/${checkoutPerson.person_id}`
     ).then((person) => {
       if (cancelled) return;
+      // Try primary address first, fall back to first place
       if (person.primary_place_id && person.primary_address) {
         setLinkedAddress({ place_id: person.primary_place_id, formatted_address: person.primary_address });
+      } else if (person.places?.length && person.places[0].formatted_address) {
+        setLinkedAddress({ place_id: person.places[0].place_id, formatted_address: person.places[0].formatted_address });
       } else {
         setLinkedAddress(null);
       }
