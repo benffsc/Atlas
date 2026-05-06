@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { getLabel, EQUIPMENT_EVENT_TYPE_OPTIONS, EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS, EQUIPMENT_CHECKOUT_TYPE_OPTIONS } from "@/lib/form-options";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import type { VEquipmentInventoryRow } from "@/lib/types/view-contracts";
 
 interface ScanResult extends VEquipmentInventoryRow {
@@ -69,6 +70,7 @@ interface EquipmentDrawerProps {
  */
 export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawerProps) {
   const toast = useToast();
+  const { value: PURPOSE_DUE_OFFSETS } = useAppConfig<Record<string, number>>("kiosk.purpose_due_offsets");
   const [state, setState] = useState<DrawerState>("idle");
   const [equipment, setEquipment] = useState<ScanResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -85,7 +87,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
   const [checkoutNotes, setCheckoutNotes] = useState("");
   const [checkoutPurpose, setCheckoutPurpose] = useState("");
   const [checkoutType, setCheckoutType] = useState("");
-  const [checkoutDueDate, setCheckoutDueDate] = useState("");
+  const [checkoutApptDate, setCheckoutApptDate] = useState("");
   const [checkoutDeposit, setCheckoutDeposit] = useState("0");
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
 
@@ -133,7 +135,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       setCheckoutNotes("");
       setCheckoutPurpose("");
       setCheckoutType("");
-      setCheckoutDueDate("");
+      setCheckoutApptDate("");
       setCheckoutDeposit("0");
     }
     return () => { abortRef.current?.abort(); };
@@ -273,7 +275,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
     setCheckoutNotes("");
     setCheckoutPurpose("");
     setCheckoutType("");
-    setCheckoutDueDate("");
+    setCheckoutApptDate("");
     setCheckoutDeposit("0");
   }, []);
 
@@ -331,6 +333,16 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       const finalNotes = noteParts.join(" | ") || undefined;
       const phone = checkoutPerson.phone.replace(/\D/g, "") || undefined;
 
+      // Compute due date from appointment date + purpose offset (min 7 days)
+      let computedDueDate: string | undefined;
+      if (checkoutApptDate) {
+        const purposeOffset = (checkoutPurpose && PURPOSE_DUE_OFFSETS?.[checkoutPurpose]) || 7;
+        const offset = Math.max(purposeOffset, 7);
+        const apptDate = new Date(checkoutApptDate + "T00:00:00");
+        apptDate.setDate(apptDate.getDate() + offset);
+        computedDueDate = apptDate.toISOString().split("T")[0];
+      }
+
       // Fire all checkout events
       const depositNum = checkoutDeposit ? Number(checkoutDeposit) : undefined;
       const results = await Promise.allSettled(
@@ -344,7 +356,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
             notes: finalNotes,
             checkout_purpose: checkoutPurpose || undefined,
             checkout_type: checkoutType || undefined,
-            due_date: checkoutDueDate || undefined,
+            due_date: computedDueDate,
             deposit_amount: depositNum && !isNaN(depositNum) ? depositNum : undefined,
             ...(checkoutPlace?.place_id ? { place_id: checkoutPlace.place_id } : {}),
           })
@@ -370,7 +382,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
     } finally {
       setCheckoutSubmitting(false);
     }
-  }, [checkoutCart, checkoutPerson, checkoutPlace, checkoutUnit, checkoutNotes, checkoutPurpose, checkoutType, checkoutDueDate, checkoutDeposit, toast]);
+  }, [checkoutCart, checkoutPerson, checkoutPlace, checkoutUnit, checkoutNotes, checkoutPurpose, checkoutType, checkoutApptDate, checkoutDeposit, PURPOSE_DUE_OFFSETS, toast]);
 
   // ── Display logic ──
   const showSmartCard = state === "found" && equipment && !forceGenericCard;
@@ -608,13 +620,24 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               <div>
-                <label style={labelStyle}>Due Date</label>
+                <label style={labelStyle}>Appointment Date</label>
                 <input
                   type="date"
-                  value={checkoutDueDate}
-                  onChange={(e) => setCheckoutDueDate(e.target.value)}
+                  value={checkoutApptDate}
+                  onChange={(e) => setCheckoutApptDate(e.target.value)}
                   style={inputStyle}
                 />
+                {checkoutApptDate && (() => {
+                  const purposeOffset = (checkoutPurpose && PURPOSE_DUE_OFFSETS?.[checkoutPurpose]) || 7;
+                  const offset = Math.max(purposeOffset, 7);
+                  const d = new Date(checkoutApptDate + "T00:00:00");
+                  d.setDate(d.getDate() + offset);
+                  return (
+                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>
+                      Due back {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (+{offset}d)
+                    </div>
+                  );
+                })()}
               </div>
               <div>
                 <label style={labelStyle}>
