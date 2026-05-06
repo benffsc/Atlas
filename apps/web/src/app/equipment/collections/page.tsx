@@ -399,9 +399,23 @@ function OverdueCard({
         </span>
       </div>
 
-      {/* Row 2: Traps + due date */}
+      {/* Row 2: Equipment + due date */}
       <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-        {row.trap_count} trap{row.trap_count !== 1 ? "s" : ""}: <strong style={{ fontFamily: "monospace" }}>{row.trap_barcodes.join(", ")}</strong>
+        {(row.trap_only_count > 0 && row.cage_count > 0) ? (
+          <>
+            {row.trap_only_count} trap{row.trap_only_count !== 1 ? "s" : ""}: <strong style={{ fontFamily: "monospace" }}>{(row.trap_only_barcodes || []).join(", ")}</strong>
+            {" · "}
+            {row.cage_count} cage{row.cage_count !== 1 ? "s" : ""}: <strong style={{ fontFamily: "monospace" }}>{(row.cage_barcodes || []).join(", ")}</strong>
+          </>
+        ) : row.cage_count > 0 ? (
+          <>
+            {row.cage_count} cage{row.cage_count !== 1 ? "s" : ""}: <strong style={{ fontFamily: "monospace" }}>{(row.cage_barcodes || []).join(", ")}</strong>
+          </>
+        ) : (
+          <>
+            {row.trap_count} trap{row.trap_count !== 1 ? "s" : ""}: <strong style={{ fontFamily: "monospace" }}>{row.trap_barcodes.join(", ")}</strong>
+          </>
+        )}
         {row.earliest_due_date && (
           <span style={{ marginLeft: "0.5rem", color: "var(--muted)" }}>
             &middot; due {new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -881,13 +895,38 @@ function PrintCallList({
                         <span style={{ fontSize: "10pt" }}>{row.email || "—"}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: "3pt", marginLeft: "auto" }}>
-                        <span style={flabel}>Equip:</span>
-                        <span style={{ fontFamily: "monospace", fontSize: "10pt" }}>{row.trap_barcodes.join(", ")}</span>
+                        {(row.trap_only_count > 0 && row.cage_count > 0) ? (
+                          <>
+                            <span style={flabel}>Traps:</span>
+                            <span style={{ fontFamily: "monospace", fontSize: "10pt" }}>{(row.trap_only_barcodes || []).join(", ")}</span>
+                            <span style={{ ...flabel, marginLeft: "6pt" }}>Cages:</span>
+                            <span style={{ fontFamily: "monospace", fontSize: "10pt" }}>{(row.cage_barcodes || []).join(", ")}</span>
+                          </>
+                        ) : row.cage_count > 0 ? (
+                          <>
+                            <span style={flabel}>Cages:</span>
+                            <span style={{ fontFamily: "monospace", fontSize: "10pt" }}>{(row.cage_barcodes || []).join(", ")}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={flabel}>Traps:</span>
+                            <span style={{ fontFamily: "monospace", fontSize: "10pt" }}>{row.trap_barcodes.join(", ")}</span>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Row 2: prior contact history */}
+                    {/* Row 2: due date + prior contact */}
                     <div style={{ fontSize: "9pt", color: pf.color.muted, marginBottom: "8pt" }}>
+                      {row.earliest_due_date && (
+                        <span>
+                          Due: {new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          {row.latest_due_date && row.latest_due_date !== row.earliest_due_date && (
+                            <>–{new Date(row.latest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</>
+                          )}
+                          {" · "}
+                        </span>
+                      )}
                       {contactSummary}
                       {row.last_contact_notes && (
                         <span style={{ fontStyle: "italic" }}>{` \u2014 \u201C${row.last_contact_notes}\u201D`}</span>

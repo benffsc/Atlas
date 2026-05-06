@@ -546,7 +546,12 @@ export interface OverdueQueueRow {
   trap_barcodes: string[];
   equipment_ids: string[];
   trap_count: number;
+  trap_only_barcodes: string[] | null;
+  cage_barcodes: string[] | null;
+  trap_only_count: number;
+  cage_count: number;
   earliest_due_date: string | null;
+  latest_due_date: string | null;
   max_days_overdue: number;
   has_overdue: boolean;
   is_trapper: boolean;

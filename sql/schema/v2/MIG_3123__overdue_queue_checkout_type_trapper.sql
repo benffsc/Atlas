@@ -15,7 +15,14 @@ WITH holder_equipment AS (
     ARRAY_AGG(e.barcode ORDER BY e.barcode) FILTER (WHERE e.barcode IS NOT NULL) AS trap_barcodes,
     ARRAY_AGG(e.equipment_id) AS equipment_ids,
     COUNT(*) AS trap_count,
+    -- Type-split barcodes
+    ARRAY_AGG(e.barcode ORDER BY e.barcode) FILTER (WHERE e.barcode IS NOT NULL AND e.equipment_type_key LIKE '%trap%') AS trap_only_barcodes,
+    ARRAY_AGG(e.barcode ORDER BY e.barcode) FILTER (WHERE e.barcode IS NOT NULL AND e.equipment_type_key = 'transfer_cage') AS cage_barcodes,
+    COUNT(*) FILTER (WHERE e.equipment_type_key LIKE '%trap%') AS trap_only_count,
+    COUNT(*) FILTER (WHERE e.equipment_type_key = 'transfer_cage') AS cage_count,
+    -- Dates
     MIN(e.expected_return_date) AS earliest_due_date,
+    MAX(e.expected_return_date) AS latest_due_date,
     MAX(EXTRACT(DAY FROM NOW() - e.expected_return_date))::int AS max_days_overdue,
     BOOL_OR(e.expected_return_date IS NOT NULL AND e.expected_return_date < NOW()) AS has_overdue,
     BOOL_OR(e.checkout_type = 'trapper') AS has_trapper_checkout
@@ -65,7 +72,12 @@ SELECT
   he.trap_barcodes,
   he.equipment_ids,
   he.trap_count,
+  he.trap_only_barcodes,
+  he.cage_barcodes,
+  he.trap_only_count,
+  he.cage_count,
   he.earliest_due_date,
+  he.latest_due_date,
   he.max_days_overdue,
   he.has_overdue,
   -- Trapper detection: trapper_profiles OR checkout_type='trapper'
