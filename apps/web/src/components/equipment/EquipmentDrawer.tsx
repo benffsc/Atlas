@@ -16,7 +16,7 @@ import { SimpleActionConfirm } from "@/components/kiosk/SimpleActionConfirm";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/feedback/EmptyState";
-import { getLabel, EQUIPMENT_EVENT_TYPE_OPTIONS } from "@/lib/form-options";
+import { getLabel, EQUIPMENT_EVENT_TYPE_OPTIONS, EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS, EQUIPMENT_CHECKOUT_TYPE_OPTIONS } from "@/lib/form-options";
 import type { VEquipmentInventoryRow } from "@/lib/types/view-contracts";
 
 interface ScanResult extends VEquipmentInventoryRow {
@@ -24,12 +24,7 @@ interface ScanResult extends VEquipmentInventoryRow {
   primary_action?: string | null;
 }
 
-type DrawerState = "idle" | "loading" | "found" | "action";
-
-interface CheckedOutItem {
-  barcode: string | null;
-  name: string;
-}
+type DrawerState = "idle" | "loading" | "found" | "action" | "checkout_cart";
 
 const EMPTY_PERSON: CollectedPerson = {
   person_id: null,
@@ -42,6 +37,22 @@ const EMPTY_PERSON: CollectedPerson = {
   resolution_type: "unresolved",
 };
 
+// Shared form styles
+const labelStyle: React.CSSProperties = {
+  display: "block", fontSize: "0.8rem", fontWeight: 600,
+  color: "var(--text-secondary)", textTransform: "uppercase",
+  letterSpacing: "0.04em", marginBottom: "0.375rem",
+};
+const labelHintStyle: React.CSSProperties = {
+  fontWeight: 400, textTransform: "none" as const, fontSize: "0.75rem",
+};
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8,
+  border: "1px solid var(--card-border)", background: "var(--background, #fff)",
+  fontSize: "0.85rem", fontFamily: "inherit", color: "var(--text-primary)",
+  boxSizing: "border-box",
+};
+
 interface EquipmentDrawerProps {
   isOpen: boolean;
   onClose: () => void;
@@ -50,12 +61,11 @@ interface EquipmentDrawerProps {
 
 /**
  * Unified equipment drawer — scan-first, status-aware.
- * One button on the dashboard opens this. Scan a barcode (or type 4-digit ID),
- * and the drawer shows the right action: check-in if out, check-out if available.
- * Same intelligence as the kiosk scan page, but in a slide-over.
  *
- * Checkout form uses KioskPersonCollector (first/last/phone/email with background
- * matching) + PlaceResolver (Google address autocomplete) — matching the paper form.
+ * Check-in: scan → HeroCheckinCard (one-tap).
+ * Check-out: scan → add to cart → scan more → fill person once → "Check Out All".
+ *
+ * The cart model means you fill person details ONCE for N items.
  */
 export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawerProps) {
   const toast = useToast();
@@ -67,13 +77,17 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
   const [forceGenericCard, setForceGenericCard] = useState(false);
   const [actionCount, setActionCount] = useState(0);
 
-  // Checkout form state — persists across "check out another" scans
+  // Checkout cart — accumulate items, fill person once, submit all
+  const [checkoutCart, setCheckoutCart] = useState<ScanResult[]>([]);
   const [checkoutPerson, setCheckoutPerson] = useState<CollectedPerson>(EMPTY_PERSON);
   const [checkoutPlace, setCheckoutPlace] = useState<ResolvedPlace | null>(null);
   const [checkoutUnit, setCheckoutUnit] = useState("");
   const [checkoutNotes, setCheckoutNotes] = useState("");
+  const [checkoutPurpose, setCheckoutPurpose] = useState("");
+  const [checkoutType, setCheckoutType] = useState("");
+  const [checkoutDueDate, setCheckoutDueDate] = useState("");
+  const [checkoutDeposit, setCheckoutDeposit] = useState("");
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
-  const [checkedOutItems, setCheckedOutItems] = useState<CheckedOutItem[]>([]);
 
   const abortRef = useRef<AbortController>();
   const scanIdRef = useRef(0);
@@ -88,11 +102,15 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       setActiveAction(null);
       setForceGenericCard(false);
       setActionCount(0);
+      setCheckoutCart([]);
       setCheckoutPerson(EMPTY_PERSON);
       setCheckoutPlace(null);
       setCheckoutUnit("");
       setCheckoutNotes("");
-      setCheckedOutItems([]);
+      setCheckoutPurpose("");
+      setCheckoutType("");
+      setCheckoutDueDate("");
+      setCheckoutDeposit("");
     }
     return () => { abortRef.current?.abort(); };
   }, [isOpen]);
@@ -102,6 +120,9 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
     onClose();
   };
 
+  // ── Scan handler — context-aware ──
+  // In checkout_cart mode, scanned available items auto-add to cart.
+  // Otherwise, normal scan-first flow.
   const handleScan = useCallback(async (barcode: string) => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -109,10 +130,14 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
     const currentScanId = ++scanIdRef.current;
 
     setLastBarcode(barcode);
-    setActiveAction(null);
-    setForceGenericCard(false);
-    setState("loading");
     setErrorMessage("");
+
+    // If NOT in cart mode, reset action state
+    if (state !== "checkout_cart") {
+      setActiveAction(null);
+      setForceGenericCard(false);
+    }
+    setState("loading");
 
     try {
       const result = await fetchApi<ScanResult>(
@@ -120,6 +145,25 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
         { signal: controller.signal },
       );
       if (scanIdRef.current !== currentScanId) return;
+
+      // If we're in cart mode, try to add directly
+      if (state === "checkout_cart" || checkoutCart.length > 0) {
+        if (result.custody_status === "available") {
+          // Check not already in cart
+          if (checkoutCart.some((c) => c.equipment_id === result.equipment_id)) {
+            toast.warning(`${result.display_name} is already in the cart`);
+          } else {
+            setCheckoutCart((prev) => [...prev, result]);
+            toast.success(`Added ${result.display_name} to cart`);
+          }
+          setState("checkout_cart");
+          setEquipment(null);
+          return;
+        }
+        // Not available — show it normally so user can handle (check in, etc.)
+        // but keep the cart alive
+      }
+
       setEquipment(result);
       setState("found");
     } catch (err) {
@@ -128,10 +172,10 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       const message = err instanceof Error ? err.message : "Failed to look up equipment";
       setErrorMessage(message);
       setEquipment(null);
-      setState("idle");
+      setState(checkoutCart.length > 0 ? "checkout_cart" : "idle");
       toast.error(message);
     }
-  }, [toast]);
+  }, [state, checkoutCart, toast]);
 
   const handleAction = useCallback((action: string) => {
     setActiveAction(action);
@@ -139,7 +183,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
   }, []);
 
   const reFetch = useCallback(async () => {
-    if (!lastBarcode) { setState("idle"); setEquipment(null); return; }
+    if (!lastBarcode) { setState(checkoutCart.length > 0 ? "checkout_cart" : "idle"); setEquipment(null); return; }
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -155,21 +199,35 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
         setState("found");
       }
     } catch {
-      if (!controller.signal.aborted) { setState("idle"); setEquipment(null); }
+      if (!controller.signal.aborted) {
+        setState(checkoutCart.length > 0 ? "checkout_cart" : "idle");
+        setEquipment(null);
+      }
     }
-  }, [lastBarcode]);
+  }, [lastBarcode, checkoutCart.length]);
 
   const handleSmartCardComplete = useCallback(() => {
     setActionCount((c) => c + 1);
-    reFetch();
-  }, [reFetch]);
+    // After a check-in/found action, go back to cart if it has items
+    if (checkoutCart.length > 0) {
+      setState("checkout_cart");
+      setEquipment(null);
+    } else {
+      reFetch();
+    }
+  }, [reFetch, checkoutCart.length]);
 
   const handleActionComplete = useCallback(() => {
     toast.success("Action completed");
     setActiveAction(null);
     setActionCount((c) => c + 1);
-    reFetch();
-  }, [toast, reFetch]);
+    if (checkoutCart.length > 0) {
+      setState("checkout_cart");
+      setEquipment(null);
+    } else {
+      reFetch();
+    }
+  }, [toast, reFetch, checkoutCart.length]);
 
   const handleActionCancel = useCallback(() => {
     setActiveAction(null);
@@ -184,32 +242,55 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
     setForceGenericCard(false);
     setErrorMessage("");
     setLastBarcode("");
+    setCheckoutCart([]);
+    setCheckoutPerson(EMPTY_PERSON);
+    setCheckoutPlace(null);
+    setCheckoutUnit("");
+    setCheckoutNotes("");
+    setCheckoutPurpose("");
+    setCheckoutType("");
+    setCheckoutDueDate("");
+    setCheckoutDeposit("");
   }, []);
 
-  // "Check out another" — reset scan state but keep person/place
-  const handleCheckoutAnother = useCallback(() => {
-    abortRef.current?.abort();
-    setState("idle");
-    setEquipment(null);
-    setActiveAction(null);
-    setForceGenericCard(false);
-    setErrorMessage("");
-    setLastBarcode("");
-    // Keep checkoutPerson, checkoutPlace, checkoutNotes for batch
-  }, []);
-
-  // Checkout handler — resolves person, posts event, supports batch
-  const handleInlineCheckout = useCallback(async () => {
+  // ── Add to cart from AvailableTrapCard ──
+  const handleAddToCart = useCallback(() => {
     if (!equipment) return;
+    if (checkoutCart.some((c) => c.equipment_id === equipment.equipment_id)) {
+      toast.warning("Already in cart");
+      return;
+    }
+    setCheckoutCart((prev) => [...prev, equipment]);
+    setState("checkout_cart");
+    setEquipment(null);
+    setLastBarcode("");
+  }, [equipment, checkoutCart, toast]);
+
+  const handleRemoveFromCart = useCallback((equipmentId: string) => {
+    setCheckoutCart((prev) => {
+      const next = prev.filter((c) => c.equipment_id !== equipmentId);
+      if (next.length === 0) {
+        setState("idle");
+      }
+      return next;
+    });
+  }, []);
+
+  // ── Batch checkout — resolve person once, fire N events ──
+  const handleBatchCheckout = useCallback(async () => {
     const name = `${checkoutPerson.first_name} ${checkoutPerson.last_name}`.trim();
     if (!name) {
       toast.error("Enter the borrower's name");
       return;
     }
+    if (checkoutCart.length === 0) {
+      toast.error("No items in cart");
+      return;
+    }
 
     setCheckoutSubmitting(true);
     try {
-      // Resolve or create person via identity engine
+      // Resolve person once
       const resolution = await resolveCollectedPerson(checkoutPerson);
 
       const noteParts: string[] = [];
@@ -220,51 +301,61 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       } else if (checkoutUnit.trim()) {
         noteParts.push(`Unit: ${checkoutUnit.trim()}`);
       }
+      if (checkoutCart.length > 1) {
+        noteParts.push(`Batch: ${checkoutCart.length} items`);
+      }
+      const finalNotes = noteParts.join(" | ") || undefined;
+      const phone = checkoutPerson.phone.replace(/\D/g, "") || undefined;
 
-      await postApi(`/api/equipment/${equipment.equipment_id}/events`, {
-        event_type: "check_out",
-        custodian_person_id: resolution.person_id || undefined,
-        custodian_name: name,
-        custodian_name_raw: name,
-        custodian_phone: checkoutPerson.phone.replace(/\D/g, "") || undefined,
-        notes: noteParts.join(" | ") || undefined,
-        ...(checkoutPlace?.place_id ? { place_id: checkoutPlace.place_id } : {}),
-      });
+      // Fire all checkout events
+      const depositNum = checkoutDeposit ? Number(checkoutDeposit) : undefined;
+      const results = await Promise.allSettled(
+        checkoutCart.map((item) =>
+          postApi(`/api/equipment/${item.equipment_id}/events`, {
+            event_type: "check_out",
+            custodian_person_id: resolution.person_id || undefined,
+            custodian_name: name,
+            custodian_name_raw: name,
+            custodian_phone: phone,
+            notes: finalNotes,
+            checkout_purpose: checkoutPurpose || undefined,
+            checkout_type: checkoutType || undefined,
+            due_date: checkoutDueDate || undefined,
+            deposit_amount: depositNum && !isNaN(depositNum) ? depositNum : undefined,
+            ...(checkoutPlace?.place_id ? { place_id: checkoutPlace.place_id } : {}),
+          })
+        )
+      );
 
-      toast.success(`${equipment.display_name} → ${name}`);
-      setActionCount((c) => c + 1);
-      setCheckedOutItems((prev) => [...prev, {
-        barcode: equipment.barcode,
-        name: equipment.display_name,
-      }]);
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.filter((r) => r.status === "rejected").length;
 
-      // Update person with resolved ID for next batch item
-      if (resolution.person_id && !checkoutPerson.person_id) {
-        setCheckoutPerson((prev) => ({
-          ...prev,
-          person_id: resolution.person_id,
-          is_resolved: true,
-          resolution_type: resolution.resolution_type,
-        }));
+      if (failed === 0) {
+        toast.success(`${succeeded} item${succeeded !== 1 ? "s" : ""} checked out to ${name}`);
+      } else {
+        toast.warning(`${succeeded} succeeded, ${failed} failed`);
       }
 
-      setActiveAction(null);
-      reFetch();
+      setActionCount((c) => c + succeeded);
+      setCheckoutCart([]);
+      setEquipment(null);
+      setState("idle");
+      setLastBarcode("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Check-out failed");
+      toast.error(err instanceof Error ? err.message : "Batch checkout failed");
     } finally {
       setCheckoutSubmitting(false);
     }
-  }, [equipment, checkoutPerson, checkoutPlace, checkoutNotes, toast, reFetch]);
+  }, [checkoutCart, checkoutPerson, checkoutPlace, checkoutUnit, checkoutNotes, checkoutPurpose, checkoutType, checkoutDueDate, checkoutDeposit, toast]);
 
-  // Smart card display logic
+  // ── Display logic ──
   const showSmartCard = state === "found" && equipment && !forceGenericCard;
   const smartCardStatus = equipment?.custody_status;
   const useSmartCard = showSmartCard && (smartCardStatus === "checked_out" || smartCardStatus === "missing" || smartCardStatus === "available");
-
   const personName = `${checkoutPerson.first_name} ${checkoutPerson.last_name}`.trim();
+  const inCartMode = state === "checkout_cart" || checkoutCart.length > 0;
 
-  const footer = actionCount > 0 ? (
+  const footer = actionCount > 0 && !inCartMode ? (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
         <Icon name="check-circle" size={18} color="var(--success-text)" />
@@ -272,15 +363,9 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
           {actionCount} action{actionCount !== 1 ? "s" : ""} completed
         </span>
       </div>
-      {checkedOutItems.length > 0 && state !== "action" ? (
-        <Button variant="ghost" size="sm" onClick={handleCheckoutAnother}>
-          + Another Item
-        </Button>
-      ) : (
-        <Button variant="ghost" size="sm" onClick={handleReset}>
-          Scan Another
-        </Button>
-      )}
+      <Button variant="ghost" size="sm" onClick={handleReset}>
+        Start Over
+      </Button>
     </div>
   ) : undefined;
 
@@ -291,54 +376,247 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
         <BarcodeInput
           onScan={handleScan}
           loading={state === "loading"}
-          placeholder="Scan barcode or type 4-digit ID..."
+          placeholder={inCartMode ? "Scan another barcode to add to cart..." : "Scan barcode or type 4-digit ID..."}
           autoFocus={isOpen}
         />
       </div>
 
-      {/* Batch checkout summary — shows items already checked out this session */}
-      {checkedOutItems.length > 0 && state !== "action" && (
-        <div style={{
-          padding: "0.5rem 0.75rem",
-          background: "var(--warning-bg)",
-          border: "1px solid var(--warning-border)",
-          borderRadius: 8,
-          marginBottom: "1rem",
-          fontSize: "0.8rem",
-        }}>
-          <div style={{ fontWeight: 600, color: "var(--warning-text)", marginBottom: 2 }}>
-            Checked out to {personName}:
-          </div>
-          {checkedOutItems.map((item, i) => (
-            <span key={i} style={{ color: "var(--text-secondary)" }}>
-              {i > 0 && ", "}
-              {item.barcode ? `#${item.barcode}` : ""} {item.name}
-            </span>
-          ))}
-        </div>
-      )}
-
       {/* Not found */}
-      {state === "idle" && errorMessage && (
+      {(state === "idle" || state === "checkout_cart") && errorMessage && (
         <div style={{
-          padding: "1rem",
+          padding: "0.75rem 1rem",
           background: "var(--warning-bg)",
           border: "1px solid var(--warning-border)",
           borderRadius: 10,
           textAlign: "center",
           marginBottom: "1rem",
         }}>
-          <Icon name="help-circle" size={28} color="var(--warning-text)" />
-          <p style={{ color: "var(--warning-text)", fontWeight: 600, fontSize: "0.95rem", margin: "0.5rem 0 0.25rem" }}>
-            Not Recognized
-          </p>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
+          <p style={{ color: "var(--warning-text)", fontWeight: 600, fontSize: "0.9rem", margin: 0 }}>
             {errorMessage}
           </p>
         </div>
       )}
 
-      {/* Smart cards — same as kiosk */}
+      {/* ═══ CHECKOUT CART MODE ═══ */}
+      {inCartMode && state !== "found" && state !== "action" && state !== "loading" && (
+        <div style={{
+          borderRadius: 12,
+          border: "2px solid var(--warning-border)",
+          background: "var(--warning-bg)",
+          padding: "1.25rem",
+        }}>
+          {/* Cart header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Icon name="shopping-cart" size={20} color="var(--warning-text)" />
+              <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>
+                Check Out {checkoutCart.length} Item{checkoutCart.length !== 1 ? "s" : ""}
+              </h3>
+            </div>
+            <Button variant="ghost" size="sm" onClick={handleReset} style={{ fontSize: "0.75rem" }}>
+              Clear
+            </Button>
+          </div>
+
+          {/* Cart items */}
+          <div style={{
+            display: "flex", flexDirection: "column", gap: "0.375rem",
+            marginBottom: "1rem",
+            padding: "0.5rem",
+            background: "var(--card-bg, #fff)",
+            borderRadius: 8,
+            border: "1px solid var(--card-border)",
+          }}>
+            {checkoutCart.map((item) => (
+              <div
+                key={item.equipment_id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.375rem 0.5rem",
+                  borderRadius: 6,
+                  background: "var(--section-bg, #f9fafb)",
+                }}
+              >
+                {item.photo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.photo_url}
+                    alt={item.display_name}
+                    style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 6,
+                    background: "var(--bg-secondary, #f3f4f6)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <Icon name={item.type_category === "cage" ? "grid-3x3" : "box"} size={16} color="var(--muted)" />
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontFamily: "monospace", fontSize: "0.75rem", fontWeight: 700, color: "var(--text-secondary)" }}>
+                    #{item.barcode}
+                  </span>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 600, marginLeft: "0.375rem" }}>
+                    {item.display_name}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleRemoveFromCart(item.equipment_id)}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    padding: "0.25rem", color: "var(--muted)", flexShrink: 0,
+                  }}
+                  title="Remove"
+                >
+                  <Icon name="x" size={14} color="var(--muted)" />
+                </button>
+              </div>
+            ))}
+            <div style={{
+              padding: "0.375rem 0.5rem",
+              fontSize: "0.75rem",
+              color: "var(--muted)",
+              textAlign: "center",
+              borderTop: "1px dashed var(--card-border)",
+              marginTop: "0.125rem",
+            }}>
+              Scan another barcode above to add more items
+            </div>
+          </div>
+
+          {/* Form fields — white card so text has proper contrast */}
+          <div style={{
+            background: "var(--card-bg, #fff)",
+            borderRadius: 10,
+            border: "1px solid var(--card-border)",
+            padding: "1rem",
+            display: "flex", flexDirection: "column", gap: "0.75rem",
+          }}>
+            {/* ── Borrower ── */}
+            <KioskPersonCollector
+              value={checkoutPerson}
+              onChange={setCheckoutPerson}
+            />
+
+            {/* ── Address ── */}
+            <div>
+              <label style={labelStyle}>
+                Address <span style={labelHintStyle}>(where equipment will be used)</span>
+              </label>
+              <PlaceResolver
+                value={checkoutPlace}
+                onChange={setCheckoutPlace}
+                placeholder="Search for an address..."
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Apt / Unit <span style={labelHintStyle}>(if applicable)</span>
+              </label>
+              <input
+                type="text"
+                value={checkoutUnit}
+                onChange={(e) => setCheckoutUnit(e.target.value)}
+                placeholder="e.g. Apt 5, Unit B, Space 12"
+                style={inputStyle}
+              />
+            </div>
+
+            {/* ── Checkout Details ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <div>
+                <label style={labelStyle}>Purpose</label>
+                <select
+                  value={checkoutPurpose}
+                  onChange={(e) => setCheckoutPurpose(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Select...</option>
+                  {EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Checkout Type</label>
+                <select
+                  value={checkoutType}
+                  onChange={(e) => setCheckoutType(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Select...</option>
+                  {EQUIPMENT_CHECKOUT_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <div>
+                <label style={labelStyle}>Due Date</label>
+                <input
+                  type="date"
+                  value={checkoutDueDate}
+                  onChange={(e) => setCheckoutDueDate(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  Deposit <span style={labelHintStyle}>($)</span>
+                </label>
+                <input
+                  type="number"
+                  value={checkoutDeposit}
+                  onChange={(e) => setCheckoutDeposit(e.target.value)}
+                  placeholder="0"
+                  min="0"
+                  step="5"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>
+                Notes <span style={labelHintStyle}>(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={checkoutNotes}
+                onChange={(e) => setCheckoutNotes(e.target.value)}
+                placeholder="e.g. Paper form filled, appointment 5/15..."
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          {/* Actions — outside white card */}
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+            <Button variant="ghost" size="lg" onClick={handleReset} style={{ flex: 1, borderRadius: 10 }}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              icon="log-out"
+              loading={checkoutSubmitting}
+              disabled={!personName || checkoutCart.length === 0}
+              onClick={handleBatchCheckout}
+              style={{ flex: 2, borderRadius: 10 }}
+            >
+              Check Out{checkoutCart.length > 1 ? ` All (${checkoutCart.length})` : ""}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ SMART CARDS — non-checkout scan results ═══ */}
       {useSmartCard && smartCardStatus === "checked_out" && (
         <HeroCheckinCard
           equipmentId={equipment.equipment_id}
@@ -365,130 +643,50 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
           equipmentId={equipment.equipment_id}
           equipmentName={equipment.display_name}
           onComplete={handleSmartCardComplete}
-          onCheckOut={() => {
-            setForceGenericCard(true);
-            handleAction("check_out");
-          }}
+          onCheckOut={handleAddToCart}
         />
       )}
 
-      {/* Generic card fallback + action forms */}
+      {/* Generic card fallback + non-checkout action forms */}
       {(state === "found" || state === "action") && equipment && (forceGenericCard || !useSmartCard) && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {/* Hide equipment card when in checkout action */}
-          {!(state === "action" && activeAction === "check_out") && (
-            <KioskEquipmentCard
-              equipment={equipment}
-              onAction={handleAction}
-            />
-          )}
-
-          {/* ═══ CHECKOUT FORM ═══ */}
-          {state === "action" && activeAction === "check_out" && (
+          {/* For available items in generic view, show "Add to Cart" instead of per-item checkout */}
+          {state === "found" && equipment.custody_status === "available" && (
             <div style={{
-              borderRadius: 12,
-              border: "2px solid var(--warning-border)",
-              background: "var(--warning-bg)",
-              padding: "1.25rem",
+              padding: "1rem",
+              borderRadius: 10,
+              border: "1px solid var(--card-border)",
+              background: "var(--card-bg, #fff)",
+              display: "flex", alignItems: "center", gap: "0.75rem",
             }}>
-              <div style={{ textAlign: "center", marginBottom: "1rem" }}>
-                <Icon name="log-out" size={28} color="var(--warning-text)" />
-                <h3 style={{ margin: "0.5rem 0 0.25rem", fontSize: "1.05rem", fontWeight: 700 }}>
-                  Check out {equipment.display_name}
-                </h3>
+              {equipment.photo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={equipment.photo_url} alt={equipment.display_name}
+                  style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+              ) : (
+                <div style={{ width: 48, height: 48, borderRadius: 8, background: "var(--bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon name={equipment.type_category === "cage" ? "grid-3x3" : "box"} size={22} color="var(--muted)" />
+                </div>
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>
+                  <span style={{ fontFamily: "monospace", fontSize: "0.8rem", color: "var(--text-secondary)" }}>#{equipment.barcode}</span>{" "}
+                  {equipment.display_name}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--success-text)" }}>Available</div>
               </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {/* Person collector — first/last name, phone, email with background matching */}
-                <KioskPersonCollector
-                  value={checkoutPerson}
-                  onChange={setCheckoutPerson}
-                />
-
-                {/* Address — Google autocomplete */}
-                <div>
-                  <label style={{
-                    display: "block", fontSize: "0.8rem", fontWeight: 600,
-                    color: "var(--text-secondary)", textTransform: "uppercase",
-                    letterSpacing: "0.04em", marginBottom: "0.375rem",
-                  }}>
-                    Address <span style={{ fontWeight: 400, textTransform: "none", fontSize: "0.75rem" }}>(where equipment will be used)</span>
-                  </label>
-                  <PlaceResolver
-                    value={checkoutPlace}
-                    onChange={setCheckoutPlace}
-                    placeholder="Search for an address..."
-                  />
-                </div>
-
-                {/* Unit / Apt */}
-                <div>
-                  <label style={{
-                    display: "block", fontSize: "0.8rem", fontWeight: 600,
-                    color: "var(--text-secondary)", textTransform: "uppercase",
-                    letterSpacing: "0.04em", marginBottom: "0.375rem",
-                  }}>
-                    Apt / Unit <span style={{ fontWeight: 400, textTransform: "none" }}>(if applicable)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={checkoutUnit}
-                    onChange={(e) => setCheckoutUnit(e.target.value)}
-                    placeholder="e.g. Apt 5, Unit B, Space 12"
-                    style={{
-                      width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8,
-                      border: "1px solid var(--card-border)", background: "var(--background, #fff)",
-                      fontSize: "0.85rem", fontFamily: "inherit", color: "var(--text-primary)",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <label style={{
-                    display: "block", fontSize: "0.8rem", fontWeight: 600,
-                    color: "var(--text-secondary)", textTransform: "uppercase",
-                    letterSpacing: "0.04em", marginBottom: "0.375rem",
-                  }}>
-                    Notes <span style={{ fontWeight: 400, textTransform: "none" }}>(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={checkoutNotes}
-                    onChange={(e) => setCheckoutNotes(e.target.value)}
-                    placeholder="e.g. Deposit $75, transport to clinic..."
-                    style={{
-                      width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8,
-                      border: "1px solid var(--card-border)", background: "var(--background, #fff)",
-                      fontSize: "0.85rem", fontFamily: "inherit", color: "var(--text-primary)",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
-                  <Button variant="ghost" size="lg" onClick={handleActionCancel} style={{ flex: 1, borderRadius: 10 }}>
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    icon="log-out"
-                    loading={checkoutSubmitting}
-                    disabled={!personName}
-                    onClick={handleInlineCheckout}
-                    style={{ flex: 2, borderRadius: 10 }}
-                  >
-                    Check Out
-                  </Button>
-                </div>
-              </div>
+              <Button variant="primary" size="sm" icon="plus" onClick={handleAddToCart} style={{ borderRadius: 8 }}>
+                Add to Cart
+              </Button>
             </div>
           )}
 
-          {/* Generic action forms (not check_out) */}
+          {/* Non-available items get the standard cards */}
+          {state === "found" && equipment.custody_status !== "available" && (
+            <KioskEquipmentCard equipment={equipment} onAction={handleAction} />
+          )}
+
+          {/* Non-checkout action forms */}
           {state === "action" && activeAction && activeAction !== "check_out" && activeAction !== "check_in" && (
             <SimpleActionConfirm
               equipmentId={equipment.equipment_id}
@@ -500,23 +698,34 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
             />
           )}
 
-          {state === "found" && (
-            <Button
-              variant="ghost"
-              size="lg"
-              icon="scan-barcode"
-              fullWidth
-              onClick={handleReset}
-              style={{ marginTop: "0.25rem" }}
-            >
+          {/* For action=check_out on generic card, show add-to-cart prompt */}
+          {state === "action" && activeAction === "check_out" && equipment.custody_status === "available" && (
+            <div style={{ textAlign: "center", padding: "1rem" }}>
+              <Button variant="primary" size="lg" icon="plus" onClick={handleAddToCart} style={{ borderRadius: 10 }}>
+                Add {equipment.display_name} to Cart
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleActionCancel} style={{ marginTop: "0.5rem" }}>
+                Cancel
+              </Button>
+            </div>
+          )}
+
+          {state === "found" && !inCartMode && (
+            <Button variant="ghost" size="lg" icon="scan-barcode" fullWidth onClick={handleReset} style={{ marginTop: "0.25rem" }}>
               Scan Another
+            </Button>
+          )}
+
+          {state === "found" && inCartMode && (
+            <Button variant="ghost" size="sm" onClick={() => { setState("checkout_cart"); setEquipment(null); }} style={{ marginTop: "0.25rem" }}>
+              Back to Cart ({checkoutCart.length} item{checkoutCart.length !== 1 ? "s" : ""})
             </Button>
           )}
         </div>
       )}
 
       {/* Idle hint */}
-      {state === "idle" && !errorMessage && (
+      {state === "idle" && !errorMessage && !inCartMode && (
         <EmptyState
           title="Scan or type a barcode"
           description="Type the 4-digit barcode ID or scan with a USB scanner. The right action will appear based on the item's status."
