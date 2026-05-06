@@ -89,8 +89,32 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
   const [checkoutDeposit, setCheckoutDeposit] = useState("0");
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
 
+  // Linked address from resolved person
+  const [linkedAddress, setLinkedAddress] = useState<{ place_id: string; formatted_address: string } | null>(null);
+
   const abortRef = useRef<AbortController>();
   const scanIdRef = useRef(0);
+
+  // Fetch person's address when resolved
+  useEffect(() => {
+    if (!checkoutPerson.is_resolved || !checkoutPerson.person_id) {
+      setLinkedAddress(null);
+      return;
+    }
+    let cancelled = false;
+    fetchApi<{ person: { primary_place_id: string | null; primary_address: string | null } }>(
+      `/api/people/${checkoutPerson.person_id}`
+    ).then((data) => {
+      if (cancelled) return;
+      const p = data.person;
+      if (p.primary_place_id && p.primary_address) {
+        setLinkedAddress({ place_id: p.primary_place_id, formatted_address: p.primary_address });
+      } else {
+        setLinkedAddress(null);
+      }
+    }).catch(() => { if (!cancelled) setLinkedAddress(null); });
+    return () => { cancelled = true; };
+  }, [checkoutPerson.is_resolved, checkoutPerson.person_id]);
 
   // Reset on open
   useEffect(() => {
@@ -105,6 +129,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       setCheckoutCart([]);
       setCheckoutPerson(EMPTY_PERSON);
       setCheckoutPlace(null);
+      setLinkedAddress(null);
       setCheckoutUnit("");
       setCheckoutNotes("");
       setCheckoutPurpose("");
@@ -506,6 +531,32 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
               <label style={labelStyle}>
                 Address <span style={labelHintStyle}>(where equipment will be used)</span>
               </label>
+              {linkedAddress && !checkoutPlace && (
+                <button
+                  type="button"
+                  onClick={() => setCheckoutPlace({
+                    place_id: linkedAddress.place_id,
+                    display_name: linkedAddress.formatted_address,
+                    formatted_address: linkedAddress.formatted_address,
+                    locality: null,
+                  })}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.5rem",
+                    width: "100%", padding: "0.5rem 0.75rem", marginBottom: "0.5rem",
+                    borderRadius: 8,
+                    border: "1px solid var(--info-border, #93c5fd)",
+                    background: "var(--info-bg, #eff6ff)",
+                    cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                    fontSize: "0.8rem", color: "var(--text-primary)",
+                  }}
+                >
+                  <Icon name="map-pin" size={14} color="var(--info-text)" />
+                  <span style={{ flex: 1 }}>
+                    Use <strong>{checkoutPerson.display_name || checkoutPerson.first_name}</strong>&apos;s address:{" "}
+                    <span style={{ color: "var(--text-secondary)" }}>{linkedAddress.formatted_address}</span>
+                  </span>
+                </button>
+              )}
               <PlaceResolver
                 value={checkoutPlace}
                 onChange={setCheckoutPlace}
