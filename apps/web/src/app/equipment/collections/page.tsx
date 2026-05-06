@@ -319,7 +319,7 @@ function OverdueCard({
 
   const phoneDisplay = row.phone ? formatPhone(row.phone) : null;
   const dueDateDisplay = row.earliest_due_date
-    ? new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    ? new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })
     : "";
   const defaultSms = "Hi {first_name}, this is Forgotten Felines checking on trap {barcodes} you borrowed. Please return to {org_address} or call {org_phone}. Thank you!";
   const smsBody = encodeURIComponent(
@@ -418,12 +418,12 @@ function OverdueCard({
         )}
         {row.checked_out_at && (
           <span style={{ marginLeft: "0.5rem", color: "var(--muted)" }}>
-            &middot; out {new Date(row.checked_out_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            &middot; out {new Date(row.checked_out_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}
           </span>
         )}
         {row.earliest_due_date && (
           <span style={{ marginLeft: "0.5rem", color: "var(--muted)" }}>
-            &middot; due {new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            &middot; due {new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}
           </span>
         )}
       </div>
@@ -448,7 +448,7 @@ function OverdueCard({
       <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.375rem" }}>
         {row.last_contact_at ? (
           <>
-            Last: {new Date(row.last_contact_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            Last: {new Date(row.last_contact_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}
             {" \u2014 "}{formatOutcome(row.last_contact_outcome)}
             {row.last_contact_notes && <span style={{ fontStyle: "italic" }}> &mdash; &ldquo;{row.last_contact_notes}&rdquo;</span>}
             {row.contact_attempt_count > 1 && <span> ({row.contact_attempt_count} attempts)</span>}
@@ -482,7 +482,7 @@ function OverdueCard({
             <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
               {contactHistory.map((attempt, i) => {
                 const date = new Date(attempt.attempted_at);
-                const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" });
                 const isSystem = attempt.method === "system";
                 return (
                   <div key={i} style={{
@@ -849,7 +849,7 @@ function PrintCallList({
             {rows.map((row) => {
               const phoneDisplay = row.phone ? formatPhone(row.phone) : null;
               const lastContactDate = row.last_contact_at
-                ? new Date(row.last_contact_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                ? new Date(row.last_contact_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })
                 : null;
               const lastOutcome = formatOutcome(row.last_contact_outcome);
               const contactSummary = lastContactDate
@@ -925,15 +925,15 @@ function PrintCallList({
                     <div style={{ fontSize: "9pt", color: pf.color.muted, marginBottom: "8pt" }}>
                       {row.checked_out_at && (
                         <span>
-                          Out: {new Date(row.checked_out_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          Out: {new Date(row.checked_out_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}
                           {" · "}
                         </span>
                       )}
                       {row.earliest_due_date && (
                         <span>
-                          Due: {new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          Due: {new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}
                           {row.latest_due_date && row.latest_due_date !== row.earliest_due_date && (
-                            <>–{new Date(row.latest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</>
+                            <>–{new Date(row.latest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}</>
                           )}
                           {" · "}
                         </span>
