@@ -102,13 +102,12 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       return;
     }
     let cancelled = false;
-    fetchApi<{ person: { primary_place_id: string | null; primary_address: string | null } }>(
+    fetchApi<{ primary_place_id: string | null; primary_address: string | null }>(
       `/api/people/${checkoutPerson.person_id}`
-    ).then((data) => {
+    ).then((person) => {
       if (cancelled) return;
-      const p = data.person;
-      if (p.primary_place_id && p.primary_address) {
-        setLinkedAddress({ place_id: p.primary_place_id, formatted_address: p.primary_address });
+      if (person.primary_place_id && person.primary_address) {
+        setLinkedAddress({ place_id: person.primary_place_id, formatted_address: person.primary_address });
       } else {
         setLinkedAddress(null);
       }
@@ -433,7 +432,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
           {/* Cart header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Icon name="shopping-cart" size={20} color="var(--warning-text)" />
+              <Icon name="package-plus" size={20} color="var(--warning-text)" />
               <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>
                 Check Out {checkoutCart.length} Item{checkoutCart.length !== 1 ? "s" : ""}
               </h3>

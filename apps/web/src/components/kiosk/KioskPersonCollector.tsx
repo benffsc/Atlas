@@ -378,11 +378,12 @@ export function KioskPersonCollector({
                 fontFamily: "inherit",
                 textAlign: "left",
                 marginBottom: "0.375rem",
+                color: "var(--text-primary, #111)",
               }}
             >
               <Icon name="user" size={16} color="var(--primary)" />
               <div>
-                <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{match.display_name}</div>
+                <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text-primary, #111)" }}>{match.display_name}</div>
                 {match.subtitle && (
                   <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
                     {match.subtitle}
