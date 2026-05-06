@@ -825,6 +825,7 @@ function EquipmentPageContent() {
             <EquipmentPreviewContent
               equipment={selectedEquipment}
               onClose={() => setFilter("selected", "")}
+              onUpdate={fetchData}
             />
           ) : null
         }

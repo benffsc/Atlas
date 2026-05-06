@@ -5,7 +5,7 @@ import Link from "next/link";
 import { formatPhone } from "@/lib/formatters";
 
 interface EntityPreviewPanelProps {
-  title: string;
+  title: ReactNode;
   detailHref: string;
   onClose: () => void;
   badges?: ReactNode;

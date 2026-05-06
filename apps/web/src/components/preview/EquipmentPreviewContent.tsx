@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import { fetchApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 import { EntityPreviewPanel } from "@/components/preview/EntityPreviewPanel";
+import { Icon } from "@/components/ui/Icon";
 import { getLabel } from "@/lib/form-options";
 import { EQUIPMENT_CUSTODY_STATUS_OPTIONS, EQUIPMENT_CONDITION_OPTIONS, EQUIPMENT_FUNCTIONAL_STATUS_OPTIONS } from "@/lib/form-options";
 import type { VEquipmentInventoryRow } from "@/lib/types/view-contracts";
@@ -9,9 +13,75 @@ import { getCustodyStyle, getFunctionalStyle } from "@/lib/equipment-styles";
 interface EquipmentPreviewContentProps {
   equipment: VEquipmentInventoryRow;
   onClose: () => void;
+  onUpdate?: () => void;
 }
 
-export function EquipmentPreviewContent({ equipment, onClose }: EquipmentPreviewContentProps) {
+export function EquipmentPreviewContent({ equipment, onClose, onUpdate }: EquipmentPreviewContentProps) {
+  const toast = useToast();
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(equipment.display_name);
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveName = async () => {
+    const trimmed = nameValue.trim();
+    if (!trimmed || trimmed === equipment.display_name) {
+      setEditingName(false);
+      setNameValue(equipment.display_name);
+      return;
+    }
+    setSaving(true);
+    try {
+      await fetchApi(`/api/equipment/${equipment.equipment_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ equipment_name: trimmed }),
+      });
+      toast.success(`Renamed to "${trimmed}"`);
+      setEditingName(false);
+      onUpdate?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to rename");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const titleContent = editingName ? (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+      <input
+        type="text"
+        value={nameValue}
+        onChange={(e) => setNameValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") { setEditingName(false); setNameValue(equipment.display_name); } }}
+        autoFocus
+        disabled={saving}
+        style={{
+          flex: 1, padding: "0.25rem 0.5rem", borderRadius: 6,
+          border: "1.5px solid var(--primary, #3b82f6)", fontSize: "1rem",
+          fontWeight: 600, fontFamily: "inherit", color: "var(--text-primary)",
+          outline: "none", boxSizing: "border-box", minWidth: 0,
+        }}
+      />
+      <button onClick={handleSaveName} disabled={saving} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem" }} title="Save">
+        <Icon name="check" size={18} color="var(--success-text)" />
+      </button>
+      <button onClick={() => { setEditingName(false); setNameValue(equipment.display_name); }} style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem" }} title="Cancel">
+        <Icon name="x" size={18} color="var(--muted)" />
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+      <span>{equipment.display_name}</span>
+      <button
+        onClick={() => { setNameValue(equipment.display_name); setEditingName(true); }}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: "0.125rem", color: "var(--muted)", flexShrink: 0 }}
+        title="Edit name"
+      >
+        <Icon name="pencil" size={14} color="var(--muted)" />
+      </button>
+    </div>
+  );
+
   const stats = [
     {
       label: "Status",
@@ -141,7 +211,7 @@ export function EquipmentPreviewContent({ equipment, onClose }: EquipmentPreview
 
   return (
     <EntityPreviewPanel
-      title={equipment.display_name}
+      title={titleContent}
       detailHref={`/equipment/${equipment.equipment_id}?from=equipment`}
       onClose={onClose}
       badges={
