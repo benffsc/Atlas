@@ -251,7 +251,7 @@ export default function CollectionsPage() {
 
           @page {
             size: letter portrait;
-            margin: 0;
+            margin: 0.25in 0.2in;
           }
         }
       `}</style>
@@ -752,7 +752,7 @@ function PrintCallList({
     fontSize: pf.font.body,
     lineHeight: pf.lineHeight.body,
     color: pf.color.text,
-    padding: `${pf.spacing.pageMarginY} ${pf.spacing.pageMarginX}`,
+    padding: "0.25in 0.3in",
   };
 
   const headerStyle: React.CSSProperties = {
