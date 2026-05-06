@@ -110,18 +110,21 @@ export function EquipmentPreviewContent({ equipment, onClose, onUpdate }: Equipm
       title: "Photo",
       content: (
         <div style={{ textAlign: "center" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={equipment.photo_url}
-            alt={equipment.display_name}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "200px",
-              borderRadius: "8px",
-              objectFit: "contain",
-              background: "var(--muted-bg)",
-            }}
-          />
+          <a href={equipment.photo_url} target="_blank" rel="noopener noreferrer" title="Open full-size image" style={{ display: "inline-block", cursor: "zoom-in" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={equipment.photo_url}
+              alt={equipment.display_name}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "200px",
+                borderRadius: "8px",
+                objectFit: "contain",
+                background: "var(--muted-bg)",
+              }}
+            />
+          </a>
+          <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.25rem" }}>Click to open full size</div>
         </div>
       ),
     }] : []),
