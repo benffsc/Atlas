@@ -108,25 +108,7 @@ export function EquipmentPreviewContent({ equipment, onClose, onUpdate }: Equipm
     ...(equipment.photo_url ? [{
       id: "photo",
       title: "Photo",
-      content: (
-        <div style={{ textAlign: "center" }}>
-          <a href={equipment.photo_url} target="_blank" rel="noopener noreferrer" title="Open full-size image" style={{ display: "inline-block", cursor: "zoom-in" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={equipment.photo_url}
-              alt={equipment.display_name}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "200px",
-                borderRadius: "8px",
-                objectFit: "contain",
-                background: "var(--muted-bg)",
-              }}
-            />
-          </a>
-          <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.25rem" }}>Click to open full size</div>
-        </div>
-      ),
+      content: <PhotoZoom src={equipment.photo_url} alt={equipment.display_name} />,
     }] : []),
     {
       id: "details",
@@ -232,5 +214,68 @@ export function EquipmentPreviewContent({ equipment, onClose, onUpdate }: Equipm
       stats={stats}
       sections={sections}
     />
+  );
+}
+
+/** Thumbnail with click-to-fullscreen overlay + pinch/scroll zoom */
+function PhotoZoom({ src, alt }: { src: string; alt: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <div style={{ textAlign: "center" }}>
+        <button
+          onClick={() => setOpen(true)}
+          style={{ background: "none", border: "none", cursor: "zoom-in", padding: 0 }}
+          title="Click to zoom"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={alt} style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "8px", objectFit: "contain", background: "var(--muted-bg)" }} />
+        </button>
+        <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.25rem" }}>Click to zoom</div>
+      </div>
+
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "zoom-out",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ overflow: "auto", maxWidth: "95vw", maxHeight: "95vh", cursor: "default" }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src}
+              alt={alt}
+              style={{
+                maxWidth: "none",
+                width: "auto",
+                height: "auto",
+                minWidth: "80vw",
+                borderRadius: "4px",
+              }}
+            />
+          </div>
+          <button
+            onClick={() => setOpen(false)}
+            style={{
+              position: "fixed", top: 16, right: 16,
+              background: "rgba(255,255,255,0.9)", border: "none",
+              borderRadius: "50%", width: 36, height: 36,
+              cursor: "pointer", fontSize: "1.25rem", fontWeight: 700,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
+    </>
   );
 }
