@@ -81,9 +81,10 @@ SELECT
   he.max_days_overdue,
   he.has_overdue,
   -- Trapper detection: trapper_profiles OR checkout_type='trapper'
-  (
+  COALESCE(
     EXISTS(SELECT 1 FROM sot.trapper_profiles tp WHERE tp.person_id = he.person_id)
-    OR he.has_trapper_checkout
+    OR he.has_trapper_checkout,
+    false
   ) AS is_trapper,
   -- Contact history
   lc.last_contact_at,
