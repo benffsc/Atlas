@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { StatCard } from "@/components/ui/StatCard";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { SkeletonList } from "@/components/feedback/Skeleton";
 import { formatPhone } from "@/lib/formatters";
+import { EquipmentDrawer } from "@/components/equipment/EquipmentDrawer";
 import type { VEquipmentInventoryRow, OverdueQueueRow } from "@/lib/types/view-contracts";
 
 /**
@@ -26,8 +27,10 @@ export default function EquipmentDashboard() {
     event_type: string; custodian_name: string | null; barcode: string | null; created_at: string;
   }>>([]);
   const [loading, setLoading] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  useEffect(() => {
+  const loadDashboard = useCallback(() => {
+    setLoading(true);
     Promise.all([
       fetchApi<{ equipment: VEquipmentInventoryRow[] }>("/api/equipment?limit=500")
         .then((d) => setEquipment(d.equipment || [])),
@@ -38,6 +41,10 @@ export default function EquipmentDashboard() {
         .catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
 
   // Category stats
   const stats = useMemo(() => {
@@ -90,55 +97,35 @@ export default function EquipmentDashboard() {
         </div>
       </div>
 
-      {/* ═══ BIG ACTION BUTTONS ═══ */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1.25rem" }}>
-        <button
-          onClick={() => window.location.href = "/equipment/check-out"}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-            padding: "1.25rem 1rem",
-            borderRadius: 12,
-            border: "2px solid var(--warning-border, #fbbf24)",
-            background: "var(--warning-bg, #fffbeb)",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            transition: "box-shadow 150ms ease",
-          }}
-        >
-          <Icon name="log-out" size={28} color="var(--warning-text)" />
-          <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--warning-text)" }}>Check Out</span>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-            {stats.traps.available} traps available
+      {/* ═══ BIG ACTION BUTTON ═══ */}
+      <button
+        onClick={() => setDrawerOpen(true)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "0.75rem",
+          width: "100%",
+          padding: "1.25rem 1rem",
+          marginBottom: "1.25rem",
+          borderRadius: 12,
+          border: "2px solid var(--primary, #3b82f6)",
+          background: "var(--info-bg, #eff6ff)",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          transition: "box-shadow 150ms ease",
+        }}
+      >
+        <Icon name="scan-barcode" size={28} color="var(--primary)" />
+        <div style={{ textAlign: "left" }}>
+          <span style={{ display: "block", fontSize: "1rem", fontWeight: 700, color: "var(--primary)" }}>
+            Check In / Out
           </span>
-        </button>
-        <button
-          onClick={() => window.location.href = "/equipment/check-in"}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-            padding: "1.25rem 1rem",
-            borderRadius: 12,
-            border: "2px solid var(--success-border, #bbf7d0)",
-            background: "var(--success-bg, #f0fdf4)",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            transition: "box-shadow 150ms ease",
-          }}
-        >
-          <Icon name="log-in" size={28} color="var(--success-text)" />
-          <span style={{ fontSize: "1rem", fontWeight: 700, color: "var(--success-text)" }}>Check In</span>
           <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-            {stats.traps.out} traps out
+            {stats.traps.available} available &middot; {stats.traps.out} out
           </span>
-        </button>
-      </div>
+        </div>
+      </button>
 
       {/* ═══ TRAP STATS ═══ */}
       <div style={{
@@ -306,6 +293,12 @@ export default function EquipmentDashboard() {
           </span>
         </section>
       )}
+      {/* ═══ DRAWER ═══ */}
+      <EquipmentDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onComplete={loadDashboard}
+      />
     </div>
   );
 }
