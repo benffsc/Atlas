@@ -226,8 +226,8 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
         custodian_person_id: resolution.person_id || undefined,
         custodian_name: name,
         custodian_name_raw: name,
+        custodian_phone: checkoutPerson.phone.replace(/\D/g, "") || undefined,
         notes: noteParts.join(" | ") || undefined,
-        // Pass place if resolved so backend can link
         ...(checkoutPlace?.place_id ? { place_id: checkoutPlace.place_id } : {}),
       });
 
