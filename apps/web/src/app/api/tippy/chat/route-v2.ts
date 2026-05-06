@@ -193,6 +193,9 @@ ANALYTICAL RECIPES (use with run_sql — ONE query, not schema exploration):
 12. PERSON SEARCH (fallback): Use person_lookup tool FIRST. If it returns nothing: SELECT person_id::text, display_name, email FROM sot.people WHERE display_name ILIKE '%NAME%' AND merged_into_person_id IS NULL LIMIT 5
 13. RECENT ACTIVITY (last 30 days): SELECT appointment_date, COUNT(DISTINCT cat_id) as cats, COUNT(DISTINCT place_id) as places FROM ops.appointments WHERE appointment_date >= NOW() - INTERVAL '30 days' GROUP BY 1 ORDER BY 1
 
+14. CAT JOURNEY / LIFECYCLE: SELECT cat_name, journey_status, origin_address, destination_address, current_person_name, intake_date::date, status_date::date FROM sot.v_cat_journey WHERE cat_id = '<uuid>' — Shows where cat came from (origin), where it ended up (destination), and current status (in foster, adopted, relocated, returned to field, deceased). For place-level: WHERE origin_place_id = '<place_uuid>' shows all cats that originated from a location. journey_status values: 'In foster care', 'Adopted', 'Adopted by foster parent', 'Relocated (barn cat program)', 'Returned to field (TNR)', 'Transferred to partner org', 'Deceased', 'In FFSC custody'.
+15. CATS FROM A PLACE (with outcomes): SELECT cat_name, journey_status, destination_address, current_person_name, status_date::date FROM sot.v_cat_journey WHERE origin_place_id = '<place_uuid>' ORDER BY intake_date DESC — What happened to all cats that came from this location? Foster is temporary — if journey_status='In foster care', the cat will likely be adopted or relocated soon.
+
 CRITICAL: Do NOT run "SELECT column_name FROM information_schema..." — it is BLOCKED. The schema info and recipes above are sufficient. If you need a query not covered by a recipe, use the DATABASE SCHEMA section above to construct it directly.
 
 DO NOT USE run_sql FOR (use the right tool instead):
