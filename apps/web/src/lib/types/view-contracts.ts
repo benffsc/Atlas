@@ -555,6 +555,7 @@ export interface OverdueQueueRow {
   max_days_overdue: number;
   has_overdue: boolean;
   is_trapper: boolean;
+  checked_out_at: string | null;
   last_contact_at: string | null;
   last_contact_method: string | null;
   last_contact_outcome: string | null;

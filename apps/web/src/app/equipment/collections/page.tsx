@@ -416,6 +416,11 @@ function OverdueCard({
             {row.trap_count} trap{row.trap_count !== 1 ? "s" : ""}: <strong style={{ fontFamily: "monospace" }}>{row.trap_barcodes.join(", ")}</strong>
           </>
         )}
+        {row.checked_out_at && (
+          <span style={{ marginLeft: "0.5rem", color: "var(--muted)" }}>
+            &middot; out {new Date(row.checked_out_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        )}
         {row.earliest_due_date && (
           <span style={{ marginLeft: "0.5rem", color: "var(--muted)" }}>
             &middot; due {new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -916,8 +921,14 @@ function PrintCallList({
                       </div>
                     </div>
 
-                    {/* Row 2: due date + prior contact */}
+                    {/* Row 2: checkout date + due date + prior contact */}
                     <div style={{ fontSize: "9pt", color: pf.color.muted, marginBottom: "8pt" }}>
+                      {row.checked_out_at && (
+                        <span>
+                          Out: {new Date(row.checked_out_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          {" · "}
+                        </span>
+                      )}
                       {row.earliest_due_date && (
                         <span>
                           Due: {new Date(row.earliest_due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
