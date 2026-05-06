@@ -381,6 +381,15 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
 
       setActionCount((c) => c + succeeded);
       setCheckoutCart([]);
+      setCheckoutPerson(EMPTY_PERSON);
+      setCheckoutPlace(null);
+      setLinkedAddress(null);
+      setCheckoutUnit("");
+      setCheckoutNotes("");
+      setCheckoutPurpose("");
+      setCheckoutType("");
+      setCheckoutApptDate("");
+      setCheckoutDeposit("0");
       setEquipment(null);
       setState("idle");
       setLastBarcode("");
