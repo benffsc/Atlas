@@ -151,10 +151,35 @@ WHERE e.equipment_id = latest.equipment_id
   AND e.custody_status = 'checked_out'
   AND (e.expected_return_date IS NULL OR e.expected_return_date != latest.due_date);
 
--- Also clear expected_return_date for equipment that has no due_date on latest event
--- (prevents stale dates from old checkouts)
+-- =============================================================================
+-- 3. Backfill: for checked-out equipment with NO due_date on event,
+--    infer from custodian's most recent clinic appointment + 10 days
+-- =============================================================================
+-- Logic: find the custodian's most recent appointment (from ops.appointments),
+-- set expected_return_date = appointment_date + 10 days.
+-- If no appointment found, use checkout_date + 30 days as a safe fallback.
+
 UPDATE ops.equipment e
-SET expected_return_date = NULL
+SET expected_return_date = COALESCE(
+    -- Try: custodian's most recent appointment + 10 days
+    (
+        SELECT (a.appointment_date + INTERVAL '10 days')::date
+        FROM ops.appointments a
+        WHERE a.person_id = e.current_custodian_id
+          AND a.appointment_date IS NOT NULL
+        ORDER BY a.appointment_date DESC
+        LIMIT 1
+    ),
+    -- Fallback: checkout event date + 30 days
+    (
+        SELECT (ev.created_at + INTERVAL '30 days')::date
+        FROM ops.equipment_events ev
+        WHERE ev.equipment_id = e.equipment_id
+          AND ev.event_type IN ('check_out', 'transfer')
+        ORDER BY ev.created_at DESC
+        LIMIT 1
+    )
+)
 FROM (
     SELECT DISTINCT ON (ev.equipment_id)
         ev.equipment_id,
@@ -165,5 +190,4 @@ FROM (
 ) latest
 WHERE e.equipment_id = latest.equipment_id
   AND e.custody_status = 'checked_out'
-  AND latest.due_date IS NULL
-  AND e.expected_return_date IS NOT NULL;
+  AND latest.due_date IS NULL;
