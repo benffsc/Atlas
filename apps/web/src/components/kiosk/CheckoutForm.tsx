@@ -87,7 +87,7 @@ export function CheckoutForm({
       selectedPurposes: [] as string[],
       clientStatedPurpose: "",
       checkoutType: "public", // Auto-default to public (most common)
-      depositAmount: 50, // FFS-1231: default $50 (FFSC standard) — staff must actively waive
+      depositAmount: 0, // Default $0 — staff enters actual amount collected
       customDeposit: "",
       depositMethod: "" as string, // FFS-1208: cash, card, waived, none
       dueDate: defaultDueDate(),
