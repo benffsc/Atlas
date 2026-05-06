@@ -238,7 +238,9 @@ export default function CollectionsPage() {
         .print-call-list { display: none; }
 
         @media print {
-          nav, header, aside, [data-sidebar], button, input, [data-no-print] { display: none !important; }
+          nav, header, aside, [data-sidebar], button, input, [data-no-print],
+          .tippy-fab, .tippy-speech-bubble, .tippy-chat-panel,
+          [data-tippy-root], iframe { display: none !important; }
           .screen-ui { display: none !important; }
 
           .print-call-list {
@@ -785,64 +787,23 @@ function PrintCallList({
     borderBottom: `1px solid ${pf.color.border}`,
   };
 
-  const entryWrapStyle: React.CSSProperties = {
-    borderBottom: `1.5px solid ${pf.color.border}`,
-    pageBreakInside: "avoid",
-    marginBottom: "2pt",
-  };
-
-  const rowStyle: React.CSSProperties = {
-    paddingTop: "6pt",
-    paddingBottom: "2pt",
-    display: "flex",
-    gap: pf.spacing.columnGap,
-    alignItems: "baseline",
-  };
-
-  const checkboxStyle: React.CSSProperties = {
-    width: pf.checkbox.size,
-    height: pf.checkbox.size,
-    border: pf.checkbox.border,
-    flexShrink: 0,
-    display: "inline-block",
-    borderRadius: 2,
-    position: "relative",
-    top: "2pt",
-  };
-
-  const nameStyle: React.CSSProperties = {
-    fontWeight: pf.weight.label,
-    fontSize: pf.font.body,
-    minWidth: "2.4in",
-  };
-
-  const phoneStyle: React.CSSProperties = {
-    fontSize: pf.font.body,
-    minWidth: "1.5in",
-  };
-
-  const barcodesStyle: React.CSSProperties = {
-    fontSize: pf.font.body,
-    fontFamily: "monospace",
-    minWidth: "1.2in",
-  };
-
-  const daysStyle: React.CSSProperties = {
-    fontSize: pf.font.body,
-    fontWeight: pf.weight.label,
-    textAlign: "right",
-    whiteSpace: "nowrap",
-    minWidth: "0.7in",
-    marginLeft: "auto",
-  };
-
-  const detailLineStyle: React.CSSProperties = {
-    fontSize: pf.font.label,
+  // Field label style for write-in areas
+  const flabel: React.CSSProperties = {
+    fontSize: "7pt",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.3px",
     color: pf.color.muted,
-    paddingLeft: `calc(${pf.checkbox.size} + ${pf.checkbox.labelGap} + ${pf.spacing.columnGap})`,
-    paddingBottom: pf.spacing.fieldGap,
-    lineHeight: pf.lineHeight.label,
+    flexShrink: 0,
   };
+
+  // Write-in underline
+  const writeLine = (width?: string): React.CSSProperties => ({
+    flex: width ? undefined : 1,
+    width: width || undefined,
+    borderBottom: `1pt solid ${pf.color.border}`,
+    height: "14pt",
+  });
 
   return (
     <div className="print-call-list" style={pageStyle}>
@@ -877,61 +838,83 @@ function PrintCallList({
                 : "Never contacted";
 
               return (
-                <div key={row.holder_name} style={entryWrapStyle}>
-                  {/* Primary row: checkbox, name, phone, barcodes, days */}
-                  <div style={rowStyle}>
-                    <div style={checkboxStyle} />
-                    <span style={nameStyle}>{row.holder_name}</span>
-                    {phoneDisplay ? (
-                      <span style={phoneStyle}>{phoneDisplay}</span>
-                    ) : (
-                      <span style={phoneStyle}>
-                        <span style={{ fontSize: pf.font.label, color: pf.color.muted }}>Ph: </span>
-                        <span style={{ display: "inline-block", borderBottom: `1pt solid ${pf.color.border}`, minWidth: "1.2in", height: "12pt" }} />
-                      </span>
-                    )}
-                    <span style={barcodesStyle}>{row.trap_barcodes.join(", ")}</span>
-                    <span style={daysStyle}>{row.max_days_overdue}d</span>
-                  </div>
-
-                  {/* Detail line: email + last contact */}
-                  <div style={detailLineStyle}>
-                    {row.email && <span>{row.email}</span>}
-                    {row.email && <span style={{ margin: "0 0.4em" }}>&middot;</span>}
-                    <span>{contactSummary}</span>
-                    {row.last_contact_notes && (
-                      <span style={{ fontStyle: "italic" }}>{` \u2014 \u201C${row.last_contact_notes}\u201D`}</span>
-                    )}
-                  </div>
-
-                  {/* Write-in area — full width, generous spacing for pen */}
+                <div
+                  key={row.holder_name}
+                  style={{
+                    border: `1pt solid ${pf.color.border}`,
+                    borderRadius: "3pt",
+                    marginBottom: "8pt",
+                    pageBreakInside: "avoid",
+                  }}
+                >
+                  {/* ── Header bar: name + overdue badge ── */}
                   <div style={{
-                    paddingLeft: `calc(${pf.checkbox.size} + ${pf.checkbox.labelGap} + ${pf.spacing.columnGap})`,
-                    paddingRight: "4pt",
-                    paddingTop: "4pt",
-                    paddingBottom: "8pt",
-                    fontSize: pf.font.label,
-                    color: pf.color.muted,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "4pt 8pt",
+                    background: "#f5f5f5",
+                    borderBottom: `0.5pt solid ${pf.color.border}`,
                   }}>
-                    {/* Row 1: outcome checkboxes + return date — spread full width */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6pt" }}>
-                      <div style={{ display: "flex", gap: "12pt", alignItems: "center" }}>
-                        {["Connected", "VM", "No ans.", "Wrong #", "More time"].map((label) => (
-                          <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: "3pt" }}>
-                            <span style={{ display: "inline-block", width: "9pt", height: "9pt", border: `0.75pt solid ${pf.color.border}`, borderRadius: "1pt" }} />
-                            {label}
-                          </span>
-                        ))}
+                    <span style={{ fontWeight: 700, fontSize: pf.font.body }}>
+                      {row.holder_name}
+                    </span>
+                    <span style={{ fontSize: "9pt", fontWeight: 700 }}>
+                      {row.max_days_overdue}d overdue
+                    </span>
+                  </div>
+
+                  {/* ── Body ── */}
+                  <div style={{ padding: "6pt 8pt 8pt" }}>
+                    {/* Row 1: phone + email + equipment */}
+                    <div style={{ display: "flex", gap: "16pt", marginBottom: "6pt", fontSize: pf.font.body }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: "3pt" }}>
+                        <span style={flabel}>Phone:</span>
+                        {phoneDisplay ? (
+                          <span>{phoneDisplay}</span>
+                        ) : (
+                          <span style={writeLine("1.6in")} />
+                        )}
                       </div>
-                      <span style={{ display: "inline-flex", alignItems: "baseline", gap: "3pt" }}>
-                        Return by:
-                        <span style={{ display: "inline-block", borderBottom: `1pt solid ${pf.color.border}`, width: "1.2in", height: "12pt" }} />
-                      </span>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: "3pt" }}>
+                        <span style={flabel}>Email:</span>
+                        <span style={{ fontSize: "10pt" }}>{row.email || "—"}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: "3pt", marginLeft: "auto" }}>
+                        <span style={flabel}>Equip:</span>
+                        <span style={{ fontFamily: "monospace", fontSize: "10pt" }}>{row.trap_barcodes.join(", ")}</span>
+                      </div>
                     </div>
-                    {/* Row 2: notes line — full width */}
-                    <div style={{ display: "flex", alignItems: "baseline", gap: "4pt" }}>
-                      <span style={{ flexShrink: 0 }}>Notes:</span>
-                      <span style={{ flex: 1, borderBottom: `1pt solid ${pf.color.hairline}`, height: "14pt" }} />
+
+                    {/* Row 2: prior contact history */}
+                    <div style={{ fontSize: "9pt", color: pf.color.muted, marginBottom: "8pt" }}>
+                      {contactSummary}
+                      {row.last_contact_notes && (
+                        <span style={{ fontStyle: "italic" }}>{` \u2014 \u201C${row.last_contact_notes}\u201D`}</span>
+                      )}
+                    </div>
+
+                    {/* Row 3: outcome checkboxes — generous spacing */}
+                    <div style={{ display: "flex", gap: "14pt", alignItems: "center", marginBottom: "8pt", fontSize: "9pt" }}>
+                      <span style={flabel}>Result:</span>
+                      {["Connected", "Voicemail", "No answer", "Wrong #", "Needs time"].map((label) => (
+                        <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: "3pt" }}>
+                          <span style={{ display: "inline-block", width: "9pt", height: "9pt", border: `1pt solid ${pf.color.border}`, borderRadius: "1pt" }} />
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Row 4: return date — full width line */}
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "4pt", marginBottom: "8pt", fontSize: "9pt" }}>
+                      <span style={flabel}>Return by:</span>
+                      <span style={writeLine()} />
+                    </div>
+
+                    {/* Row 5: notes — full width line */}
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "4pt", fontSize: "9pt" }}>
+                      <span style={flabel}>Notes:</span>
+                      <span style={writeLine()} />
                     </div>
                   </div>
                 </div>
