@@ -184,7 +184,7 @@ export default function EquipmentCheckOutPage() {
           <SkeletonList items={4} />
         ) : sorted.length === 0 ? (
           <EmptyState
-            variant="empty"
+            variant="default"
             title={`No ${tab === "cage" ? "cages" : "traps"} available`}
             description="All items are currently checked out or assigned."
           />
