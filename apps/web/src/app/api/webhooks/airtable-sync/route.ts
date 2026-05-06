@@ -101,18 +101,18 @@ async function processTrapperAgreement(record: AirtableRecord, tableId: string) 
     return { status: "error" as const, error: "Missing contact info" };
   }
 
-  // Resolve identity
-  const identityResult = await queryOne<{ person_id: string; match_type: string }>(
-    `SELECT * FROM sot.data_engine_resolve_identity($1, $2, $3, $4, $5, $6)`,
+  // Resolve identity — function returns resolved_person_id, not person_id
+  const identityResult = await queryOne<{ resolved_person_id: string; match_type: string }>(
+    `SELECT resolved_person_id, decision_type AS match_type FROM sot.data_engine_resolve_identity($1, $2, $3, $4, $5, $6)`,
     [email, phone, firstName, lastName, address, "jotform"]
   );
 
-  if (!identityResult) {
+  if (!identityResult?.resolved_person_id) {
     await updateAirtableRecord(tableId, record.id, "error", "Identity resolution failed");
     return { status: "error" as const, error: "Identity resolution failed" };
   }
 
-  const personId = identityResult.person_id;
+  const personId = identityResult.resolved_person_id;
 
   // Add trapper role (idempotent)
   await queryOne(
