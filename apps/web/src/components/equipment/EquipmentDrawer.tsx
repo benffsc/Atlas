@@ -373,6 +373,14 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       const succeeded = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.filter((r) => r.status === "rejected").length;
 
+      // Link person to place if both resolved — builds address book for future suggestions
+      if (resolution.person_id && checkoutPlace?.place_id && succeeded > 0) {
+        postApi(`/api/people/${resolution.person_id}/places`, {
+          place_id: checkoutPlace.place_id,
+          relationship_type: "residence",
+        }).catch(() => {}); // Non-blocking — don't fail checkout over this
+      }
+
       if (failed === 0) {
         toast.success(`${succeeded} item${succeeded !== 1 ? "s" : ""} checked out to ${name}`);
       } else {
