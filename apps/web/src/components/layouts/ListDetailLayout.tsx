@@ -193,8 +193,8 @@ function PanelToolbar({
         title="Close panel (Esc)"
         style={{
           display: "flex", alignItems: "center", justifyContent: "center",
-          width: "24px", height: "24px", border: "none", borderRadius: "4px",
-          cursor: "pointer", background: "transparent", color: "var(--text-muted, #9ca3af)",
+          width: "24px", height: "24px", border: "1px solid var(--border, #e5e7eb)", borderRadius: "4px",
+          cursor: "pointer", background: "var(--background, #fff)", color: "var(--foreground, #374151)",
           flexShrink: 0,
         }}
       >
@@ -267,11 +267,11 @@ function SizeButton({
         justifyContent: "center",
         width: "28px",
         height: "22px",
-        border: "none",
+        border: active ? "none" : "1px solid var(--border, #e5e7eb)",
         borderRadius: "4px",
         cursor: "pointer",
-        background: active ? "var(--primary, #3b82f6)" : "transparent",
-        color: active ? "#fff" : "var(--text-muted, #9ca3af)",
+        background: active ? "var(--primary, #3b82f6)" : "var(--background, #fff)",
+        color: active ? "#fff" : "var(--foreground, #374151)",
         transition: "background 0.15s, color 0.15s",
       }}
       {...rest}
