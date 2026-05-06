@@ -59,13 +59,12 @@ async function updateAirtableRecord(
   status: "synced" | "error",
   details?: string
 ): Promise<void> {
+  // Only write Sync Status — other columns may not exist in the table
   const fields: Record<string, unknown> = {
     "Sync Status": status,
-    "Synced At": new Date().toISOString(),
   };
-  if (details) fields["Sync Notes"] = details.substring(0, 500);
 
-  await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}/${recordId}`, {
+  const resp = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${tableId}/${recordId}`, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${AIRTABLE_PAT}`,
@@ -73,6 +72,11 @@ async function updateAirtableRecord(
     },
     body: JSON.stringify({ fields }),
   });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    console.error(`[AIRTABLE-SYNC] Failed to update record ${recordId} to ${status}: ${resp.status} ${body}`);
+  }
 }
 
 async function processTrapperAgreement(record: AirtableRecord, tableId: string) {
