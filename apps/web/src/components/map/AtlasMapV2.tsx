@@ -1159,7 +1159,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           if (document.getElementById("map-sidebar-portal")) {
             toggleSidebar();
           } else {
-            setShowLayerPanel(prev => !prev);
+            setShowLayerPanel((prev: boolean) => !prev);
           }
           break;
         case "m":
@@ -1623,7 +1623,30 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         </BottomSheet>
       )}
 
-      {/* Basemap toggle removed — basemap switching now handled by MapControls Basemap button */}
+      {/* ── Basemap toggle — portalled into top bar center ── */}
+      <PortalOrInline portalId="map-basemap-portal" fallback={null}>
+        <div style={{ display: "flex", gap: 2, background: "var(--card-bg, #fff)", borderRadius: 6, border: "1px solid var(--border, #e5e5e5)", padding: 2 }}>
+          {(["street", "satellite"] as const).map((type) => (
+            <button
+              key={type}
+              onClick={() => setBasemap(type)}
+              style={{
+                padding: "4px 12px",
+                fontSize: "0.8rem",
+                fontWeight: basemap === type ? 600 : 400,
+                background: basemap === type ? "var(--primary)" : "transparent",
+                color: basemap === type ? "var(--primary-foreground, #fff)" : "var(--foreground)",
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+                textTransform: "capitalize",
+              }}
+            >
+              {type === "street" ? "Map" : "Satellite"}
+            </button>
+          ))}
+        </div>
+      </PortalOrInline>
 
       {/* ── Action buttons — portalled into top bar ── */}
       <PortalOrInline
@@ -1780,9 +1803,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           ) : null
         }
       >
-        {/* Portalled sidebar content — only visible when layer panel is open */}
-        {showLayerPanel && (
-          <div className="map-layer-panel" style={{ position: "static", width: "100%", maxHeight: "none", border: "none", borderRadius: 0, boxShadow: "none", background: "transparent" }}>
+        {/* Portalled sidebar content — always visible when sidebar is open */}
+        <div className="map-layer-panel" style={{ position: "static", width: "100%", maxHeight: "none", border: "none", borderRadius: 0, boxShadow: "none", background: "transparent" }}>
             <div className="map-layer-panel__header">
               <div className="map-layer-panel__title">Map Layers</div>
               <div className="map-layer-panel__subtitle">{totalMarkers.toLocaleString()} markers shown</div>
@@ -1798,7 +1820,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
               <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
             </div>
           </div>
-        )}
       </PortalOrInline>
 
       {/* ── Date range filter — bottom center of map ── */}

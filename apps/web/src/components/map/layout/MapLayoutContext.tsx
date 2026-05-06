@@ -12,11 +12,11 @@ const MapLayoutContext = createContext<MapLayoutContextValue | null>(null);
 
 export function MapLayoutProvider({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(() => {
-    if (typeof window === "undefined") return true;
+    if (typeof window === "undefined") return false;
     try {
-      return localStorage.getItem("map-sidebar-collapsed") !== "true";
+      return localStorage.getItem("map-sidebar-open") === "true";
     } catch {
-      return true;
+      return false;
     }
   });
 
@@ -24,7 +24,7 @@ export function MapLayoutProvider({ children }: { children: ReactNode }) {
     setSidebarOpen((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem("map-sidebar-collapsed", next ? "false" : "true");
+        localStorage.setItem("map-sidebar-open", next ? "true" : "false");
       } catch {}
       return next;
     });
