@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       `SELECT EXISTS(
         SELECT 1 FROM ops.tippy_conversations
         WHERE staff_id = $1
-        AND created_at >= CURRENT_DATE
+        AND started_at >= CURRENT_DATE
         AND session_context->>'is_briefing' = 'true'
       ) as has_briefed`,
       [session.staff_id]
