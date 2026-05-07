@@ -32,6 +32,12 @@ interface CatHexbinLayerProps {
   selectedCenter?: { lat: number; lng: number } | null;
   /** When true, render risk score labels on each hex cell */
   showInsights?: boolean;
+  /** Compare mode: when true, clicks add/remove from multi-selection instead of single select */
+  compareMode?: boolean;
+  /** Called in compare mode when a hex is toggled */
+  onCompareHexToggle?: (selection: HexBinSelection) => void;
+  /** Centers of hexes currently in the compare set (for numbered highlight rings) */
+  compareCenters?: { lat: number; lng: number }[];
 }
 
 /**
@@ -56,7 +62,7 @@ function hexRadiusForZoom(zoom: number): number {
   return 14;
 }
 
-export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode = "density", onHexClick, selectedCenter, showInsights = false }: CatHexbinLayerProps) {
+export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode = "density", onHexClick, selectedCenter, showInsights = false, compareMode = false, onCompareHexToggle, compareCenters = [] }: CatHexbinLayerProps) {
   const map = useMap();
   // Dynamic hex radius: use prop override if provided, otherwise derive from zoom
   const [zoomDerivedRadius, setZoomDerivedRadius] = useState(26);
@@ -283,10 +289,13 @@ export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode =
       .attr("stroke", "rgba(255,255,255,0.3)")
       .attr("stroke-width", 0.8);
 
-    // Selection highlight ring
+    // Selection highlight rings + compare badges
     svgSel.selectAll("path.hexbin-selected").remove();
-    if (selectedBinPx) {
-      // Find the bin closest to the selected center
+    svgSel.selectAll("circle.hexbin-compare-badge").remove();
+    svgSel.selectAll("text.hexbin-compare-num").remove();
+
+    // Single-select highlight ring
+    if (selectedBinPx && !compareMode) {
       let closestBin: Bin | null = null;
       let minDist = hexRadius + 2;
       for (const bin of bins) {
@@ -303,6 +312,58 @@ export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode =
           .attr("stroke", "var(--primary, #3b82f6)")
           .attr("stroke-width", 3)
           .attr("stroke-opacity", 0.9);
+      }
+    }
+
+    // Compare mode: numbered highlight rings + badges
+    if (compareMode && compareCenters.length > 0) {
+      const COMPARE_COLORS = ["#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b"];
+      for (let ci = 0; ci < compareCenters.length; ci++) {
+        const cc = compareCenters[ci];
+        const px = project(cc.lat, cc.lng);
+        if (!px) continue;
+        let closestBin: Bin | null = null;
+        let minDist = hexRadius + 2;
+        for (const bin of bins) {
+          const dist = Math.hypot(bin.x - px[0], bin.y - px[1]);
+          if (dist < minDist) { minDist = dist; closestBin = bin; }
+        }
+        if (!closestBin) continue;
+        const color = COMPARE_COLORS[ci % COMPARE_COLORS.length];
+        // Highlight ring
+        svgSel
+          .append("path")
+          .attr("class", "hexbin-selected")
+          .attr("d", hexbinGen.hexagon())
+          .attr("transform", `translate(${closestBin.x},${closestBin.y})`)
+          .attr("fill", "none")
+          .attr("stroke", color)
+          .attr("stroke-width", 3)
+          .attr("stroke-opacity", 0.9);
+        // Numbered badge
+        const badgeR = Math.max(8, hexRadius * 0.3);
+        svgSel
+          .append("circle")
+          .attr("class", "hexbin-compare-badge")
+          .attr("cx", closestBin.x)
+          .attr("cy", closestBin.y - hexRadius * 0.55)
+          .attr("r", badgeR)
+          .attr("fill", color)
+          .attr("stroke", "white")
+          .attr("stroke-width", 2)
+          .attr("pointer-events", "none");
+        svgSel
+          .append("text")
+          .attr("class", "hexbin-compare-num")
+          .attr("x", closestBin.x)
+          .attr("y", closestBin.y - hexRadius * 0.55 + 1)
+          .attr("text-anchor", "middle")
+          .attr("dominant-baseline", "middle")
+          .attr("font-size", badgeR * 1.1)
+          .attr("font-weight", "700")
+          .attr("fill", "white")
+          .attr("pointer-events", "none")
+          .text(ci + 1);
       }
     }
 
@@ -330,7 +391,7 @@ export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode =
           .text(risk);
       }
     }
-  }, [dims, project, hexRadius, pins, map, enabled, getWeight, mode, selectedCenter, showInsights]);
+  }, [dims, project, hexRadius, pins, map, enabled, getWeight, mode, selectedCenter, showInsights, compareMode, compareCenters]);
 
   // Redraw on dependency changes
   useEffect(() => {
@@ -424,10 +485,10 @@ export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode =
     };
 
     const onClick = (e: MouseEvent) => {
-      if (!onHexClick) return;
       // Don't intercept clicks on map controls, buttons, or other UI overlays
       const target = e.target as HTMLElement;
       if (target.closest(".map-control-btn, .map-controls, .map-zoom-controls, .map-bottom-controls, .map-layer-panel, .map-basemap-menu, .map-add-point-menu, button, a, input, select")) return;
+
       const rect = map.getDiv().getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
@@ -441,7 +502,11 @@ export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode =
       const center = unproject(closest.x, closest.y);
       if (!center) return;
 
-      onHexClick({ pins: hexPins, center });
+      if (compareMode && onCompareHexToggle) {
+        onCompareHexToggle({ pins: hexPins, center });
+      } else if (onHexClick) {
+        onHexClick({ pins: hexPins, center });
+      }
     };
 
     const onMouseLeave = () => {
@@ -459,7 +524,7 @@ export function CatHexbinLayer({ pins, enabled, hexRadius: hexRadiusProp, mode =
       container.removeEventListener("mouseleave", onMouseLeave);
       container.removeEventListener("click", onClick);
     };
-  }, [map, enabled, hexRadius, onHexClick, findClosestBin, unproject]);
+  }, [map, enabled, hexRadius, onHexClick, findClosestBin, unproject, compareMode, onCompareHexToggle]);
 
   if (!enabled) return null;
 

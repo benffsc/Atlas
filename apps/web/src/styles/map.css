@@ -553,6 +553,12 @@
   border-color: var(--primary);
 }
 
+.map-control-btn--active:hover {
+  background: var(--primary);
+  color: white;
+  filter: brightness(1.1);
+}
+
 /* Zoom Controls Group */
 .map-zoom-controls {
   display: flex;

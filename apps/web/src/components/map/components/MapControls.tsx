@@ -120,6 +120,10 @@ interface MapControlsProps {
   onCopyLink?: () => Promise<void>;
   /** When true, hide non-essential buttons (Measure, Export, Basemap) — used when BottomSheet is expanded on mobile */
   compact?: boolean;
+  /** Compare mode — multi-hex selection for side-by-side analysis */
+  compareMode?: boolean;
+  onCompareToggle?: () => void;
+  compareCount?: number;
 }
 
 export function MapControls({
@@ -141,6 +145,9 @@ export function MapControls({
   exportPinCount,
   onCopyLink,
   compact = false,
+  compareMode = false,
+  onCompareToggle,
+  compareCount = 0,
 }: MapControlsProps) {
   const [showBasemapMenu, setShowBasemapMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -345,6 +352,42 @@ export function MapControls({
             </svg>
           )}
           {!isMobile && (copyLinkJustCopied ? "Copied" : "Share")}
+        </button>
+      )}
+
+      {/* Compare mode toggle */}
+      {onCompareToggle && !compact && (
+        <button
+          onClick={onCompareToggle}
+          title="Compare hex areas (C)"
+          className={`map-control-btn ${compareMode ? "map-control-btn--active" : ""}`}
+          style={{ position: "relative" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="8" height="18" rx="1" />
+            <rect x="14" y="3" width="8" height="18" rx="1" />
+          </svg>
+          {!isMobile && "Compare"}
+          {compareMode && compareCount > 0 && (
+            <span style={{
+              position: "absolute",
+              top: -4,
+              right: -4,
+              width: 18,
+              height: 18,
+              borderRadius: "50%",
+              background: "var(--primary, #3b82f6)",
+              color: "white",
+              fontSize: 10,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid var(--background, #fff)",
+            }}>
+              {compareCount}
+            </span>
+          )}
         </button>
       )}
     </div>

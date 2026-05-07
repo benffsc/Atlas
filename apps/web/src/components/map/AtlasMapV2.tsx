@@ -45,6 +45,7 @@ import { ZoneBoundaries } from "@/components/map/components/ZoneBoundaries";
 import { CatHexbinLayer } from "@/components/map/components/CatHexbinLayer";
 import type { HexBinSelection } from "@/components/map/components/CatHexbinLayer";
 import { HexDetailPanel } from "@/components/map/components/HexDetailPanel";
+import { HexComparePanel } from "@/components/map/components/HexComparePanel";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
 import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
 import type { BasemapType } from "@/components/map/components/MapControls";
@@ -181,6 +182,9 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   } = useMapUrlState();
   const [selectedPin, setSelectedPin] = useState<AtlasPin | null>(null);
   const [selectedHex, setSelectedHex] = useState<HexBinSelection | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [comparedHexes, setComparedHexes] = useState<HexBinSelection[]>([]);
+  const [showComparePanel, setShowComparePanel] = useState(false);
   const [comparisonPlaceIds, setComparisonPlaceIds] = useState<string[]>([]);
 
   // ── Add Point state (Step 5/12) ──
@@ -1089,12 +1093,12 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   // ── Keyboard shortcuts (Step 4) — use refs to avoid constant re-registration ──
   const kbStateRef = useRef({
     addPointMode, measureActive, selectedPin, selectedPlaceId,
-    selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu, selectedHex,
+    selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu, selectedHex, showComparePanel, compareMode,
   });
   useEffect(() => {
     kbStateRef.current = {
       addPointMode, measureActive, selectedPin, selectedPlaceId,
-      selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu, selectedHex,
+      selectedPersonId, selectedCatId, selectedAnnotationId, contextMenu, selectedHex, showComparePanel, compareMode,
     };
   });
 
@@ -1127,6 +1131,13 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             setSelectedCatId(null);
           } else if (st.selectedPersonId) {
             setSelectedPersonId(null);
+          } else if (st.showComparePanel) {
+            setShowComparePanel(false);
+            setComparedHexes([]);
+            setCompareMode(false);
+          } else if (st.compareMode) {
+            setCompareMode(false);
+            setComparedHexes([]);
           } else if (st.selectedHex) {
             setSelectedHex(null);
           } else if (st.selectedAnnotationId) {
@@ -1439,6 +1450,23 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         }}
         selectedCenter={selectedHex?.center ?? null}
         showInsights={hexInsightsEnabled}
+        compareMode={compareMode}
+        onCompareHexToggle={(sel) => {
+          setComparedHexes(prev => {
+            // Check if already selected (by center proximity)
+            const idx = prev.findIndex(h =>
+              Math.abs(h.center.lat - sel.center.lat) < 0.001 &&
+              Math.abs(h.center.lng - sel.center.lng) < 0.001
+            );
+            if (idx >= 0) {
+              // Remove
+              return prev.filter((_, i) => i !== idx);
+            }
+            if (prev.length >= 4) return prev; // Max 4
+            return [...prev, sel];
+          });
+        }}
+        compareCenters={comparedHexes.map(h => h.center)}
       />
 
       {/* ── Search bar — portalled into top bar when MapShell present ── */}
@@ -1681,6 +1709,23 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                 throw new Error("clipboard unavailable");
               }
             }}
+            compareMode={compareMode}
+            onCompareToggle={() => {
+              if (compareMode) {
+                // Exiting compare mode
+                setCompareMode(false);
+                if (comparedHexes.length >= 2) {
+                  setShowComparePanel(true);
+                }
+              } else {
+                // Entering compare mode
+                setCompareMode(true);
+                setComparedHexes([]);
+                setShowComparePanel(false);
+                setSelectedHex(null);
+              }
+            }}
+            compareCount={comparedHexes.length}
           />
         }
       >
@@ -1932,14 +1977,31 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         />
       )}
 
-      {/* ── Hex Detail Panel ── */}
-      {selectedHex && (
+      {/* ── Hex Detail Panel (single select) ── */}
+      {selectedHex && !compareMode && (
         <HexDetailPanel
           selection={selectedHex}
           onClose={() => setSelectedHex(null)}
           onPlaceClick={(placeId) => {
             setSelectedPlaceId(placeId);
             setSelectedHex(null);
+          }}
+        />
+      )}
+
+      {/* ── Hex Compare Panel ── */}
+      {showComparePanel && comparedHexes.length >= 2 && (
+        <HexComparePanel
+          selections={comparedHexes}
+          onRemove={(idx) => {
+            const next = comparedHexes.filter((_, i) => i !== idx);
+            setComparedHexes(next);
+            if (next.length < 2) setShowComparePanel(false);
+          }}
+          onClose={() => {
+            setShowComparePanel(false);
+            setComparedHexes([]);
+            setCompareMode(false);
           }}
         />
       )}
