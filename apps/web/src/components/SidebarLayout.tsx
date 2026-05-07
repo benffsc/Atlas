@@ -40,10 +40,14 @@ export function SidebarLayout({ children, sections, title, backLink, collapsible
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try { return localStorage.getItem("sidebar-collapsed") === "true"; } catch { return false; }
-  });
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Sync from localStorage after hydration to avoid SSR mismatch
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("sidebar-collapsed") === "true") setCollapsed(true);
+    } catch { /* ignore */ }
+  }, []);
 
   // Collapsible sections state
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
