@@ -273,6 +273,7 @@ export function TippyChat() {
   const [actionCards, setActionCards] = useState<Map<string, ActionCardData>>(new Map());
   const [isExpanded, setIsExpanded] = useState(true);
   const [showBubble, setShowBubble] = useState(true);
+  const [historyFetched, setHistoryFetched] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const streamingMsgIdRef = useRef<string | null>(null);
@@ -540,6 +541,7 @@ export function TippyChat() {
       setHistoryList([]);
     } finally {
       setHistoryLoading(false);
+      setHistoryFetched(true);
     }
   }, []);
 
@@ -555,10 +557,10 @@ export function TippyChat() {
 
   // Auto-fetch history when expanding
   useEffect(() => {
-    if (isExpanded && historyList.length === 0 && !historyLoading) {
+    if (isExpanded && !historyFetched && !historyLoading) {
       fetchHistory();
     }
-  }, [isExpanded, historyList.length, historyLoading, fetchHistory]);
+  }, [isExpanded, historyFetched, historyLoading, fetchHistory]);
 
   // FFS-863: Load a past conversation
   const loadConversation = useCallback(async (id: string) => {
@@ -586,6 +588,7 @@ export function TippyChat() {
     setView("chat");
     setHasBriefed(false);
     setActionCards(new Map());
+    setHistoryFetched(false);
   }, [setConversationId]);
 
   // Restore last conversation when panel opens (survives close/reopen)
