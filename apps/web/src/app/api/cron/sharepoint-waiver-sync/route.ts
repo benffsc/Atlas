@@ -122,6 +122,9 @@ export async function GET(request: NextRequest) {
     budgetReached: false,
   };
 
+  // Track clinic dates that received new waivers this run
+  const datesWithNewWaivers = new Set<string>();
+
   try {
     const monthFolders = getMonthFoldersToScan();
     log.push(`Scanning ${monthFolders.length} month folders (budget: ${MAX_FILES_PER_RUN} files)`);
@@ -296,6 +299,9 @@ export async function GET(request: NextRequest) {
                 if (matchResult.client_name?.toLowerCase().includes(lastName.toLowerCase())) {
                   matchConfidence = 1.0;
                 }
+
+                // Track this date for CDS re-run
+                if (date) datesWithNewWaivers.add(date);
               }
 
               const waiver = await queryOne<{ waiver_id: string }>(
@@ -416,22 +422,26 @@ export async function GET(request: NextRequest) {
       if (stats.budgetReached) break;
     }
 
-    // Trigger CDS for dates that got new OCR data
-    if (stats.ocrCdnSet > 0) {
-      const affectedDates = await queryRows<{ parsed_date: string }>(
-        `SELECT DISTINCT parsed_date::text AS parsed_date
-         FROM ops.waiver_scans
-         WHERE ocr_processed_at >= NOW() - INTERVAL '1 hour'
-           AND ocr_clinic_number IS NOT NULL
-           AND parsed_date IS NOT NULL`
+    // Trigger CDS re-run for dates that got new waivers AND already have
+    // a prior CDS run. New waivers feed Phase 1 (CDN candidates), Phase 6
+    // (waiver bridge), and Phase 7 (chip signals) — not just OCR CDNs.
+    // Dates without a prior CDS run will get their first run when clinic
+    // data is checked out, so we don't trigger those here.
+    if (datesWithNewWaivers.size > 0) {
+      const datePlaceholders = Array.from(datesWithNewWaivers).map((_, i) => `$${i + 1}`).join(", ");
+      const datesWithPriorRuns = await queryRows<{ clinic_date: string }>(
+        `SELECT DISTINCT clinic_date::text AS clinic_date
+         FROM ops.cds_runs
+         WHERE clinic_date IN (${datePlaceholders})`,
+        Array.from(datesWithNewWaivers)
       );
-      for (const { parsed_date } of affectedDates) {
+      for (const { clinic_date } of datesWithPriorRuns) {
         try {
-          await runCDS(parsed_date, "import");
+          await runCDS(clinic_date, "rematch");
           stats.cdsTriggered++;
-          log.push(`  CDS triggered for ${parsed_date}`);
+          log.push(`  CDS re-run for ${clinic_date} (new waivers landed)`);
         } catch (cdsErr) {
-          log.push(`  CDS error for ${parsed_date}: ${cdsErr instanceof Error ? cdsErr.message : String(cdsErr)}`);
+          log.push(`  CDS error for ${clinic_date}: ${cdsErr instanceof Error ? cdsErr.message : String(cdsErr)}`);
         }
       }
     }
