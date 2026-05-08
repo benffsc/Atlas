@@ -119,7 +119,7 @@ export default function EquipmentDashboard() {
         <Icon name="scan-barcode" size={28} color="var(--primary)" />
         <div style={{ textAlign: "left" }}>
           <span style={{ display: "block", fontSize: "1rem", fontWeight: 700, color: "var(--primary)" }}>
-            Check In / Out
+            Scan Equipment
           </span>
           <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
             {stats.traps.available} available &middot; {stats.traps.out} out

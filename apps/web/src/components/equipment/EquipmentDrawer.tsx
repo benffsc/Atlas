@@ -350,8 +350,8 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
         computedDueDate = apptDate.toISOString().split("T")[0];
       }
 
-      // Use "assign" event for trapper checkouts (indefinite, no due date)
-      const isAssignment = checkoutType === "trapper";
+      // Use "assign" event for indefinite checkouts (trappers, internal)
+      const isAssignment = checkoutType === "trapper" || checkoutType === "internal";
       const depositNum = checkoutDeposit ? Number(checkoutDeposit) : undefined;
       const results = await Promise.allSettled(
         checkoutCart.map((item) =>
@@ -643,42 +643,50 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <div>
-                <label style={labelStyle}>Appointment Date</label>
-                <input
-                  type="date"
-                  value={checkoutApptDate}
-                  onChange={(e) => setCheckoutApptDate(e.target.value)}
-                  style={inputStyle}
-                />
-                {checkoutApptDate && (() => {
-                  const purposeOffset = (checkoutPurpose && PURPOSE_DUE_OFFSETS?.[checkoutPurpose]) || 7;
-                  const offset = Math.max(purposeOffset, 7);
-                  const d = new Date(checkoutApptDate + "T00:00:00");
-                  d.setDate(d.getDate() + offset);
-                  return (
-                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>
-                      Due back {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (+{offset}d)
-                    </div>
-                  );
-                })()}
+            {/* Appointment/deposit row — hidden for indefinite assignments */}
+            {checkoutType !== "trapper" && checkoutType !== "internal" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div>
+                  <label style={labelStyle}>Appointment Date</label>
+                  <input
+                    type="date"
+                    value={checkoutApptDate}
+                    onChange={(e) => setCheckoutApptDate(e.target.value)}
+                    style={inputStyle}
+                  />
+                  {checkoutApptDate && (() => {
+                    const purposeOffset = (checkoutPurpose && PURPOSE_DUE_OFFSETS?.[checkoutPurpose]) || 7;
+                    const offset = Math.max(purposeOffset, 7);
+                    const d = new Date(checkoutApptDate + "T00:00:00");
+                    d.setDate(d.getDate() + offset);
+                    return (
+                      <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>
+                        Due back {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (+{offset}d)
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div>
+                  <label style={labelStyle}>
+                    Deposit <span style={labelHintStyle}>($)</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={checkoutDeposit}
+                    onChange={(e) => setCheckoutDeposit(e.target.value)}
+                    placeholder="0"
+                    min="0"
+                    step="5"
+                    style={inputStyle}
+                  />
+                </div>
               </div>
-              <div>
-                <label style={labelStyle}>
-                  Deposit <span style={labelHintStyle}>($)</span>
-                </label>
-                <input
-                  type="number"
-                  value={checkoutDeposit}
-                  onChange={(e) => setCheckoutDeposit(e.target.value)}
-                  placeholder="0"
-                  min="0"
-                  step="5"
-                  style={inputStyle}
-                />
+            )}
+            {(checkoutType === "trapper" || checkoutType === "internal") && (
+              <div style={{ fontSize: "0.8rem", color: "var(--info-text)", padding: "0.5rem 0.75rem", background: "var(--info-bg)", borderRadius: 8, border: "1px solid var(--info-border)" }}>
+                Indefinite assignment — no due date. Equipment will show as &quot;Assigned&quot; in inventory.
               </div>
-            </div>
+            )}
 
             <div>
               <label style={labelStyle}>
