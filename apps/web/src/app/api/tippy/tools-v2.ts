@@ -839,6 +839,7 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
             "save_lookup",
             "add_note",
             "add_field_contact",
+            "link_corridor_place",
           ],
           description: "Type of write operation to perform",
         },
@@ -3724,6 +3725,8 @@ async function logEvent(
       return addNoteImpl(input, context);
     case "add_field_contact":
       return addFieldContactImpl(input, context);
+    case "link_corridor_place":
+      return linkCorridorPlaceImpl(input, context);
     default:
       return { success: false, error: `Unknown action_type: ${actionType}` };
   }
@@ -4771,6 +4774,89 @@ type ToolHandler = (
   input: Record<string, unknown>,
   ctx?: ToolContext
 ) => Promise<ToolResult>;
+
+// =============================================================================
+// IMPLEMENTATION: link_corridor_place (sub-action of log_event)
+// Links a place to a request's scope + creates shared_colony edge
+// =============================================================================
+
+async function linkCorridorPlaceImpl(
+  input: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
+  const requestId = input.request_id as string;
+  const location = (input.location as string) || (input.address as string);
+  const notes = (input.notes as string) || "";
+  const role = (input.role as string) || "scope";
+
+  if (!requestId || !UUID_REGEX.test(requestId)) {
+    return { success: false, error: "request_id (UUID) is required for link_corridor_place" };
+  }
+  if (!location) {
+    return { success: false, error: "location/address is required" };
+  }
+
+  try {
+    // Resolve or create the place
+    let place = await resolvePlace(location);
+    if (!place) {
+      const created = await queryOne<{ place_id: string }>(
+        `SELECT sot.find_or_create_place_deduped($1, NULL, NULL, NULL, 'atlas_ui')::text AS place_id`,
+        [location]
+      );
+      if (!created) return { success: false, error: `Could not resolve place: ${location}` };
+      place = { place_id: created.place_id, display_name: null, formatted_address: location };
+    }
+
+    // Get the request's anchor place
+    const request = await queryOne<{ place_id: string }>(
+      `SELECT place_id::text FROM ops.requests WHERE request_id = $1 AND merged_into_request_id IS NULL`,
+      [requestId]
+    );
+    if (!request) return { success: false, error: "Request not found" };
+
+    // Create shared_colony edge between anchor and new place
+    if (request.place_id !== place.place_id) {
+      await execute(
+        `INSERT INTO sot.place_place_edges (place_id_from, place_id_to, relationship_type, evidence_type, confidence)
+         VALUES ($1, $2, 'shared_colony', 'staff_observation', 1.0)
+         ON CONFLICT DO NOTHING`,
+        [request.place_id, place.place_id]
+      );
+    }
+
+    // Add to request scope
+    await execute(
+      `INSERT INTO ops.request_scope_places (request_id, place_id, role, notes, added_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (request_id, place_id) DO UPDATE SET notes = EXCLUDED.notes, role = EXCLUDED.role`,
+      [requestId, place.place_id, role, notes, context?.staffName || "tippy"]
+    );
+
+    // Also ensure anchor is in scope
+    await execute(
+      `INSERT INTO ops.request_scope_places (request_id, place_id, role, added_by)
+       VALUES ($1, $2, 'anchor', $3)
+       ON CONFLICT (request_id, place_id) DO NOTHING`,
+      [requestId, request.place_id, context?.staffName || "tippy"]
+    );
+
+    const placeName = place.display_name || place.formatted_address || location;
+    return {
+      success: true,
+      data: {
+        linked: true,
+        place_id: place.place_id,
+        place_name: placeName,
+        role,
+        message: `Linked "${placeName}" to request as ${role}. Shared colony edge created.`,
+      },
+    };
+  } catch (error) {
+    console.error("linkCorridorPlace error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Failed to link corridor place" };
+  }
+}
 
 const TOOL_DISPATCH: Record<string, ToolHandler> = {
   run_sql: (input) =>

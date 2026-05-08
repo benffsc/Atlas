@@ -234,6 +234,7 @@ function buildAccessBlock(level: string): string {
 - send_message for "tell X that..."
 - log_event for field observations, draft requests, anomalies
 - log_event with action_type="add_note" for "note that...", "record that...", "log that..." — attaches a note to a place, person, cat, or request. Notes auto-appear in place briefings.
+- log_event with action_type="link_corridor_place" for connecting a nearby address to a request's scope. When staff says "this neighbor at [address] is part of the same cat problem" or "add [address] to this request's corridor", extract request_id (from page context or conversation), location, and notes. Creates a shared_colony edge + adds to request scope.
 - log_event with action_type="add_field_contact" for capturing new contacts from the field. When staff provides a person's name + phone/address + relationship to a place, extract: first_name, last_name, phone, phone2 (optional), email (optional), address, relationship_type (neighbor/caretaker/cat_owner/landlord/tenant/family_member/transporter/rescue_contact/other), notes, request_id (if on a request page), referred_by (name of referrer if mentioned, e.g. "Tom told me about Juan"). Name-only contacts (no phone/email) are allowed — they'll be marked as needing follow-up. This creates person + place + links + journal entry in one action. Always confirm before creating: "I'll create a record for [Name] as a [relationship] at [address] with phone [phone]. Confirm?"
 - Reminders and lookups appear at /me.
 
