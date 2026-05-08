@@ -193,14 +193,12 @@ function PanelToolbar({
         title="Close panel (Esc)"
         style={{
           display: "flex", alignItems: "center", justifyContent: "center",
-          width: "24px", height: "24px", border: "1px solid var(--border, #e5e7eb)", borderRadius: "4px",
-          cursor: "pointer", background: "var(--background, #fff)", color: "var(--foreground, #374151)",
-          flexShrink: 0,
+          width: "26px", height: "26px", border: "1px solid #d1d5db", borderRadius: "6px",
+          cursor: "pointer", background: "#fff", color: "#374151",
+          flexShrink: 0, fontSize: "1rem", fontWeight: 600, lineHeight: 1,
         }}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
+        ✕
       </button>
 
       {/* Title */}
@@ -267,11 +265,11 @@ function SizeButton({
         justifyContent: "center",
         width: "28px",
         height: "22px",
-        border: active ? "none" : "1px solid var(--border, #e5e7eb)",
+        border: active ? "none" : "1px solid #d1d5db",
         borderRadius: "4px",
         cursor: "pointer",
-        background: active ? "var(--primary, #3b82f6)" : "var(--background, #fff)",
-        color: active ? "#fff" : "var(--foreground, #374151)",
+        background: active ? "var(--primary, #3b82f6)" : "#fff",
+        color: active ? "#fff" : "#374151",
         transition: "background 0.15s, color 0.15s",
       }}
       {...rest}
@@ -285,8 +283,8 @@ function SizeButton({
 function SidebarIcon() {
   return (
     <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
-      <rect x="0.5" y="0.5" width="13" height="9" rx="1" stroke="currentColor" strokeWidth="1" />
-      <line x1="9" y1="0.5" x2="9" y2="9.5" stroke="currentColor" strokeWidth="1" />
+      <rect x="0.5" y="0.5" width="13" height="9" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="9" y1="0.5" x2="9" y2="9.5" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -294,8 +292,8 @@ function SidebarIcon() {
 function HalfIcon() {
   return (
     <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
-      <rect x="0.5" y="0.5" width="13" height="9" rx="1" stroke="currentColor" strokeWidth="1" />
-      <line x1="5" y1="0.5" x2="5" y2="9.5" stroke="currentColor" strokeWidth="1" />
+      <rect x="0.5" y="0.5" width="13" height="9" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="5" y1="0.5" x2="5" y2="9.5" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
@@ -303,7 +301,7 @@ function HalfIcon() {
 function FullIcon() {
   return (
     <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
-      <rect x="0.5" y="0.5" width="13" height="9" rx="1" stroke="currentColor" strokeWidth="1" fill="currentColor" fillOpacity="0.15" />
+      <rect x="0.5" y="0.5" width="13" height="9" rx="1" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.15" />
     </svg>
   );
 }

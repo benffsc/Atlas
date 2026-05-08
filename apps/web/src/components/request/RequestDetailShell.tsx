@@ -105,6 +105,19 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
       await refreshAndNotify();
     } catch (err) {
       const apiErr = err as ApiError;
+      // 409 = stale data — auto-refresh and retry once
+      if (apiErr.code === 409) {
+        await refreshRequest();
+        try {
+          const fresh = await fetchApi<{ updated_at: string }>(`/api/requests/${requestId}`);
+          await postApi(`/api/requests/${requestId}`, { status: newStatus, updated_at: fresh.updated_at }, { method: "PATCH" });
+          setPreviousStatus(oldStatus);
+          await refreshAndNotify();
+          return;
+        } catch {
+          // Retry also failed — show error
+        }
+      }
       setError(apiErr.message || "Failed to update status");
     } finally {
       setSaving(false);
