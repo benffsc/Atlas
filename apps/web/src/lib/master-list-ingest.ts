@@ -167,9 +167,12 @@ export async function ingestMasterListWorkbook(
     throw new Error(`Failed to get or create clinic_day for ${clinicDate}`);
   }
 
-  // 4. Idempotency: skip if entries already exist
+  // 4. Idempotency: skip if non-manual entries already exist.
+  // Manual entries (match_confidence = 'manual') may survive a re-sync delete
+  // and should not block re-import of the full ML.
   const existingCount = await queryOne<{ count: number }>(
-    `SELECT COUNT(*)::int as count FROM ops.clinic_day_entries WHERE clinic_day_id = $1`,
+    `SELECT COUNT(*)::int as count FROM ops.clinic_day_entries
+     WHERE clinic_day_id = $1 AND COALESCE(match_confidence, '') != 'manual'`,
     [clinicDay.clinic_day_id]
   );
 
@@ -180,7 +183,7 @@ export async function ingestMasterListWorkbook(
         clinic_day_id: clinicDay.clinic_day_id,
         clinic_date: clinicDate,
         imported: 0,
-        message: `${existingCount.count} entries already exist for ${clinicDate}`,
+        message: `${existingCount.count} non-manual entries already exist for ${clinicDate}`,
         parsed_entries: entries.length,
         extracted_date_from_file: extractedDate,
       };
@@ -197,8 +200,20 @@ export async function ingestMasterListWorkbook(
   let inserted = 0;
   let trappersResolved = 0;
 
+  // On re-sync, manual entries may survive at certain line numbers.
+  // Collect their line numbers so we skip them during insert.
+  const manualLines = new Set<number>();
+  const manualEntries = await queryRows<{ line_number: number }>(
+    `SELECT line_number FROM ops.clinic_day_entries
+     WHERE clinic_day_id = $1 AND match_confidence = 'manual'`,
+    [clinicDayId]
+  );
+  for (const m of manualEntries) manualLines.add(m.line_number);
+
   await withTransaction(async (tx) => {
     for (const entry of entries) {
+      // Skip line numbers that have a surviving manual entry
+      if (manualLines.has(entry.line_number)) continue;
       const trapperResult = entry.parsed_trapper_alias
         ? await tx.queryOne<{ person_id: string | null }>(
             `SELECT ops.resolve_trapper_alias($1) as person_id`,

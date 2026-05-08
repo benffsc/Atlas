@@ -68,6 +68,40 @@ function getMasterListFolders(): string[] {
   ];
 }
 
+/**
+ * Master list lifecycle: should we (re-)sync this file?
+ *
+ * MLs are living documents that get updated throughout the clinic day
+ * (weights added, cancellations noted) and up to 3 days after for
+ * final corrections. The sync strategy:
+ *
+ *   - FUTURE dates (> today): ingest once as a template, but don't
+ *     re-sync on every edit — the data isn't real yet.
+ *   - TODAY through CLINIC_DATE + 3 DAYS: actively re-sync — staff are
+ *     filling in weights/notes and making corrections.
+ *   - OLDER (4+ days after clinic): only re-sync if we've never
+ *     successfully ingested entries. Once entries exist and the
+ *     correction window has closed, the ML is frozen.
+ *
+ * This prevents the cron from endlessly re-downloading frozen historical
+ * files while still capturing same-day and post-clinic corrections.
+ */
+const ML_CORRECTION_WINDOW_DAYS = 3;
+
+function shouldResyncDate(clinicDate: string): "active" | "final_check" | "frozen" {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  if (clinicDate > todayStr) return "frozen"; // Future — don't re-sync templates
+
+  // How many days since the clinic date?
+  const clinicMs = new Date(clinicDate + "T00:00:00Z").getTime();
+  const todayMs = new Date(todayStr + "T00:00:00Z").getTime();
+  const daysSince = Math.floor((todayMs - clinicMs) / (24 * 60 * 60 * 1000));
+
+  if (daysSince <= ML_CORRECTION_WINDOW_DAYS) return "active"; // Within correction window
+  return "final_check"; // Past correction window — only if we have no entries
+}
+
 interface SyncStats {
   foldersScanned: number;
   filesDiscovered: number;
@@ -189,6 +223,7 @@ export async function GET(request: NextRequest) {
           [SHAREPOINT_DRIVE_ID, file.id]
         );
 
+        let isResync = false;
         if (alreadySynced) {
           // Re-sync if SharePoint shows a newer modification time
           const spModified = file.lastModifiedDateTime
@@ -204,19 +239,49 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
+          // File was updated — but should we re-sync based on lifecycle?
+          if (parsed.date) {
+            const lifecycle = shouldResyncDate(parsed.date);
+            if (lifecycle === "frozen") {
+              // Future template or finalized past date — skip re-download
+              stats.filesAlreadySynced++;
+              fileResults.push({ filename: file.name, date: parsed.date, status: "already_synced" });
+              continue;
+            }
+            if (lifecycle === "final_check") {
+              // 2+ days old — only re-sync if we have zero entries (never got real data)
+              const entryCount = await queryOne<{ count: number }>(
+                `SELECT COUNT(*)::int AS count FROM ops.clinic_day_entries e
+                 JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+                 WHERE cd.clinic_date = $1`,
+                [parsed.date]
+              );
+              if ((entryCount?.count ?? 0) > 0) {
+                stats.filesAlreadySynced++;
+                log.push(`  FROZEN: ${file.name} — ${entryCount!.count} entries exist, date has passed`);
+                fileResults.push({ filename: file.name, date: parsed.date, status: "already_synced" });
+                continue;
+              }
+              // 0 entries — allow re-sync to get the data
+            }
+            // lifecycle === "active" — always re-sync (today/yesterday)
+          }
+
           // File was updated on SharePoint — clear old sync record and re-download
+          isResync = true;
           log.push(`  RE-SYNC: ${file.name} (modified ${spModified.toISOString()} > synced ${ourModified.toISOString()})`);
           await execute(
             `DELETE FROM ops.sharepoint_synced_files WHERE synced_file_id = $1`,
             [alreadySynced.synced_file_id]
           );
-          // Also clear old entries so fresh data replaces stale template rows
+          // Clear non-manual entries so fresh data replaces stale template rows
           if (parsed.date) {
             await execute(
               `DELETE FROM ops.clinic_day_entries
                WHERE clinic_day_id = (
                  SELECT clinic_day_id FROM ops.clinic_days WHERE clinic_date = $1
-               )`,
+               )
+               AND match_confidence IS DISTINCT FROM 'manual'`,
               [parsed.date]
             );
           }
@@ -225,7 +290,7 @@ export async function GET(request: NextRequest) {
         // Download + ingest
         try {
           stats.filesProcessed++;
-          log.push(`  Processing: ${file.name} (${parsed.date})`);
+          log.push(`  Processing: ${file.name} (${parsed.date})${isResync ? " [re-sync]" : ""}`);
 
           const content = await downloadFile(SHAREPOINT_DRIVE_ID, file.id);
           const fileHash = createHash("sha256").update(content).digest("hex");
@@ -260,7 +325,9 @@ export async function GET(request: NextRequest) {
             dateOverride: parsed.date,
             enteredBy: null, // cron-driven, no staff session
             sourceSystem: "master_list_sharepoint_sync",
-            skipIfExists: true,
+            // On re-sync we already deleted non-manual entries, so allow insert
+            // even if manual entries remain. First sync uses skipIfExists: true.
+            skipIfExists: !isResync,
             skipCDS: false,
           });
 
