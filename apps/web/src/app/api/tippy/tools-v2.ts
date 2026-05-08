@@ -1199,6 +1199,46 @@ async function fullPlaceBriefing(
   // Build enrichment layer
   const enrichment: Record<string, unknown> = {};
 
+  // Corridor check — is this place part of a shared colony corridor?
+  const corridorPlaces = await queryRows<{
+    place_id: string;
+    display_name: string | null;
+    formatted_address: string | null;
+    cat_count: number;
+    people: string | null;
+  }>(
+    `SELECT cp.place_id::text, cp.display_name, cp.formatted_address,
+      (SELECT COUNT(DISTINCT cat_id)::int FROM sot.cat_place WHERE place_id = cp.place_id
+       AND COALESCE(presence_status, 'unknown') NOT IN ('departed','presumed_departed')) AS cat_count,
+      (SELECT STRING_AGG(DISTINCT pe.display_name, ', ')
+       FROM sot.person_place pp JOIN sot.people pe ON pe.person_id = pp.person_id AND pe.merged_into_person_id IS NULL
+       WHERE pp.place_id = cp.place_id) AS people
+     FROM sot.get_corridor_places($1) cp
+     WHERE cp.place_id != $1`,
+    [effectivePlaceId]
+  ).catch(() => []);
+
+  if (corridorPlaces.length > 0) {
+    const corridorStats = await queryOne<{
+      total_cats: number;
+      altered_cats: number;
+      intact_cats: number;
+      corridor_size: number;
+    }>(
+      `SELECT * FROM sot.get_corridor_cat_stats($1)`,
+      [effectivePlaceId]
+    );
+
+    enrichment.corridor = {
+      is_part_of_corridor: true,
+      corridor_size: (corridorStats?.corridor_size ?? corridorPlaces.length + 1),
+      total_cats_across_corridor: corridorStats?.total_cats ?? 0,
+      altered_across_corridor: corridorStats?.altered_cats ?? 0,
+      sibling_places: corridorPlaces,
+      note: `This place is part of a ${corridorPlaces.length + 1}-address corridor where cats move freely between properties. All corridor context is relevant when assessing this site. The request may cover more than just the anchor address.`,
+    };
+  }
+
   if (contextResult.success && contextResult.data) {
     enrichment.institutional_context = contextResult.data;
   }
