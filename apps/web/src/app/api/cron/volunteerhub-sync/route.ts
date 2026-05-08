@@ -670,6 +670,80 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Step 5.5: Sync trapper profiles from VH "Approved Trappers" group
+    // Approved Trappers group = Tier 1 (ffsc_volunteer). VH is authoritative for this tier.
+    const APPROVED_TRAPPERS_GROUP = "fc830580-e4d2-4182-9905-29d5ed810bb2";
+    let trapperSync: { promoted: number; created: number; demoted: number } = { promoted: 0, created: 0, demoted: 0 };
+    try {
+      // Promote/create: VH volunteers in Approved Trappers → ffsc_volunteer
+      const promoted = await queryRows<{ person_id: string; was_created: boolean }>(
+        `WITH approved AS (
+           SELECT v.matched_person_id AS person_id
+           FROM source.volunteerhub_volunteers v
+           WHERE v.matched_person_id IS NOT NULL
+             AND v.is_active = true
+             AND $1 = ANY(v.user_group_uids)
+         ),
+         ensure_role AS (
+           INSERT INTO sot.person_roles (person_id, role, source_system)
+           SELECT person_id, 'trapper', 'volunteerhub' FROM approved
+           ON CONFLICT DO NOTHING
+         )
+         INSERT INTO sot.trapper_profiles (person_id, trapper_type, is_active, source_system)
+         SELECT person_id, 'ffsc_volunteer', true, 'volunteerhub' FROM approved
+         ON CONFLICT (person_id) DO UPDATE SET
+           trapper_type = CASE
+             WHEN sot.trapper_profiles.trapper_type != 'ffsc_volunteer' THEN 'ffsc_volunteer'
+             ELSE sot.trapper_profiles.trapper_type
+           END,
+           is_active = true,
+           source_system = CASE
+             WHEN sot.trapper_profiles.trapper_type != 'ffsc_volunteer' THEN 'volunteerhub'
+             ELSE sot.trapper_profiles.source_system
+           END,
+           updated_at = CASE
+             WHEN sot.trapper_profiles.trapper_type != 'ffsc_volunteer' THEN NOW()
+             ELSE sot.trapper_profiles.updated_at
+           END
+         RETURNING person_id, (xmax = 0) AS was_created`,
+        [APPROVED_TRAPPERS_GROUP]
+      );
+
+      for (const r of promoted) {
+        if (r.was_created) trapperSync.created++;
+        else trapperSync.promoted++;
+      }
+
+      // Demote: people who are ffsc_volunteer + source=volunteerhub but NO LONGER in Approved Trappers
+      const demoted = await queryRows<{ person_id: string }>(
+        `UPDATE sot.trapper_profiles tp
+         SET trapper_type = 'community_trapper',
+             updated_at = NOW()
+         WHERE tp.trapper_type = 'ffsc_volunteer'
+           AND tp.source_system = 'volunteerhub'
+           AND NOT EXISTS (
+             SELECT 1 FROM source.volunteerhub_volunteers v
+             WHERE v.matched_person_id = tp.person_id
+               AND v.is_active = true
+               AND $1 = ANY(v.user_group_uids)
+           )
+         RETURNING person_id`,
+        [APPROVED_TRAPPERS_GROUP]
+      );
+      trapperSync.demoted = demoted.length;
+
+      if (trapperSync.created + trapperSync.promoted + trapperSync.demoted > 0) {
+        console.error(
+          `[VH-SYNC] Trapper profiles: ${trapperSync.created} created, ${trapperSync.promoted} promoted to ffsc_volunteer, ${trapperSync.demoted} demoted`
+        );
+      }
+    } catch (trapperErr) {
+      console.error(
+        "Trapper profile sync error:",
+        trapperErr instanceof Error ? trapperErr.message : trapperErr
+      );
+    }
+
     // Step 6: Enrich skeleton people (MIG_2516)
     let enrichment: { enriched_count: number; skipped_count: number; error_count: number } | null = null;
     try {
@@ -732,6 +806,7 @@ export async function GET(request: NextRequest) {
             reconciliation: reconciliation
               ? { roles_deactivated: reconciliation.deactivated }
               : null,
+            trapper_sync: trapperSync,
             enrichment: enrichment
               ? {
                   enriched: enrichment.enriched_count,
@@ -773,6 +848,7 @@ export async function GET(request: NextRequest) {
       reconciliation: reconciliation
         ? { roles_deactivated: reconciliation.deactivated }
         : null,
+      trapper_sync: trapperSync,
       enrichment: enrichment
         ? {
             enriched: enrichment.enriched_count,
