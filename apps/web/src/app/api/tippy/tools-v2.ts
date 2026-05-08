@@ -2154,7 +2154,7 @@ async function personLookup(
   identifier: string,
   _identifierType?: string
 ): Promise<ToolResult> {
-  const [personResult, catRelationships, vhData] = await Promise.all([
+  const [personResult, catRelationships, vhData, fosterAdoptHistory] = await Promise.all([
     queryOne<{ result: unknown }>(
       `SELECT ops.comprehensive_person_lookup($1) as result`,
       [identifier]
@@ -2178,6 +2178,26 @@ async function personLookup(
        FROM source.volunteerhub_members vh
        WHERE vh.email ILIKE $1 OR vh.display_name ILIKE $1
        LIMIT 5`,
+      [`%${identifier}%`]
+    ).catch(() => []),
+    // Foster/adoption history from lifecycle events
+    queryRows<{
+      cat_name: string;
+      journey_status: string;
+      origin_address: string | null;
+      intake_date: string | null;
+      status_date: string | null;
+    }>(
+      `SELECT v.cat_name, v.journey_status, v.origin_address,
+        v.intake_date::text, v.status_date::text
+       FROM sot.v_cat_journey v
+       WHERE v.current_person_id = (
+         SELECT person_id FROM sot.people
+         WHERE display_name ILIKE $1 AND merged_into_person_id IS NULL
+         LIMIT 1
+       )
+       ORDER BY v.status_date DESC
+       LIMIT 20`,
       [`%${identifier}%`]
     ).catch(() => []),
   ]);
@@ -2206,6 +2226,7 @@ async function personLookup(
       count: Array.isArray(parsed) ? parsed.length : 1,
       cat_relationships: catRelationships.length > 0 ? catRelationships : undefined,
       volunteerhub_data: vhData.length > 0 ? vhData : undefined,
+      foster_adoption_history: fosterAdoptHistory.length > 0 ? fosterAdoptHistory : undefined,
       summary: Array.isArray(parsed)
         ? `Found ${parsed.length} person(s) matching "${identifier}"`
         : undefined,
@@ -2221,7 +2242,10 @@ async function catLookup(
   identifier: string,
   _identifierType?: string
 ): Promise<ToolResult> {
-  const [catResult, appointmentCrossCheck] = await Promise.all([
+  const cleanId = identifier.replace(/\s/g, "");
+  const likeId = `%${identifier}%`;
+
+  const [catResult, appointmentCrossCheck, journeyData] = await Promise.all([
     queryOne<{ result: unknown }>(
       `SELECT ops.comprehensive_cat_lookup($1::TEXT) as result`,
       [identifier]
@@ -2240,8 +2264,29 @@ async function catLookup(
       )
       ORDER BY a.appointment_date DESC
       LIMIT 10`,
-      [identifier.replace(/\s/g, ""), `%${identifier}%`]
+      [cleanId, likeId]
     ).catch(() => []),
+    // Journey/lifecycle data from ShelterLuv
+    queryOne<{
+      journey_status: string;
+      origin_address: string | null;
+      destination_address: string | null;
+      current_person_name: string | null;
+      intake_date: string | null;
+      status_date: string | null;
+    }>(
+      `SELECT journey_status, origin_address, destination_address,
+        current_person_name, intake_date::text, status_date::text
+       FROM sot.v_cat_journey
+       WHERE cat_id = (
+         SELECT c.cat_id FROM sot.cats c
+         LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+         WHERE (ci.id_value = $1 OR c.display_name ILIKE $2)
+           AND c.merged_into_cat_id IS NULL
+         LIMIT 1
+       )`,
+      [cleanId, likeId]
+    ).catch(() => null),
   ]);
 
   if (!catResult) {
@@ -2268,6 +2313,7 @@ async function catLookup(
       count: Array.isArray(parsed) ? parsed.length : 1,
       appointment_history:
         appointmentCrossCheck.length > 0 ? appointmentCrossCheck : undefined,
+      journey: journeyData || undefined,
       summary: Array.isArray(parsed)
         ? `Found ${parsed.length} cat(s) matching "${identifier}"`
         : undefined,

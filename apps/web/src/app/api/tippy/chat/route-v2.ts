@@ -172,7 +172,7 @@ Core: sot.places, sot.cats, sot.people, sot.addresses
 Relationships: sot.cat_place, sot.person_place, sot.person_cat
 Identity: sot.person_identifiers (confidence >= 0.5!), ops.clinic_accounts
 Operational: ops.requests, ops.appointments, ops.staff
-Lifecycle: sot.cat_lifecycle_events, sot.v_adoption_context
+Lifecycle: sot.cat_lifecycle_events, sot.v_cat_journey (origin→destination+journey_status), sot.v_adoption_context
 Key columns: altered_status (spayed/neutered/altered/intact/NULL), merged_into_*_id IS NULL, location (PostGIS)
 Key columns for run_sql: ops.appointments(appointment_date, cat_id, place_id, client_name), sot.cats(cat_id, display_name, altered_status, is_deceased, deceased_at, sex), ops.requests(request_id, place_id, status, estimated_cat_count, requester_person_id)
 Matviews: ops.mv_city_stats, ops.mv_zip_coverage, ops.mv_ffr_impact_summary
