@@ -350,12 +350,13 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
         computedDueDate = apptDate.toISOString().split("T")[0];
       }
 
-      // Fire all checkout events
+      // Use "assign" event for trapper checkouts (indefinite, no due date)
+      const isAssignment = checkoutType === "trapper";
       const depositNum = checkoutDeposit ? Number(checkoutDeposit) : undefined;
       const results = await Promise.allSettled(
         checkoutCart.map((item) =>
           postApi(`/api/equipment/${item.equipment_id}/events`, {
-            event_type: "check_out",
+            event_type: isAssignment ? "assign" : "check_out",
             custodian_person_id: resolution.person_id || undefined,
             custodian_name: name,
             custodian_name_raw: name,
@@ -363,8 +364,8 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
             notes: finalNotes,
             checkout_purpose: checkoutPurpose || undefined,
             checkout_type: checkoutType || undefined,
-            due_date: computedDueDate,
-            deposit_amount: depositNum && !isNaN(depositNum) ? depositNum : undefined,
+            due_date: isAssignment ? undefined : computedDueDate,
+            deposit_amount: isAssignment ? undefined : (depositNum && !isNaN(depositNum) ? depositNum : undefined),
             ...(checkoutPlace?.place_id ? { place_id: checkoutPlace.place_id } : {}),
           })
         )
@@ -382,7 +383,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       }
 
       if (failed === 0) {
-        toast.success(`${succeeded} item${succeeded !== 1 ? "s" : ""} checked out to ${name}`);
+        toast.success(`${succeeded} item${succeeded !== 1 ? "s" : ""} ${isAssignment ? "assigned to" : "checked out to"} ${name}`);
       } else {
         toast.warning(`${succeeded} succeeded, ${failed} failed`);
       }
@@ -707,7 +708,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
               onClick={handleBatchCheckout}
               style={{ flex: 2, borderRadius: 10 }}
             >
-              Check Out{checkoutCart.length > 1 ? ` All (${checkoutCart.length})` : ""}
+              {checkoutType === "trapper" ? "Assign" : "Check Out"}{checkoutCart.length > 1 ? ` All (${checkoutCart.length})` : ""}
             </Button>
           </div>
         </div>
