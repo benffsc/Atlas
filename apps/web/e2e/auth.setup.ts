@@ -38,6 +38,15 @@ setup('authenticate', async ({ page }) => {
   // Wait for redirect away from login page (uses window.location.href)
   await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30000 });
 
+  // Handle password change redirect — if using default password, the middleware
+  // redirects to /change-password. Clear the cookie so tests can navigate freely.
+  if (page.url().includes('/change-password')) {
+    // Clear the pwd change cookie via the browser context
+    await page.context().clearCookies({ name: 'atlas_pwd_change' });
+    // Also clear the DB flag so middleware doesn't re-redirect
+    await page.goto('/');
+  }
+
   // Set PasswordGate localStorage (client-side gate, 7-day session)
   await page.evaluate(() => {
     const expiry = Date.now() + 7 * 24 * 60 * 60 * 1000;
