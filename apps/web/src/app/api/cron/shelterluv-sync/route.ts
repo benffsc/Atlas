@@ -313,6 +313,17 @@ export async function GET(request: NextRequest) {
     // people's full refetch exhausted the budget and events stalled for 6+ weeks.
     const elapsedAfterAnimals = Date.now() - startTime;
     if ((!syncType || syncType === "events") && elapsedAfterAnimals < TIME_BUDGET_MS) {
+      // Staleness check: if events watermark is >7 days old, do a full re-fetch
+      const eventsState = await getSyncState("events");
+      let eventsIncremental = incremental;
+      if (eventsState.last_sync_at) {
+        const daysSinceSync = (Date.now() - new Date(eventsState.last_sync_at).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceSync > 7) {
+          console.error(`[SL-SYNC] Events watermark is ${Math.round(daysSinceSync)} days stale — doing full re-fetch`);
+          eventsIncremental = false;
+        }
+      }
+
       console.error("[SL-SYNC] Syncing events...");
       // DATA_GAP_057 FIX: Changed from "Time" to "LastUpdatedUnixTime"
       // "Time" is the immutable event occurrence timestamp, which never changes.
@@ -324,7 +335,7 @@ export async function GET(request: NextRequest) {
         "events",
         "Internal-ID",
         "LastUpdatedUnixTime",
-        incremental
+        eventsIncremental
       );
       totalApiRequests += results.events.apiRequests;
     } else if (!syncType && elapsedAfterAnimals >= TIME_BUDGET_MS) {
@@ -355,7 +366,7 @@ export async function GET(request: NextRequest) {
 
     // Process animals first (creates cats + detects fosters)
     if (!syncType || syncType === "animals") {
-      const animalBatchSize = 500;
+      const animalBatchSize = 2000;
       const unprocessedAnimals = await queryRows<{ id: string }>(
         `SELECT id::text FROM ops.staged_records
          WHERE source_system = 'shelterluv'
@@ -364,6 +375,16 @@ export async function GET(request: NextRequest) {
          LIMIT $1`,
         [animalBatchSize]
       );
+
+      // Warn if queue is deeper than one batch
+      const pendingCount = await queryOne<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt FROM ops.staged_records
+         WHERE source_system = 'shelterluv' AND source_table = 'animals'
+           AND is_processed IS NOT TRUE`
+      );
+      if (pendingCount && pendingCount.cnt > animalBatchSize) {
+        console.error(`[SL-SYNC] WARNING: ${pendingCount.cnt} unprocessed animals (batch=${animalBatchSize}). Queue is backed up.`);
+      }
 
       if (unprocessedAnimals.length > 0) {
         console.error(`[SL-SYNC] Processing ${unprocessedAnimals.length} animals through Data Engine...`);

@@ -433,6 +433,7 @@ Use run_sql ONLY for questions that genuinely don't fit the 15 tools or 11+ reci
 (2) Institutional knowledge: Google Maps notes (Donna colonies, tenant feeders), journal entries, request notes/hold reasons, ClinicHQ account notes.
 (3) Cross-source ShelterLuv outcomes for cats from this place's requests (kittens taken into care, adoptions, transfers).
 (4) Request intelligence: extracted key facts (cat counts, cooperation signals, health concerns) from request notes.
+(5) Corridor detection — shows sibling places in shared colonies and nearby related addresses.
 
 This is the PRIMARY tool for "tell me about [place]", "what's going on at [address]?", "situation at [location]". Use it whenever you need comprehensive place data.`,
     input_schema: {
@@ -495,7 +496,7 @@ This is the PRIMARY tool for "tell me about [place]", "what's going on at [addre
   // 5. cat_lookup
   {
     name: "cat_lookup",
-    description: `Find a cat by microchip or name with full history. Returns: Atlas core data (status, color, breed), clinic appointments with procedures, ShelterLuv outcomes (foster/adoption), all connected people (owners, trappers, fosters), and places linked. Use for 'look up cat [microchip]', 'find cat named [name]', 'cat journey', 'cat history'.`,
+    description: `Find a cat by microchip or name with full history. Returns: Atlas core data (status, color, breed), clinic appointments with procedures, ShelterLuv outcomes (foster/adoption with journey data: origin address, destination address, current lifecycle status), all connected people (owners, trappers, fosters), and places linked. Use for 'look up cat [microchip]', 'find cat named [name]', 'cat journey', 'cat history'.`,
     input_schema: {
       type: "object" as const,
       properties: {
@@ -822,7 +823,8 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
 - "update_request": Update an existing request with new information.
 - "save_lookup": Save current research to staff member's personal lookups.
 - "add_note": Add a note to a place, person, cat, or request.
-- "add_field_contact": Create a new person record from field contact info (name + phone/address + relationship to a place/request). Creates person, place, links, and journal entry.`,
+- "add_field_contact": Create a new person record from field contact info (name + phone/address + relationship to a place/request). Creates person, place, links, and journal entry.
+- "link_corridor_place": Connect a nearby address to a request's scope. Creates shared_colony edge + adds to request_scope_places.`,
     input_schema: {
       type: "object" as const,
       properties: {

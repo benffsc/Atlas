@@ -9,6 +9,7 @@ import { ToastProvider } from "@/components/feedback/Toast";
 import { Icon } from "@/components/ui/Icon";
 import { usePresentationMode, PresentationModeIndicator } from "@/components/PresentationMode";
 import { NavigationProgress } from "@/components/NavigationProgress";
+import { NotificationBell } from "@/components/NotificationBell";
 import { fetchApi } from "@/lib/api-client";
 
 interface Staff {
@@ -121,8 +122,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <GlobalSearch />
           </div>
 
-          {/* Right side: spacer + user menu */}
+          {/* Right side: spacer + notifications + user menu */}
           <div style={{ flex: 1 }} />
+
+          {/* Notification Bell */}
+          <NotificationBell />
 
           {/* User Menu */}
           {staff ? (

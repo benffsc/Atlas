@@ -115,6 +115,7 @@ TOOL SELECTION GUIDE (15 tools):
 - "Tell [person] that..." → send_message
 - "Remind me to..." → create_reminder
 - Log an event/observation → log_event
+- Corridor / shared colony → full_place_briefing (auto-detected) or run_sql for place_edges
 
 MULTI-STEP INVESTIGATION PROTOCOL:
 After EVERY tool result, ask: Do I have enough? Did I get entity IDs to drill into? Are there cross-system sources unchecked?
@@ -238,12 +239,26 @@ function buildAccessBlock(level: string): string {
 - log_event with action_type="add_field_contact" for capturing new contacts from the field. When staff provides a person's name + phone/address + relationship to a place, extract: first_name, last_name, phone, phone2 (optional), email (optional), address, relationship_type (neighbor/caretaker/cat_owner/landlord/tenant/family_member/transporter/rescue_contact/other), notes, request_id (if on a request page), referred_by (name of referrer if mentioned, e.g. "Tom told me about Juan"). Name-only contacts (no phone/email) are allowed — they'll be marked as needing follow-up. This creates person + place + links + journal entry in one action. Always confirm before creating: "I'll create a record for [Name] as a [relationship] at [address] with phone [phone]. Confirm?"
 - Reminders and lookups appear at /me.
 
-TRAPPER TEXT PARSING:
-When a user pastes a long message (>3 lines) from trapper notes or text messages:
-1. Extract structured data: addresses, cat counts, observations, names
-2. For EACH distinct observation, call log_event with action_type="add_note" and the relevant location
-3. For cat counts at specific addresses, also call log_event with action_type="field_event"
-4. Summarize what you extracted and logged after processing`;
+COMMUNICATION PARSING (trapper notes, emails, texts, voicemails):
+When a user pastes a long message (>3 lines), especially with From/To headers, quoted replies (>), or forwarded content:
+1. Strip: email signatures, quoted reply markers (>), disclaimers, image references
+2. Extract per-message (not per-line):
+   - People: name, phone, email, role (requester/neighbor/trapper/board member/contact)
+   - Places: addresses with relationship context ("lives at", "near", "property at")
+   - Cats: counts, descriptions, status (kittens, pregnant, feral, fixed)
+   - Dates: explicit ("05/03") and relative ("5-6 weeks") → compute actual date from today
+   - Action items: who needs to do what by when
+   - Relationships: "Laura is Rick's wife", "Diane is former board member"
+3. For EACH distinct entity, call the appropriate action:
+   - New person with contact info → log_event with action_type="add_field_contact"
+   - Observation at a place → log_event with action_type="add_note" on that place
+   - Related address on a request → log_event with action_type="link_corridor_place"
+   - Time-sensitive action → create_reminder with computed due date
+   - Cat counts at addresses → log_event with action_type="field_event"
+4. Summarize: "I extracted N people, N addresses, N follow-ups. Creating records now."
+5. For bulk creation (>3 entities), list what you'll create and confirm before committing.
+
+When staff says "here's an email from X about Y" — parse it as communication, don't treat it as a question.`;
   return "";
 }
 
@@ -485,19 +500,53 @@ async function assembleBriefingData(staffId: string): Promise<string> {
     );
     if (msgs && msgs.cnt > 0) parts.push(`**Unread messages:** ${msgs.cnt}`);
 
-    // Reminders
-    const reminders = await queryRows<{ title: string; due_at: string }>(
-      `SELECT title, due_at::text FROM ops.staff_reminders
-       WHERE staff_id = $1 AND completed_at IS NULL
-         AND due_at <= NOW() + INTERVAL '24 hours'
-       ORDER BY due_at LIMIT 5`,
+    // Reminders (expanded window to 7 days)
+    const reminders = await queryRows<{ title: string; due_at: string; is_overdue: boolean }>(
+      `SELECT title, due_at::text, (due_at < NOW()) AS is_overdue
+       FROM ops.staff_reminders
+       WHERE staff_id = $1 AND status IN ('pending', 'due')
+         AND due_at <= NOW() + INTERVAL '7 days'
+       ORDER BY due_at LIMIT 10`,
       [staffId]
     );
     if (reminders.length > 0) {
       parts.push(
         "**Due reminders:**\n" +
-          reminders.map((r) => `- ${r.title} (${r.due_at})`).join("\n")
+          reminders.map((r) => `- ${r.is_overdue ? "OVERDUE: " : ""}${r.title} (${r.due_at})`).join("\n")
       );
+    }
+
+    // Due/overdue tippy tickets
+    const dueTickets = await queryRows<{
+      ticket_id: string;
+      summary: string;
+      followup_date: string;
+      priority: string;
+      is_overdue: boolean;
+      ticket_type: string;
+    }>(
+      `SELECT ticket_id::text, LEFT(summary, 100) AS summary,
+        followup_date::text, priority, ticket_type,
+        (followup_date < CURRENT_DATE) AS is_overdue
+       FROM ops.tippy_tickets
+       WHERE status = 'open' AND followup_date IS NOT NULL
+         AND followup_date <= CURRENT_DATE + INTERVAL '7 days'
+       ORDER BY followup_date ASC LIMIT 10`
+    );
+    if (dueTickets.length > 0) {
+      const overdue = dueTickets.filter((t) => t.is_overdue);
+      const upcoming = dueTickets.filter((t) => !t.is_overdue);
+      let ticketText = "";
+      if (overdue.length > 0) {
+        ticketText += `**OVERDUE field tickets (${overdue.length}):**\n` +
+          overdue.map((t) => `- [${t.priority.toUpperCase()}] ${t.summary} (due ${t.followup_date})`).join("\n");
+      }
+      if (upcoming.length > 0) {
+        ticketText += (ticketText ? "\n" : "") +
+          `**Upcoming field tickets (${upcoming.length}):**\n` +
+          upcoming.map((t) => `- ${t.summary} (due ${t.followup_date})`).join("\n");
+      }
+      parts.push(ticketText);
     }
   } catch {
     parts.push("(Some briefing data unavailable)");
@@ -689,8 +738,11 @@ async function handleStreamingChat(params: {
         const maxIterations = 6;
         const timeBudgetMs = 280_000;
         const startTime = Date.now();
+        let iterationsUsed = 0;
+        let hadEmptyResponse = false;
 
         for (let iteration = 0; iteration < maxIterations; iteration++) {
+          iterationsUsed = iteration + 1;
           const elapsed = Date.now() - startTime;
           if (elapsed > timeBudgetMs) {
             messages.push({
@@ -765,6 +817,11 @@ async function handleStreamingChat(params: {
 
           fullText += iterationText;
 
+          // Track empty responses
+          if (!iterationText.trim() && toolUseBlocks.length === 0) {
+            hadEmptyResponse = true;
+          }
+
           // No tool calls — done
           if (toolUseBlocks.length === 0) break;
 
@@ -823,6 +880,21 @@ async function handleStreamingChat(params: {
           toolsUsed.length > 0 ? toolsUsed : undefined
         );
         await updateConversationTools(conversationId, toolsUsed);
+
+        // Write quality metrics (non-blocking)
+        try {
+          const hitLimit = iterationsUsed >= maxIterations;
+          await execute(
+            `UPDATE ops.tippy_conversations
+             SET iterations_used = $2,
+                 hit_iteration_limit = $3,
+                 had_empty_response = $4
+             WHERE conversation_id = $1`,
+            [conversationId, iterationsUsed, hitLimit, hadEmptyResponse]
+          );
+        } catch {
+          // Non-blocking
+        }
 
         send("done", { conversationId, toolsUsed });
         controller.close();
