@@ -47,6 +47,15 @@ interface Trapper {
   contract_signed_date: string | null;
   profile_created_at: string | null;
   assigned_request_summaries: AssignedRequest[] | null;
+  // MIG_3127: Capabilities & onboarding
+  capabilities: string[] | null;
+  availability_notes: string | null;
+  geographic_range: string | null;
+  onboarding_stage: string | null;
+  has_own_traps: boolean;
+  has_vehicle: boolean;
+  trapping_experience: string | null;
+  survey_completed_at: string | null;
 }
 
 interface AggregateStats {
@@ -452,7 +461,28 @@ function TrapperCard({
         </div>
       </div>
 
-      {/* Row 2: Active assignments + Last activity */}
+      {/* Row 2: Capabilities + Area */}
+      {((trapper.capabilities && trapper.capabilities.length > 0) || trapper.geographic_range) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.4rem", alignItems: "center" }}>
+          {(trapper.capabilities || []).map((cap) => (
+            <span key={cap} style={{
+              fontSize: "0.65rem", padding: "0.1rem 0.4rem", borderRadius: "9999px",
+              background: cap === "trapping" ? "var(--primary)" + "18" : cap === "recon" ? "var(--info-bg)" : cap === "transport" ? "var(--warning-bg)" : cap === "colony_care" ? "var(--success-bg)" : "var(--section-bg)",
+              color: cap === "trapping" ? "var(--primary)" : cap === "recon" ? "var(--info-text)" : cap === "transport" ? "var(--warning-text)" : cap === "colony_care" ? "var(--success-text)" : "var(--text-secondary)",
+              fontWeight: 500,
+            }}>
+              {cap === "colony_care" ? "colony care" : cap}
+            </span>
+          ))}
+          {trapper.geographic_range && (
+            <span style={{ fontSize: "0.7rem", color: "var(--text-tertiary)", marginLeft: "0.2rem" }}>
+              {trapper.geographic_range}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Row 3: Active assignments + Last activity */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem" }}>
           <span style={{ color: "var(--text-secondary)" }}>Active:</span>
@@ -499,8 +529,8 @@ function TrapperCard({
         </div>
       )}
 
-      {/* Row 4: Stats */}
-      <div style={{ display: "flex", gap: "1rem", fontSize: "0.75rem", color: "var(--text-secondary)", alignItems: "center" }}>
+      {/* Row 5: Stats + equipment */}
+      <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.75rem", color: "var(--text-secondary)", alignItems: "center", flexWrap: "wrap" }}>
         <span>
           <strong style={{ color: trapper.total_cats_caught > 0 ? "var(--success-text)" : "var(--text-tertiary)" }}>
             {trapper.total_cats_caught}
@@ -512,6 +542,22 @@ function TrapperCard({
         )}
         {trapper.has_signed_contract && (
           <span style={{ color: "var(--success-text)" }} title="Contract signed">{"\u2713"} Contract</span>
+        )}
+        {trapper.has_own_traps && (
+          <span title="Has own traps" style={{ color: "var(--text-tertiary)" }}>Has traps</span>
+        )}
+        {trapper.has_vehicle && (
+          <span title="Has vehicle for transport" style={{ color: "var(--text-tertiary)" }}>Has vehicle</span>
+        )}
+        {trapper.onboarding_stage && trapper.onboarding_stage !== "active" && (
+          <span style={{
+            fontSize: "0.6rem", padding: "0.1rem 0.35rem", borderRadius: "4px",
+            background: trapper.onboarding_stage === "interested" ? "var(--info-bg)" : trapper.onboarding_stage === "certified" ? "var(--warning-bg)" : trapper.onboarding_stage === "field_ready" ? "var(--success-bg)" : "var(--section-bg)",
+            color: trapper.onboarding_stage === "interested" ? "var(--info-text)" : trapper.onboarding_stage === "certified" ? "var(--warning-text)" : trapper.onboarding_stage === "field_ready" ? "var(--success-text)" : "var(--text-secondary)",
+            fontWeight: 600, textTransform: "uppercase",
+          }}>
+            {trapper.onboarding_stage.replace("_", " ")}
+          </span>
         )}
       </div>
     </div>
@@ -752,25 +798,63 @@ function TrappersPageInner() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0 }}>Trappers</h1>
-        <a
-          href="https://form.jotform.com/260715379111151"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.5rem 1rem",
-            background: "#198754",
-            color: "#fff",
-            borderRadius: "6px",
-            fontSize: "0.875rem",
-            fontWeight: 500,
-            textDecoration: "none",
-          }}
-        >
-          + New Community Trapper Agreement
-        </a>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <button
+            onClick={async () => {
+              try {
+                const res = await fetchApi<{ comma_separated: string; count: number }>("/api/trappers/emails?tier=ffsc");
+                await navigator.clipboard.writeText(res.comma_separated);
+                addToast({ type: "success", message: `${res.count} FFSC trapper emails copied` });
+              } catch { addToast({ type: "error", message: "Failed to copy emails" }); }
+            }}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "0.35rem",
+              padding: "0.5rem 0.75rem", background: "var(--card-bg)", color: "var(--foreground)",
+              border: "1px solid var(--border)", borderRadius: "6px", fontSize: "0.8rem",
+              fontWeight: 500, cursor: "pointer",
+            }}
+          >
+            Copy FFSC Emails
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                const res = await postApi<{ total: number; pending: number; trappers: { name: string; email: string | null; survey_url: string; already_completed: boolean }[] }>(
+                  "/api/trappers/send-survey", { tier: "ffsc" }
+                );
+                const lines = res.trappers
+                  .filter((t) => !t.already_completed && t.email)
+                  .map((t) => `${t.name}: ${window.location.origin}${t.survey_url}`);
+                if (lines.length === 0) {
+                  addToast({ type: "info", message: "All FFSC trappers have completed the survey" });
+                  return;
+                }
+                await navigator.clipboard.writeText(lines.join("\n"));
+                addToast({ type: "success", message: `${lines.length} survey links copied — paste into email` });
+              } catch { addToast({ type: "error", message: "Failed to generate survey links" }); }
+            }}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "0.35rem",
+              padding: "0.5rem 0.75rem", background: "var(--card-bg)", color: "var(--foreground)",
+              border: "1px solid var(--border)", borderRadius: "6px", fontSize: "0.8rem",
+              fontWeight: 500, cursor: "pointer",
+            }}
+          >
+            Survey Links
+          </button>
+          <a
+            href="https://form.jotform.com/260715379111151"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "0.5rem",
+              padding: "0.5rem 1rem", background: "var(--primary)", color: "var(--primary-foreground)",
+              borderRadius: "6px", fontSize: "0.875rem", fontWeight: 500, textDecoration: "none",
+            }}
+          >
+            + New Agreement
+          </a>
+        </div>
       </div>
 
       {/* Workload Dashboard — FFS-533 */}

@@ -30,6 +30,15 @@ interface TrapperRow {
   contract_signed_date: string | null;
   profile_created_at: string | null;
   assigned_request_summaries: { request_id: string; address: string; status: string }[] | null;
+  // MIG_3127: Capabilities & onboarding
+  capabilities: string[] | null;
+  availability_notes: string | null;
+  geographic_range: string | null;
+  onboarding_stage: string | null;
+  has_own_traps: boolean;
+  has_vehicle: boolean;
+  trapping_experience: string | null;
+  survey_completed_at: string | null;
 }
 
 interface AggregateStats {
@@ -145,7 +154,15 @@ export async function GET(request: NextRequest) {
           s.profile_created_at::text AS profile_created_at,
           s.assigned_request_summaries,
           te.catch_per_trap,
-          COALESCE(te.total_sessions, 0)::INT AS total_sessions
+          COALESCE(te.total_sessions, 0)::INT AS total_sessions,
+          tp.capabilities,
+          tp.availability_notes,
+          tp.geographic_range,
+          tp.onboarding_stage,
+          COALESCE(tp.has_own_traps, FALSE) AS has_own_traps,
+          COALESCE(tp.has_vehicle, FALSE) AS has_vehicle,
+          tp.trapping_experience,
+          tp.survey_completed_at::text AS survey_completed_at
         FROM ops.v_trapper_full_stats s
         LEFT JOIN sot.v_trapper_tiers vt ON vt.person_id = s.person_id
         LEFT JOIN sot.trapper_profiles tp ON tp.person_id = s.person_id

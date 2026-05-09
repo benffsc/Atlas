@@ -24,6 +24,14 @@ interface Trapper {
   tier: string | null;
   has_signed_contract: boolean;
   availability_status: string;
+  capabilities?: string[] | null;
+  availability_notes?: string | null;
+  geographic_range?: string | null;
+  onboarding_stage?: string | null;
+  has_own_traps?: boolean;
+  has_vehicle?: boolean;
+  trapping_experience?: string | null;
+  survey_completed_at?: string | null;
 }
 
 interface TrapperPreviewContentProps {
@@ -118,6 +126,56 @@ export function TrapperPreviewContent({ trapper, onClose, onEdit }: TrapperPrevi
               {AVAILABILITY_LABELS[trapper.availability_status] || trapper.availability_status}
             </span>
           </div>
+        </div>
+      ),
+    },
+    {
+      id: "capabilities",
+      title: "Capabilities & Coverage",
+      content: (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.85rem" }}>
+          {trapper.capabilities && trapper.capabilities.length > 0 ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+              {trapper.capabilities.map((cap) => (
+                <span key={cap} style={{
+                  fontSize: "0.75rem", padding: "0.15rem 0.5rem", borderRadius: "9999px",
+                  background: "var(--section-bg)", color: "var(--text-secondary)", fontWeight: 500,
+                }}>
+                  {cap === "colony_care" ? "Colony Care" : cap.charAt(0).toUpperCase() + cap.slice(1)}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span style={{ color: "var(--text-tertiary)", fontStyle: "italic" }}>No capabilities set</span>
+          )}
+          {trapper.geographic_range && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "var(--text-secondary)" }}>Area</span>
+              <span style={{ fontWeight: 500 }}>{trapper.geographic_range}</span>
+            </div>
+          )}
+          {trapper.availability_notes && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "var(--text-secondary)" }}>Schedule</span>
+              <span style={{ fontWeight: 500, fontSize: "0.8rem", textAlign: "right", maxWidth: "60%" }}>{trapper.availability_notes}</span>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "1rem" }}>
+            {trapper.has_own_traps && <span style={{ fontSize: "0.8rem", color: "var(--success-text)" }}>Has traps</span>}
+            {trapper.has_vehicle && <span style={{ fontSize: "0.8rem", color: "var(--success-text)" }}>Has vehicle</span>}
+          </div>
+          {trapper.onboarding_stage && trapper.onboarding_stage !== "active" && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "var(--text-secondary)" }}>Onboarding</span>
+              <span style={{
+                fontSize: "0.7rem", padding: "0.1rem 0.4rem", borderRadius: "4px",
+                background: "var(--info-bg)", color: "var(--info-text)", fontWeight: 600,
+                textTransform: "uppercase",
+              }}>
+                {trapper.onboarding_stage.replace("_", " ")}
+              </span>
+            </div>
+          )}
         </div>
       ),
     },
