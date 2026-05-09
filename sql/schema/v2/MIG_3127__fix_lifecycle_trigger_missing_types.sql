@@ -42,7 +42,7 @@ BEGIN
       -- Depart from foster place specifically
       IF v_origin_place_id IS NOT NULL THEN
         UPDATE sot.cat_place
-        SET presence_status = 'departed', relationship_type = 'foster'
+        SET presence_status = 'departed'
         WHERE cat_id = NEW.cat_id AND place_id = v_origin_place_id
           AND presence_status NOT IN ('departed', 'presumed_departed');
       END IF;
@@ -55,8 +55,8 @@ BEGIN
         NEW.cat_id, NEW.destination_place_id,
         CASE
           WHEN NEW.event_subtype ILIKE '%relocation%' OR NEW.event_subtype ILIKE '%barn%' THEN 'relocated_to'
-          WHEN NEW.event_type = 'foster_start' THEN 'foster'
-          WHEN NEW.event_type = 'transfer' THEN 'transferred_to'
+          WHEN NEW.event_type = 'foster_start' THEN 'associated'
+          WHEN NEW.event_type = 'transfer' THEN 'relocated_to'
           ELSE 'home'
         END,
         'current', 'cross_system_match', 0.9, 'shelterluv'
