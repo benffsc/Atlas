@@ -21,6 +21,16 @@ interface TrapperProfileRow {
   updated_at: string;
   // Joined from v_trapper_tiers
   tier: string | null;
+  // MIG_3127: Capabilities & onboarding
+  capabilities: string[] | null;
+  availability_notes: string | null;
+  geographic_range: string | null;
+  onboarding_stage: string;
+  has_own_traps: boolean;
+  has_vehicle: boolean;
+  mentor_person_id: string | null;
+  trapping_experience: string | null;
+  survey_completed_at: string | null;
 }
 
 /** GET /api/people/[id]/trapper-profile — Trapper profile with contract info */
@@ -51,6 +61,15 @@ export async function GET(
          tp.source_system,
          tp.created_at,
          tp.updated_at,
+         tp.capabilities,
+         tp.availability_notes,
+         tp.geographic_range,
+         tp.onboarding_stage,
+         tp.has_own_traps,
+         tp.has_vehicle,
+         tp.mentor_person_id,
+         tp.trapping_experience,
+         tp.survey_completed_at,
          vt.tier
        FROM sot.trapper_profiles tp
        LEFT JOIN sot.v_trapper_tiers vt ON vt.person_id = tp.person_id
@@ -91,6 +110,14 @@ export async function PATCH(
       contract_signed_date,
       contract_areas,
       certified_date,
+      capabilities,
+      availability_notes,
+      geographic_range,
+      onboarding_stage,
+      has_own_traps,
+      has_vehicle,
+      mentor_person_id,
+      trapping_experience,
     } = body;
 
     // Build SET clauses dynamically based on provided fields
@@ -125,6 +152,38 @@ export async function PATCH(
     if (certified_date !== undefined) {
       setClauses.push(`certified_date = $${paramIndex++}`);
       values.push(certified_date || null);
+    }
+    if (capabilities !== undefined) {
+      setClauses.push(`capabilities = $${paramIndex++}`);
+      values.push(capabilities);
+    }
+    if (availability_notes !== undefined) {
+      setClauses.push(`availability_notes = $${paramIndex++}`);
+      values.push(availability_notes || null);
+    }
+    if (geographic_range !== undefined) {
+      setClauses.push(`geographic_range = $${paramIndex++}`);
+      values.push(geographic_range || null);
+    }
+    if (onboarding_stage !== undefined) {
+      setClauses.push(`onboarding_stage = $${paramIndex++}`);
+      values.push(onboarding_stage);
+    }
+    if (has_own_traps !== undefined) {
+      setClauses.push(`has_own_traps = $${paramIndex++}`);
+      values.push(has_own_traps);
+    }
+    if (has_vehicle !== undefined) {
+      setClauses.push(`has_vehicle = $${paramIndex++}`);
+      values.push(has_vehicle);
+    }
+    if (mentor_person_id !== undefined) {
+      setClauses.push(`mentor_person_id = $${paramIndex++}`);
+      values.push(mentor_person_id || null);
+    }
+    if (trapping_experience !== undefined) {
+      setClauses.push(`trapping_experience = $${paramIndex++}`);
+      values.push(trapping_experience || null);
     }
 
     if (setClauses.length === 0) {

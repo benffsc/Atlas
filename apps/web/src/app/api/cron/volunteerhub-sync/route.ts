@@ -670,10 +670,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Step 5.5: Sync trapper profiles from VH "Approved Trappers" group
-    // Approved Trappers group = Tier 1 (ffsc_volunteer). VH is authoritative for this tier.
+    // Step 5.5: Sync trapper profiles from VH groups
+    // Approved Trappers = Tier 1 (ffsc_volunteer). "Interested in trapping" = pipeline entry.
     const APPROVED_TRAPPERS_GROUP = "fc830580-e4d2-4182-9905-29d5ed810bb2";
-    let trapperSync: { promoted: number; created: number; demoted: number } = { promoted: 0, created: 0, demoted: 0 };
+    const INTERESTED_IN_TRAPPING_GROUP = "4ee058b7-273b-40e6-ab90-2c197c6e6ad2";
+    let trapperSync: { promoted: number; created: number; demoted: number; interested: number } = { promoted: 0, created: 0, demoted: 0, interested: 0 };
     try {
       // Promote/create: VH volunteers in Approved Trappers → ffsc_volunteer
       const promoted = await queryRows<{ person_id: string; was_created: boolean }>(
@@ -732,9 +733,42 @@ export async function GET(request: NextRequest) {
       );
       trapperSync.demoted = demoted.length;
 
-      if (trapperSync.created + trapperSync.promoted + trapperSync.demoted > 0) {
+      // "Interested in trapping" group → create lightweight profile with onboarding_stage='interested'
+      // Only for people who don't already have a trapper profile
+      const interested = await queryRows<{ person_id: string }>(
+        `WITH interested AS (
+           SELECT v.matched_person_id AS person_id
+           FROM source.volunteerhub_volunteers v
+           WHERE v.matched_person_id IS NOT NULL
+             AND v.is_active = true
+             AND $1 = ANY(v.user_group_uids)
+             AND NOT EXISTS (
+               SELECT 1 FROM sot.trapper_profiles tp WHERE tp.person_id = v.matched_person_id
+             )
+         )
+         INSERT INTO sot.trapper_profiles (person_id, trapper_type, is_active, onboarding_stage, source_system)
+         SELECT person_id, 'community_trapper', true, 'interested', 'volunteerhub'
+         FROM interested
+         ON CONFLICT (person_id) DO NOTHING
+         RETURNING person_id`,
+        [INTERESTED_IN_TRAPPING_GROUP]
+      );
+      trapperSync.interested = interested.length;
+
+      // Ensure trapper role exists for interested people
+      if (interested.length > 0) {
+        await queryRows(
+          `INSERT INTO sot.person_roles (person_id, role, source_system)
+           SELECT person_id, 'trapper', 'volunteerhub'
+           FROM unnest($1::UUID[]) AS person_id
+           ON CONFLICT DO NOTHING`,
+          [interested.map((r) => r.person_id)]
+        );
+      }
+
+      if (trapperSync.created + trapperSync.promoted + trapperSync.demoted + trapperSync.interested > 0) {
         console.error(
-          `[VH-SYNC] Trapper profiles: ${trapperSync.created} created, ${trapperSync.promoted} promoted to ffsc_volunteer, ${trapperSync.demoted} demoted`
+          `[VH-SYNC] Trapper profiles: ${trapperSync.created} created, ${trapperSync.promoted} promoted, ${trapperSync.demoted} demoted, ${trapperSync.interested} interested`
         );
       }
     } catch (trapperErr) {

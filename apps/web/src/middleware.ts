@@ -31,6 +31,8 @@ const PUBLIC_PATHS = [
   "/api/version",
   "/api/health",
   "/kiosk",
+  "/trapper-survey",
+  "/api/trapper-survey",
   "/_next",
   "/favicon.ico",
 ];
