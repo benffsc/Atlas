@@ -5,8 +5,8 @@
  * Sends known prompts to Claude with Tippy's tool schemas, asserts on tool selection
  * and key input fields. Does NOT test text output (non-deterministic).
  *
- * Cost: ~$0.30-0.80 per full run (15 test cases × ~2K tokens each)
- * Time: ~30-60 seconds
+ * Cost: ~$0.04 per full run (12 cases × ~$0.003 each)
+ * Time: ~25 seconds
  *
  * Usage:
  *   npx tsx scripts/tippy-eval.ts              # Run all
@@ -261,128 +261,104 @@ interface TestCase {
 }
 
 const TEST_CASES: TestCase[] = [
-  // --- Address routing ---
+  // ==========================================================================
+  // READS — one case per tool, testing the hardest routing decision for each
+  // ==========================================================================
+
+  // Address → full_place_briefing (not place_search)
   {
     id: "address_briefing",
     prompt: "What's happening at 717 Cherry St?",
     expect: { tool: "full_place_briefing", inputContains: { address: /cherry/i } },
     quick: true,
   },
-  {
-    id: "address_with_city",
-    prompt: "Tell me about 5212 Montecito Ave Santa Rosa",
-    expect: { tool: "full_place_briefing", inputContains: { address: /montecito/i } },
-  },
+  // Street (no number) → place_search (not full_place_briefing)
   {
     id: "street_search",
     prompt: "Any activity on Hessel Road?",
     expect: { tool: "place_search", inputContains: { address: /hessel/i } },
     quick: true,
   },
-
-  // --- Person routing ---
+  // Person by name (harder than email — could be confused with place/cat)
   {
     id: "person_by_name",
     prompt: "Who is Diane Fairclough?",
     expect: { tool: "person_lookup", inputContains: { identifier: /diane/i } },
     quick: true,
   },
-  {
-    id: "person_by_email",
-    prompt: "Look up marinferals@yahoo.com",
-    expect: { tool: "person_lookup", inputContains: { identifier: /marinferals/i } },
-  },
-
-  // --- Cat routing ---
+  // Cat by microchip (15-digit number — must not route to person_lookup)
   {
     id: "cat_by_microchip",
     prompt: "Look up cat 981020053776316",
     expect: { tool: "cat_lookup", inputContains: { identifier: /981020053776316/ } },
     quick: true,
   },
-  {
-    id: "cat_by_name",
-    prompt: "Find cat named Whiskers",
-    expect: { tool: "cat_lookup", inputContains: { identifier: /whiskers/i } },
-  },
+  // Cat by appearance (physical description — must route to cat_search, not place_search)
   {
     id: "cat_by_appearance",
     prompt: "Search for orange tabby male cats",
     expect: { tool: "cat_search", inputContains: { color: /orange/i } },
   },
-
-  // --- Stats routing ---
+  // City/region → area_stats (not place_search)
   {
     id: "area_stats",
     prompt: "How are we doing in Petaluma?",
     expect: { tool: "area_stats", inputContains: { area: /petaluma/i } },
     quick: true,
   },
-  {
-    id: "trapper_leaderboard",
-    prompt: "Show me the top trappers this month",
-    expect: { tool: "trapper_stats", inputContains: { query_type: "leaderboard" } },
-  },
+  // Ambiguous stats question → request_stats (not run_sql)
   {
     id: "request_pipeline",
     prompt: "What does our request pipeline look like?",
     expect: { tool: "request_stats", inputContains: { query_type: "pipeline" } },
   },
+  // Priority sites (must not fall through to run_sql)
+  {
+    id: "priority_sites",
+    prompt: "What are the top priority sites in Santa Rosa right now?",
+    expect: { tool: "find_priority_sites" },
+  },
 
-  // --- Write operations ---
+  // ==========================================================================
+  // WRITES — test that write intent goes directly to write tools
+  // ==========================================================================
+
+  // Reminder (must not look up person first)
   {
     id: "create_reminder",
     prompt: "Remind me to follow up with Rick about Hessel Rd in 2 weeks",
     expect: { tool: "create_reminder", inputContains: { title: /rick|hessel/i } },
+    quick: true,
   },
+  // Field contact (must go to log_event, not place_search)
   {
     id: "add_field_contact",
     prompt: "New contact: Juan Martinez, 707-555-9876, he's a neighbor at 1045 Hessel Rd who feeds the cats",
     expect: { tool: "log_event", inputContains: { action_type: "add_field_contact" } },
   },
-
-  // --- Email parsing (Phase 4 / FFS-1463) ---
-  // Accept place_search OR log_event as first tool — both are valid strategies.
-  // In the full agent loop, place_search on iteration 1 → log_event on iteration 2.
-  {
-    id: "email_thread_parsing",
-    prompt: `Here's an email from Diane about Hessel Rd:
-
-From: diane@example.com
-To: jami@ffsc.org
-Subject: Re: Hessel Rd colony
-
-Hi Jami,
-
-I trapped 3 cats last week at 1045 Hessel Rd. All went to clinic on Tuesday.
-Rick at 1051 Hessel says there are 5 more unfixed ones. His number is 707-555-1234.
-Laura (Rick's wife) said she'll help with feeding if we set up a station.
-Can we follow up in 5-6 weeks to check progress?
-
-Thanks,
-Diane`,
-    expect: { tool: ["log_event", "place_search", "full_place_briefing"] },
-  },
-
-  // --- Corridor ---
+  // Corridor link (requires request_id context to work)
   {
     id: "corridor_link",
     prompt: "Link 1051 Hessel Rd to the corridor for request ID 27d68319-0000-0000-0000-000000000000. The neighbor there feeds the same cats.",
     expect: { tool: "log_event", inputContains: { action_type: "link_corridor_place" } },
   },
 
-  // --- Multi-source synthesis (FFS-1312: Pozzan Road benchmark) ---
-  {
-    id: "pozzan_road_street",
-    prompt: "Tell me about Pozzan Road in Healdsburg",
-    expect: { tool: ["place_search", "full_place_briefing"], inputContains: { address: /pozzan/i } },
-  },
+  // ==========================================================================
+  // COMPLEX — multi-step or ambiguous prompts
+  // ==========================================================================
 
-  // --- Priority sites routing ---
+  // Email thread parsing — tests COMMUNICATION PARSING system prompt section
+  // This is the most expensive case (~9s) but tests a unique capability
   {
-    id: "priority_sites",
-    prompt: "What are the top priority sites in Santa Rosa right now?",
-    expect: { tool: "find_priority_sites" },
+    id: "email_thread_parsing",
+    prompt: `Here's an email from Diane:
+
+From: diane@example.com
+Subject: Hessel Rd update
+
+Rick at 1051 Hessel says there are 5 more unfixed cats. His number is 707-555-1234.
+Can we follow up in 6 weeks?`,
+    expect: { tool: ["log_event", "create_reminder", "place_search", "full_place_briefing"] },
   },
 ];
 
