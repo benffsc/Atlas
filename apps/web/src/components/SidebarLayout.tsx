@@ -465,6 +465,7 @@ export const mainSidebarSections: NavSection[] = [
       { label: "Requests", href: "/requests", icon: "clipboard-list" },
       { label: "Clinic Days", href: "/admin/clinic-days", icon: "hospital" },
       { label: "Trappers", href: "/trappers", icon: "snail" },
+      { label: "Colonies", href: "/colonies", icon: "landmark" },
       { label: "Equipment", href: "/equipment", icon: "wrench" },
     ],
   },

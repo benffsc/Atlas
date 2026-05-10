@@ -12,14 +12,8 @@
 -- "standard" replaces "read_write" as the default for all active staff.
 -- The routing code treats 'standard' and 'read_write' identically.
 
--- Upgrade all active staff from read_only to standard
-UPDATE ops.staff
-SET ai_access_level = 'standard'
-WHERE is_active = TRUE
-  AND ai_access_level = 'read_only';
-
--- Keep admins at full
+-- All active staff get full access — Tippy should be like talking to Claude
 UPDATE ops.staff
 SET ai_access_level = 'full'
-WHERE auth_role = 'admin'
+WHERE is_active = TRUE
   AND ai_access_level != 'full';

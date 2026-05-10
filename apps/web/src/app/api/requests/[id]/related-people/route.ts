@@ -80,6 +80,13 @@ export const GET = withErrorHandling(async (
     LEFT JOIN sot.people p ON p.person_id = rrp.person_id
     LEFT JOIN sot.people ref ON ref.person_id = rrp.referred_by_person_id
     WHERE rrp.request_id = $1
+      -- Exclude people already assigned as trappers on this request
+      AND NOT EXISTS (
+        SELECT 1 FROM ops.request_trapper_assignments rta
+        WHERE rta.request_id = rrp.request_id
+          AND rta.trapper_person_id = rrp.person_id
+          AND rta.status NOT IN ('declined', 'completed')
+      )
     ORDER BY rrp.created_at ASC`,
     [id]
   );

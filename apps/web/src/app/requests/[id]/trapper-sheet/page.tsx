@@ -39,6 +39,7 @@ const KITTEN_CONTAINED = getShortLabels(KITTEN_CONTAINED_OPTIONS);
 
 interface TrapperSheetData {
   request_id: string;
+  place_id: string | null;
   status: string;
   priority: string;
   summary: string | null;
@@ -131,6 +132,17 @@ interface JournalEntry {
   created_by_staff_name: string | null;
 }
 
+interface CorridorPlace {
+  place_id: string;
+  display_name: string | null;
+  formatted_address: string;
+  relationship: string;
+  place_role: string | null;
+  cat_count: number;
+  primary_contact: string | null;
+  request_status: string | null;
+}
+
 export default function TrapperSheetPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -140,6 +152,7 @@ export default function TrapperSheetPage() {
   const [data, setData] = useState<TrapperSheetData | null>(null);
   const [relatedPeople, setRelatedPeople] = useState<RelatedPerson[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [corridorPlaces, setCorridorPlaces] = useState<CorridorPlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [includeKittenPage, setIncludeKittenPage] = useState(false);
@@ -158,6 +171,19 @@ export default function TrapperSheetPage() {
         setData(result);
         setRelatedPeople(rpData.related_people || []);
         setJournalEntries((jData.entries || []).slice(0, 5));
+
+        // Fetch corridor places if we have a place_id
+        if (result.place_id) {
+          fetchApi<{ mode: string; places: CorridorPlace[] }>(`/api/places/${result.place_id}/colony-context`)
+            .then((ctx) => {
+              // Only show corridor/colony places on print (not "nearby" suggestions)
+              if (ctx.mode === "colony" || ctx.mode === "corridor") {
+                const others = (ctx.places || []).filter(p => p.relationship !== "self");
+                setCorridorPlaces(others);
+              }
+            })
+            .catch(() => {});
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error loading request");
       } finally {
@@ -411,6 +437,27 @@ export default function TrapperSheetPage() {
         {data.location_description && (
           <div className="info-card" style={{ fontSize: "8.5pt" }}>
             <strong>Location:</strong> {data.location_description}
+          </div>
+        )}
+
+        {/* Corridor Addresses (if multi-site) */}
+        {corridorPlaces.length > 0 && (
+          <div className="info-card" style={{ fontSize: "8.5pt", background: "#f0fdf4", borderColor: "#bbf7d0" }}>
+            <strong>Corridor ({corridorPlaces.length + 1} addresses):</strong>
+            <div style={{ marginTop: "2px", display: "flex", flexDirection: "column", gap: "1px" }}>
+              {corridorPlaces.map(p => (
+                <div key={p.place_id}>
+                  <strong>{p.display_name || p.formatted_address}</strong>
+                  {p.primary_contact && <span> &mdash; {p.primary_contact}</span>}
+                  {p.cat_count > 0 && <span> ({p.cat_count} cats)</span>}
+                  {p.request_status && (
+                    <span style={{ marginLeft: "4px", fontStyle: "italic", color: "#555" }}>
+                      [{p.request_status === "completed" ? "Done" : p.request_status}]
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

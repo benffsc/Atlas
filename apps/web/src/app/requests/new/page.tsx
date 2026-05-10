@@ -80,6 +80,15 @@ function NewRequestForm() {
   const [checkingDuplicates, setCheckingDuplicates] = useState(false);
   const [duplicatesDismissed, setDuplicatesDismissed] = useState(false);
 
+  // Colony context - nearby activity detection
+  const [colonyContext, setColonyContext] = useState<{
+    mode: string;
+    colony: { colony_id: string; colony_name: string; status: string } | null;
+    places: Array<{ place_id: string; display_name: string | null; formatted_address: string; cat_count: number; primary_contact: string | null; request_status: string | null }>;
+    total_cats: number;
+  } | null>(null);
+  const [colonyContextDismissed, setColonyContextDismissed] = useState(false);
+
   // Location
   const [selectedPlace, setSelectedPlace] = useState<ResolvedPlace | null>(null);
   const [propertyType, setPropertyType] = useState("");
@@ -329,6 +338,21 @@ function NewRequestForm() {
   // Reset dismissed state when place changes
   useEffect(() => {
     setDuplicatesDismissed(false);
+    setColonyContextDismissed(false);
+  }, [selectedPlace?.place_id]);
+
+  // Fetch colony context when place is resolved
+  useEffect(() => {
+    if (!selectedPlace?.place_id) {
+      setColonyContext(null);
+      return;
+    }
+    fetchApi<typeof colonyContext>(`/api/places/${selectedPlace.place_id}/colony-context`)
+      .then(ctx => {
+        if (ctx && ctx.mode !== "none") setColonyContext(ctx);
+        else setColonyContext(null);
+      })
+      .catch(() => setColonyContext(null));
   }, [selectedPlace?.place_id]);
 
   // Auto-fill the title with requester name when a requester is selected/entered
@@ -1402,6 +1426,45 @@ function NewRequestForm() {
             <p style={{ marginTop: "0.5rem", marginBottom: "1rem", fontSize: "0.85rem", color: "var(--text-tertiary)" }}>
               Checking for existing requests...
             </p>
+          )}
+
+          {/* Colony / nearby activity context */}
+          {colonyContext && !colonyContextDismissed && (
+            <div style={{ marginTop: "0.75rem", marginBottom: "0.75rem" }}>
+              {colonyContext.colony ? (
+                <div style={{ padding: "0.75rem 1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", fontSize: "0.85rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <Icon name="trees" size={16} color="#059669" />
+                      <span style={{ fontWeight: 600, color: "#065f46" }}>
+                        This address is part of &ldquo;{colonyContext.colony.colony_name}&rdquo;
+                      </span>
+                    </div>
+                    <button onClick={() => setColonyContextDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>&times;</button>
+                  </div>
+                  <p style={{ margin: "0.3rem 0 0", color: "#166534" }}>
+                    {colonyContext.places.length} addresses, {colonyContext.total_cats} cats tracked.
+                    {" "}The new request will be linked to this colony automatically.
+                  </p>
+                </div>
+              ) : colonyContext.places.length > 1 && (
+                <div style={{ padding: "0.75rem 1rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", fontSize: "0.85rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <Icon name="info" size={16} color="#2563eb" />
+                      <span style={{ fontWeight: 600, color: "#1e40af" }}>Nearby activity detected</span>
+                    </div>
+                    <button onClick={() => setColonyContextDismissed(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280" }}>&times;</button>
+                  </div>
+                  <p style={{ margin: "0.3rem 0 0", color: "#1e3a5f" }}>
+                    {colonyContext.places.filter(p => p.request_status).length > 0
+                      ? `${colonyContext.places.filter(p => p.request_status).length} other nearby address${colonyContext.places.filter(p => p.request_status).length !== 1 ? "es have" : " has"} requests. These cats may be part of the same colony.`
+                      : `${colonyContext.places.length - 1} nearby address${colonyContext.places.length - 1 !== 1 ? "es have" : " has"} tracked cats in this area.`
+                    }
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Permission & Access — inline in location section */}

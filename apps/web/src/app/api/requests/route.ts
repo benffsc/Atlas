@@ -634,6 +634,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Auto-link request to colony if the place belongs to one
+    if (result?.request_id && body.place_id) {
+      try {
+        await queryOne(
+          `INSERT INTO sot.colony_requests (colony_id, request_id, added_by)
+           SELECT cp.colony_id, $1::UUID, 'auto'
+           FROM sot.colony_places cp
+           JOIN sot.colonies c ON c.colony_id = cp.colony_id
+             AND c.deleted_at IS NULL AND c.merged_into_colony_id IS NULL
+           WHERE cp.place_id = $2::UUID AND cp.is_active = TRUE
+           LIMIT 1
+           ON CONFLICT (colony_id, request_id) DO NOTHING`,
+          [result.request_id, body.place_id]
+        );
+      } catch (colonyErr) {
+        console.warn("[POST /api/requests] Auto-link to colony failed (non-blocking):", colonyErr);
+      }
+    }
+
     // Revalidate cached pages
     revalidatePath("/");
     revalidatePath("/requests");

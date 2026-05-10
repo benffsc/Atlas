@@ -113,6 +113,7 @@ import {
   RotateCcw,
   Target,
   Building,
+  Landmark,
   Heart,
   Box,
   Lock,
@@ -149,6 +150,7 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   snail: Snail,
   wrench: Wrench,
   briefcase: Briefcase,
+  landmark: Landmark,
 
   // Records
   cat: Cat,

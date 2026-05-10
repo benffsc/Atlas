@@ -26,6 +26,7 @@ import { useRequestDetail } from "@/hooks/useRequestDetail";
 import { useRequestModals } from "./RequestModals";
 import { ResolutionBanner } from "./sections/ResolutionBanner";
 import { RelatedPeopleSection } from "./sections/RelatedPeopleSection";
+import { ColonyContextSection } from "./sections/ColonyContextSection";
 import { TripReportsTab } from "./sections/TripReportsTab";
 import { IntelligenceSection } from "./sections/IntelligenceSection";
 import { RequestAdminTab } from "./sections/RequestAdminTab";
@@ -379,6 +380,16 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
       {/* ClinicHQ Notes */}
       {request.place_id && <ClinicNotesSection placeId={request.place_id} />}
+
+      {/* Colony / Corridor Context — shows only when place is in a colony or corridor */}
+      {request.place_id && (
+        <ColonyContextSection
+          placeId={request.place_id}
+          currentRequestId={requestId}
+          onPlaceClick={(pid) => modals.preview.open("place", pid)}
+          onCreateColony={() => modals.open("colony")}
+        />
+      )}
 
       {isPanel ? (
         /* ═══ Panel Layout: no tabs, single scrollable column ═══ */
