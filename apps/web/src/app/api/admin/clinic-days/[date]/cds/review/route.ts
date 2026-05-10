@@ -7,7 +7,7 @@ import {
   apiServerError,
 } from "@/lib/api-response";
 import { requireValidUUID } from "@/lib/api-validation";
-import { reviewCDSSuggestion } from "@/lib/cds";
+import { reviewCDSSuggestion } from "@/lib/cds-v3";
 
 interface RouteParams {
   params: Promise<{ date: string }>;

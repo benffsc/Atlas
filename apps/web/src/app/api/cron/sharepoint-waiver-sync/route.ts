@@ -9,7 +9,7 @@ import {
 } from "@/lib/sharepoint";
 import { parseWaiverFilename } from "@/lib/waiver-filename-parser";
 import { processWaiverOCR } from "@/lib/waiver-ocr";
-import { runCDS } from "@/lib/cds";
+import { runCDS } from "@/lib/cds-v3";
 import Anthropic from "@anthropic-ai/sdk";
 import { createHash } from "crypto";
 

@@ -7,7 +7,7 @@ import {
   apiUnauthorized,
   apiServerError,
 } from "@/lib/api-response";
-import { getLatestCDSRun } from "@/lib/cds";
+import { getLatestCDSRun } from "@/lib/cds-v3";
 import { loadCancelledEntries } from "@/lib/cds-metrics";
 
 interface RouteParams {

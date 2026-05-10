@@ -309,16 +309,13 @@ export async function runCDS(
   const freshAppointments = await loadAppointments(clinicDate);
 
   // Separate the pools
-  const manualEntries = freshEntries.filter(
-    (e) => e.match_confidence === "manual"
-  );
-  const excludedEntries = freshEntries.filter(
-    (e) => e.cancellation_reason != null
-  );
+  // Cancelled entries are INCLUDED in matching (cancellation is a label,
+  // not a gate — the cat was still at the clinic). They get a score
+  // penalty so they don't steal appointments from non-cancelled entries,
+  // but the Hungarian algorithm can still link them for data cohesion.
   const matchableEntries = freshEntries.filter(
     (e) =>
       e.match_confidence !== "manual" &&
-      e.cancellation_reason == null &&
       e.matched_appointment_id == null
   );
 
@@ -575,6 +572,13 @@ function buildScoreMatrix(
       // CDN match is a hard override — always top score
       if (signals.cdn_match > 0) {
         score = 10.0; // Guaranteed assignment
+      }
+
+      // Cancelled entries get a score penalty — they shouldn't steal
+      // appointments from non-cancelled entries, but can still be linked
+      // for data cohesion if no better match exists.
+      if (entry.cancellation_reason != null) {
+        score *= 0.5;
       }
 
       // Determine if cross-client
@@ -1690,12 +1694,58 @@ export type { CDSEntry, CDSAppointment, CDSWaiver, CDSConfig, ScoredPair, Assign
 // ── Re-exports for API compatibility ───────────────────────────────────
 
 export { classifyUnmatchedEntries };
+
+export async function reviewCDSSuggestion(
+  entryId: string,
+  action: "accept" | "reject",
+  alternateAppointmentId?: string
+): Promise<void> {
+  if (action === "accept") {
+    await execute(
+      `UPDATE ops.clinic_day_entries
+       SET match_confidence = 'manual', cds_method = 'manual', match_reason = 'cds_accepted'
+       WHERE entry_id = $1 AND cds_method = 'cds_suggestion'`,
+      [entryId]
+    );
+  } else if (action === "reject" && alternateAppointmentId) {
+    await execute(
+      `UPDATE ops.clinic_day_entries
+       SET matched_appointment_id = $2, match_confidence = 'manual', cds_method = 'manual',
+           match_reason = 'cds_rejected_manual_override', matched_at = NOW()
+       WHERE entry_id = $1`,
+      [entryId, alternateAppointmentId]
+    );
+  } else {
+    await execute(
+      `UPDATE ops.clinic_day_entries
+       SET matched_appointment_id = NULL, match_confidence = NULL, match_reason = NULL,
+           match_score = NULL, match_signals = NULL, matched_at = NULL,
+           cds_method = NULL, cds_llm_reasoning = NULL
+       WHERE entry_id = $1 AND cds_method = 'cds_suggestion'`,
+      [entryId]
+    );
+  }
+}
+
+export async function hasClinicDayEntries(clinicDate: string): Promise<boolean> {
+  const result = await queryOne<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM ops.clinic_day_entries e
+       JOIN ops.clinic_days cd ON cd.clinic_day_id = e.clinic_day_id
+       WHERE cd.clinic_date = $1
+     ) AS exists`,
+    [clinicDate]
+  );
+  return result?.exists ?? false;
+}
+
 export async function getLatestCDSRun(clinicDate: string) {
-  return queryOne<CDSRunResult>(
+  return queryOne<CDSRunResult & { triggered_by: string; started_at: string; completed_at: string | null }>(
     `SELECT run_id, clinic_date::text, total_entries, matched_before,
             matched_after, manual_preserved, llm_suggestions,
             unmatched_remaining, has_waivers, has_weights,
-            phase_results AS phases
+            phase_results AS phases,
+            triggered_by, started_at::text, completed_at::text
      FROM ops.cds_runs
      WHERE clinic_date = $1
      ORDER BY started_at DESC

@@ -3,8 +3,7 @@ import { query, queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiBadRequest, apiNotFound, apiServerError, apiConflict } from "@/lib/api-response";
 import { isValidUUID } from "@/lib/validation";
 import { processUpload } from "@/app/api/ingest/process/[id]/route";
-import { runClinicDayMatching, hasClinicDayEntries } from "@/lib/clinic-day-matching";
-import { runCDS } from "@/lib/cds";
+import { runCDS, hasClinicDayEntries } from "@/lib/cds-v3";
 
 interface BatchStatus {
   batch_id: string;
@@ -204,18 +203,11 @@ export async function POST(
         for (const { appointment_date } of batchDates) {
           const hasEntries = await hasClinicDayEntries(appointment_date);
           if (hasEntries) {
-            console.error(`[BATCH] Clinic day entries found for ${appointment_date}, running reconciliation...`);
-            const matchResult = await runClinicDayMatching(appointment_date);
-            if (matchResult.newly_matched > 0) {
-              // Re-propagate after new matches
-              await queryOne(
-                `SELECT * FROM ops.propagate_master_list_matches($1::date)`,
-                [appointment_date]
-              );
-            }
+            console.error(`[BATCH] Clinic day entries found for ${appointment_date}, running CDS v3...`);
+            const cdsResult = await runCDS(appointment_date, "import");
             reconciliation = {
               date: appointment_date,
-              newly_matched: matchResult.newly_matched,
+              newly_matched: cdsResult.matched_after - cdsResult.matched_before,
             };
           }
         }

@@ -8,7 +8,7 @@ import {
   apiNotFound,
   apiServerError,
 } from "@/lib/api-response";
-import { runCDS } from "@/lib/cds";
+import { runCDS } from "@/lib/cds-v3";
 
 interface RouteParams {
   params: Promise<{ date: string }>;

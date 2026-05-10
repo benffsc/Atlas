@@ -13,7 +13,7 @@
 
 import * as xlsx from "xlsx";
 import { queryOne, queryRows, withTransaction } from "@/lib/db";
-import { runCDS } from "@/lib/cds";
+import { runCDS } from "@/lib/cds-v3";
 import {
   parseMasterList,
   type ParsedEntry,

@@ -8,7 +8,7 @@ import {
   apiServerError,
 } from "@/lib/api-response";
 import { queryOne } from "@/lib/db";
-import { runCDS, getLatestCDSRun } from "@/lib/cds";
+import { runCDS, getLatestCDSRun } from "@/lib/cds-v3";
 import { runCdsAi } from "@/lib/cds-ai";
 
 export const maxDuration = 300;
