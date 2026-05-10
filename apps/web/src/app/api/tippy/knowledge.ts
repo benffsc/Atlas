@@ -534,6 +534,7 @@ export function assessPlaceStatus(data: {
   total_cats: number;
   null_status_count?: number;
   has_active_request?: boolean;
+  request_status?: string | null; // 'paused', 'scheduled', 'in_progress', etc.
   last_appointment_days_ago?: number;
   reported_cats?: number;
   verified_cats?: number;
@@ -558,8 +559,16 @@ export function assessPlaceStatus(data: {
     };
   }
 
-  // Active work trumps rate
+  // Active work trumps rate — but paused requests are different from in-progress
   if (data.has_active_request) {
+    if (data.request_status === "paused") {
+      return {
+        level: "needs_attention",
+        label: "Paused — Incomplete",
+        confidence: "high",
+        reasoning: "Request is paused (not completed). High alteration rate among KNOWN cats, but trapping was suspended — likely more cats remain.",
+      };
+    }
     return {
       level: "active_work",
       label: "Active Work",

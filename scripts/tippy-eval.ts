@@ -370,6 +370,20 @@ Diane`,
     prompt: "Link 1051 Hessel Rd to the corridor for request ID 27d68319-0000-0000-0000-000000000000. The neighbor there feeds the same cats.",
     expect: { tool: "log_event", inputContains: { action_type: "link_corridor_place" } },
   },
+
+  // --- Multi-source synthesis (FFS-1312: Pozzan Road benchmark) ---
+  {
+    id: "pozzan_road_street",
+    prompt: "Tell me about Pozzan Road in Healdsburg",
+    expect: { tool: ["place_search", "full_place_briefing"], inputContains: { address: /pozzan/i } },
+  },
+
+  // --- Priority sites routing ---
+  {
+    id: "priority_sites",
+    prompt: "What are the top priority sites in Santa Rosa right now?",
+    expect: { tool: "find_priority_sites" },
+  },
 ];
 
 // =============================================================================

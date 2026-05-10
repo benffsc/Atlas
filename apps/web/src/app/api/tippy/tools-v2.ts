@@ -2847,12 +2847,18 @@ async function findPrioritySites(
   const totalNull = results.reduce((s, r) => s + r.null_status_count, 0);
   const totalCats = results.reduce((s, r) => s + r.total_cats, 0);
 
-  const enrichedPlaces = results.map((r) => {
-    const known = r.altered_count + r.intact_confirmed;
-    const rateAmongKnown =
-      known > 0 ? Math.round((r.altered_count / known) * 100) : null;
-    return { ...r, rate_among_known: rateAmongKnown };
-  });
+  // FFS-1159: Filter out residential pet patterns (not community cat targets)
+  const enrichedPlaces = results
+    .map((r) => {
+      const known = r.altered_count + r.intact_confirmed;
+      const rateAmongKnown =
+        known > 0 ? Math.round((r.altered_count / known) * 100) : null;
+      // Heuristic: low cat density at a single-family home = likely pet owner, not colony
+      const isLikelyResidentialPet =
+        r.total_cats <= 2 && !r.display_name?.toLowerCase().includes("colony");
+      return { ...r, rate_among_known: rateAmongKnown, is_community_cat_target: !isLikelyResidentialPet };
+    })
+    .filter((r) => r.is_community_cat_target);
 
   return wrapPlaceResult(
     {
