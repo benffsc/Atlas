@@ -287,6 +287,27 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
           />
         </div>
       ) : null}
+      {/* Live context: active request + recent journal */}
+      {place.active_request_status && (
+        <div style={{
+          fontSize: "0.75rem", padding: "0.3rem 0.5rem", marginBottom: "0.5rem",
+          background: "var(--primary-bg, #f0fdf4)", borderRadius: "4px", borderLeft: "3px solid var(--primary, #059669)",
+        }}>
+          <span style={{ fontWeight: 600 }}>{formatStatus(place.active_request_status)}</span>
+          {place.active_request_summary && <span style={{ color: "var(--muted)" }}> — {place.active_request_summary.length > 60 ? place.active_request_summary.slice(0, 60) + "…" : place.active_request_summary}</span>}
+        </div>
+      )}
+      {place.latest_journal_body && (
+        <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginBottom: "0.5rem", fontStyle: "italic", lineHeight: 1.3 }}>
+          &ldquo;{place.latest_journal_body.length > 80 ? place.latest_journal_body.slice(0, 80) + "…" : place.latest_journal_body}&rdquo;
+          {place.latest_journal_date && <span style={{ marginLeft: "0.25rem", fontStyle: "normal" }}>{formatRelativeTime(place.latest_journal_date)}</span>}
+        </div>
+      )}
+      {(place.corridor_count ?? 0) > 0 && (
+        <div style={{ fontSize: "0.7rem", color: "var(--primary)", marginBottom: "0.5rem", fontWeight: 500 }}>
+          Part of {(place.corridor_count ?? 0) + 1}-address corridor
+        </div>
+      )}
       {activityParts.length > 0 && (
         <div style={{ fontSize: "0.75rem", color: actColor || "var(--muted)", marginBottom: "0.5rem" }}>
           {activityParts.join(" \u00B7 ")}

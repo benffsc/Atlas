@@ -177,6 +177,43 @@ export const GET = withErrorHandling(async (
   place.last_appointment_date = activityStats?.last_appointment_date || null;
   place.active_request_count = activityStats?.active_request_count || 0;
 
+  // Fetch live context for preview enrichment (latest journal, active request, corridor)
+  const liveContext = await queryOne<{
+    latest_journal_body: string | null;
+    latest_journal_date: string | null;
+    active_request_summary: string | null;
+    active_request_status: string | null;
+    active_request_id: string | null;
+    corridor_count: number;
+  }>(
+    `SELECT
+      (SELECT body FROM ops.journal_entries
+       WHERE primary_place_id = $1 AND is_archived = FALSE
+       ORDER BY COALESCE(occurred_at, created_at) DESC LIMIT 1
+      ) AS latest_journal_body,
+      (SELECT COALESCE(occurred_at, created_at)::TEXT FROM ops.journal_entries
+       WHERE primary_place_id = $1 AND is_archived = FALSE
+       ORDER BY COALESCE(occurred_at, created_at) DESC LIMIT 1
+      ) AS latest_journal_date,
+      (SELECT summary FROM ops.requests
+       WHERE place_id = $1 AND merged_into_request_id IS NULL AND status NOT IN ${TERMINAL_PAIR_SQL}
+       ORDER BY created_at DESC LIMIT 1
+      ) AS active_request_summary,
+      (SELECT status FROM ops.requests
+       WHERE place_id = $1 AND merged_into_request_id IS NULL AND status NOT IN ${TERMINAL_PAIR_SQL}
+       ORDER BY created_at DESC LIMIT 1
+      ) AS active_request_status,
+      (SELECT request_id::TEXT FROM ops.requests
+       WHERE place_id = $1 AND merged_into_request_id IS NULL AND status NOT IN ${TERMINAL_PAIR_SQL}
+       ORDER BY created_at DESC LIMIT 1
+      ) AS active_request_id,
+      (SELECT COUNT(*)::INT FROM sot.get_corridor_places($1) WHERE place_id != $1) AS corridor_count`,
+    [placeId]
+  );
+  if (liveContext) {
+    Object.assign(place, liveContext);
+  }
+
   // Fetch verification info from places table
   const verification = await queryOne<VerificationInfo>(
     `SELECT

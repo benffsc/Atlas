@@ -285,6 +285,34 @@ export async function GET(request: NextRequest) {
             s.metadata = { ...s.metadata, lat: coords.lat, lng: coords.lng };
           }
         }
+
+        // Enrich place suggestions with active request context
+        if (placeIds.length > 0) {
+          const placeContext = await queryRows<{
+            place_id: string;
+            active_request_status: string | null;
+            active_request_summary: string | null;
+            recent_journal: string | null;
+            corridor_count: number;
+          }>(`
+            SELECT p.place_id::TEXT,
+              (SELECT r.status FROM ops.requests r WHERE r.place_id = p.place_id AND r.merged_into_request_id IS NULL AND r.is_archived = FALSE AND r.status NOT IN ('completed','cancelled','partial') ORDER BY r.created_at DESC LIMIT 1) AS active_request_status,
+              (SELECT r.summary FROM ops.requests r WHERE r.place_id = p.place_id AND r.merged_into_request_id IS NULL AND r.is_archived = FALSE AND r.status NOT IN ('completed','cancelled','partial') ORDER BY r.created_at DESC LIMIT 1) AS active_request_summary,
+              (SELECT LEFT(je.body, 80) FROM ops.journal_entries je WHERE je.primary_place_id = p.place_id AND je.is_archived = FALSE ORDER BY COALESCE(je.occurred_at, je.created_at) DESC LIMIT 1) AS recent_journal,
+              (SELECT COUNT(*)::INT FROM sot.get_corridor_places(p.place_id) cp WHERE cp.place_id != p.place_id) AS corridor_count
+            FROM sot.places p
+            WHERE p.place_id = ANY($1::uuid[])
+          `, [placeIds]);
+          const ctxMap = new Map(placeContext.map(c => [c.place_id, c]));
+          for (const s of suggestions) {
+            if (s.entity_type === "place") {
+              const ctx = ctxMap.get(s.entity_id);
+              if (ctx) {
+                s.metadata = { ...s.metadata, ...ctx };
+              }
+            }
+          }
+        }
       }
 
       return apiSuccess({

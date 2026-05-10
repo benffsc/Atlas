@@ -72,6 +72,13 @@ export interface PlaceDetail {
   // Enrichments (FFS-629)
   total_altered_count?: number;
   colony_size?: number | null;
+  // Live context
+  latest_journal_body?: string | null;
+  latest_journal_date?: string | null;
+  active_request_summary?: string | null;
+  active_request_status?: string | null;
+  active_request_id?: string | null;
+  corridor_count?: number;
 }
 
 export interface RequestDetail {

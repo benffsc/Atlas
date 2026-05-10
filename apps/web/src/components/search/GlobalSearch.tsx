@@ -190,8 +190,18 @@ export default function GlobalSearch() {
       if (meta.cat_count) parts.push(`${meta.cat_count} cats`);
       if (meta.place_count) parts.push(`${meta.place_count} places`);
     } else if (suggestion.entity_type === "place") {
+      // Active request status is the most important signal
+      if (meta.active_request_status) {
+        const statusLabel = String(meta.active_request_status).replace(/_/g, " ");
+        const summary = meta.active_request_summary ? `: ${String(meta.active_request_summary).slice(0, 40)}` : "";
+        parts.push(`⚡ ${statusLabel}${summary}`);
+      }
       if (meta.cat_count) parts.push(`${meta.cat_count} cats`);
-      if (meta.person_count) parts.push(`${meta.person_count} people`);
+      if ((meta.corridor_count as number) > 0) parts.push(`${(meta.corridor_count as number) + 1}-addr corridor`);
+      // Recent journal snippet (only if no active request shown)
+      if (!meta.active_request_status && meta.recent_journal) {
+        parts.push(`"${String(meta.recent_journal).slice(0, 40)}…"`);
+      }
     } else if (suggestion.entity_type === "cat") {
       const count = meta.appointment_count as number;
       if (count) parts.push(`${count} visit${count !== 1 ? "s" : ""}`);
