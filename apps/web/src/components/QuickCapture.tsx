@@ -1,0 +1,181 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { postApi } from "@/lib/api-client";
+import { Icon } from "@/components/ui/Icon";
+
+/**
+ * QuickCapture — freeform context capture card.
+ *
+ * Shows on dashboard (not blocking). Staff can dump text from phone calls,
+ * emails, field notes, or any thought. Tippy parses it into structured data.
+ *
+ * Dismissable per session (localStorage) or permanently (setting).
+ */
+
+interface CaptureResult {
+  summary: string;
+  action_count: number;
+  actions_created: string[];
+}
+
+export function QuickCapture() {
+  const [text, setText] = useState("");
+  const [state, setState] = useState<"idle" | "submitting" | "done" | "dismissed">("idle");
+  const [result, setResult] = useState<CaptureResult | null>(null);
+  const [recentCaptures, setRecentCaptures] = useState<string[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    // Check if dismissed this session
+    if (sessionStorage.getItem("quick-capture-dismissed")) {
+      setState("dismissed");
+    }
+    // Load recent captures
+    try {
+      const stored = localStorage.getItem("quick-capture-recent");
+      if (stored) setRecentCaptures(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  const dismiss = () => {
+    sessionStorage.setItem("quick-capture-dismissed", "1");
+    setState("dismissed");
+  };
+
+  const submit = async () => {
+    if (!text.trim() || state === "submitting") return;
+    setState("submitting");
+
+    try {
+      const data = await postApi("/api/tippy/quick-capture", { text: text.trim() }) as CaptureResult;
+      setResult(data);
+      setState("done");
+
+      // Save to recent
+      const preview = text.trim().substring(0, 40) + (text.length > 40 ? "..." : "");
+      const updated = [preview, ...recentCaptures.slice(0, 4)];
+      setRecentCaptures(updated);
+      localStorage.setItem("quick-capture-recent", JSON.stringify(updated));
+      setText("");
+    } catch {
+      setState("idle");
+    }
+  };
+
+  if (state === "dismissed") return null;
+
+  return (
+    <div
+      style={{
+        background: "var(--card-bg)",
+        border: "1px solid var(--card-border)",
+        borderRadius: "12px",
+        padding: "20px",
+        marginBottom: "20px",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      {state === "done" && result ? (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+          <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>
+            <Icon name="CheckCircle" size={24} />
+          </span>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontWeight: 500, fontSize: "0.9rem" }}>{result.summary}</p>
+            {result.action_count > 0 && (
+              <p style={{ margin: "4px 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
+                {result.action_count} record{result.action_count !== 1 ? "s" : ""} created
+              </p>
+            )}
+          </div>
+          <button
+            onClick={dismiss}
+            style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.75rem" }}
+          >
+            Close
+          </button>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--foreground)" }}>
+              Anything to capture before it slips away?
+            </span>
+            <button
+              onClick={dismiss}
+              aria-label="Dismiss"
+              style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: "4px" }}
+            >
+              <Icon name="X" size={16} />
+            </button>
+          </div>
+
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+            }}
+            placeholder="Phone call, email, text from a trapper, field observation, thought about a colony..."
+            rows={2}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: "1px solid var(--card-border)",
+              borderRadius: "8px",
+              resize: "vertical",
+              fontSize: "0.85rem",
+              fontFamily: "inherit",
+              background: "var(--background)",
+              color: "var(--foreground)",
+              minHeight: "52px",
+            }}
+          />
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px" }}>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={submit}
+                disabled={!text.trim() || state === "submitting"}
+                style={{
+                  padding: "6px 14px",
+                  background: text.trim() ? "var(--primary)" : "var(--card-border)",
+                  color: text.trim() ? "var(--primary-foreground)" : "var(--muted)",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: text.trim() ? "pointer" : "default",
+                  fontSize: "0.8rem",
+                  fontWeight: 500,
+                }}
+              >
+                {state === "submitting" ? "Capturing..." : "Capture"}
+              </button>
+              <span style={{ fontSize: "0.7rem", color: "var(--muted)", alignSelf: "center" }}>
+                {"\u2318"}+Enter
+              </span>
+            </div>
+            <button
+              onClick={dismiss}
+              style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.75rem" }}
+            >
+              Skip
+            </button>
+          </div>
+
+          {recentCaptures.length > 0 && (
+            <div style={{ marginTop: "10px", fontSize: "0.7rem", color: "var(--muted)" }}>
+              Recent: {recentCaptures.slice(0, 3).map((c, i) => (
+                <span key={i}>
+                  {i > 0 && " · "}
+                  &ldquo;{c}&rdquo;
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
