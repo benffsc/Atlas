@@ -19,6 +19,48 @@ interface CaptureResult {
   actions_created: string[];
 }
 
+// Contextual prompts — rotate based on time of day and capture history
+function getContextualPrompt(): string {
+  const hour = new Date().getHours();
+  const captureCount = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("quick-capture-recent") || "[]").length;
+    } catch { return 0; }
+  })();
+
+  // First-time users get the value proposition
+  if (captureCount === 0) {
+    return "Got a phone call, email, or field note? Drop it here — Tippy turns it into records.";
+  }
+
+  // Time-of-day context
+  if (hour < 10) {
+    const prompts = [
+      "Anything from yesterday you didn't get to log?",
+      "Any voicemails or texts from overnight?",
+      "Morning check-in — anything on your mind about a colony?",
+    ];
+    return prompts[Math.floor(Math.random() * prompts.length)];
+  }
+
+  if (hour >= 16) {
+    const prompts = [
+      "Before you head out — anything to capture from today?",
+      "End of day — any calls or updates to log?",
+      "Quick dump before tomorrow — anything you'll forget?",
+    ];
+    return prompts[Math.floor(Math.random() * prompts.length)];
+  }
+
+  // Midday — general prompts
+  const prompts = [
+    "Got a quick update? Drop it here.",
+    "Phone call, text, or thought — capture it before it slips.",
+    "Tippy's listening — what happened?",
+  ];
+  return prompts[Math.floor(Math.random() * prompts.length)];
+}
+
 export function QuickCapture() {
   const [text, setText] = useState("");
   const [state, setState] = useState<"idle" | "submitting" | "done" | "dismissed">("idle");
@@ -78,29 +120,37 @@ export function QuickCapture() {
     >
       {state === "done" && result ? (
         <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-          <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>
-            <Icon name="CheckCircle" size={24} />
+          <span style={{ color: "var(--success-text, #16a34a)", flexShrink: 0 }}>
+            <Icon name="CheckCircle" size={20} />
           </span>
           <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontWeight: 500, fontSize: "0.9rem" }}>{result.summary}</p>
+            <p style={{ margin: 0, fontWeight: 500, fontSize: "0.85rem" }}>{result.summary}</p>
             {result.action_count > 0 && (
-              <p style={{ margin: "4px 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                {result.action_count} record{result.action_count !== 1 ? "s" : ""} created
+              <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>
+                {result.action_count} record{result.action_count !== 1 ? "s" : ""} created — this will surface next time someone asks about these places/people.
               </p>
             )}
           </div>
-          <button
-            onClick={dismiss}
-            style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.75rem" }}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+            <button
+              onClick={() => { setState("idle"); setResult(null); }}
+              style={{ background: "none", border: "1px solid var(--card-border)", borderRadius: "6px", padding: "4px 10px", color: "var(--foreground)", cursor: "pointer", fontSize: "0.7rem" }}
+            >
+              + Another
+            </button>
+            <button
+              onClick={dismiss}
+              style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.7rem" }}
+            >
+              Done
+            </button>
+          </div>
         </div>
       ) : (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
             <span style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--foreground)" }}>
-              Anything to capture before it slips away?
+              {getContextualPrompt()}
             </span>
             <button
               onClick={dismiss}

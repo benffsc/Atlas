@@ -361,6 +361,14 @@ Rick at 1051 Hessel says there are 5 more unfixed cats. His number is 707-555-12
 Can we follow up in 6 weeks?`,
     expect: { tool: ["log_event", "create_reminder", "place_search", "full_place_briefing"] },
   },
+
+  // Brain dump — unstructured context. Model may search place first OR write directly.
+  // Both are correct strategies; in full agent loop, search → write across iterations.
+  {
+    id: "brain_dump",
+    prompt: "Barb Grey the trapper called, she said the colony at 4048 Hessel is getting worse, saw 3 new kittens yesterday. She'll go back Thursday.",
+    expect: { tool: ["log_event", "place_search", "full_place_briefing"] },
+  },
 ];
 
 // =============================================================================
