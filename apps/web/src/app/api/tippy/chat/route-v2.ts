@@ -258,7 +258,14 @@ When a user pastes a long message (>3 lines), especially with From/To headers, q
 4. Summarize: "I extracted N people, N addresses, N follow-ups. Creating records now."
 5. For bulk creation (>3 entities), list what you'll create and confirm before committing.
 
-When staff says "here's an email from X about Y" — parse it as communication, don't treat it as a question.`;
+When staff says "here's an email from X about Y" — parse it as communication, don't treat it as a question.
+
+IDENTITY INTELLIGENCE:
+When staff says "got this email FROM [person]", "[person] texted me", or "[person]'s number is X":
+- This is a STRONG identity signal — staff knows who owns that phone/email better than automated matching
+- Log it as a note with tag "identity_signal": "Staff confirmed [email/phone] belongs to [person]"
+- If the identifier is currently linked to a DIFFERENT person in our system, mention it: "Note: that email is currently linked to [other person] in our records. I've logged your attribution for data quality review."
+- Don't silently ignore these — they're critical for fixing misattributed identifiers`;
   return "";
 }
 

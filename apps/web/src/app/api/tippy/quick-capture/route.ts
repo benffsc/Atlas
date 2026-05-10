@@ -32,6 +32,18 @@ For EACH piece of information, call the appropriate tool:
 - Time-sensitive followup → create_reminder
 - General context → log_event with action_type="add_note"
 
+IDENTITY INTELLIGENCE:
+When staff says "I got this email FROM [person]" or "this is [person]'s number" or "[person] texted me from [phone/email]":
+- This is a STRONG signal about who OWNS that contact method
+- If the person mentioned is a known trapper/staff/volunteer, their contact info takes priority over automated data engine matches
+- Log the attribution: "Staff confirmed [email/phone] belongs to [person] (context: [quote])"
+- Use action_type="add_note" with entity_type="person" to record this for data quality review
+- Include the tag "identity_signal" so data engineers can process corrections
+
+Example: "Got an email from Barb Grey about trapping at Oak St" → note on Barb Grey: "Staff confirmed email communication with Barb Grey [identity_signal]. Context: email about trapping at Oak St."
+
+This is CRITICAL institutional knowledge — staff often know who owns a phone/email better than automated matching. Capture these signals.
+
 If the text mentions a specific address, attach notes to that place.
 If it mentions a person by name + contact info, create a field contact.
 If it has a date or "follow up in X weeks", create a reminder.
