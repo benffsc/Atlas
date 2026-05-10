@@ -1066,18 +1066,18 @@ button:disabled {
 }
 
 /* ============================================================================
-   Presentation Mode (Tier 3 — FFS-1196)
-   Distraction-free view for gala demos. Scales fonts, keeps Beacon hero
-   prominent, adds a floating exit indicator. Toggled from user menu,
-   persists in localStorage, ESC to exit.
+   Showcase Mode (formerly Presentation Mode — FFS-1196)
+   Privacy-safe demo view for gala presentations. Redacts PII, scales fonts,
+   keeps Beacon hero prominent, adds "Beacon · Live" indicator.
+   Toggled from user menu, persists in localStorage, ESC to exit.
    ============================================================================ */
 
-/* Scale base font size when presentation mode is active */
+/* Scale base font size when showcase mode is active */
 body.presentation-mode {
   font-size: calc(1rem * var(--presentation-font-scale, 1.2));
 }
 
-/* Give the dashboard hero extra breathing room in presentation mode */
+/* Give the dashboard hero extra breathing room */
 body.presentation-mode .dashboard-command-center {
   padding-top: 1rem;
 }
@@ -1092,9 +1092,15 @@ body.presentation-mode .attention-bar {
   opacity: 0.75;
 }
 
-/* Hide section headers with "admin" in their name (DB-driven nav catches most) */
+/* Hide admin sections (sidebar items, debug panels) */
 body.presentation-mode [data-admin-section="true"] {
   opacity: 0.5;
+}
+
+/* Smooth transitions for all text that might get redacted */
+body.presentation-mode .action-row .row-summary,
+body.presentation-mode .action-row span {
+  transition: opacity 200ms ease;
 }
 
 /* Floating indicator — bottom-right corner */

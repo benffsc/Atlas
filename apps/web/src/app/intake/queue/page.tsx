@@ -23,6 +23,7 @@ import { TabBar } from "@/components/ui/TabBar";
 import { DataTable } from "@/components/data-table";
 import { getIntakeColumns } from "./columns";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { useShowcase } from "@/components/ShowcaseContext";
 import { useToast } from "@/components/feedback/Toast";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
@@ -42,6 +43,7 @@ function IntakeQueueContent() {
   const router = useRouter();
   const openSubmissionId = searchParams.get("open");
   const { user: currentUser } = useCurrentUser();
+  const { isShowcase } = useShowcase();
 
   const [submissions, setSubmissions] = useState<IntakeSubmission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1009,6 +1011,7 @@ function IntakeQueueContent() {
                 onChangeAppointment: handleChangeAppointment,
                 saving,
                 allSubmissions: groupSubs,
+                isShowcase,
               })}
               data={groupSubs.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize)}
               getRowId={(row) => row.submission_id}

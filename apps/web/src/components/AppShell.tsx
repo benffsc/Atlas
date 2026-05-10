@@ -8,6 +8,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { ToastProvider } from "@/components/feedback/Toast";
 import { Icon } from "@/components/ui/Icon";
 import { usePresentationMode, PresentationModeIndicator } from "@/components/PresentationMode";
+import { ShowcaseProvider } from "@/components/ShowcaseContext";
 import { NavigationProgress } from "@/components/NavigationProgress";
 import { NotificationBell } from "@/components/NotificationBell";
 import { fetchApi } from "@/lib/api-client";
@@ -103,6 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <CommandPaletteProvider>
+    <ShowcaseProvider enabled={presentationEnabled}>
       <NavigationProgress />
       {/* Slim top bar */}
       <nav className="nav">
@@ -238,7 +240,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           aria-label={presentationEnabled ? "Exit presentation mode" : "Enter presentation mode"}
                         >
                           <Icon name={presentationEnabled ? "eye-off" : "eye"} size={16} />
-                          {presentationEnabled ? "Exit presentation" : "Presentation mode"}
+                          {presentationEnabled ? "Exit Showcase" : "Showcase Mode"}
                         </button>
                       </>
                     )}
@@ -295,6 +297,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           fontScale: presentationConfig.font_scale,
         }}
       />
+    </ShowcaseProvider>
     </CommandPaletteProvider>
   );
 }

@@ -15,6 +15,7 @@ import { usePermission } from "@/hooks/usePermission";
 import type { DashboardMapPin, MapLayer } from "@/components/dashboard";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
 import type { EntityType } from "@/hooks/useEntityDetail";
+import { useShowcase } from "@/components/ShowcaseContext";
 
 const DashboardMap = dynamic(
   () => import("@/components/dashboard/DashboardMap").then(m => ({ default: m.DashboardMap })),
@@ -139,6 +140,7 @@ export default function Home() {
 function HomeInner() {
   const isMobile = useIsMobile();
   const isAdmin = usePermission("admin.access");
+  const { isShowcase } = useShowcase();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -350,11 +352,15 @@ function HomeInner() {
         <div className="dashboard-hero-banner__bg" />
         <div className="dashboard-hero-banner__text">
           <h1>
-            {staff
-              ? `${getGreeting()}, ${getFirstName(staff.display_name)}`
-              : "Beacon"}
+            {isShowcase
+              ? "Beacon Operations Center"
+              : staff
+                ? `${getGreeting()}, ${getFirstName(staff.display_name)}`
+                : "Beacon"}
           </h1>
-          <div className="date-line">Last login: {today}</div>
+          <div className="date-line">
+            {isShowcase ? "Live operational data" : `Last login: ${today}`}
+          </div>
         </div>
       </div>
 

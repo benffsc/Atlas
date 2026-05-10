@@ -5,6 +5,7 @@ import { MyItemsWidget } from "@/components/common";
 import { StatusBadge, PriorityDot } from "@/components/badges";
 import { AttentionBar } from "./AttentionBar";
 import { SkeletonList } from "@/components/feedback/Skeleton";
+import { useRedact, useShowcase } from "@/components/ShowcaseContext";
 
 interface ActiveRequest {
   request_id: string;
@@ -104,6 +105,9 @@ export function ActionPanel({
   onToggleMyRequests,
   onRequestClick,
 }: ActionPanelProps) {
+  const r = useRedact();
+  const { isShowcase } = useShowcase();
+
   return (
     <div className="dashboard-action-panel">
       {/* Attention Bar */}
@@ -144,9 +148,11 @@ export function ActionPanel({
         ) : (
           requests.map(req => {
             const city = req.place_city || extractCity(req.place_address) || extractCity(req.place_name);
-            const shortAddress = req.place_address
-              ? req.place_address.split(",")[0]
-              : req.place_name;
+            const shortAddress = isShowcase
+              ? r.neighborhood(req.place_address || req.place_name)
+              : req.place_address
+                ? req.place_address.split(",")[0]
+                : req.place_name;
             return (
               <a
                 key={req.request_id}
@@ -211,7 +217,7 @@ export function ActionPanel({
               }}
             >
               <span className="row-summary">
-                {normalizeName(sub.submitter_name)}
+                {isShowcase ? r.name(sub.submitter_name) : normalizeName(sub.submitter_name)}
                 {sub.is_emergency && (
                   <span style={{
                     fontSize: "0.6rem",

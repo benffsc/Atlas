@@ -22,6 +22,7 @@ import {
 import { formatPhone, isValidPhone, extractPhone } from "@/lib/formatters";
 import { formatEnum, TRIAGE_LABELS } from "@/lib/display-labels";
 import { COLORS, TYPOGRAPHY } from "@/lib/design-tokens";
+import { maskName, maskEmail, maskPhone, maskAddressToNeighborhood } from "@/lib/dataMasking";
 
 const col = createColumnHelper<IntakeSubmission>();
 
@@ -36,6 +37,8 @@ export interface IntakeColumnCallbacks {
   onChangeAppointment: (sub: IntakeSubmission) => void;
   saving: boolean;
   allSubmissions: IntakeSubmission[];
+  /** When true, PII is redacted for showcase/demo mode */
+  isShowcase?: boolean;
 }
 
 export function getIntakeColumns(cb: IntakeColumnCallbacks): ColumnDef<IntakeSubmission, unknown>[] {
@@ -70,22 +73,37 @@ export function getIntakeColumns(cb: IntakeColumnCallbacks): ColumnDef<IntakeSub
       header: "Submitter",
       cell: ({ row }) => {
         const sub = row.original;
+        const sc = cb.isShowcase;
         return (
           <div>
-            <div style={{ fontWeight: 500 }}>{normalizeName(sub.submitter_name)}</div>
-            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.email}</div>
-            {sub.phone && (
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "4px" }}>
-                {formatPhone(sub.phone)}
-                {!isValidPhone(sub.phone) && (
-                  <span
-                    style={{ fontSize: "0.6rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "3px", cursor: "help" }}
-                    title={extractPhone(sub.phone) ? `Likely: ${formatPhone(extractPhone(sub.phone))}` : "Invalid phone format"}
-                  >
-                    !
-                  </span>
+            <div style={{ fontWeight: 500 }}>{sc ? maskName(sub.submitter_name) : normalizeName(sub.submitter_name)}</div>
+            {sc ? (
+              sub.email && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: "3px",
+                  fontSize: "0.65rem", padding: "1px 6px", borderRadius: "3px",
+                  background: "var(--success-bg)", color: "var(--success-text)", fontWeight: 500,
+                }}>
+                  Verified Contact
+                </span>
+              )
+            ) : (
+              <>
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.email}</div>
+                {sub.phone && (
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "4px" }}>
+                    {formatPhone(sub.phone)}
+                    {!isValidPhone(sub.phone) && (
+                      <span
+                        style={{ fontSize: "0.6rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "3px", cursor: "help" }}
+                        title={extractPhone(sub.phone) ? `Likely: ${formatPhone(extractPhone(sub.phone))}` : "Invalid phone format"}
+                      >
+                        !
+                      </span>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
             {sub.is_third_party_report && (
               <span style={{ fontSize: "0.65rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "3px" }}>
@@ -103,18 +121,22 @@ export function getIntakeColumns(cb: IntakeColumnCallbacks): ColumnDef<IntakeSub
       header: "Location",
       cell: ({ row }) => {
         const sub = row.original;
+        const sc = cb.isShowcase;
+        const displayAddr = sc
+          ? maskAddressToNeighborhood(sub.geo_formatted_address || sub.cats_address)
+          : sub.geo_formatted_address || sub.cats_address;
         return (
           <div>
-            <div>{sub.geo_formatted_address || sub.cats_address}</div>
-            {sub.geo_formatted_address && sub.geo_formatted_address !== sub.cats_address && (
+            <div>{displayAddr}</div>
+            {!sc && sub.geo_formatted_address && sub.geo_formatted_address !== sub.cats_address && (
               <div style={{ fontSize: "0.65rem", color: "var(--muted)", fontStyle: "italic" }}>
                 (original: {sub.cats_address})
               </div>
             )}
-            {!sub.geo_formatted_address && sub.cats_city && (
+            {!sc && !sub.geo_formatted_address && sub.cats_city && (
               <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{sub.cats_city}</div>
             )}
-            {!sub.geo_formatted_address && sub.geo_confidence === null && (
+            {!sc && !sub.geo_formatted_address && sub.geo_confidence === null && (
               <span style={{ fontSize: "0.6rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "2px" }}>
                 needs geocoding
               </span>

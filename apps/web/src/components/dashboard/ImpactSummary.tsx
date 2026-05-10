@@ -23,6 +23,8 @@
 import { useEffect, useState } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { ImpactMethodologyDrawer, type ImpactMetric } from "./ImpactMethodologyDrawer";
+import { AnimatedCountUp } from "./AnimatedCountUp";
+import { useShowcase } from "@/components/ShowcaseContext";
 import type { ImpactMethodology, ImpactLabels } from "@/app/api/dashboard/impact/route";
 
 interface ImpactResponse {
@@ -54,6 +56,7 @@ export function ImpactSummary() {
   const [error, setError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [auditMetric, setAuditMetric] = useState<ImpactMetric | null>(null);
+  const { isShowcase } = useShowcase();
 
   useEffect(() => {
     let cancelled = false;
@@ -137,7 +140,11 @@ export function ImpactSummary() {
             aria-label={`${labels.cats_altered} — click to see methodology`}
           >
             <div className="impact-number">
-              {data ? formatBigNumber(data.cats_altered) : <span className="impact-skeleton" />}
+              {data ? (
+                isShowcase
+                  ? <AnimatedCountUp value={data.cats_altered} format={formatBigNumber} />
+                  : formatBigNumber(data.cats_altered)
+              ) : <span className="impact-skeleton" />}
             </div>
             <div className="impact-label">{labels.cats_altered}</div>
             {data && <div className="impact-audit-hint">See the data →</div>}
@@ -151,7 +158,11 @@ export function ImpactSummary() {
             aria-label={`${labels.kittens_prevented} — click to see methodology`}
           >
             <div className="impact-number">
-              {data ? `~${formatBigNumber(data.kittens_prevented)}` : <span className="impact-skeleton" />}
+              {data ? (
+                isShowcase
+                  ? <>~<AnimatedCountUp value={data.kittens_prevented} format={formatBigNumber} duration={2500} /></>
+                  : `~${formatBigNumber(data.kittens_prevented)}`
+              ) : <span className="impact-skeleton" />}
             </div>
             <div className="impact-label">{labels.kittens_prevented}</div>
             {data && <div className="impact-audit-hint">See the math →</div>}
@@ -165,7 +176,11 @@ export function ImpactSummary() {
             aria-label={`${labels.shelter_cost_avoided} — click to see methodology`}
           >
             <div className="impact-number">
-              {data ? formatCurrency(data.shelter_cost_avoided) : <span className="impact-skeleton" />}
+              {data ? (
+                isShowcase
+                  ? <AnimatedCountUp value={data.shelter_cost_avoided} format={formatCurrency} duration={3000} />
+                  : formatCurrency(data.shelter_cost_avoided)
+              ) : <span className="impact-skeleton" />}
             </div>
             <div className="impact-label">{labels.shelter_cost_avoided}</div>
             {data && <div className="impact-audit-hint">See the math →</div>}

@@ -4,6 +4,7 @@ import { formatPhone, formatRelativeTime, formatDateLocal, getActivityColor } fr
 import { formatPlaceKind, formatRole, formatStatus } from "@/lib/display-labels";
 import { CatHealthBadges, buildHealthFlags, PlaceRiskBadges, PersonStatusBadges } from "@/components/badges";
 import { SkeletonList } from "@/components/feedback/Skeleton";
+import { useRedact, useShowcase } from "@/components/ShowcaseContext";
 
 // Re-export types and hook from canonical location for backwards compatibility
 export { useEntityDetail } from "@/hooks/useEntityDetail";
@@ -43,6 +44,7 @@ export function EntityPreviewContent({ entityType, detail, loading }: EntityPrev
 // --- Individual renderers ---
 
 function CatPreview({ cat }: { cat: CatDetail }) {
+  const r = useRedact();
   const lastApptColor = getActivityColor(cat.last_appointment_date);
 
   return (
@@ -124,12 +126,12 @@ function CatPreview({ cat }: { cat: CatDetail }) {
       )}
       {/* Origin place */}
       {cat.places?.length > 0 && cat.places[0].formatted_address && (
-        <PreviewRow label="Origin" value={cat.places[0].formatted_address} />
+        <PreviewRow label="Origin" value={r.neighborhood(cat.places[0].formatted_address) || ""} />
       )}
       {cat.owners?.length > 0 && (
         <PreviewSection title={`Related People (${cat.owners.length})`}>
           {cat.owners.slice(0, 3).map((o) => (
-            <PreviewLink key={o.person_id}>{o.display_name}</PreviewLink>
+            <PreviewLink key={o.person_id}>{r.name(o.display_name)}</PreviewLink>
           ))}
           {cat.owners.length > 3 && <PreviewMore count={cat.owners.length - 3} />}
         </PreviewSection>
@@ -146,6 +148,8 @@ function CatPreview({ cat }: { cat: CatDetail }) {
 }
 
 function PersonPreview({ person }: { person: PersonDetail }) {
+  const r = useRedact();
+  const { isShowcase } = useShowcase();
   const activityParts: string[] = [];
   const catCount = person.cat_count ?? person.cats?.length ?? 0;
   const placeCount = person.place_count ?? person.places?.length ?? 0;
@@ -156,26 +160,40 @@ function PersonPreview({ person }: { person: PersonDetail }) {
 
   return (
     <>
-      <PreviewHeader icon="👤" name={person.display_name} />
+      <PreviewHeader icon="👤" name={r.name(person.display_name) || "Community Member"} />
       <div style={{ marginBottom: "0.5rem" }}>
-        {person.identifiers?.length > 0 && (
+        {isShowcase ? (
+          person.identifiers?.length > 0 && (
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: "4px",
+              fontSize: "0.7rem", padding: "2px 8px", borderRadius: "4px",
+              background: "var(--success-bg)", color: "var(--success-text)", fontWeight: 500,
+            }}>
+              Verified Contact
+            </div>
+          )
+        ) : (
           <>
-            {person.identifiers.find((i) => i.id_type === "email") && (
-              <PreviewRow
-                label="Email"
-                value={person.identifiers.find((i) => i.id_type === "email")!.id_value}
-              />
+            {person.identifiers?.length > 0 && (
+              <>
+                {person.identifiers.find((i) => i.id_type === "email") && (
+                  <PreviewRow
+                    label="Email"
+                    value={person.identifiers.find((i) => i.id_type === "email")!.id_value}
+                  />
+                )}
+                {person.identifiers.find((i) => i.id_type === "phone") && (
+                  <PreviewRow
+                    label="Phone"
+                    value={formatPhone(person.identifiers.find((i) => i.id_type === "phone")!.id_value) || ""}
+                  />
+                )}
+              </>
             )}
-            {person.identifiers.find((i) => i.id_type === "phone") && (
-              <PreviewRow
-                label="Phone"
-                value={formatPhone(person.identifiers.find((i) => i.id_type === "phone")!.id_value) || ""}
-              />
+            {person.primary_address && (
+              <PreviewRow label="Address" value={person.primary_address} />
             )}
           </>
-        )}
-        {person.primary_address && (
-          <PreviewRow label="Address" value={person.primary_address} />
         )}
       </div>
       {/* Status badges */}
@@ -219,11 +237,13 @@ function PersonPreview({ person }: { person: PersonDetail }) {
 }
 
 function PlacePreview({ place }: { place: PlaceDetail }) {
+  const r = useRedact();
+  const { isShowcase } = useShowcase();
   const activityParts: string[] = [];
   const catCount = place.cat_count ?? place.cats?.length ?? 0;
   const personCount = place.person_count ?? place.people?.length ?? 0;
   if (catCount) activityParts.push(`${catCount} cats`);
-  if (personCount) activityParts.push(`${personCount} people`);
+  if (personCount) activityParts.push(`${personCount} contacts`);
   const rel = formatRelativeTime(place.last_appointment_date);
   const actColor = getActivityColor(place.last_appointment_date);
   if (rel) activityParts.push(`Last: ${rel}`);
@@ -234,9 +254,9 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
 
   return (
     <>
-      <PreviewHeader icon="📍" name={place.display_name} />
+      <PreviewHeader icon="📍" name={r.neighborhood(place.display_name) || place.display_name} />
       <div style={{ marginBottom: "0.5rem" }}>
-        {place.formatted_address && <PreviewRow value={place.formatted_address} />}
+        {place.formatted_address && <PreviewRow value={r.neighborhood(place.formatted_address) || ""} />}
         {place.place_kind && <PreviewRow label="Type" value={formatPlaceKind(place.place_kind)} />}
         {place.locality && <PreviewRow label="Locality" value={place.locality} />}
       </div>
@@ -281,10 +301,10 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
         </PreviewSection>
       )}
       {place.people?.length > 0 && (
-        <PreviewSection title={`Related People (${place.people.length})`}>
+        <PreviewSection title={`${isShowcase ? "Community Contacts" : "Related People"} (${place.people.length})`}>
           {place.people.slice(0, 3).map((p) => (
             <PreviewLink key={p.person_id} badge={formatRole(p.role)}>
-              {p.display_name}
+              {r.name(p.display_name)}
             </PreviewLink>
           ))}
           {place.people.length > 3 && <PreviewMore count={place.people.length - 3} />}
@@ -295,6 +315,7 @@ function PlacePreview({ place }: { place: PlaceDetail }) {
 }
 
 function RequestPreview({ request }: { request: RequestDetail }) {
+  const r = useRedact();
   const statusColor: Record<string, string> = {
     new: "var(--status-new)",
     triaged: "var(--status-triaged)",
@@ -352,10 +373,10 @@ function RequestPreview({ request }: { request: RequestDetail }) {
         )}
       </div>
       <div style={{ marginBottom: "0.5rem" }}>
-        {request.place_name && <PreviewRow label="Location" value={request.place_name} />}
-        {request.place_address && <PreviewRow label="Address" value={request.place_address} />}
-        {request.requester_name && <PreviewRow label="Requester" value={request.requester_name} />}
-        {request.primary_trapper_name && <PreviewRow label="Trapper" value={request.primary_trapper_name} />}
+        {request.place_name && <PreviewRow label="Location" value={r.neighborhood(request.place_name) || ""} />}
+        {request.place_address && <PreviewRow label="Area" value={r.neighborhood(request.place_address) || ""} />}
+        {request.requester_name && <PreviewRow label="Requester" value={r.name(request.requester_name) || ""} />}
+        {request.primary_trapper_name && <PreviewRow label="Trapper" value={r.name(request.primary_trapper_name) || ""} />}
         {request.estimated_cat_count != null && (
           <PreviewRow label="Cats Needing TNR" value={String(request.estimated_cat_count)} />
         )}

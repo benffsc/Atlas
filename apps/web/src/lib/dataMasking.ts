@@ -74,6 +74,41 @@ export function maskName(name: string | null | undefined): string | null {
 }
 
 /**
+ * Mask an address to neighborhood level (for showcase/presentation mode).
+ * "123 Main St, Santa Rosa, CA 95401" -> "Main St area, Santa Rosa"
+ * "5403 San Antonio Road" -> "San Antonio Road area"
+ * Shows the street name and city but hides the house number and zip.
+ */
+export function maskAddressToNeighborhood(
+  address: string | null | undefined
+): string | null {
+  if (!address) return null;
+
+  // Split into parts by comma
+  const parts = address.split(",").map((p) => p.trim());
+
+  // Extract street part (first segment) — remove leading numbers
+  let street = parts[0].replace(/^\d+(-\d+)?\s*/, "").trim();
+
+  // If the street is empty after removing numbers, use original
+  if (!street) street = parts[0];
+
+  // Extract city (second segment, if it doesn't look like state/zip)
+  let city = "";
+  if (parts.length >= 2) {
+    const candidate = parts[1];
+    if (candidate && !candidate.match(/^(CA|California)\s*\d/i) && !candidate.match(/^\d/)) {
+      city = candidate;
+    }
+  }
+
+  if (city) {
+    return `${street} area, ${city}`;
+  }
+  return `${street} area`;
+}
+
+/**
  * Entity types that can be masked
  */
 export type MaskableEntityType =

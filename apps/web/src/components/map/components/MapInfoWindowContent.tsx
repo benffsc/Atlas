@@ -1,4 +1,6 @@
 import { formatRelativeTime } from "@/lib/formatters";
+import { maskAddressToNeighborhood, maskName } from "@/lib/dataMasking";
+import { useShowcase } from "@/components/ShowcaseContext";
 import type { AtlasPin } from "@/components/map/types";
 
 interface MapInfoWindowContentProps {
@@ -12,22 +14,27 @@ interface MapInfoWindowContentProps {
  * Two variants: compact (reference pins) and rich (active pins).
  */
 export function MapInfoWindowContent({ pin, onOpenDetails, onStreetView }: MapInfoWindowContentProps) {
+  const { isShowcase } = useShowcase();
   const isReference = pin.pin_tier === "reference" || pin.pin_style === "reference";
 
   if (isReference) {
-    return <ReferencePopup pin={pin} onOpenDetails={onOpenDetails} />;
+    return <ReferencePopup pin={pin} onOpenDetails={onOpenDetails} isShowcase={isShowcase} />;
   }
 
-  return <ActivePopup pin={pin} onOpenDetails={onOpenDetails} onStreetView={onStreetView} />;
+  return <ActivePopup pin={pin} onOpenDetails={onOpenDetails} onStreetView={onStreetView} isShowcase={isShowcase} />;
 }
 
 // ── Reference pin popup (compact but useful) ──────────────────────────────
 
-function ReferencePopup({ pin, onOpenDetails }: { pin: AtlasPin; onOpenDetails: (id: string) => void }) {
+function ReferencePopup({ pin, onOpenDetails, isShowcase }: { pin: AtlasPin; onOpenDetails: (id: string) => void; isShowcase?: boolean }) {
+  const displayName = isShowcase
+    ? maskAddressToNeighborhood(pin.display_name || pin.address) || "Colony site"
+    : pin.display_name || pin.address;
+
   return (
     <div style={{ minWidth: 220, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
       <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-        {pin.display_name || pin.address}
+        {displayName}
       </div>
       <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>
         {pin.service_zone || "Unknown zone"}
@@ -97,16 +104,22 @@ function ActivePopup({
   pin,
   onOpenDetails,
   onStreetView,
+  isShowcase,
 }: {
   pin: AtlasPin;
   onOpenDetails: (id: string) => void;
   onStreetView?: (coords: { lat: number; lng: number; address: string }) => void;
+  isShowcase?: boolean;
 }) {
+  const displayAddr = isShowcase
+    ? maskAddressToNeighborhood(pin.address) || "Colony site"
+    : pin.address;
+
   return (
     <div style={{ minWidth: 280, maxWidth: 340, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
-        <div style={{ fontWeight: 600, fontSize: 14 }}>{pin.address}</div>
+        <div style={{ fontWeight: 600, fontSize: 14 }}>{displayAddr}</div>
         {pin.disease_risk && (
           <span style={{ background: "#fef2f2", border: "1px solid #fecaca", padding: "2px 8px", borderRadius: 10, color: "#dc2626", fontWeight: 600, fontSize: 10, whiteSpace: "nowrap", flexShrink: 0 }}>
             Disease Risk
@@ -168,10 +181,12 @@ function ActivePopup({
         </div>
       )}
 
-      {/* People (compact, with role badges) */}
+      {/* People (compact, with role badges) — redacted in showcase mode */}
       {pin.people?.length > 0 && (
         <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>People</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>
+            {isShowcase ? "Community Contacts" : "People"}
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {pin.people.slice(0, 4).map((p: { name: string; roles: string[]; is_staff: boolean }, i: number) => (
               <span key={i} style={{
@@ -180,7 +195,7 @@ function ActivePopup({
                 padding: "2px 8px", borderRadius: 10, fontSize: 11,
                 color: p.is_staff ? "#4338ca" : "#374151",
               }}>
-                {p.name}
+                {isShowcase ? maskName(p.name) : p.name}
                 {p.roles?.[0] && (
                   <span style={{ fontSize: 9, color: "#6b7280" }}>[{p.roles[0]}]</span>
                 )}

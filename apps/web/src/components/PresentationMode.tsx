@@ -100,23 +100,23 @@ export function PresentationModeIndicator({
   return (
     <div className="presentation-indicator" role="status" aria-live="polite">
       <span className="presentation-indicator-dot" aria-hidden="true" />
-      <span className="presentation-indicator-text">{config.text}</span>
+      <span className="presentation-indicator-text">Beacon &middot; Live</span>
       {!isOnDemo && (
         <a
           href="/walkthrough/"
           className="presentation-indicator-demo"
           aria-label="Start product walkthrough"
         >
-          Start Demo
+          Walkthrough
         </a>
       )}
       <button
         type="button"
         onClick={onExit}
         className="presentation-indicator-exit"
-        aria-label="Exit presentation mode"
+        aria-label="Exit showcase mode"
       >
-        Exit
+        ESC
       </button>
     </div>
   );

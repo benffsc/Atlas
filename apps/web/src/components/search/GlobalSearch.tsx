@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
 import { formatRelativeTime, getActivityColor } from "@/lib/formatters";
+import { useRedact } from "@/components/ShowcaseContext";
 
 interface SearchResult {
   entity_type: string;
@@ -33,6 +34,7 @@ function debounce<T extends (...args: Parameters<T>) => void>(
 
 export default function GlobalSearch() {
   const router = useRouter();
+  const r = useRedact();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -311,7 +313,11 @@ export default function GlobalSearch() {
                           ) : null;
                         })()}
                         <span className="search-suggestion-name">
-                          {suggestion.display_name}
+                          {suggestion.entity_type === "person"
+                            ? r.name(suggestion.display_name)
+                            : suggestion.entity_type === "place"
+                              ? r.neighborhood(suggestion.display_name)
+                              : suggestion.display_name}
                         </span>
                         {duplicateCount > 1 && (
                           <span className="search-duplicate-badge">
