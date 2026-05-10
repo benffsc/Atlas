@@ -19,6 +19,12 @@ export const ADMIN_TOOLS: string[] = []; // ["run_sql"] - temporarily disabled r
 /**
  * Filter tools based on user's AI access level.
  * Returns the subset of tools the user is allowed to invoke.
+ *
+ * Levels:
+ *   read_only  = Lookup only (volunteers, external)
+ *   standard   = Read + additive writes: notes, reminders, contacts, tickets (all staff)
+ *   read_write = Legacy alias for standard
+ *   full       = Everything including run_sql + destructive ops (admins/engineers)
  */
 export function getToolsForAccessLevel<T extends { name: string }>(
   tools: T[],
@@ -35,7 +41,7 @@ export function getToolsForAccessLevel<T extends { name: string }>(
     );
   }
 
-  if (accessLevel === "read_write") {
+  if (accessLevel === "standard" || accessLevel === "read_write") {
     return tools.filter((tool) => !ADMIN_TOOLS.includes(tool.name));
   }
 
@@ -56,7 +62,7 @@ export function detectIntentAndForceToolChoice(
   const lower = message.toLowerCase();
 
   // REMINDER patterns - highest priority for write users
-  if (accessLevel === "read_write" || accessLevel === "full") {
+  if (accessLevel === "standard" || accessLevel === "read_write" || accessLevel === "full") {
     const reminderPatterns = [
       /remind me/i,
       /don't let me forget/i,

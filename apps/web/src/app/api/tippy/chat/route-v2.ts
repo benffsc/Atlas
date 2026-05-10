@@ -229,7 +229,7 @@ function buildStaffBlock(): string {
 function buildAccessBlock(level: string): string {
   if (level === "read_only")
     return "\n\nThis user has read-only access. Do not offer write operations.";
-  if (level === "read_write" || level === "full")
+  if (level === "standard" || level === "read_write" || level === "full")
     return `\n\nADDITIONAL CAPABILITIES:
 - create_reminder for "remind me", "follow up", etc. Extract contact info.
 - send_message for "tell X that..."
