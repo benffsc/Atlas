@@ -2157,7 +2157,7 @@ async function personLookup(
   identifier: string,
   _identifierType?: string
 ): Promise<ToolResult> {
-  const [personResult, catRelationships, vhData, fosterAdoptHistory] = await Promise.all([
+  const [personResult, catRelationships, vhData, fosterAdoptHistory, personNotes] = await Promise.all([
     queryOne<{ result: unknown }>(
       `SELECT ops.comprehensive_person_lookup($1) as result`,
       [identifier]
@@ -2203,6 +2203,19 @@ async function personLookup(
        LIMIT 20`,
       [`%${identifier}%`]
     ).catch(() => []),
+    // Recent notes/context about this person (from quick captures, field contacts, etc.)
+    queryRows<{ body: string; created_at: string; tags: string[]; created_by: string }>(
+      `SELECT COALESCE(body, content) as body, created_at::text, tags, created_by
+       FROM ops.journal_entries
+       WHERE primary_person_id = (
+         SELECT person_id FROM sot.people
+         WHERE display_name ILIKE $1 AND merged_into_person_id IS NULL
+         LIMIT 1
+       )
+         AND COALESCE(is_archived, FALSE) = FALSE
+       ORDER BY created_at DESC LIMIT 10`,
+      [`%${identifier}%`]
+    ).catch(() => []),
   ]);
 
   if (!personResult) {
@@ -2230,6 +2243,7 @@ async function personLookup(
       cat_relationships: catRelationships.length > 0 ? catRelationships : undefined,
       volunteerhub_data: vhData.length > 0 ? vhData : undefined,
       foster_adoption_history: fosterAdoptHistory.length > 0 ? fosterAdoptHistory : undefined,
+      recent_notes: personNotes.length > 0 ? personNotes : undefined,
       summary: Array.isArray(parsed)
         ? `Found ${parsed.length} person(s) matching "${identifier}"`
         : undefined,
@@ -2248,7 +2262,7 @@ async function catLookup(
   const cleanId = identifier.replace(/\s/g, "");
   const likeId = `%${identifier}%`;
 
-  const [catResult, appointmentCrossCheck, journeyData] = await Promise.all([
+  const [catResult, appointmentCrossCheck, journeyData, catNotes] = await Promise.all([
     queryOne<{ result: unknown }>(
       `SELECT ops.comprehensive_cat_lookup($1::TEXT) as result`,
       [identifier]
@@ -2290,6 +2304,21 @@ async function catLookup(
        )`,
       [cleanId, likeId]
     ).catch(() => null),
+    // Recent notes/context about this cat (from quick captures, observations, etc.)
+    queryRows<{ body: string; created_at: string; tags: string[]; created_by: string }>(
+      `SELECT COALESCE(body, content) as body, created_at::text, tags, created_by
+       FROM ops.journal_entries
+       WHERE primary_cat_id = (
+         SELECT c.cat_id FROM sot.cats c
+         LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
+         WHERE (ci.id_value = $1 OR c.display_name ILIKE $2)
+           AND c.merged_into_cat_id IS NULL
+         LIMIT 1
+       )
+         AND COALESCE(is_archived, FALSE) = FALSE
+       ORDER BY created_at DESC LIMIT 10`,
+      [cleanId, likeId]
+    ).catch(() => []),
   ]);
 
   if (!catResult) {
@@ -2317,6 +2346,7 @@ async function catLookup(
       appointment_history:
         appointmentCrossCheck.length > 0 ? appointmentCrossCheck : undefined,
       journey: journeyData || undefined,
+      recent_notes: catNotes.length > 0 ? catNotes : undefined,
       summary: Array.isArray(parsed)
         ? `Found ${parsed.length} cat(s) matching "${identifier}"`
         : undefined,
