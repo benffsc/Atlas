@@ -19,6 +19,7 @@ import { CollisionBehavior } from "@vis.gl/react-google-maps";
 import type { ClusterFeature } from "./useMapClustering";
 import { isCluster, getClusterColor, getClusterSizeClass } from "./useMapClustering";
 import { computePinSize } from "../components/AtlasPinMarker";
+import { maskAddressToNeighborhood } from "@/lib/dataMasking";
 import type { AtlasPin, MapPinConfig } from "../types";
 import { DEFAULT_PIN_CONFIG } from "../types";
 
@@ -448,6 +449,12 @@ export function useImperativeMarkers({
         // Create new pin marker
         const content = createPinContent(pin, pinTier, isSelected, hasVol, quantizedZoomLevel, cfgRef.current);
 
+        // In showcase mode, redact the hover tooltip to neighborhood only
+        const isShowcaseMode = document.body.classList.contains("presentation-mode");
+        const pinTitle = isShowcaseMode
+          ? maskAddressToNeighborhood(pin.address || pin.display_name) || undefined
+          : pin.address || pin.display_name || undefined;
+
         const marker = new google.maps.marker.AdvancedMarkerElement({
           map,
           position: { lat, lng },
@@ -455,7 +462,7 @@ export function useImperativeMarkers({
           collisionBehavior: getPinCollisionBehavior(pinTier) as google.maps.CollisionBehavior,
           zIndex: getPinZIndex(pin.pin_style),
           gmpClickable: true,
-          title: pin.address || pin.display_name || undefined,
+          title: pinTitle,
         });
 
         const clickListener = marker.addListener("click", (e: google.maps.MapMouseEvent) => {
@@ -536,7 +543,9 @@ function createPinContent(
   if (pinTier === "reference") {
     const opacity = zoomLevel >= 16 ? 0.6 : 0.45;
     const refSize = cfg.sizes.reference;
-    return createReferencePinDOM(color, opacity, isSelected, pin.address, refSize);
+    const showcase = document.body.classList.contains("presentation-mode");
+    const refTitle = showcase ? maskAddressToNeighborhood(pin.address) || "" : pin.address;
+    return createReferencePinDOM(color, opacity, isSelected, refTitle, refSize);
   }
 
   const size = computePinSize(
@@ -558,7 +567,9 @@ function createPinContent(
     isSelected,
     zoomLevel,
     size,
-    title: pin.address,
+    title: document.body.classList.contains("presentation-mode")
+      ? maskAddressToNeighborhood(pin.address) || ""
+      : pin.address,
     statusDotColors: cfg.statusDots,
   });
 }

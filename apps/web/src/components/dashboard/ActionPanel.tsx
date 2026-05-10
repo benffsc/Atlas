@@ -167,7 +167,9 @@ export function ActionPanel({
               >
                 <PriorityDot priority={req.priority} />
                 <span className="row-summary">
-                  {req.summary || req.place_name || "Untitled"}
+                  {isShowcase
+                    ? r.neighborhood(req.place_name || req.summary) || "TNR Request"
+                    : req.summary || req.place_name || "Untitled"}
                 </span>
                 <StatusBadge status={req.status} variant="soft" size="sm" />
                 {shortAddress && (

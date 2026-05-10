@@ -11,6 +11,8 @@ import type { AtlasPin } from "@/hooks/useMapData";
 import type { AtlasSearchResult, PlacePrediction } from "@/components/map/types";
 import { fetchApi } from "@/lib/api-client";
 import { useGeoConfig } from "@/hooks/useGeoConfig";
+import { useShowcase } from "@/components/ShowcaseContext";
+import { maskAddressToNeighborhood } from "@/lib/dataMasking";
 
 export interface DashboardMapPin {
   request_id: string;
@@ -748,6 +750,7 @@ function DashboardMapInner({
 }: DashboardMapProps) {
   const { mapCenter, mapZoom } = useGeoConfig();
   const map = useMap();
+  const { isShowcase } = useShowcase();
   const [infoPin, setInfoPin] = useState<{ type: "request" | "atlas"; pin: DashboardMapPin | AtlasPin } | null>(null);
   const [navigatedPin, setNavigatedPin] = useState<{ lat: number; lng: number; label: string } | null>(null);
 
@@ -1067,7 +1070,8 @@ function DashboardMapInner({
 
           if (infoPin.type === "request") {
             const pin = infoPin.pin as DashboardMapPin;
-            const name = pin.place_name || pin.place_address || "Unknown location";
+            const rawName = pin.place_name || pin.place_address || "Unknown location";
+            const name = isShowcase ? (maskAddressToNeighborhood(rawName) || "TNR Request") : rawName;
             const color = getPinColor(pin);
             const priorityLabel = PRIORITY_LABELS[pin.priority] || pin.priority;
             const catInfo = pin.estimated_cat_count
@@ -1078,7 +1082,7 @@ function DashboardMapInner({
               <InfoWindow position={pos} onCloseClick={() => setInfoPin(null)}>
                 <div style={{ minWidth: 200, maxWidth: 280, fontFamily: "system-ui, -apple-system, sans-serif" }}>
                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{name}</div>
-                  {pin.summary && <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>{pin.summary}</div>}
+                  {pin.summary && !isShowcase && <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>{pin.summary}</div>}
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
                     <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: color, color: "#fff" }}>{formatStatus(pin.status)}</span>
                     <span style={{ fontSize: 10, opacity: 0.6 }}>{priorityLabel}</span>
@@ -1093,7 +1097,8 @@ function DashboardMapInner({
             );
           } else {
             const pin = infoPin.pin as AtlasPin;
-            const name = pin.display_name || pin.address || "Unknown location";
+            const rawAtlasName = pin.display_name || pin.address || "Unknown location";
+            const name = isShowcase ? (maskAddressToNeighborhood(rawAtlasName) || "Colony Site") : rawAtlasName;
             const pinColor = ATLAS_PIN_COLORS[pin.pin_style] || ATLAS_PIN_COLORS.minimal;
             const stats: string[] = [];
             if (pin.cat_count > 0) stats.push(`${pin.cat_count} cat${pin.cat_count !== 1 ? "s" : ""}`);
