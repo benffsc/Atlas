@@ -1222,15 +1222,35 @@ async function fullPlaceBriefing(
   ).catch(() => []);
 
   if (corridorPlaces.length > 0) {
-    const corridorStats = await queryOne<{
-      total_cats: number;
-      altered_cats: number;
-      intact_cats: number;
-      corridor_size: number;
-    }>(
-      `SELECT * FROM sot.get_corridor_cat_stats($1)`,
-      [effectivePlaceId]
-    );
+    const corridorIds = corridorPlaces.map((p) => p.place_id);
+    const [corridorStats, corridorRecentNotes] = await Promise.all([
+      queryOne<{
+        total_cats: number;
+        altered_cats: number;
+        intact_cats: number;
+        corridor_size: number;
+      }>(
+        `SELECT * FROM sot.get_corridor_cat_stats($1)`,
+        [effectivePlaceId]
+      ),
+      // Recent notes from sibling corridor places — critical for surfacing nearby context
+      queryRows<{
+        body: string;
+        created_at: string;
+        place_address: string | null;
+        created_by: string;
+      }>(
+        `SELECT COALESCE(je.body, je.content) as body, je.created_at::text,
+          p.formatted_address as place_address, je.created_by
+         FROM ops.journal_entries je
+         JOIN sot.places p ON p.place_id = je.primary_place_id
+         WHERE je.primary_place_id = ANY($1::uuid[])
+           AND COALESCE(je.is_archived, FALSE) = FALSE
+           AND je.created_at > NOW() - INTERVAL '6 months'
+         ORDER BY je.created_at DESC LIMIT 10`,
+        [corridorIds]
+      ).catch(() => []),
+    ]);
 
     enrichment.corridor = {
       is_part_of_corridor: true,
@@ -1238,7 +1258,8 @@ async function fullPlaceBriefing(
       total_cats_across_corridor: corridorStats?.total_cats ?? 0,
       altered_across_corridor: corridorStats?.altered_cats ?? 0,
       sibling_places: corridorPlaces,
-      note: `This place is part of a ${corridorPlaces.length + 1}-address corridor where cats move freely between properties. All corridor context is relevant when assessing this site. The request may cover more than just the anchor address.`,
+      recent_corridor_notes: corridorRecentNotes.length > 0 ? corridorRecentNotes : undefined,
+      note: `This place is part of a ${corridorPlaces.length + 1}-address corridor where cats move freely between properties. All corridor context is relevant when assessing this site.${corridorRecentNotes.length > 0 ? ` ${corridorRecentNotes.length} recent note(s) from nearby corridor addresses.` : ""}`,
     };
   }
 
