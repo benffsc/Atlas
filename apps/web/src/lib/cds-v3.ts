@@ -1290,11 +1290,11 @@ async function loadWaivers(clinicDate: string): Promise<CDSWaiver[]> {
 
 async function loadCDSConfig(): Promise<CDSConfig> {
   const getVal = async (key: string, def: string) => {
-    const row = await queryOne<{ config_value: string }>(
-      `SELECT config_value FROM ops.app_config WHERE config_key = $1`,
+    const row = await queryOne<{ value: string }>(
+      `SELECT value FROM ops.app_config WHERE key = $1`,
       [key]
     );
-    return row?.config_value ?? def;
+    return row?.value ?? def;
   };
 
   return {
