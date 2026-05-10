@@ -1008,12 +1008,13 @@ async function rescueCatsFromWaivers(clinicDate: string): Promise<number> {
     `WITH rescued AS (
        UPDATE ops.clinic_day_entries e
        SET cat_id = ws.matched_cat_id
-       FROM ops.clinic_days cd
-       JOIN ops.waiver_scans ws ON ws.parsed_date = cd.clinic_date
-         AND ws.ocr_clinic_number = e.line_number
-         AND ws.matched_cat_id IS NOT NULL
+       FROM ops.clinic_days cd,
+            ops.waiver_scans ws
        WHERE cd.clinic_day_id = e.clinic_day_id
          AND cd.clinic_date = $1
+         AND ws.parsed_date = cd.clinic_date
+         AND ws.ocr_clinic_number = e.line_number
+         AND ws.matched_cat_id IS NOT NULL
          AND e.cat_id IS NULL
          AND e.matched_appointment_id IS NULL
        RETURNING e.entry_id
