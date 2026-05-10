@@ -32,7 +32,7 @@ interface LinkedPlace {
   place_id: string;
   display_name: string | null;
   formatted_address: string;
-  relationship_type: string;
+  place_role: string;
   is_primary: boolean;
   added_by: string;
   added_at: string;
@@ -107,7 +107,7 @@ export const GET = withErrorHandling(async (
       cp.place_id,
       p.display_name,
       p.formatted_address,
-      cp.relationship_type,
+      cp.place_role,
       cp.is_primary,
       cp.added_by,
       cp.added_at

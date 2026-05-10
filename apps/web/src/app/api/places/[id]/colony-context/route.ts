@@ -9,7 +9,7 @@ interface ColonyContextPlace {
   display_name: string | null;
   formatted_address: string;
   relationship: string; // "self" | "corridor" | "nearby"
-  place_role: string | null; // colony_places.relationship_type
+  place_role: string | null; // colony_places.place_role
   is_primary: boolean;
   cat_count: number;
   altered_count: number;
@@ -79,7 +79,7 @@ export const GET = withErrorHandling(async (
        cp.display_name,
        cp.formatted_address,
        cp.relationship,
-       col_p.relationship_type AS place_role,
+       col_p.place_role,
        COALESCE(col_p.is_primary, false) AS is_primary,
        COALESCE(cats.cat_count, 0)::int AS cat_count,
        COALESCE(cats.altered_count, 0)::int AS altered_count,

@@ -41,7 +41,7 @@ interface LinkedPlace {
   place_id: string;
   display_name: string | null;
   formatted_address: string;
-  relationship_type: string;
+  place_role: string;
   is_primary: boolean;
   added_by: string;
   added_at: string;
@@ -471,7 +471,7 @@ export default function ColonyDetailPage() {
                       {place.display_name || place.formatted_address}
                     </a>
                   </td>
-                  <td>{place.relationship_type}</td>
+                  <td>{place.place_role}</td>
                   <td>{place.is_primary ? "Yes" : ""}</td>
                   <td>
                     <button

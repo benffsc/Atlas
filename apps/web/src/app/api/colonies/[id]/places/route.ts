@@ -16,17 +16,13 @@ export async function POST(
     const body = await request.json();
     const {
       place_id,
-      relationship_type = "colony_site",
+      relationship_type = "core_site",
       is_primary = false,
       added_by,
     } = body;
 
     if (!place_id) {
       return apiBadRequest("place_id is required");
-    }
-
-    if (!added_by?.trim()) {
-      return apiBadRequest("added_by is required");
     }
 
     // Verify colony exists (and is not soft-deleted)
@@ -59,12 +55,12 @@ export async function POST(
 
     // Insert or update the link
     await queryOne(
-      `INSERT INTO sot.colony_places (colony_id, place_id, relationship_type, is_primary, added_by)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO sot.colony_places (colony_id, place_id, place_role, is_primary)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (colony_id, place_id) DO UPDATE SET
-         relationship_type = EXCLUDED.relationship_type,
+         place_role = EXCLUDED.place_role,
          is_primary = EXCLUDED.is_primary`,
-      [colonyId, place_id, relationship_type, is_primary, added_by.trim()]
+      [colonyId, place_id, relationship_type, is_primary]
     );
 
     return apiSuccess({ linked: true });

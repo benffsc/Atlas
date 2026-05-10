@@ -65,7 +65,6 @@ export interface ColonyContext {
 }
 
 const PLACE_ROLE_OPTIONS = [
-  { value: "colony_site", label: "Colony Site" },
   { value: "core_site", label: "Core Site" },
   { value: "feeding_station", label: "Feeding Station" },
   { value: "shelter_location", label: "Shelter Location" },
@@ -73,7 +72,7 @@ const PLACE_ROLE_OPTIONS = [
 ];
 
 function formatPlaceRole(role: string | null): string | null {
-  if (!role || role === "colony_site") return null;
+  if (!role || role === "core_site") return null; // don't show default
   return PLACE_ROLE_OPTIONS.find(o => o.value === role)?.label || role.replace(/_/g, " ");
 }
 
@@ -96,7 +95,7 @@ export function ColonyContextSection({ placeId, currentRequestId, onPlaceClick, 
   const [showAddPlace, setShowAddPlace] = useState(false);
   const [addingPlace, setAddingPlace] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<ResolvedPlace | null>(null);
-  const [addPlaceRole, setAddPlaceRole] = useState("colony_site");
+  const [addPlaceRole, setAddPlaceRole] = useState("core_site");
   const [addPlaceNotes, setAddPlaceNotes] = useState("");
 
   // Confirm remove
@@ -154,7 +153,7 @@ export function ColonyContextSection({ placeId, currentRequestId, onPlaceClick, 
   const resetAddDrawer = () => {
     setShowAddPlace(false);
     setSelectedPlace(null);
-    setAddPlaceRole("colony_site");
+    setAddPlaceRole("core_site");
     setAddPlaceNotes("");
   };
 
@@ -314,8 +313,7 @@ export function ColonyContextSection({ placeId, currentRequestId, onPlaceClick, 
               {PLACE_ROLE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <div style={{ marginTop: "4px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-              {addPlaceRole === "colony_site" && "Standard address in this colony's territory."}
-              {addPlaceRole === "core_site" && "Central location where most cats congregate."}
+              {addPlaceRole === "core_site" && "Standard address in this colony's territory."}
               {addPlaceRole === "feeding_station" && "Where food is left for cats (may not be where they live)."}
               {addPlaceRole === "shelter_location" && "Shelters or structures cats use for cover."}
               {addPlaceRole === "territory_boundary" && "Edge of colony range \u2014 cats sometimes wander here."}
