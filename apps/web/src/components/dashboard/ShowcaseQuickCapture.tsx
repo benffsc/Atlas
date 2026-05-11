@@ -117,21 +117,6 @@ export function ShowcaseQuickCapture() {
     return () => clearTimeout(typingRef.current);
   }, []);
 
-  // Listen for toolbar trigger event
-  useEffect(() => {
-    const handler = () => {
-      clearTimeout(typingRef.current);
-      setState("idle");
-      setText("");
-      setResult(null);
-      // Small delay then auto-start
-      typingRef.current = window.setTimeout(() => startDemo(), 300);
-    };
-    window.addEventListener("showcase:quickcapture", handler);
-    return () => window.removeEventListener("showcase:quickcapture", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenarioIndex]);
-
   const reset = () => {
     clearTimeout(typingRef.current);
     setState("idle");
@@ -170,40 +155,16 @@ export function ShowcaseQuickCapture() {
 
       {state === "done" && result ? (
         /* ── Success state ── */
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-          <span style={{ color: "var(--success-text, #16a34a)", flexShrink: 0, marginTop: 2 }}>
-            <Icon name="CheckCircle" size={20} />
-          </span>
-          <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontWeight: 500, fontSize: "0.85rem" }}>
-              {result.summary}
-            </p>
-            <p style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>
-              {result.actionCount} record{result.actionCount !== 1 ? "s" : ""} created
-              — this will surface next time someone asks about these places/people.
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "8px" }}>
-              {result.actions.map((a, i) => (
-                <span
-                  key={i}
-                  style={{
-                    fontSize: "0.65rem",
-                    padding: "2px 8px",
-                    borderRadius: "4px",
-                    background: "var(--success-bg)",
-                    color: "var(--success-text)",
-                    fontWeight: 500,
-                  }}
-                >
-                  {a}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <span style={{ color: "var(--success-text, #16a34a)", flexShrink: 0, display: "flex" }}>
+              <Icon name="check-circle" size={18} />
+            </span>
+            <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>Captured</span>
             <button
               onClick={reset}
               style={{
+                marginLeft: "auto",
                 background: "none",
                 border: "1px solid var(--card-border)",
                 borderRadius: "6px",
@@ -215,6 +176,28 @@ export function ShowcaseQuickCapture() {
             >
               + Another
             </button>
+          </div>
+          <p style={{ margin: "0 0 6px", fontSize: "0.85rem" }}>{result.summary}</p>
+          <p style={{ margin: "0 0 8px", fontSize: "0.72rem", color: "var(--muted)" }}>
+            {result.actionCount} record{result.actionCount !== 1 ? "s" : ""} created
+            — this will surface next time someone asks about these places/people.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+            {result.actions.map((a, i) => (
+              <span
+                key={i}
+                style={{
+                  fontSize: "0.65rem",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  background: "var(--success-bg)",
+                  color: "var(--success-text)",
+                  fontWeight: 500,
+                }}
+              >
+                {a}
+              </span>
+            ))}
           </div>
         </div>
       ) : (

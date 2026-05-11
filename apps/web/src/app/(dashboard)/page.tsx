@@ -16,6 +16,7 @@ import type { DashboardMapPin, MapLayer } from "@/components/dashboard";
 import { EntityPreviewModal } from "@/components/search/EntityPreviewModal";
 import type { EntityType } from "@/hooks/useEntityDetail";
 import { useShowcase } from "@/components/ShowcaseContext";
+import { ShowcaseQuickCapture } from "@/components/dashboard/ShowcaseQuickCapture";
 import { QuickCapture } from "@/components/QuickCapture";
 
 const DashboardMap = dynamic(
@@ -372,8 +373,8 @@ function HomeInner() {
 
       {/* ── Content below hero ── */}
       <div className="dashboard-below-hero">
-        {/* Quick context capture — non-blocking, dismissable (hidden in showcase) */}
-        {!isShowcase && <QuickCapture />}
+        {/* Quick context capture — showcase version has scripted demo */}
+        {isShowcase ? <ShowcaseQuickCapture /> : <QuickCapture />}
 
         {/* Impact section */}
         <InsightsFeed stats={stats} />

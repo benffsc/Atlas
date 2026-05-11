@@ -77,7 +77,9 @@ export function maskName(name: string | null | undefined): string | null {
  * Mask an address to neighborhood level (for showcase/presentation mode).
  * "123 Main St, Santa Rosa, CA 95401" -> "Main St area, Santa Rosa"
  * "5403 San Antonio Road" -> "San Antonio Road area"
- * Shows the street name and city but hides the house number and zip.
+ * "456 McBride Ln Apt A24, Santa Rosa" -> "McBride Ln area, Santa Rosa"
+ * "789 McBride Ln #116, Santa Rosa" -> "McBride Ln area, Santa Rosa"
+ * Shows the street name and city but hides house number, unit, and zip.
  */
 export function maskAddressToNeighborhood(
   address: string | null | undefined
@@ -87,19 +89,30 @@ export function maskAddressToNeighborhood(
   // Split into parts by comma
   const parts = address.split(",").map((p) => p.trim());
 
-  // Extract street part (first segment) — remove leading numbers
-  let street = parts[0].replace(/^\d+(-\d+)?\s*/, "").trim();
+  // Extract street part (first segment)
+  let street = parts[0]
+    // Remove leading house numbers (123, 5403, 123-A, etc.)
+    .replace(/^\d+[\w-]*\s+/, "")
+    // Remove unit/apt suffixes (#116, Apt A24, Unit B, Suite 200, etc.)
+    .replace(/\s+(#\S+|apt\.?\s*\S+|unit\.?\s*\S+|suite\.?\s*\S+|ste\.?\s*\S+)/i, "")
+    .trim();
 
-  // If the street is empty after removing numbers, use original
+  // If the street is empty after stripping, fall back to first part
   if (!street) street = parts[0];
 
-  // Extract city (second segment, if it doesn't look like state/zip)
+  // Extract city (second segment, skip state/zip patterns)
   let city = "";
   if (parts.length >= 2) {
     const candidate = parts[1];
     if (candidate && !candidate.match(/^(CA|California)\s*\d/i) && !candidate.match(/^\d/)) {
       city = candidate;
     }
+  }
+
+  // Avoid "McBride Ln area, Santa Rosa, Santa Rosa" — don't append city
+  // if the street already ends with the city name
+  if (city && street.toLowerCase().endsWith(city.toLowerCase())) {
+    return `${street} area`;
   }
 
   if (city) {

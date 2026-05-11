@@ -182,7 +182,7 @@ export function ActionPanel({
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                   }}>
-                    {shortAddress}{city && city !== shortAddress ? `, ${city}` : ""}
+                    {shortAddress}{!isShowcase && city && city !== shortAddress ? `, ${city}` : ""}
                   </span>
                 )}
               </a>
