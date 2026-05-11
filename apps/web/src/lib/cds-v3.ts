@@ -1252,7 +1252,7 @@ async function loadAppointments(clinicDate: string): Promise<CDSAppointment[]> {
     `SELECT a.appointment_id, a.appointment_number, a.client_name,
             oa.display_name AS account_owner_name,
             c.name AS cat_name, c.cat_id, c.sex AS cat_sex,
-            COALESCE(cv.weight_lbs, c.weight_lbs) AS cat_weight,
+            COALESCE(cv.weight_lbs, a.cat_weight_lbs, c.weight_lbs) AS cat_weight,
             c.microchip, c.color AS cat_color, c.breed AS cat_breed,
             a.appointment_date::text, a.surgery_start_time::text,
             a.clinic_day_number,
