@@ -500,60 +500,82 @@ async function generateConversationSummary(_staffId: string): Promise<void> {
 async function assembleBriefingData(staffId: string): Promise<string> {
   const parts: string[] = [];
 
-  // Check staff role for briefing sections:
-  // - Trapping coordinator (admin) = sees request pipeline
-  // - Front desk (staff named Jami) = sees intake queue prominently
-  // - Everyone else = field intel + clinic + reminders
-  const staffInfo = await queryOne<{ auth_role: string; display_name: string }>(
-    `SELECT auth_role, display_name FROM ops.staff WHERE staff_id = $1`,
+  // Config-driven briefing: department → sections from ops.app_config
+  const staffInfo = await queryOne<{ auth_role: string; display_name: string; department: string | null }>(
+    `SELECT auth_role, display_name, department FROM ops.staff WHERE staff_id = $1`,
     [staffId]
   );
-  const isCoordinator = staffInfo?.auth_role === "admin";
-  const isFrontDesk = staffInfo?.display_name?.toLowerCase().includes("jami");
+  const dept = (staffInfo?.department || "").toLowerCase().replace(/\s+/g, "_") || "default";
+  const sectionConfig = await queryOne<{ value: string }>(
+    `SELECT value FROM ops.app_config WHERE key = $1`,
+    [`briefing.sections.${dept}`]
+  );
+  const fallbackConfig = await queryOne<{ value: string }>(
+    `SELECT value FROM ops.app_config WHERE key = 'briefing.sections.default'`
+  );
+  let sections: string[];
+  try {
+    sections = JSON.parse(sectionConfig?.value || fallbackConfig?.value || '["clinic_activity","field_intel","reminders","tickets"]');
+  } catch {
+    sections = ["clinic_activity", "field_intel", "reminders", "tickets"];
+  }
+  const has = (s: string) => sections.includes(s);
 
   try {
-    // ── SECTION 1: What everyone cares about (clinic + field intel) ──
-
-    // Clinic activity — per-day breakdown with day-of-week
-    const apptsByDay = await queryRows<{ day: string; dow: string; cnt: number }>(
-      `SELECT appointment_date::text AS day,
-        TO_CHAR(appointment_date, 'Dy') AS dow,
-        COUNT(*)::int AS cnt
-       FROM ops.appointments
-       WHERE appointment_date >= CURRENT_DATE - INTERVAL '7 days'
-       GROUP BY appointment_date
-       ORDER BY appointment_date`
-    );
-    if (apptsByDay.length > 0) {
-      const total = apptsByDay.reduce((s, r) => s + r.cnt, 0);
-      const breakdown = apptsByDay.map((r) => `${r.dow} ${r.day}: ${r.cnt}`).join(", ");
-      parts.push(`**Clinic this week:** ${total} cats — ${breakdown}`);
-    } else {
-      parts.push("**Clinic this week:** No appointments");
-    }
-
-    // Recent field intel from colleagues (brain dumps, notes — last 3 days)
-    const recentCaptures = await queryRows<{ body: string; created_by: string; place: string | null }>(
-      `SELECT LEFT(COALESCE(je.body, je.content), 80) as body, je.created_by,
-        p.formatted_address as place
-       FROM ops.journal_entries je
-       LEFT JOIN sot.places p ON p.place_id = je.primary_place_id
-       WHERE je.created_at >= NOW() - INTERVAL '3 days'
-         AND je.entry_kind = 'note'
-         AND 'tippy' = ANY(je.tags) OR 'field_contact' = ANY(je.tags)
-       ORDER BY je.created_at DESC LIMIT 5`
-    );
-    if (recentCaptures.length > 0) {
-      parts.push(
-        `**Recent field notes (${recentCaptures.length}):**\n` +
-        recentCaptures.map((c) =>
-          `- ${c.body}${c.place ? ` (${c.place})` : ""} — ${c.created_by}`
-        ).join("\n")
+    // ── Clinic activity (clinic_activity | clinic_detail) ──
+    if (has("clinic_activity") || has("clinic_detail")) {
+      const apptsByDay = await queryRows<{ day: string; dow: string; cnt: number }>(
+        `SELECT appointment_date::text AS day,
+          TO_CHAR(appointment_date, 'Dy') AS dow,
+          COUNT(*)::int AS cnt
+         FROM ops.appointments
+         WHERE appointment_date >= CURRENT_DATE - INTERVAL '7 days'
+         GROUP BY appointment_date
+         ORDER BY appointment_date`
       );
+      if (apptsByDay.length > 0) {
+        const total = apptsByDay.reduce((s, r) => s + r.cnt, 0);
+        const breakdown = apptsByDay.map((r) => `${r.dow} ${r.day}: ${r.cnt}`).join(", ");
+        parts.push(`**Clinic this week:** ${total} cats — ${breakdown}`);
+      } else {
+        parts.push("**Clinic this week:** No appointments");
+      }
+
+      // Clinic detail: upcoming scheduled cats (clinic staff see more)
+      if (has("clinic_detail")) {
+        const upcoming = await queryOne<{ cnt: number }>(
+          `SELECT COUNT(*)::int AS cnt FROM ops.appointments
+           WHERE appointment_date > CURRENT_DATE AND appointment_date <= CURRENT_DATE + INTERVAL '7 days'`
+        );
+        if (upcoming && upcoming.cnt > 0) {
+          parts.push(`**Upcoming this week:** ${upcoming.cnt} cats booked`);
+        }
+      }
     }
 
-    // ── SECTION 2: Personal items (reminders, messages) ──
+    // ── Field intel (field_intel) ──
+    if (has("field_intel")) {
+      const recentCaptures = await queryRows<{ body: string; created_by: string; place: string | null }>(
+        `SELECT LEFT(COALESCE(je.body, je.content), 80) as body, je.created_by,
+          p.formatted_address as place
+         FROM ops.journal_entries je
+         LEFT JOIN sot.places p ON p.place_id = je.primary_place_id
+         WHERE je.created_at >= NOW() - INTERVAL '3 days'
+           AND je.entry_kind = 'note'
+           AND ('tippy' = ANY(je.tags) OR 'field_contact' = ANY(je.tags))
+         ORDER BY je.created_at DESC LIMIT 5`
+      );
+      if (recentCaptures.length > 0) {
+        parts.push(
+          `**Recent field notes (${recentCaptures.length}):**\n` +
+          recentCaptures.map((c) =>
+            `- ${c.body}${c.place ? ` (${c.place})` : ""} — ${c.created_by}`
+          ).join("\n")
+        );
+      }
+    }
 
+    // ── Personal: messages (always shown) ──
     const msgs = await queryOne<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM ops.staff_messages
        WHERE recipient_id = $1 AND read_at IS NULL`,
@@ -561,68 +583,93 @@ async function assembleBriefingData(staffId: string): Promise<string> {
     );
     if (msgs && msgs.cnt > 0) parts.push(`**Unread messages:** ${msgs.cnt}`);
 
-    // Reminders (7-day window)
-    const reminders = await queryRows<{ title: string; due_at: string; is_overdue: boolean }>(
-      `SELECT title, due_at::text, (due_at < NOW()) AS is_overdue
-       FROM ops.staff_reminders
-       WHERE staff_id = $1 AND status IN ('pending', 'due')
-         AND due_at <= NOW() + INTERVAL '7 days'
-       ORDER BY due_at LIMIT 10`,
-      [staffId]
-    );
-    if (reminders.length > 0) {
-      parts.push(
-        "**Due reminders:**\n" +
-          reminders.map((r) => `- ${r.is_overdue ? "OVERDUE: " : ""}${r.title} (${r.due_at})`).join("\n")
+    // ── Reminders (reminders) ──
+    if (has("reminders")) {
+      const reminders = await queryRows<{ title: string; due_at: string; is_overdue: boolean }>(
+        `SELECT title, due_at::text, (due_at < NOW()) AS is_overdue
+         FROM ops.staff_reminders
+         WHERE staff_id = $1 AND status IN ('pending', 'due')
+           AND due_at <= NOW() + INTERVAL '7 days'
+         ORDER BY due_at LIMIT 10`,
+        [staffId]
       );
+      if (reminders.length > 0) {
+        parts.push(
+          "**Due reminders:**\n" +
+            reminders.map((r) => `- ${r.is_overdue ? "OVERDUE: " : ""}${r.title} (${r.due_at})`).join("\n")
+        );
+      }
     }
 
-    // Due/overdue field tickets
-    const dueTickets = await queryRows<{
-      ticket_id: string;
-      summary: string;
-      followup_date: string;
-      priority: string;
-      is_overdue: boolean;
-      ticket_type: string;
-    }>(
-      `SELECT ticket_id::text, LEFT(summary, 100) AS summary,
-        followup_date::text, priority, ticket_type,
-        (followup_date < CURRENT_DATE) AS is_overdue
-       FROM ops.tippy_tickets
-       WHERE status = 'open' AND followup_date IS NOT NULL
-         AND followup_date <= CURRENT_DATE + INTERVAL '7 days'
-       ORDER BY followup_date ASC LIMIT 10`
-    );
-    if (dueTickets.length > 0) {
-      const overdue = dueTickets.filter((t) => t.is_overdue);
-      const upcoming = dueTickets.filter((t) => !t.is_overdue);
-      let ticketText = "";
-      if (overdue.length > 0) {
-        ticketText += `**OVERDUE field tickets (${overdue.length}):**\n` +
-          overdue.map((t) => `- [${t.priority.toUpperCase()}] ${t.summary} (due ${t.followup_date})`).join("\n");
+    // ── Field tickets (tickets) ──
+    if (has("tickets")) {
+      const dueTickets = await queryRows<{
+        ticket_id: string; summary: string; followup_date: string;
+        priority: string; is_overdue: boolean; ticket_type: string;
+      }>(
+        `SELECT ticket_id::text, LEFT(summary, 100) AS summary,
+          followup_date::text, priority, ticket_type,
+          (followup_date < CURRENT_DATE) AS is_overdue
+         FROM ops.tippy_tickets
+         WHERE status = 'open' AND followup_date IS NOT NULL
+           AND followup_date <= CURRENT_DATE + INTERVAL '7 days'
+         ORDER BY followup_date ASC LIMIT 10`
+      );
+      if (dueTickets.length > 0) {
+        const overdue = dueTickets.filter((t) => t.is_overdue);
+        const upcoming = dueTickets.filter((t) => !t.is_overdue);
+        let ticketText = "";
+        if (overdue.length > 0) {
+          ticketText += `**OVERDUE field tickets (${overdue.length}):**\n` +
+            overdue.map((t) => `- [${t.priority.toUpperCase()}] ${t.summary} (due ${t.followup_date})`).join("\n");
+        }
+        if (upcoming.length > 0) {
+          ticketText += (ticketText ? "\n" : "") +
+            `**Upcoming field tickets (${upcoming.length}):**\n` +
+            upcoming.map((t) => `- ${t.summary} (due ${t.followup_date})`).join("\n");
+        }
+        parts.push(ticketText);
       }
-      if (upcoming.length > 0) {
-        ticketText += (ticketText ? "\n" : "") +
-          `**Upcoming field tickets (${upcoming.length}):**\n` +
-          upcoming.map((t) => `- ${t.summary} (due ${t.followup_date})`).join("\n");
-      }
-      parts.push(ticketText);
     }
 
-    // ── SECTION 3: Role-specific ──
+    // ── Foster pipeline (foster_pipeline) — foster/adopt team ──
+    if (has("foster_pipeline")) {
+      const fosterStats = await queryOne<{ in_foster: number; pending_adopt: number; recent_intakes: number }>(
+        `SELECT
+          COUNT(*) FILTER (WHERE v.journey_status = 'In foster care')::int AS in_foster,
+          COUNT(*) FILTER (WHERE v.journey_status = 'Available for adoption')::int AS pending_adopt,
+          COUNT(*) FILTER (WHERE v.intake_date >= CURRENT_DATE - INTERVAL '7 days')::int AS recent_intakes
+         FROM sot.v_cat_journey v
+         WHERE v.journey_status IN ('In foster care', 'Available for adoption', 'In kennel')`
+      );
+      if (fosterStats) {
+        parts.push(`**Foster/Adopt:** ${fosterStats.in_foster} in foster, ${fosterStats.pending_adopt} available for adoption, ${fosterStats.recent_intakes} new intakes this week`);
+      }
+    }
 
-    // Intake queue — prominent for front desk (Jami) and coordinators
-    if (isFrontDesk || isCoordinator) {
+    // ── Program stats (program_stats) — marketing / ED ──
+    if (has("program_stats")) {
+      const stats = await queryOne<{ total_cats: number; total_altered: number; total_places: number }>(
+        `SELECT
+          (SELECT COUNT(*)::int FROM sot.cats WHERE merged_into_cat_id IS NULL) AS total_cats,
+          (SELECT COUNT(*)::int FROM sot.cats WHERE altered_status IN ('spayed','neutered','altered','Yes') AND merged_into_cat_id IS NULL) AS total_altered,
+          (SELECT COUNT(*)::int FROM sot.places WHERE merged_into_place_id IS NULL AND has_cat_activity = TRUE) AS total_places`
+      );
+      if (stats) {
+        parts.push(`**Program totals:** ${stats.total_altered.toLocaleString()} cats altered, ${stats.total_places.toLocaleString()} active places`);
+      }
+    }
+
+    // ── Intakes (intakes) ──
+    if (has("intakes")) {
       const intake = await queryOne<{ cnt: number }>(
-        `SELECT COUNT(*) AS cnt FROM ops.intake_submissions
-         WHERE status = 'pending'`
+        `SELECT COUNT(*) AS cnt FROM ops.intake_submissions WHERE status = 'pending'`
       );
       if (intake && intake.cnt > 0) parts.push(`**Pending intakes:** ${intake.cnt}`);
     }
 
-    // Request pipeline — trapping coordinator only (Ben)
-    if (isCoordinator) {
+    // ── Request pipeline (request_pipeline) ──
+    if (has("request_pipeline")) {
       const pending = await queryOne<{ cnt: number }>(
         `SELECT COUNT(*) AS cnt FROM ops.requests
          WHERE merged_into_request_id IS NULL
