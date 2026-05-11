@@ -376,6 +376,13 @@ Can we follow up in 6 weeks?`,
     prompt: "How many cats have we TNR'd in Petaluma?",
     expect: { tool: ["run_sql", "area_stats"] },
   },
+
+  // Data deliverable — should call a data tool first (not respond with text only)
+  {
+    id: "email_summary_request",
+    prompt: "Can you write me a summary of our Petaluma TNR numbers for Pip with methodology?",
+    expect: { tool: ["run_sql", "area_stats"] },
+  },
 ];
 
 // =============================================================================
