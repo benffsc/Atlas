@@ -500,12 +500,16 @@ async function generateConversationSummary(_staffId: string): Promise<void> {
 async function assembleBriefingData(staffId: string): Promise<string> {
   const parts: string[] = [];
 
-  // Check if this staff member is a coordinator (admin role = sees request pipeline)
-  const staffRole = await queryOne<{ auth_role: string }>(
-    `SELECT auth_role FROM ops.staff WHERE staff_id = $1`,
+  // Check staff role for briefing sections:
+  // - Trapping coordinator (admin) = sees request pipeline
+  // - Front desk (staff named Jami) = sees intake queue prominently
+  // - Everyone else = field intel + clinic + reminders
+  const staffInfo = await queryOne<{ auth_role: string; display_name: string }>(
+    `SELECT auth_role, display_name FROM ops.staff WHERE staff_id = $1`,
     [staffId]
   );
-  const isCoordinator = staffRole?.auth_role === "admin";
+  const isCoordinator = staffInfo?.auth_role === "admin";
+  const isFrontDesk = staffInfo?.display_name?.toLowerCase().includes("jami");
 
   try {
     // ── SECTION 1: What everyone cares about (clinic + field intel) ──
@@ -606,8 +610,18 @@ async function assembleBriefingData(staffId: string): Promise<string> {
       parts.push(ticketText);
     }
 
-    // ── SECTION 3: Coordinator-only (request pipeline) ──
+    // ── SECTION 3: Role-specific ──
 
+    // Intake queue — prominent for front desk (Jami) and coordinators
+    if (isFrontDesk || isCoordinator) {
+      const intake = await queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM ops.intake_submissions
+         WHERE status = 'pending'`
+      );
+      if (intake && intake.cnt > 0) parts.push(`**Pending intakes:** ${intake.cnt}`);
+    }
+
+    // Request pipeline — trapping coordinator only (Ben)
     if (isCoordinator) {
       const pending = await queryOne<{ cnt: number }>(
         `SELECT COUNT(*) AS cnt FROM ops.requests
@@ -615,12 +629,6 @@ async function assembleBriefingData(staffId: string): Promise<string> {
            AND status NOT IN (${TERMINAL_PAIR_SQL})`
       );
       if (pending) parts.push(`**Open requests:** ${pending.cnt}`);
-
-      const intake = await queryOne<{ cnt: number }>(
-        `SELECT COUNT(*) AS cnt FROM ops.intake_submissions
-         WHERE status = 'pending'`
-      );
-      if (intake && intake.cnt > 0) parts.push(`**Pending intakes:** ${intake.cnt}`);
     }
   } catch {
     parts.push("(Some briefing data unavailable)");
