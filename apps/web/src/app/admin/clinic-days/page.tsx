@@ -100,6 +100,9 @@ export default function ClinicDaysPage() {
   const [drawerPhotos, setDrawerPhotos] = useState<Array<{ media_id: string; storage_path: string }>>([]);
   const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null);
 
+  // Lightbox for full-size photo viewing
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
   // Admin actions
   const [showAdmin, setShowAdmin] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -590,15 +593,39 @@ export default function ClinicDaysPage() {
                 }}
               >
                 {/* Photo + CDN overlay */}
-                <div style={{
-                  height: "120px",
-                  background: entry.photo_url ? `url(${entry.photo_url}) center/cover` : "var(--section-bg)",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  padding: "8px",
-                  position: "relative",
-                }}>
+                <div
+                  style={{
+                    height: "140px",
+                    background: "var(--section-bg)",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    padding: "8px",
+                    position: "relative",
+                  }}
+                  onDoubleClick={(e) => {
+                    if (entry.photo_url) {
+                      e.stopPropagation();
+                      setLightboxSrc(entry.photo_url);
+                    }
+                  }}
+                >
+                  {entry.photo_url && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={entry.photo_url}
+                      alt=""
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                        objectPosition: "center",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  )}
                   {/* CDN badge */}
                   <span style={{
                     fontWeight: 700,
@@ -911,14 +938,15 @@ export default function ClinicDaysPage() {
                 <h3 style={{ fontSize: "0.8rem", color: "var(--muted)", margin: "0 0 8px 0", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Photos ({drawerPhotos.length})
                 </h3>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: "6px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "6px" }}>
                   {drawerPhotos.map(photo => (
                     <div key={photo.media_id} style={{ position: "relative" }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={photo.storage_path}
                         alt=""
-                        style={{ width: "100%", height: "80px", objectFit: "cover", borderRadius: "6px", border: "1px solid var(--card-border)" }}
+                        onClick={() => setLightboxSrc(photo.storage_path)}
+                        style={{ width: "100%", height: "120px", objectFit: "contain", background: "var(--section-bg)", borderRadius: "6px", border: "1px solid var(--card-border)", cursor: "pointer" }}
                       />
                       <button
                         onClick={async (e) => {
@@ -988,6 +1016,61 @@ export default function ClinicDaysPage() {
               </a>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Photo lightbox ── */}
+      {lightboxSrc && (
+        <div
+          onClick={() => setLightboxSrc(null)}
+          onKeyDown={(e) => { if (e.key === "Escape") setLightboxSrc(null); }}
+          tabIndex={0}
+          role="dialog"
+          aria-label="Full size photo"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 3000,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "zoom-out",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt=""
+            style={{
+              maxWidth: "95vw",
+              maxHeight: "95vh",
+              objectFit: "contain",
+              borderRadius: "8px",
+              boxShadow: "0 4px 40px rgba(0,0,0,0.5)",
+            }}
+          />
+          <button
+            onClick={() => setLightboxSrc(null)}
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 16,
+              background: "rgba(255,255,255,0.15)",
+              border: "none",
+              color: "#fff",
+              fontSize: "1.5rem",
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
