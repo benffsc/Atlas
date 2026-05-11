@@ -29,6 +29,7 @@ import { MapErrorBoundary } from "@/components/map/components/MapErrorBoundary";
 import { StreetViewPanel } from "@/components/map/components/StreetViewPanel";
 import { MapPinKey } from "@/components/map/components/MapPinKey";
 import { GroupedLayerControl, type PinKeyConfig } from "@/components/map/GroupedLayerControl";
+import { DistanceComparePanel, type ComparePoint } from "@/components/map/components/DistanceComparePanel";
 import {
   PlaceDetailDrawer,
   PersonDetailDrawer,
@@ -195,6 +196,20 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   // ── Measurement state (Step 6) ──
   const [measureActive, setMeasureActive] = useState(false);
   const [measurePoints, setMeasurePoints] = useState<Array<{ lat: number; lng: number }>>([]);
+
+  // ── Distance Compare state ──
+  const [compareActive, setCompareActive] = useState(false);
+  const [comparePoints, setComparePoints] = useState<ComparePoint[]>([]);
+  const comparePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const compareMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const compareRoutePolylineRef = useRef<google.maps.Polyline | null>(null);
+
+  // Helper: add a point to compare mode from a pin click
+  const addComparePoint = useCallback((lat: number, lng: number, label: string) => {
+    if (!compareActive) return false;
+    setComparePoints((prev) => [...prev, { lat, lng, label }]);
+    return true; // consumed the click
+  }, [compareActive]);
 
   // ── Street View state (Step 7) ──
   const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null);
@@ -495,6 +510,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     onMeasurePoint: useCallback((latlng: { lat: number; lng: number }) => {
       setMeasurePoints(prev => [...prev, latlng]);
     }, []),
+    compareActive,
+    onComparePoint: useCallback((point: { lat: number; lng: number; label: string }) => {
+      setComparePoints(prev => [...prev, point]);
+    }, []),
     pinConfig,
   });
 
@@ -690,6 +709,71 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   useEffect(() => {
     if (!measureActive) setMeasurePoints([]);
   }, [measureActive]);
+
+  // ── Compare mode: draw straight-line polyline + markers ──
+  useEffect(() => {
+    // Clean up
+    comparePolylineRef.current?.setMap(null);
+    comparePolylineRef.current = null;
+    compareMarkersRef.current.forEach((m) => (m.map = null));
+    compareMarkersRef.current = [];
+    compareRoutePolylineRef.current?.setMap(null);
+    compareRoutePolylineRef.current = null;
+
+    if (!map || !compareActive || comparePoints.length === 0) return;
+
+    // Draw dashed straight-line polyline
+    if (comparePoints.length >= 2) {
+      const path = comparePoints.map((p) => ({ lat: p.lat, lng: p.lng }));
+      const polyline = new google.maps.Polyline({
+        path,
+        strokeColor: "#6366f1",
+        strokeWeight: 2,
+        strokeOpacity: 0,
+        map,
+        icons: [{
+          icon: { path: "M 0,-1 0,1", strokeOpacity: 0.6, strokeWeight: 2, scale: 3 },
+          offset: "0",
+          repeat: "12px",
+        }],
+      });
+      comparePolylineRef.current = polyline;
+    }
+
+    // Draw lettered markers (A, B, C...)
+    for (let i = 0; i < comparePoints.length; i++) {
+      const pt = comparePoints[i];
+      const el = document.createElement("div");
+      el.style.cssText =
+        `width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;` +
+        `font-size:13px;font-weight:700;color:#fff;cursor:pointer;` +
+        `box-shadow:0 2px 6px rgba(0,0,0,0.3);` +
+        `background:${i === 0 ? "#2563eb" : i === comparePoints.length - 1 ? "#dc2626" : "#6b7280"};`;
+      el.textContent = String.fromCharCode(65 + i);
+
+      const marker = new google.maps.marker.AdvancedMarkerElement({
+        position: { lat: pt.lat, lng: pt.lng },
+        map,
+        content: el,
+        zIndex: 20,
+      });
+      compareMarkersRef.current.push(marker);
+    }
+
+    return () => {
+      comparePolylineRef.current?.setMap(null);
+      compareMarkersRef.current.forEach((m) => (m.map = null));
+    };
+  }, [map, compareActive, comparePoints]);
+
+  // Clean up compare when deactivated
+  useEffect(() => {
+    if (!compareActive) {
+      setComparePoints([]);
+      compareRoutePolylineRef.current?.setMap(null);
+      compareRoutePolylineRef.current = null;
+    }
+  }, [compareActive]);
 
   const handleMeasureToggle = useCallback(() => {
     setMeasureActive(prev => {
@@ -974,7 +1058,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   // ── Add point mode / measurement: map click handler + cursor (Step 12) ──
   useEffect(() => {
     if (!map) return;
-    if (!addPointMode && !measureActive) {
+    if (!addPointMode && !measureActive && !compareActive) {
       map.setOptions({ draggableCursor: undefined });
       return;
     }
@@ -986,6 +1070,9 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       const latlng = { lat: e.latLng.lat(), lng: e.latLng.lng() };
       if (measureActive) {
         addMeasurePoint(latlng);
+      } else if (compareActive) {
+        // In compare mode, clicking empty map adds a generic point
+        setComparePoints((prev) => [...prev, { ...latlng, label: `Point ${prev.length + 1}` }]);
       } else if (addPointMode) {
         setPendingClick(latlng);
       }
@@ -995,7 +1082,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       google.maps.event.removeListener(listener);
       map.setOptions({ draggableCursor: undefined });
     };
-  }, [map, addPointMode, measureActive, addMeasurePoint]);
+  }, [map, addPointMode, measureActive, compareActive, addMeasurePoint]);
 
   // ── atlas:navigate-place event listener (Step 2) ──
   useEffect(() => {
@@ -1146,6 +1233,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             setSelectedPin(null);
           } else if (st.selectedPlaceId) {
             setSelectedPlaceId(null);
+          } else if (compareActive) {
+            setCompareActive(false);
           } else if (st.measureActive) {
             setMeasureActive(false);
           } else if (st.addPointMode) {
@@ -1651,28 +1740,53 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         </BottomSheet>
       )}
 
-      {/* ── Basemap toggle — portalled into top bar center ── */}
+      {/* ── Basemap toggle + Compare button — portalled into top bar center ── */}
       <PortalOrInline portalId="map-basemap-portal" fallback={null}>
-        <div style={{ display: "flex", gap: 2, background: "var(--card-bg, #fff)", borderRadius: 6, border: "1px solid var(--border, #e5e5e5)", padding: 2 }}>
-          {(["street", "satellite"] as const).map((type) => (
-            <button
-              key={type}
-              onClick={() => setBasemap(type)}
-              style={{
-                padding: "4px 12px",
-                fontSize: "0.8rem",
-                fontWeight: basemap === type ? 600 : 400,
-                background: basemap === type ? "var(--primary)" : "transparent",
-                color: basemap === type ? "var(--primary-foreground, #fff)" : "var(--foreground)",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer",
-                textTransform: "capitalize",
-              }}
-            >
-              {type === "street" ? "Map" : "Satellite"}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 2, background: "var(--card-bg, #fff)", borderRadius: 6, border: "1px solid var(--border, #e5e5e5)", padding: 2 }}>
+            {(["street", "satellite"] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setBasemap(type)}
+                style={{
+                  padding: "4px 12px",
+                  fontSize: "0.8rem",
+                  fontWeight: basemap === type ? 600 : 400,
+                  background: basemap === type ? "var(--primary)" : "transparent",
+                  color: basemap === type ? "var(--primary-foreground, #fff)" : "var(--foreground)",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  textTransform: "capitalize",
+                }}
+              >
+                {type === "street" ? "Map" : "Satellite"}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              setCompareActive((prev) => !prev);
+              if (!compareActive) {
+                setMeasureActive(false);
+                setAddPointMode(null);
+              }
+            }}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "4px 12px", fontSize: "0.8rem", fontWeight: compareActive ? 600 : 400,
+              background: compareActive ? "var(--primary)" : "var(--card-bg, #fff)",
+              color: compareActive ? "var(--primary-foreground, #fff)" : "var(--foreground)",
+              border: `1px solid ${compareActive ? "var(--primary)" : "var(--border, #e5e5e5)"}`,
+              borderRadius: 6, cursor: "pointer",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6L6 18" /><path d="M6 6l12 12" />
+              {!compareActive && <><circle cx="6" cy="6" r="2.5" fill="currentColor" /><circle cx="18" cy="18" r="2.5" fill="currentColor" /></>}
+            </svg>
+            {compareActive ? "Exit Compare" : "Compare"}
+          </button>
         </div>
       </PortalOrInline>
 
@@ -1915,6 +2029,29 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           onClear={clearMeasurement}
           onCancel={() => setMeasureActive(false)}
         />
+      )}
+
+      {/* ── Distance Compare panel ── */}
+      {compareActive && (
+        <div style={{
+          position: "absolute", top: 60, right: 16,
+          zIndex: 15,
+        }}>
+          <DistanceComparePanel
+            points={comparePoints}
+            onRemovePoint={(i) => setComparePoints((prev) => prev.filter((_, idx) => idx !== i))}
+            onClear={() => setComparePoints([])}
+            onClose={() => setCompareActive(false)}
+            onReorder={(from, to) => {
+              setComparePoints((prev) => {
+                const next = [...prev];
+                const [item] = next.splice(from, 1);
+                next.splice(to, 0, item);
+                return next;
+              });
+            }}
+          />
+        </div>
       )}
 
       {/* ── Context menu (Step 5) ── */}

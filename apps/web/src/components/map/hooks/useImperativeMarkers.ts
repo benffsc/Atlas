@@ -40,6 +40,10 @@ interface UseImperativeMarkersOptions {
   measureActive?: boolean;
   /** Called with pin coordinates when measureActive and a pin is clicked */
   onMeasurePoint?: (latlng: { lat: number; lng: number }) => void;
+  /** When true, pin clicks forward to onComparePoint instead of selecting */
+  compareActive?: boolean;
+  /** Called with pin coordinates + label when compareActive and a pin is clicked */
+  onComparePoint?: (point: { lat: number; lng: number; label: string }) => void;
   /** Admin-configurable pin rendering (colors, sizes, labels). Falls back to defaults. */
   pinConfig?: MapPinConfig;
 }
@@ -330,6 +334,8 @@ export function useImperativeMarkers({
   onPinSelect,
   measureActive = false,
   onMeasurePoint,
+  compareActive = false,
+  onComparePoint,
   pinConfig,
 }: UseImperativeMarkersOptions) {
   const cfg = pinConfig ?? DEFAULT_PIN_CONFIG;
@@ -343,6 +349,10 @@ export function useImperativeMarkers({
   const onPinSelectRef = useRef(onPinSelect);
   onPinSelectRef.current = onPinSelect;
   const measureActiveRef = useRef(measureActive);
+  const compareActiveRef = useRef(compareActive);
+  compareActiveRef.current = compareActive;
+  const onComparePointRef = useRef(onComparePoint);
+  onComparePointRef.current = onComparePoint;
   measureActiveRef.current = measureActive;
   const onMeasurePointRef = useRef(onMeasurePoint);
   onMeasurePointRef.current = onMeasurePoint;
@@ -469,6 +479,11 @@ export function useImperativeMarkers({
           // In measurement mode, forward pin coordinates to measurement handler instead of selecting
           if (measureActiveRef.current && onMeasurePointRef.current) {
             onMeasurePointRef.current({ lat: pin.lat, lng: pin.lng });
+            return;
+          }
+          // In compare mode, add pin as a compare point
+          if (compareActiveRef.current && onComparePointRef.current) {
+            onComparePointRef.current({ lat: pin.lat, lng: pin.lng, label: pin.address || pin.display_name || `${pin.lat.toFixed(4)}, ${pin.lng.toFixed(4)}` });
             return;
           }
           const domEvent = (e as any)?.domEvent as MouseEvent | undefined;
