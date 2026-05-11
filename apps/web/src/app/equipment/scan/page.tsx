@@ -81,23 +81,34 @@ export default function StaffScanPage() {
   const [checkoutApptDate, setCheckoutApptDate] = useState("");
   const [checkoutDeposit, setCheckoutDeposit] = useState("0");
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
-  const [linkedAddress, setLinkedAddress] = useState<{ place_id: string; formatted_address: string } | null>(null);
+  const [linkedAddresses, setLinkedAddresses] = useState<Array<{ place_id: string; formatted_address: string }>>([]);
 
   const abortRef = useRef<AbortController>();
   const scanIdRef = useRef(0);
 
-  // Fetch person's linked address
+  // Fetch person's linked addresses (all of them)
   useEffect(() => {
-    if (!checkoutPerson.is_resolved || !checkoutPerson.person_id) { setLinkedAddress(null); return; }
+    if (!checkoutPerson.is_resolved || !checkoutPerson.person_id) { setLinkedAddresses([]); return; }
     let cancelled = false;
     fetchApi<{ primary_place_id: string | null; primary_address: string | null; places: Array<{ place_id: string; formatted_address: string | null }> | null }>(
       `/api/people/${checkoutPerson.person_id}`
     ).then((p) => {
       if (cancelled) return;
-      if (p.primary_place_id && p.primary_address) setLinkedAddress({ place_id: p.primary_place_id, formatted_address: p.primary_address });
-      else if (p.places?.length && p.places[0].formatted_address) setLinkedAddress({ place_id: p.places[0].place_id, formatted_address: p.places[0].formatted_address });
-      else setLinkedAddress(null);
-    }).catch(() => { if (!cancelled) setLinkedAddress(null); });
+      const addrs: Array<{ place_id: string; formatted_address: string }> = [];
+      // Primary first
+      if (p.primary_place_id && p.primary_address) {
+        addrs.push({ place_id: p.primary_place_id, formatted_address: p.primary_address });
+      }
+      // Then all other places (deduped)
+      if (p.places) {
+        for (const pl of p.places) {
+          if (pl.formatted_address && !addrs.some((a) => a.place_id === pl.place_id)) {
+            addrs.push({ place_id: pl.place_id, formatted_address: pl.formatted_address });
+          }
+        }
+      }
+      setLinkedAddresses(addrs);
+    }).catch(() => { if (!cancelled) setLinkedAddresses([]); });
     return () => { cancelled = true; };
   }, [checkoutPerson.is_resolved, checkoutPerson.person_id]);
 
@@ -226,7 +237,7 @@ export default function StaffScanPage() {
       });
 
       // Reset form
-      setCheckoutPerson(EMPTY_PERSON); setCheckoutPlace(null); setLinkedAddress(null);
+      setCheckoutPerson(EMPTY_PERSON); setCheckoutPlace(null); setLinkedAddresses([]);
       setCheckoutUnit(""); setCheckoutNotes(""); setCheckoutPurpose(""); setCheckoutType(""); setCheckoutApptDate(""); setCheckoutDeposit("0");
       handleReset();
     } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
@@ -308,12 +319,17 @@ export default function StaffScanPage() {
             <KioskPersonCollector value={checkoutPerson} onChange={setCheckoutPerson} />
             <div>
               <label style={labelStyle}>Address <span style={labelHintStyle}>(where equipment will be used)</span></label>
-              {linkedAddress && !checkoutPlace && (
-                <button type="button" onClick={() => setCheckoutPlace({ place_id: linkedAddress.place_id, display_name: linkedAddress.formatted_address, formatted_address: linkedAddress.formatted_address, locality: null })}
-                  style={{ display: "flex", alignItems: "center", gap: "0.5rem", width: "100%", padding: "0.5rem 0.75rem", marginBottom: "0.5rem", borderRadius: 8, border: "1px solid var(--info-border)", background: "var(--info-bg)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", fontSize: "0.8rem", color: "var(--text-primary)" }}>
-                  <Icon name="map-pin" size={14} color="var(--info-text)" />
-                  <span>Use <strong>{checkoutPerson.first_name || checkoutPerson.display_name}</strong>&apos;s address</span>
-                </button>
+              {linkedAddresses.length > 0 && !checkoutPlace && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginBottom: "0.5rem" }}>
+                  {linkedAddresses.map((addr) => (
+                    <button key={addr.place_id} type="button"
+                      onClick={() => setCheckoutPlace({ place_id: addr.place_id, display_name: addr.formatted_address, formatted_address: addr.formatted_address, locality: null })}
+                      style={{ display: "flex", alignItems: "center", gap: "0.5rem", width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid var(--info-border)", background: "var(--info-bg)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", fontSize: "0.8rem", color: "var(--text-primary)" }}>
+                      <Icon name="map-pin" size={14} color="var(--info-text)" />
+                      <span style={{ flex: 1 }}>{addr.formatted_address}</span>
+                    </button>
+                  ))}
+                </div>
               )}
               <PlaceResolver value={checkoutPlace} onChange={setCheckoutPlace} placeholder="Search for an address..." />
             </div>

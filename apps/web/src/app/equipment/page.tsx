@@ -127,6 +127,40 @@ export default function EquipmentDashboard() {
         </div>
       </button>
 
+      {/* ═══ SETUP BUTTONS ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "1.25rem" }}>
+        <a
+          href="/kiosk/setup"
+          style={{
+            display: "flex", alignItems: "center", gap: "0.5rem",
+            padding: "0.625rem 0.75rem", borderRadius: 8,
+            border: "1px solid var(--card-border)", background: "var(--card-bg, #fff)",
+            textDecoration: "none", color: "var(--text-primary)", fontSize: "0.85rem",
+          }}
+        >
+          <Icon name="tablet" size={18} color="var(--muted)" />
+          <div>
+            <div style={{ fontWeight: 600 }}>Set Up Kiosk</div>
+            <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Public device</div>
+          </div>
+        </a>
+        <a
+          href="/kiosk/setup#staff"
+          style={{
+            display: "flex", alignItems: "center", gap: "0.5rem",
+            padding: "0.625rem 0.75rem", borderRadius: 8,
+            border: "1px solid var(--card-border)", background: "var(--card-bg, #fff)",
+            textDecoration: "none", color: "var(--text-primary)", fontSize: "0.85rem",
+          }}
+        >
+          <Icon name="smartphone" size={18} color="var(--muted)" />
+          <div>
+            <div style={{ fontWeight: 600 }}>Set Up Staff Device</div>
+            <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Phone / tablet QR</div>
+          </div>
+        </a>
+      </div>
+
       {/* ═══ TRAP STATS ═══ */}
       <div style={{
         fontSize: "0.7rem", fontWeight: 700, color: "var(--text-secondary)",
