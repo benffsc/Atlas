@@ -1103,6 +1103,11 @@ body.presentation-mode .action-row span {
   transition: opacity 200ms ease;
 }
 
+/* Hide old indicator pill when showcase toolbar is present */
+body.presentation-mode .showcase-toolbar ~ .presentation-indicator {
+  display: none;
+}
+
 /* Floating indicator — bottom-right corner */
 .presentation-indicator {
   position: fixed;
@@ -1180,6 +1185,298 @@ body.presentation-mode .action-row span {
 
 .presentation-indicator-demo:hover {
   background: #1d4ed8;
+}
+
+/* ============================================================================
+   Showcase Toolbar (presenter control panel)
+   Expandable floating toolbar with demo trigger buttons.
+   ============================================================================ */
+
+.showcase-toolbar {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
+}
+
+.showcase-toolbar-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(23, 23, 23, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  transition: background 150ms ease;
+}
+
+.showcase-toolbar-pill:hover {
+  background: rgba(23, 23, 23, 1);
+}
+
+.showcase-toolbar-panel {
+  background: rgba(23, 23, 23, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 240px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  animation: showcase-panel-in 200ms ease-out;
+}
+
+@keyframes showcase-panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.showcase-toolbar-section {
+  padding: 4px 0;
+}
+
+.showcase-toolbar-label {
+  display: block;
+  padding: 4px 10px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.showcase-toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 100ms ease;
+}
+
+.showcase-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.showcase-toolbar-exit {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+}
+
+.showcase-toolbar-exit:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.showcase-toolbar-divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Tippy Demo Overlay ── */
+
+.showcase-tippy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: showcase-overlay-in 200ms ease-out;
+}
+
+@keyframes showcase-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.showcase-tippy-chat {
+  width: 90%;
+  max-width: 640px;
+  max-height: 80vh;
+  background: var(--card-bg, #fff);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: showcase-chat-in 300ms ease-out;
+}
+
+@keyframes showcase-chat-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.showcase-tippy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--card-border, #e5e7eb);
+}
+
+.showcase-tippy-close {
+  background: none;
+  border: none;
+  color: var(--muted, #9ca3af);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.showcase-tippy-close:hover {
+  color: var(--foreground);
+  background: var(--section-bg, #f3f4f6);
+}
+
+.showcase-tippy-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.showcase-tippy-msg {
+  max-width: 90%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.showcase-tippy-msg-user {
+  align-self: flex-end;
+  background: var(--primary, #3b82f6);
+  color: var(--primary-foreground, #fff);
+  border-bottom-right-radius: 4px;
+}
+
+.showcase-tippy-msg-assistant {
+  align-self: flex-start;
+  background: var(--section-bg, #f3f4f6);
+  color: var(--foreground, #1f2937);
+  border-bottom-left-radius: 4px;
+  max-width: 95%;
+}
+
+.showcase-tippy-md {
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.showcase-tippy-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--primary, #3b82f6);
+  margin-left: 2px;
+  animation: showcase-cursor-blink 0.8s steps(2) infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes showcase-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.showcase-tippy-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.showcase-tippy-tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted, #6b7280);
+  padding: 2px 0;
+  transition: opacity 300ms ease;
+}
+
+.showcase-tippy-tool-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success-text, #16a34a);
+  flex-shrink: 0;
+}
+
+.showcase-tippy-tool-dot-active {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary, #3b82f6);
+  flex-shrink: 0;
+  animation: live-counter-pulse 1.5s ease-out infinite;
+}
+
+.showcase-tippy-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--card-border, #e5e7eb);
+  justify-content: flex-end;
+}
+
+.showcase-tippy-next {
+  padding: 6px 14px;
+  background: var(--primary, #3b82f6);
+  color: var(--primary-foreground, #fff);
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.showcase-tippy-next:hover {
+  opacity: 0.9;
+}
+
+.showcase-tippy-done {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--card-border, #e5e7eb);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--muted, #6b7280);
+  cursor: pointer;
+}
+
+.showcase-tippy-done:hover {
+  background: var(--section-bg, #f3f4f6);
 }
 
 /* ============================================================================

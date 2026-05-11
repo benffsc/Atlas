@@ -9,6 +9,7 @@ import { ToastProvider } from "@/components/feedback/Toast";
 import { Icon } from "@/components/ui/Icon";
 import { usePresentationMode, PresentationModeIndicator } from "@/components/PresentationMode";
 import { ShowcaseProvider } from "@/components/ShowcaseContext";
+import { ShowcaseToolbar } from "@/components/ShowcaseToolbar";
 import { NavigationProgress } from "@/components/NavigationProgress";
 import { NotificationBell } from "@/components/NotificationBell";
 import { fetchApi } from "@/lib/api-client";
@@ -288,7 +289,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main className="container"><ToastProvider>{children}</ToastProvider></main>
 
-      {/* Presentation mode indicator (floats bottom-right when active) */}
+      {/* Showcase mode: toolbar with demo controls. Normal mode: simple indicator. */}
+      {presentationEnabled ? (
+        <ShowcaseToolbar onExit={exitPresentation} />
+      ) : null}
       <PresentationModeIndicator
         enabled={presentationEnabled}
         onExit={exitPresentation}

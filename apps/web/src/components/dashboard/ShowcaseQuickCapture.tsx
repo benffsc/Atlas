@@ -117,6 +117,21 @@ export function ShowcaseQuickCapture() {
     return () => clearTimeout(typingRef.current);
   }, []);
 
+  // Listen for toolbar trigger event
+  useEffect(() => {
+    const handler = () => {
+      clearTimeout(typingRef.current);
+      setState("idle");
+      setText("");
+      setResult(null);
+      // Small delay then auto-start
+      typingRef.current = window.setTimeout(() => startDemo(), 300);
+    };
+    window.addEventListener("showcase:quickcapture", handler);
+    return () => window.removeEventListener("showcase:quickcapture", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenarioIndex]);
+
   const reset = () => {
     clearTimeout(typingRef.current);
     setState("idle");
@@ -126,6 +141,7 @@ export function ShowcaseQuickCapture() {
 
   return (
     <div
+      data-showcase-quickcapture
       style={{
         background: "var(--card-bg)",
         border: "1px solid var(--card-border)",
