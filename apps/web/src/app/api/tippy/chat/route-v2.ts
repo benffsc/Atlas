@@ -500,16 +500,17 @@ async function generateConversationSummary(_staffId: string): Promise<void> {
 async function assembleBriefingData(staffId: string): Promise<string> {
   const parts: string[] = [];
 
-  try {
-    // Pending requests
-    const pending = await queryOne<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ops.requests
-       WHERE merged_into_request_id IS NULL
-         AND status NOT IN (${TERMINAL_PAIR_SQL})`
-    );
-    if (pending) parts.push(`**Open requests:** ${pending.cnt}`);
+  // Check if this staff member is a coordinator (admin role = sees request pipeline)
+  const staffRole = await queryOne<{ auth_role: string }>(
+    `SELECT auth_role FROM ops.staff WHERE staff_id = $1`,
+    [staffId]
+  );
+  const isCoordinator = staffRole?.auth_role === "admin";
 
-    // Recent appointments — per-day breakdown so the LLM doesn't guess days of week
+  try {
+    // ── SECTION 1: What everyone cares about (clinic + field intel) ──
+
+    // Clinic activity — per-day breakdown with day-of-week
     const apptsByDay = await queryRows<{ day: string; dow: string; cnt: number }>(
       `SELECT appointment_date::text AS day,
         TO_CHAR(appointment_date, 'Dy') AS dow,
@@ -527,14 +528,28 @@ async function assembleBriefingData(staffId: string): Promise<string> {
       parts.push("**Clinic this week:** No appointments");
     }
 
-    // Intake queue
-    const intake = await queryOne<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ops.intake_submissions
-       WHERE status = 'pending'`
+    // Recent field intel from colleagues (brain dumps, notes — last 3 days)
+    const recentCaptures = await queryRows<{ body: string; created_by: string; place: string | null }>(
+      `SELECT LEFT(COALESCE(je.body, je.content), 80) as body, je.created_by,
+        p.formatted_address as place
+       FROM ops.journal_entries je
+       LEFT JOIN sot.places p ON p.place_id = je.primary_place_id
+       WHERE je.created_at >= NOW() - INTERVAL '3 days'
+         AND je.entry_kind = 'note'
+         AND 'tippy' = ANY(je.tags) OR 'field_contact' = ANY(je.tags)
+       ORDER BY je.created_at DESC LIMIT 5`
     );
-    if (intake) parts.push(`**New intake submissions:** ${intake.cnt}`);
+    if (recentCaptures.length > 0) {
+      parts.push(
+        `**Recent field notes (${recentCaptures.length}):**\n` +
+        recentCaptures.map((c) =>
+          `- ${c.body}${c.place ? ` (${c.place})` : ""} — ${c.created_by}`
+        ).join("\n")
+      );
+    }
 
-    // Staff messages
+    // ── SECTION 2: Personal items (reminders, messages) ──
+
     const msgs = await queryOne<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM ops.staff_messages
        WHERE recipient_id = $1 AND read_at IS NULL`,
@@ -542,7 +557,7 @@ async function assembleBriefingData(staffId: string): Promise<string> {
     );
     if (msgs && msgs.cnt > 0) parts.push(`**Unread messages:** ${msgs.cnt}`);
 
-    // Reminders (expanded window to 7 days)
+    // Reminders (7-day window)
     const reminders = await queryRows<{ title: string; due_at: string; is_overdue: boolean }>(
       `SELECT title, due_at::text, (due_at < NOW()) AS is_overdue
        FROM ops.staff_reminders
@@ -558,7 +573,7 @@ async function assembleBriefingData(staffId: string): Promise<string> {
       );
     }
 
-    // Due/overdue tippy tickets
+    // Due/overdue field tickets
     const dueTickets = await queryRows<{
       ticket_id: string;
       summary: string;
@@ -589,6 +604,23 @@ async function assembleBriefingData(staffId: string): Promise<string> {
           upcoming.map((t) => `- ${t.summary} (due ${t.followup_date})`).join("\n");
       }
       parts.push(ticketText);
+    }
+
+    // ── SECTION 3: Coordinator-only (request pipeline) ──
+
+    if (isCoordinator) {
+      const pending = await queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM ops.requests
+         WHERE merged_into_request_id IS NULL
+           AND status NOT IN (${TERMINAL_PAIR_SQL})`
+      );
+      if (pending) parts.push(`**Open requests:** ${pending.cnt}`);
+
+      const intake = await queryOne<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM ops.intake_submissions
+         WHERE status = 'pending'`
+      );
+      if (intake && intake.cnt > 0) parts.push(`**Pending intakes:** ${intake.cnt}`);
     }
   } catch {
     parts.push("(Some briefing data unavailable)");
