@@ -333,7 +333,12 @@ function buildSystemPrompt(params: {
 }): string {
   let prompt = BASE_PROMPT;
 
-  if (params.userName) prompt += `\n\nYou are speaking with ${params.userName}.`;
+  // Inject current date so the model doesn't guess
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  prompt += `\n\nToday is ${dateStr}.`;
+
+  if (params.userName) prompt += `\nYou are speaking with ${params.userName}.`;
   prompt += params.isEngineer ? buildEngineerBlock() : buildStaffBlock();
   prompt += buildAccessBlock(params.accessLevel);
   if (params.pageContext) prompt += buildPageContextBlock(params.pageContext);
@@ -504,12 +509,23 @@ async function assembleBriefingData(staffId: string): Promise<string> {
     );
     if (pending) parts.push(`**Open requests:** ${pending.cnt}`);
 
-    // Recent appointments
-    const appts = await queryOne<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ops.appointments
-       WHERE appointment_date >= CURRENT_DATE - INTERVAL '7 days'`
+    // Recent appointments — per-day breakdown so the LLM doesn't guess days of week
+    const apptsByDay = await queryRows<{ day: string; dow: string; cnt: number }>(
+      `SELECT appointment_date::text AS day,
+        TO_CHAR(appointment_date, 'Dy') AS dow,
+        COUNT(*)::int AS cnt
+       FROM ops.appointments
+       WHERE appointment_date >= CURRENT_DATE - INTERVAL '7 days'
+       GROUP BY appointment_date
+       ORDER BY appointment_date`
     );
-    if (appts) parts.push(`**Appointments (last 7 days):** ${appts.cnt}`);
+    if (apptsByDay.length > 0) {
+      const total = apptsByDay.reduce((s, r) => s + r.cnt, 0);
+      const breakdown = apptsByDay.map((r) => `${r.dow} ${r.day}: ${r.cnt}`).join(", ");
+      parts.push(`**Clinic this week:** ${total} cats — ${breakdown}`);
+    } else {
+      parts.push("**Clinic this week:** No appointments");
+    }
 
     // Intake queue
     const intake = await queryOne<{ cnt: number }>(
