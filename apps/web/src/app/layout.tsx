@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "@/styles/map.css";
 import { AppShell } from "@/components/AppShell";
-import { TippyChat } from "@/components/TippyChat";
+import { TippyChatSwitch } from "@/components/TippyChatSwitch";
 
 export const metadata: Metadata = {
   title: {
@@ -44,7 +44,7 @@ export default function RootLayout({
       <body>
         {/* Auth is now handled by middleware + /login page */}
         <AppShell>{children}</AppShell>
-        <TippyChat />
+        <TippyChatSwitch />
       </body>
     </html>
   );
