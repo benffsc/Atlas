@@ -1088,9 +1088,52 @@ async function runReadOnlySql(
       },
     };
   } catch (error) {
+    const errMsg = error instanceof Error ? error.message : "Query failed";
+
+    // AUTO-RECOVERY: When a column doesn't exist, look up the real columns
+    // so Tippy can fix the query on the next iteration instead of guessing
+    let schemaHint = "";
+    const colMatch = errMsg.match(/column (?:"?(\w+)"?\.)?"?(\w+)"? does not exist/i);
+    const relMatch = errMsg.match(/relation "?(?:(\w+)\.)?(\w+)"? does not exist/i);
+
+    if (colMatch) {
+      const tableAlias = colMatch[1];
+      // Try to find the table from the query
+      const tableMatch = sql.match(new RegExp(`(\\w+\\.\\w+)\\s+(?:AS\\s+)?${tableAlias || "\\w+"}`, "i"));
+      const fullTable = tableMatch?.[1];
+      if (fullTable) {
+        try {
+          const cols = await queryRows<{ column_name: string }>(
+            `SELECT column_name FROM information_schema.columns
+             WHERE table_schema = $1 AND table_name = $2
+             ORDER BY ordinal_position`,
+            fullTable.split(".") as [string, string]
+          );
+          if (cols.length > 0) {
+            schemaHint = `\n\nAVAILABLE COLUMNS for ${fullTable}: ${cols.map(c => c.column_name).join(", ")}`;
+          }
+        } catch { /* non-blocking */ }
+      }
+    } else if (relMatch) {
+      const schema = relMatch[1] || "ops";
+      const table = relMatch[2];
+      // Check if a similar table exists
+      try {
+        const similar = await queryRows<{ table_name: string }>(
+          `SELECT table_name FROM information_schema.tables
+           WHERE table_schema = $1 AND table_name LIKE $2
+           LIMIT 5`,
+          [schema, `%${table}%`]
+        );
+        if (similar.length > 0) {
+          schemaHint = `\n\nDid you mean: ${similar.map(t => `${schema}.${t.table_name}`).join(", ")}?`;
+        }
+      } catch { /* non-blocking */ }
+    }
+
     return {
       success: false,
-      error: `SQL error: ${error instanceof Error ? error.message : "Query failed"}`,
+      error: `SQL error: ${errMsg}${schemaHint}`,
     };
   }
 }

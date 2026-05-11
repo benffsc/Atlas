@@ -728,7 +728,7 @@ async function runAgentLoop(params: {
     systemPrompt,
     availableTools,
     forcedToolChoice,
-    maxIterations = 6,
+    maxIterations = 10,
     timeBudgetMs = 280_000,
     onStatus,
     toolContext,
@@ -887,7 +887,7 @@ async function handleStreamingChat(params: {
         const messages = [...params.messages];
         const toolsUsed: string[] = [];
         let fullText = "";
-        const maxIterations = 6;
+        const maxIterations = 10;
         const timeBudgetMs = 280_000;
         const startTime = Date.now();
         let iterationsUsed = 0;
