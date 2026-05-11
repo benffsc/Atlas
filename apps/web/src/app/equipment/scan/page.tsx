@@ -39,6 +39,14 @@ const EMPTY_PERSON: CollectedPerson = {
   phone: "", email: "", is_resolved: false, resolution_type: "unresolved",
 };
 
+const DEPARTMENTS = [
+  { value: "relo", label: "Relo", purpose: "transport", dueOffset: 2 },
+  { value: "clinic", label: "Clinic", purpose: "ffr", dueOffset: 1 },
+  { value: "foster_room", label: "Foster Room", purpose: "rescue_recovery", dueOffset: 14 },
+  { value: "cat_room", label: "Cat Room", purpose: "rescue_recovery", dueOffset: 7 },
+  { value: "barn_cat", label: "Barn Cat Program", purpose: "transport", dueOffset: 14 },
+] as const;
+
 const labelStyle: React.CSSProperties = {
   display: "block", fontSize: "0.8rem", fontWeight: 600,
   color: "var(--text-secondary)", textTransform: "uppercase",
@@ -72,6 +80,8 @@ export default function StaffScanPage() {
   // Cart for multi-item checkout
   const [checkoutCart, setCheckoutCart] = useState<ScanResult[]>([]);
 
+  const [checkoutBorrowerType, setCheckoutBorrowerType] = useState<"person" | "department">("person");
+  const [checkoutDept, setCheckoutDept] = useState("");
   const [checkoutPerson, setCheckoutPerson] = useState<CollectedPerson>(EMPTY_PERSON);
   const [checkoutPlace, setCheckoutPlace] = useState<ResolvedPlace | null>(null);
   const [checkoutUnit, setCheckoutUnit] = useState("");
@@ -183,12 +193,17 @@ export default function StaffScanPage() {
   const handleCheckout = useCallback(async () => {
     const items = checkoutCart.length > 0 ? checkoutCart : (equipment ? [equipment] : []);
     if (items.length === 0) return;
-    const name = `${checkoutPerson.first_name} ${checkoutPerson.last_name}`.trim();
-    if (!name) { toast.error("Enter the borrower's name"); return; }
+
+    const isDept = checkoutBorrowerType === "department";
+    const dept = isDept ? DEPARTMENTS.find((d) => d.value === checkoutDept) : null;
+    const name = isDept ? (dept?.label || checkoutDept) : `${checkoutPerson.first_name} ${checkoutPerson.last_name}`.trim();
+    if (!name) { toast.error(isDept ? "Select a department" : "Enter the borrower's name"); return; }
     setCheckoutSubmitting(true);
     try {
-      const resolution = await resolveCollectedPerson(checkoutPerson);
-      const isAssign = checkoutType === "trapper" || checkoutType === "internal";
+      const resolution = isDept ? { person_id: null, resolution_type: "unresolved" as const } : await resolveCollectedPerson(checkoutPerson);
+      const effectiveType = isDept ? "internal" : checkoutType;
+      const effectivePurpose = isDept ? (dept?.purpose || checkoutPurpose) : checkoutPurpose;
+      const isAssign = effectiveType === "trapper" || effectiveType === "internal";
       const noteParts: string[] = [];
       if (checkoutNotes.trim()) noteParts.push(checkoutNotes.trim());
       if (checkoutPlace) {
@@ -199,8 +214,12 @@ export default function StaffScanPage() {
       const finalNotes = noteParts.join(" | ") || undefined;
 
       let dueDate: string | undefined;
-      if (!isAssign && checkoutApptDate) {
-        const offset = Math.max((checkoutPurpose && PURPOSE_DUE_OFFSETS?.[checkoutPurpose]) || 7, 7);
+      if (isDept && dept?.dueOffset) {
+        // Department checkout: due date = now + dept offset
+        const d = new Date(); d.setDate(d.getDate() + dept.dueOffset);
+        dueDate = d.toISOString().split("T")[0];
+      } else if (!isAssign && checkoutApptDate) {
+        const offset = Math.max((effectivePurpose && PURPOSE_DUE_OFFSETS?.[effectivePurpose]) || 7, 7);
         const d = new Date(checkoutApptDate + "T00:00:00"); d.setDate(d.getDate() + offset);
         dueDate = d.toISOString().split("T")[0];
       }
@@ -210,11 +229,12 @@ export default function StaffScanPage() {
       const results = await Promise.allSettled(
         items.map((item) =>
           postApi(`/api/equipment/${item.equipment_id}/events`, {
-            event_type: isAssign ? "assign" : "check_out",
+            event_type: (isDept ? "check_out" : (isAssign ? "assign" : "check_out")),
             custodian_person_id: resolution.person_id || undefined,
-            custodian_name: name, custodian_name_raw: name, custodian_phone: phone,
-            notes: finalNotes, checkout_purpose: checkoutPurpose || undefined,
-            checkout_type: checkoutType || undefined,
+            custodian_name: name, custodian_name_raw: name,
+            custodian_phone: isDept ? undefined : phone,
+            notes: finalNotes, checkout_purpose: effectivePurpose || undefined,
+            checkout_type: effectiveType || undefined,
             due_date: isAssign ? undefined : dueDate,
             deposit_amount: isAssign ? undefined : (dep && !isNaN(dep) ? dep : undefined),
             ...(checkoutPlace?.place_id ? { place_id: checkoutPlace.place_id } : {}),
@@ -237,6 +257,7 @@ export default function StaffScanPage() {
       });
 
       // Reset form
+      setCheckoutBorrowerType("person"); setCheckoutDept("");
       setCheckoutPerson(EMPTY_PERSON); setCheckoutPlace(null); setLinkedAddresses([]);
       setCheckoutUnit(""); setCheckoutNotes(""); setCheckoutPurpose(""); setCheckoutType(""); setCheckoutApptDate(""); setCheckoutDeposit("0");
       handleReset();
@@ -247,7 +268,9 @@ export default function StaffScanPage() {
   const showSmartCard = state === "found" && equipment && !forceGenericCard;
   const cs = equipment?.custody_status;
   const useSmartCard = showSmartCard && (cs === "checked_out" || cs === "missing" || cs === "available");
-  const personName = `${checkoutPerson.first_name} ${checkoutPerson.last_name}`.trim();
+  const personName = checkoutBorrowerType === "department"
+    ? (DEPARTMENTS.find((d) => d.value === checkoutDept)?.label || checkoutDept)
+    : `${checkoutPerson.first_name} ${checkoutPerson.last_name}`.trim();
 
   return (
     <div style={{ maxWidth: 540, margin: "0 auto" }}>
@@ -316,46 +339,98 @@ export default function StaffScanPage() {
             </div>
           </div>
           <div style={{ background: "var(--card-bg, #fff)", borderRadius: 10, border: "1px solid var(--card-border)", padding: "0.875rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <KioskPersonCollector value={checkoutPerson} onChange={setCheckoutPerson} />
-            <div>
-              <label style={labelStyle}>Address <span style={labelHintStyle}>(where equipment will be used)</span></label>
-              {linkedAddresses.length > 0 && !checkoutPlace && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginBottom: "0.5rem" }}>
-                  {linkedAddresses.map((addr) => (
-                    <button key={addr.place_id} type="button"
-                      onClick={() => setCheckoutPlace({ place_id: addr.place_id, display_name: addr.formatted_address, formatted_address: addr.formatted_address, locality: null })}
-                      style={{ display: "flex", alignItems: "center", gap: "0.5rem", width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid var(--info-border)", background: "var(--info-bg)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", fontSize: "0.8rem", color: "var(--text-primary)" }}>
-                      <Icon name="map-pin" size={14} color="var(--info-text)" />
-                      <span style={{ flex: 1 }}>{addr.formatted_address}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <PlaceResolver value={checkoutPlace} onChange={setCheckoutPlace} placeholder="Search for an address..." />
+            {/* ── Person vs Department toggle ── */}
+            <div style={{ display: "flex", gap: "0.25rem", background: "var(--section-bg, #f3f4f6)", borderRadius: 8, padding: "0.25rem" }}>
+              {(["person", "department"] as const).map((t) => (
+                <button key={t} type="button"
+                  onClick={() => { setCheckoutBorrowerType(t); if (t === "department") { setCheckoutPerson(EMPTY_PERSON); setLinkedAddresses([]); } else setCheckoutDept(""); }}
+                  style={{
+                    flex: 1, padding: "0.5rem", borderRadius: 6, border: "none",
+                    background: checkoutBorrowerType === t ? "var(--card-bg, #fff)" : "transparent",
+                    boxShadow: checkoutBorrowerType === t ? "var(--shadow-xs, 0 1px 2px rgba(0,0,0,0.06))" : "none",
+                    fontWeight: 600, fontSize: "0.85rem", cursor: "pointer", fontFamily: "inherit",
+                    color: checkoutBorrowerType === t ? "var(--text-primary)" : "var(--muted)",
+                  }}>
+                  {t === "person" ? "Person" : "Department"}
+                </button>
+              ))}
             </div>
-            <div><label style={labelStyle}>Apt / Unit <span style={labelHintStyle}>(if applicable)</span></label><input type="text" value={checkoutUnit} onChange={(e) => setCheckoutUnit(e.target.value)} placeholder="e.g. Apt 5" style={inputStyle} /></div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <div><label style={labelStyle}>Purpose</label><select value={checkoutPurpose} onChange={(e) => setCheckoutPurpose(e.target.value)} style={inputStyle}><option value="">Select...</option>{EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
-              <div><label style={labelStyle}>Type</label><select value={checkoutType} onChange={(e) => setCheckoutType(e.target.value)} style={inputStyle}><option value="">Select...</option>{EQUIPMENT_CHECKOUT_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
-            </div>
-            {checkoutType !== "trapper" && checkoutType !== "internal" ? (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+
+            {/* ── Person fields ── */}
+            {checkoutBorrowerType === "person" && (
+              <>
+                <KioskPersonCollector value={checkoutPerson} onChange={setCheckoutPerson} />
                 <div>
-                  <label style={labelStyle}>Appt Date</label>
-                  <input type="date" value={checkoutApptDate} onChange={(e) => setCheckoutApptDate(e.target.value)} style={inputStyle} />
-                  {checkoutApptDate && (() => { const offset = Math.max((checkoutPurpose && PURPOSE_DUE_OFFSETS?.[checkoutPurpose]) || 7, 7); const d = new Date(checkoutApptDate + "T00:00:00"); d.setDate(d.getDate() + offset); return <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>Due {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (+{offset}d)</div>; })()}
+                  <label style={labelStyle}>Address <span style={labelHintStyle}>(where equipment will be used)</span></label>
+                  {linkedAddresses.length > 0 && !checkoutPlace && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", marginBottom: "0.5rem" }}>
+                      {linkedAddresses.map((addr) => (
+                        <button key={addr.place_id} type="button"
+                          onClick={() => setCheckoutPlace({ place_id: addr.place_id, display_name: addr.formatted_address, formatted_address: addr.formatted_address, locality: null })}
+                          style={{ display: "flex", alignItems: "center", gap: "0.5rem", width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8, border: "1px solid var(--info-border)", background: "var(--info-bg)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", fontSize: "0.8rem", color: "var(--text-primary)" }}>
+                          <Icon name="map-pin" size={14} color="var(--info-text)" />
+                          <span style={{ flex: 1 }}>{addr.formatted_address}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <PlaceResolver value={checkoutPlace} onChange={setCheckoutPlace} placeholder="Search for an address..." />
                 </div>
-                <div><label style={labelStyle}>Deposit ($)</label><input type="number" value={checkoutDeposit} onChange={(e) => setCheckoutDeposit(e.target.value)} placeholder="0" min="0" step="5" style={inputStyle} /></div>
-              </div>
-            ) : (
-              <div style={{ fontSize: "0.8rem", color: "var(--info-text)", padding: "0.5rem 0.75rem", background: "var(--info-bg)", borderRadius: 8, border: "1px solid var(--info-border)" }}>Indefinite assignment — no due date.</div>
+                <div><label style={labelStyle}>Apt / Unit <span style={labelHintStyle}>(if applicable)</span></label><input type="text" value={checkoutUnit} onChange={(e) => setCheckoutUnit(e.target.value)} placeholder="e.g. Apt 5" style={inputStyle} /></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  <div><label style={labelStyle}>Purpose</label><select value={checkoutPurpose} onChange={(e) => setCheckoutPurpose(e.target.value)} style={inputStyle}><option value="">Select...</option>{EQUIPMENT_CHECKOUT_PURPOSE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                  <div><label style={labelStyle}>Type</label><select value={checkoutType} onChange={(e) => setCheckoutType(e.target.value)} style={inputStyle}><option value="">Select...</option>{EQUIPMENT_CHECKOUT_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
+                </div>
+                {checkoutType !== "trapper" && checkoutType !== "internal" ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div>
+                      <label style={labelStyle}>Appt Date</label>
+                      <input type="date" value={checkoutApptDate} onChange={(e) => setCheckoutApptDate(e.target.value)} style={inputStyle} />
+                      {checkoutApptDate && (() => { const offset = Math.max((checkoutPurpose && PURPOSE_DUE_OFFSETS?.[checkoutPurpose]) || 7, 7); const d = new Date(checkoutApptDate + "T00:00:00"); d.setDate(d.getDate() + offset); return <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>Due {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} (+{offset}d)</div>; })()}
+                    </div>
+                    <div><label style={labelStyle}>Deposit ($)</label><input type="number" value={checkoutDeposit} onChange={(e) => setCheckoutDeposit(e.target.value)} placeholder="0" min="0" step="5" style={inputStyle} /></div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "0.8rem", color: "var(--info-text)", padding: "0.5rem 0.75rem", background: "var(--info-bg)", borderRadius: 8, border: "1px solid var(--info-border)" }}>Indefinite assignment — no due date.</div>
+                )}
+              </>
             )}
-            <div><label style={labelStyle}>Notes <span style={labelHintStyle}>(optional)</span></label><input type="text" value={checkoutNotes} onChange={(e) => setCheckoutNotes(e.target.value)} placeholder="e.g. Paper form, appt 5/15..." style={inputStyle} /></div>
+
+            {/* ── Department fields ── */}
+            {checkoutBorrowerType === "department" && (
+              <>
+                <div>
+                  <label style={labelStyle}>Department</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+                    {DEPARTMENTS.map((d) => (
+                      <button key={d.value} type="button"
+                        onClick={() => setCheckoutDept(d.value)}
+                        style={{
+                          padding: "0.5rem 1rem", borderRadius: 8, fontFamily: "inherit",
+                          fontSize: "0.9rem", fontWeight: 600, cursor: "pointer",
+                          border: checkoutDept === d.value ? "2px solid var(--primary)" : "1px solid var(--card-border)",
+                          background: checkoutDept === d.value ? "var(--info-bg)" : "var(--card-bg, #fff)",
+                          color: checkoutDept === d.value ? "var(--primary)" : "var(--text-primary)",
+                        }}>
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {checkoutDept && (
+                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", padding: "0.375rem 0" }}>
+                    Due back in {DEPARTMENTS.find((d) => d.value === checkoutDept)?.dueOffset} days
+                  </div>
+                )}
+              </>
+            )}
+
+            <div><label style={labelStyle}>Notes <span style={labelHintStyle}>(optional)</span></label><input type="text" value={checkoutNotes} onChange={(e) => setCheckoutNotes(e.target.value)} placeholder="e.g. SCAS pickup, cat transport..." style={inputStyle} /></div>
           </div>
           <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
             <Button variant="ghost" size="lg" onClick={handleReset} style={{ flex: 1, borderRadius: 10 }}>Cancel</Button>
-            <Button variant="primary" size="lg" icon={checkoutType === "trapper" || checkoutType === "internal" ? "user-check" : "log-out"} loading={checkoutSubmitting} disabled={!personName} onClick={handleCheckout} style={{ flex: 2, borderRadius: 10 }}>
-              {checkoutType === "trapper" || checkoutType === "internal" ? "Assign" : "Check Out"}{checkoutCart.length > 1 ? ` All (${checkoutCart.length})` : ""}
+            <Button variant="primary" size="lg" icon={checkoutType === "trapper" || checkoutType === "internal" ? "user-check" : "log-out"} loading={checkoutSubmitting} disabled={!personName || (checkoutBorrowerType === "department" && !checkoutDept)} onClick={handleCheckout} style={{ flex: 2, borderRadius: 10 }}>
+              {checkoutBorrowerType === "department" ? "Check Out" : (checkoutType === "trapper" || checkoutType === "internal" ? "Assign" : "Check Out")}{checkoutCart.length > 1 ? ` All (${checkoutCart.length})` : ""}
             </Button>
           </div>
         </div>

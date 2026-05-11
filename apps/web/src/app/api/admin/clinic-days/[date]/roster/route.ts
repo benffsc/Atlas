@@ -38,6 +38,7 @@ export async function GET(
     microchip: string | null;
     cat_sex: string | null;
     cat_color: string | null;
+    cat_secondary_color: string | null;
     cat_breed: string | null;
     weight_lbs: number | null;
     clinic_day_number: number | null;
@@ -63,6 +64,7 @@ export async function GET(
       c.microchip,
       c.sex AS cat_sex,
       COALESCE(c.primary_color, c.color) AS cat_color,
+      c.secondary_color AS cat_secondary_color,
       c.breed AS cat_breed,
       (SELECT cv.weight_lbs FROM ops.cat_vitals cv
        WHERE cv.cat_id = a.cat_id AND cv.weight_lbs IS NOT NULL AND cv.weight_lbs < 50
@@ -103,6 +105,7 @@ export async function GET(
     microchip: string | null;
     cat_sex: string | null;
     cat_color: string | null;
+    cat_secondary_color: string | null;
     cat_breed: string | null;
     appointment_number: string | null;
     client_name: string | null;
@@ -116,6 +119,7 @@ export async function GET(
       c.microchip,
       c.sex AS cat_sex,
       COALESCE(c.primary_color, c.color) AS cat_color,
+      c.secondary_color AS cat_secondary_color,
       c.breed AS cat_breed,
       a.appointment_number,
       a.client_name,

@@ -112,6 +112,15 @@ export default function ClinicDaysPage() {
 
   const { addToast } = useToast();
 
+  /** Combine primary + secondary color into a clean description */
+  function formatColor(primary: string | null | undefined, secondary: string | null | undefined): string | null {
+    if (!primary) return null;
+    if (!secondary || secondary === "---" || secondary === "Unknown" || secondary === "None") return primary;
+    let sec = secondary.replace(/^With\s+/i, "");
+    if (sec.toLowerCase() === primary.toLowerCase()) return primary;
+    return `${primary}/${sec}`;
+  }
+
   // ── Load photos for drawer cat ────────────────────────────────────
   useEffect(() => {
     if (!drawerEntry?.cat_id) { setDrawerPhotos([]); return; }

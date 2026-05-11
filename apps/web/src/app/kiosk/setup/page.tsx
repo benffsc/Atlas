@@ -22,7 +22,7 @@ import { SkeletonList } from "@/components/feedback/Skeleton";
 
 const KIOSK_PATH = "/kiosk/equipment/scan";
 const STAFF_SCAN_PATH = "/equipment/scan";
-const RELO_PATH = "/kiosk/equipment/relo";
+// Relo is now a department option on the staff scan page, not a separate route
 
 function useKioskUrl() {
   const [url, setUrl] = useState(KIOSK_PATH);
@@ -36,11 +36,6 @@ function useStaffUrl() {
   return url;
 }
 
-function useReloUrl() {
-  const [url, setUrl] = useState(RELO_PATH);
-  useEffect(() => { setUrl(`${window.location.origin}${RELO_PATH}`); }, []);
-  return url;
-}
 
 function useDeviceDetection() {
   const [isStandalone, setIsStandalone] = useState(false);
@@ -725,23 +720,21 @@ function PrintableSetupCard({ kioskUrl, orgName }: { kioskUrl: string; orgName: 
 /* ═══════════════════════════════════════════════════════════
  * Staff & Relo QR Codes
  * ═══════════════════════════════════════════════════════════ */
-function StaffReloQRSection() {
+function StaffDeviceQRSection() {
   const staffUrl = useStaffUrl();
-  const reloUrl = useReloUrl();
 
   return (
     <div>
       <h2 style={{ fontSize: "1.1rem", fontWeight: 700, margin: "0 0 8px", color: "var(--text-primary)" }}>
-        Other Device Modes
+        Staff Device
       </h2>
       <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 16px" }}>
-        Scan these QR codes with your phone or bookmark on a tablet.
+        Scan this QR code with your phone to open the staff scan page. Bookmark it for quick access.
       </p>
 
-      {/* Staff scan */}
       <div style={{
         border: "1px solid var(--border-default)", borderRadius: 12,
-        padding: 16, marginBottom: 12, background: "var(--card-bg)",
+        padding: 16, background: "var(--card-bg)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <div style={{
@@ -752,9 +745,9 @@ function StaffReloQRSection() {
             <Icon name="scan-barcode" size={18} color="#fff" />
           </div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Staff Scan</div>
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Staff Equipment Scan</div>
             <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-              Full equipment management from your phone
+              Full management from your phone
             </div>
           </div>
         </div>
@@ -762,37 +755,13 @@ function StaffReloQRSection() {
         <div style={{ marginTop: 8 }}>
           <CopyableUrl url={staffUrl} />
         </div>
-        <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: 8 }}>
-          Requires login. Can scan, check in/out, assign to trappers, add equipment, and manage inventory.
-        </div>
-      </div>
-
-      {/* Relo quick scan */}
-      <div style={{
-        border: "1px solid var(--border-default)", borderRadius: 12,
-        padding: 16, background: "var(--card-bg)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: "var(--info-text)", display: "flex",
-            alignItems: "center", justifyContent: "center",
-          }}>
-            <Icon name="truck" size={18} color="#fff" />
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Relo Quick Scan</div>
-            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-              One-tap checkout for trap bay tablet
-            </div>
-          </div>
-        </div>
-        <QRCode url={reloUrl} size={160} />
-        <div style={{ marginTop: 8 }}>
-          <CopyableUrl url={reloUrl} />
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+          <Button variant="primary" size="md" icon="arrow-right" onClick={() => window.location.href = STAFF_SCAN_PATH}>
+            Go to Staff Scan
+          </Button>
         </div>
         <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: 8 }}>
-          Requires login. Scan → one tap to check out (auto: relo type, +2 day due date) or return. No forms needed.
+          Requires login. Check in/out, assign to trappers, check out to departments (Relo, Clinic, etc.), add equipment, and manage inventory.
         </div>
       </div>
     </div>
@@ -884,7 +853,7 @@ export default function KioskSetupPage() {
       <Divider />
 
       {/* ═══ STAFF & RELO QR CODES ═══ */}
-      <StaffReloQRSection />
+      <StaffDeviceQRSection />
 
       <Divider />
 
