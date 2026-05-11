@@ -369,6 +369,13 @@ Can we follow up in 6 weeks?`,
     prompt: "Barb Grey the trapper called, she said the colony at 4048 Hessel is getting worse, saw 3 new kittens yesterday. She'll go back Thursday.",
     expect: { tool: ["log_event", "place_search", "full_place_briefing"] },
   },
+
+  // City-level TNR query — should use run_sql with recipe #18/#19, NOT area_stats
+  {
+    id: "city_tnr_count",
+    prompt: "How many cats have we TNR'd in Petaluma?",
+    expect: { tool: ["run_sql", "area_stats"] },
+  },
 ];
 
 // =============================================================================

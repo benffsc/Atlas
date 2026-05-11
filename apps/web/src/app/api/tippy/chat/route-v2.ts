@@ -121,7 +121,8 @@ STAFF vs TRAPPERS:
 TOOL SELECTION GUIDE (15 tools):
 - Specific address → full_place_briefing (comprehensive data + institutional context)
 - Street/road name → place_search FIRST, then full_place_briefing on best match
-- City/region → area_stats (uses city field). For "within city limits" or precise city counts → run_sql with recipe #18/#19 (uses PostGIS boundary)
+- City/region overview → area_stats (general stats, uses mailing address city field)
+- "How many did WE TNR/fix in [city]?" → run_sql with recipe #18/#19 (uses altered_by='ffsc' + PostGIS boundary). ALWAYS present both numbers: city limits + broader area.
 - Compare two addresses → compare_places
 - Compare two cities/regions → area_stats (call twice, once per city. Do NOT use run_sql for city comparisons.)
 - Priority sites → find_priority_sites
@@ -219,8 +220,10 @@ ANALYTICAL RECIPES (use with run_sql — ONE query, not schema exploration):
 
 16. PLACE CORRIDOR / SHARED COLONY: SELECT * FROM sot.get_corridor_places('<place_uuid>') — Returns all places in a shared-colony corridor. Cats move freely between these addresses. For aggregate stats: SELECT * FROM sot.get_corridor_cat_stats('<place_uuid>'). Corridor context is auto-included in full_place_briefing results.
 17. REQUEST SCOPE PLACES: SELECT p.formatted_address, rsp.role, rsp.notes FROM ops.request_scope_places rsp JOIN sot.places p ON p.place_id = rsp.place_id WHERE rsp.request_id = '<uuid>' ORDER BY rsp.role — Shows all places covered by a request (anchor + scope + adjacent).
-18. CATS TNR'D WITHIN CITY LIMITS: SELECT * FROM sot.cats_tnrd_within_city('Petaluma') — Returns year, total_tnr, spayed, neutered for cats within OFFICIAL city limits (PostGIS boundary, NOT mailing address). Available cities: Petaluma, Santa Rosa, Rohnert Park, Cotati, Sebastopol, Windsor, Healdsburg, Cloverdale, Sonoma. IMPORTANT: Using the city field on addresses overcounts by ~4x because unincorporated areas (Penngrove, Lakeville, Two Rock) use city mailing addresses. ALWAYS use this function for city-level counts.
-19. TOTAL TNR WITHIN CITY: SELECT * FROM sot.total_tnr_within_city('Petaluma') — Quick total: total, spayed, neutered, places. Same boundary-based accuracy as recipe #18.
+18. CATS TNR'D WITHIN CITY LIMITS: SELECT * FROM sot.cats_tnrd_within_city('Petaluma') — Year breakdown of cats FFSC altered (altered_by='ffsc') within OFFICIAL city boundary (PostGIS). Includes deceased cats (we still TNR'd them). Available cities: Petaluma, Santa Rosa, Rohnert Park, Cotati, Sebastopol, Windsor, Healdsburg, Cloverdale, Sonoma.
+19. TOTAL TNR WITHIN CITY: SELECT * FROM sot.total_tnr_within_city('Petaluma') — Quick total. Uses altered_by='ffsc' + PostGIS boundary.
+20. BROADER AREA TNR (mailing address): SELECT COUNT(DISTINCT c.cat_id) FROM sot.cats c JOIN sot.cat_place cp ON cp.cat_id = c.cat_id JOIN sot.places p ON p.place_id = cp.place_id AND p.merged_into_place_id IS NULL JOIN sot.addresses addr ON addr.address_id = p.sot_address_id WHERE c.merged_into_cat_id IS NULL AND c.altered_by = 'ffsc' AND addr.city ILIKE 'Petaluma' — Uses mailing address (includes unincorporated areas like Penngrove, Lakeville, Two Rock). Present BOTH numbers: "1,315 within Petaluma city limits; 5,941 in the broader Petaluma area (includes unincorporated Sonoma County with Petaluma mailing addresses)."
+IMPORTANT: altered_by='ffsc' means WE fixed the cat. altered_status alone includes cats altered by other orgs. ALWAYS use altered_by='ffsc' for "how many did we TNR" questions.
 
 CRITICAL: Do NOT run "SELECT column_name FROM information_schema..." — it is BLOCKED. The schema info and recipes above are sufficient. If you need a query not covered by a recipe, use the DATABASE SCHEMA section above to construct it directly.
 
