@@ -33,6 +33,7 @@ interface RosterEntry {
   microchip: string | null;
   cat_sex: string | null;
   cat_color: string | null;
+  cat_secondary_color: string | null;
   cat_breed: string | null;
   weight_lbs: number | null;
   clinic_day_number: number | null;
@@ -80,7 +81,7 @@ export default function ClinicDaysPage() {
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [unlinkedCats, setUnlinkedCats] = useState<Array<{
     cat_id: string; cat_name: string | null; microchip: string | null;
-    cat_sex: string | null; cat_color: string | null; cat_breed: string | null;
+    cat_sex: string | null; cat_color: string | null; cat_secondary_color: string | null; cat_breed: string | null;
     appointment_number: string | null; client_name: string | null;
     clinic_day_number: number | null; photo_url: string | null; photo_count: number;
   }>>([]);
@@ -698,7 +699,7 @@ export default function ClinicDaysPage() {
                     {[
                       entry.cat_sex === "Female" ? "F" : entry.cat_sex === "Male" ? "M" : null,
                       entry.weight_lbs ? `${entry.weight_lbs}lbs` : null,
-                      entry.cat_color,
+                      formatColor(entry.cat_color, entry.cat_secondary_color),
                       entry.microchip ? `...${entry.microchip.slice(-4)}` : null,
                     ].filter(Boolean).join(" · ")}
                   </div>
@@ -800,7 +801,7 @@ export default function ClinicDaysPage() {
                     {cat.cat_name || "Unknown"}
                   </div>
                   <div style={{ fontSize: "0.65rem", color: "var(--muted)" }}>
-                    {[cat.cat_sex === "Female" ? "F" : cat.cat_sex === "Male" ? "M" : null, cat.cat_color, cat.microchip ? `...${cat.microchip.slice(-4)}` : null].filter(Boolean).join(" · ")}
+                    {[cat.cat_sex === "Female" ? "F" : cat.cat_sex === "Male" ? "M" : null, formatColor(cat.cat_color, cat.cat_secondary_color), cat.microchip ? `...${cat.microchip.slice(-4)}` : null].filter(Boolean).join(" · ")}
                   </div>
                   <div style={{ fontSize: "0.65rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {cat.client_name || ""}
