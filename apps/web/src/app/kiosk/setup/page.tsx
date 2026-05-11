@@ -21,12 +21,24 @@ import { SkeletonList } from "@/components/feedback/Skeleton";
  * ───────────────────────────────────────────────────────── */
 
 const KIOSK_PATH = "/kiosk/equipment/scan";
+const STAFF_SCAN_PATH = "/equipment/scan";
+const RELO_PATH = "/kiosk/equipment/relo";
 
 function useKioskUrl() {
   const [url, setUrl] = useState(KIOSK_PATH);
-  useEffect(() => {
-    setUrl(`${window.location.origin}${KIOSK_PATH}`);
-  }, []);
+  useEffect(() => { setUrl(`${window.location.origin}${KIOSK_PATH}`); }, []);
+  return url;
+}
+
+function useStaffUrl() {
+  const [url, setUrl] = useState(STAFF_SCAN_PATH);
+  useEffect(() => { setUrl(`${window.location.origin}${STAFF_SCAN_PATH}`); }, []);
+  return url;
+}
+
+function useReloUrl() {
+  const [url, setUrl] = useState(RELO_PATH);
+  useEffect(() => { setUrl(`${window.location.origin}${RELO_PATH}`); }, []);
   return url;
 }
 
@@ -710,6 +722,83 @@ function PrintableSetupCard({ kioskUrl, orgName }: { kioskUrl: string; orgName: 
 /* ═══════════════════════════════════════════════════════════
  * Main Page Component
  * ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+ * Staff & Relo QR Codes
+ * ═══════════════════════════════════════════════════════════ */
+function StaffReloQRSection() {
+  const staffUrl = useStaffUrl();
+  const reloUrl = useReloUrl();
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, margin: "0 0 8px", color: "var(--text-primary)" }}>
+        Other Device Modes
+      </h2>
+      <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: "0 0 16px" }}>
+        Scan these QR codes with your phone or bookmark on a tablet.
+      </p>
+
+      {/* Staff scan */}
+      <div style={{
+        border: "1px solid var(--border-default)", borderRadius: 12,
+        padding: 16, marginBottom: 12, background: "var(--card-bg)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: "var(--primary)", display: "flex",
+            alignItems: "center", justifyContent: "center",
+          }}>
+            <Icon name="scan-barcode" size={18} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Staff Scan</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+              Full equipment management from your phone
+            </div>
+          </div>
+        </div>
+        <QRCode url={staffUrl} size={160} />
+        <div style={{ marginTop: 8 }}>
+          <CopyableUrl url={staffUrl} />
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: 8 }}>
+          Requires login. Can scan, check in/out, assign to trappers, add equipment, and manage inventory.
+        </div>
+      </div>
+
+      {/* Relo quick scan */}
+      <div style={{
+        border: "1px solid var(--border-default)", borderRadius: 12,
+        padding: 16, background: "var(--card-bg)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: "var(--info-text)", display: "flex",
+            alignItems: "center", justifyContent: "center",
+          }}>
+            <Icon name="truck" size={18} color="#fff" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>Relo Quick Scan</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+              One-tap checkout for trap bay tablet
+            </div>
+          </div>
+        </div>
+        <QRCode url={reloUrl} size={160} />
+        <div style={{ marginTop: 8 }}>
+          <CopyableUrl url={reloUrl} />
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: 8 }}>
+          Requires login. Scan → one tap to check out (auto: relo type, +2 day due date) or return. No forms needed.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function KioskSetupPage() {
   const { isStandalone, isIOS, ready } = useDeviceDetection();
   const kioskUrl = useKioskUrl();
@@ -791,6 +880,11 @@ export default function KioskSetupPage() {
       ) : (
         <DesktopState kioskUrl={kioskUrl} />
       )}
+
+      <Divider />
+
+      {/* ═══ STAFF & RELO QR CODES ═══ */}
+      <StaffReloQRSection />
 
       <Divider />
 
