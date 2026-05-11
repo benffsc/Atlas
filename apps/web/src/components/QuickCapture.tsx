@@ -63,6 +63,7 @@ function getContextualPrompt(): string {
 
 export function QuickCapture() {
   const [text, setText] = useState("");
+  const [source, setSource] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "submitting" | "done" | "dismissed">("idle");
   const [result, setResult] = useState<CaptureResult | null>(null);
   const [recentCaptures, setRecentCaptures] = useState<string[]>([]);
@@ -90,7 +91,10 @@ export function QuickCapture() {
     setState("submitting");
 
     try {
-      const data = await postApi("/api/tippy/quick-capture", { text: text.trim() }) as CaptureResult;
+      const data = await postApi("/api/tippy/quick-capture", {
+        text: source ? `[${source}] ${text.trim()}` : text.trim(),
+        source: source || "quick_capture",
+      }) as CaptureResult;
       setResult(data);
       setState("done");
 
@@ -183,6 +187,27 @@ export function QuickCapture() {
               minHeight: "52px",
             }}
           />
+
+          {/* Source channel chips — optional, one-tap */}
+          <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+            {["Phone call", "Email", "Text/SMS", "Field visit", "Voicemail"].map((s) => (
+              <button
+                key={s}
+                onClick={() => setSource(source === s ? null : s)}
+                style={{
+                  padding: "2px 10px",
+                  fontSize: "0.7rem",
+                  borderRadius: "12px",
+                  border: `1px solid ${source === s ? "var(--primary)" : "var(--card-border)"}`,
+                  background: source === s ? "var(--primary)" : "transparent",
+                  color: source === s ? "var(--primary-foreground)" : "var(--muted)",
+                  cursor: "pointer",
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px" }}>
             <div style={{ display: "flex", gap: "8px" }}>

@@ -562,7 +562,7 @@ async function assembleBriefingData(staffId: string): Promise<string> {
          LEFT JOIN sot.places p ON p.place_id = je.primary_place_id
          WHERE je.created_at >= NOW() - INTERVAL '3 days'
            AND je.entry_kind = 'note'
-           AND ('tippy' = ANY(je.tags) OR 'field_contact' = ANY(je.tags))
+           AND ('tippy' = ANY(je.tags) OR 'field_contact' = ANY(je.tags) OR 'quick_capture' = ANY(je.tags))
          ORDER BY je.created_at DESC LIMIT 5`
       );
       if (recentCaptures.length > 0) {

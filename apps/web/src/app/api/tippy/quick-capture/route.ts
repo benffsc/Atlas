@@ -19,39 +19,66 @@ import { executeToolCallV2, type ToolContext, type ToolResult } from "../tools-v
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = "claude-sonnet-4-6";
 
-const CAPTURE_SYSTEM = `You are Tippy, processing a quick context capture from an FFSC staff member.
-Today's date is ${new Date().toISOString().split("T")[0]}.
+const CAPTURE_SYSTEM_FN = () => `You are Tippy, processing a quick context capture from an FFSC staff member.
+Today is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.
 
 The staff member just dumped some text — a phone call, email, field note, or thought.
 Your job: extract ALL actionable information and create records. Be thorough but fast.
 
+WORKFLOW — resolve THEN write:
+1. If the text mentions a PLACE (address, street, colony name) → call place_search FIRST to get the place_id
+2. If the text mentions a PERSON by name → call person_lookup FIRST to find their record
+3. THEN create the records using the resolved IDs (entity_id parameter)
+4. This ensures notes link to the RIGHT place/person, not orphaned
+
 For EACH piece of information, call the appropriate tool:
 - New person with phone/address → log_event with action_type="add_field_contact"
-- Observation about a place → log_event with action_type="add_note"
+- Observation about a place → log_event with action_type="add_note" (use entity_type="place" + entity_id from place_search)
 - Cat sighting/count → log_event with action_type="field_event"
 - Time-sensitive followup → create_reminder
 - General context → log_event with action_type="add_note"
 
+ALWAYS include the FULL original text in the notes field. The structured extraction is for linking — but the raw text is the source of truth. Never summarize away details.
+
+ATTRIBUTION: Start every note with the source in brackets:
+- [Phone call from Rick] ...
+- [Email from Diane] ...
+- [Text from Katie] ...
+- [Field observation] ...
+- [Staff note] ...
+
 IDENTITY INTELLIGENCE:
-When staff says "I got this email FROM [person]" or "this is [person]'s number" or "[person] texted me from [phone/email]":
-- This is a STRONG signal about who OWNS that contact method
-- If the person mentioned is a known trapper/staff/volunteer, their contact info takes priority over automated data engine matches
-- Log the attribution: "Staff confirmed [email/phone] belongs to [person] (context: [quote])"
-- Use action_type="add_note" with entity_type="person" to record this for data quality review
-- Include the tag "identity_signal" so data engineers can process corrections
+When staff says "got this email FROM [person]" or "[person]'s number is X":
+- STRONG identity signal — log with tag "identity_signal"
+- Staff knowledge > automated matching
 
-Example: "Got an email from Barb Grey about trapping at Oak St" → note on Barb Grey: "Staff confirmed email communication with Barb Grey [identity_signal]. Context: email about trapping at Oak St."
-
-This is CRITICAL institutional knowledge — staff often know who owns a phone/email better than automated matching. Capture these signals.
-
-If the text mentions a specific address, attach notes to that place.
-If it mentions a person by name + contact info, create a field contact.
-If it has a date or "follow up in X weeks", create a reminder.
-
-After processing, respond with a SHORT summary of what you captured (1-2 sentences).
+After processing, respond with a SHORT summary: what you captured, which places/people it linked to, and any reminders created. One paragraph max.
 Do NOT ask clarifying questions. Just capture what's there.`;
 
+
 const CAPTURE_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "place_search",
+    description: "Find a place by address or name. Use this FIRST to resolve ambiguous locations before creating notes. Returns place_id you can use in log_event.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        address: { type: "string", description: "Address, street name, or place name" },
+      },
+      required: ["address"],
+    },
+  },
+  {
+    name: "person_lookup",
+    description: "Find a person by name, email, or phone. Use to resolve people mentioned in the capture so notes link to the right person record.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        identifier: { type: "string", description: "Name, email, or phone" },
+      },
+      required: ["identifier"],
+    },
+  },
   {
     name: "log_event",
     description: "Log field data. action_type: add_field_contact | add_note | field_event",
@@ -99,7 +126,7 @@ export async function POST(request: NextRequest) {
     return apiBadRequest("Authentication required");
   }
 
-  let body: { text: string };
+  let body: { text: string; source?: string };
   try {
     body = await request.json();
   } catch {
@@ -118,28 +145,45 @@ export async function POST(request: NextRequest) {
     `SELECT display_name FROM ops.staff WHERE staff_id = $1`,
     [session.staff_id]
   );
+  const staffName = staff?.display_name || "Unknown";
+
+  // Preserve the RAW text as a journal entry FIRST — even if Claude's extraction
+  // fails or misinterprets, the original dump is never lost.
+  const sourceChannel = body.source || "quick_capture"; // future: "phone", "email", "text"
+  try {
+    await queryOne(
+      `INSERT INTO ops.journal_entries (
+        entry_kind, occurred_at, body, created_by, tags
+      ) VALUES (
+        'note', NOW(), $1, $2, ARRAY['quick_capture', 'raw_input', $3]
+      ) RETURNING id`,
+      [body.text.trim(), staffName, sourceChannel]
+    );
+  } catch {
+    // Non-blocking — don't fail the capture if raw preservation fails
+  }
 
   const toolContext: ToolContext = {
     staffId: session.staff_id,
-    staffName: staff?.display_name || "Unknown",
+    staffName: staffName,
     aiAccessLevel: "full",
   };
 
   try {
     const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-    // Run up to 3 iterations to process all entities
+    // Run up to 5 iterations: resolve places/people (1-2), then write records (3-5)
     const messages: Anthropic.MessageParam[] = [
       { role: "user", content: body.text },
     ];
 
     const actionsCreated: string[] = [];
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const response = await client.messages.create({
         model: MODEL,
         max_tokens: 1024,
-        system: CAPTURE_SYSTEM,
+        system: CAPTURE_SYSTEM_FN(),
         messages,
         tools: CAPTURE_TOOLS,
         tool_choice: i === 0 ? { type: "auto" } : { type: "auto" },
