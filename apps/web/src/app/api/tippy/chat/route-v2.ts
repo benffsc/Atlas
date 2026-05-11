@@ -121,7 +121,7 @@ STAFF vs TRAPPERS:
 TOOL SELECTION GUIDE (15 tools):
 - Specific address → full_place_briefing (comprehensive data + institutional context)
 - Street/road name → place_search FIRST, then full_place_briefing on best match
-- City/region → area_stats
+- City/region → area_stats (uses city field). For "within city limits" or precise city counts → run_sql with recipe #18/#19 (uses PostGIS boundary)
 - Compare two addresses → compare_places
 - Compare two cities/regions → area_stats (call twice, once per city. Do NOT use run_sql for city comparisons.)
 - Priority sites → find_priority_sites
@@ -219,6 +219,8 @@ ANALYTICAL RECIPES (use with run_sql — ONE query, not schema exploration):
 
 16. PLACE CORRIDOR / SHARED COLONY: SELECT * FROM sot.get_corridor_places('<place_uuid>') — Returns all places in a shared-colony corridor. Cats move freely between these addresses. For aggregate stats: SELECT * FROM sot.get_corridor_cat_stats('<place_uuid>'). Corridor context is auto-included in full_place_briefing results.
 17. REQUEST SCOPE PLACES: SELECT p.formatted_address, rsp.role, rsp.notes FROM ops.request_scope_places rsp JOIN sot.places p ON p.place_id = rsp.place_id WHERE rsp.request_id = '<uuid>' ORDER BY rsp.role — Shows all places covered by a request (anchor + scope + adjacent).
+18. CATS TNR'D WITHIN CITY LIMITS: SELECT * FROM sot.cats_tnrd_within_city('Petaluma') — Returns year, total_tnr, spayed, neutered for cats within OFFICIAL city limits (PostGIS boundary, NOT mailing address). Available cities: Petaluma, Santa Rosa, Rohnert Park, Cotati, Sebastopol, Windsor, Healdsburg, Cloverdale, Sonoma. IMPORTANT: Using the city field on addresses overcounts by ~4x because unincorporated areas (Penngrove, Lakeville, Two Rock) use city mailing addresses. ALWAYS use this function for city-level counts.
+19. TOTAL TNR WITHIN CITY: SELECT * FROM sot.total_tnr_within_city('Petaluma') — Quick total: total, spayed, neutered, places. Same boundary-based accuracy as recipe #18.
 
 CRITICAL: Do NOT run "SELECT column_name FROM information_schema..." — it is BLOCKED. The schema info and recipes above are sufficient. If you need a query not covered by a recipe, use the DATABASE SCHEMA section above to construct it directly.
 
