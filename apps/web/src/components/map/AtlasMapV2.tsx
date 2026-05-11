@@ -211,6 +211,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     return true; // consumed the click
   }, [compareActive]);
 
+  // (compare-aware search handlers defined after search hook below)
+
   // ── Street View state (Step 7) ──
   const [streetViewCoords, setStreetViewCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null);
   const [streetViewFullscreen, setStreetViewFullscreen] = useState(false);
@@ -400,6 +402,59 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       setSearchHighlight(-1);
     }
   }, [search, searchHighlight]);
+
+  // ── Compare-aware search selection handlers ──
+  // When compare mode is active, search results add to the route instead of navigating
+  const handleSearchSelectCompareAware = useCallback((r: { item: { lat?: number; lng?: number }; label: string }) => {
+    if (compareActive && r.item.lat && r.item.lng) {
+      setComparePoints((prev) => [...prev, { lat: r.item.lat!, lng: r.item.lng!, label: r.label }]);
+      search.setQuery("");
+      search.setShowResults(false);
+      return;
+    }
+    search.handleLocalSelect(r as any);
+  }, [compareActive, search]);
+
+  const handleAtlasSelectCompareAware = useCallback(async (r: { entity_id: string; display_name: string; metadata?: { lat?: number; lng?: number } }) => {
+    if (compareActive && r.metadata?.lat && r.metadata?.lng) {
+      setComparePoints((prev) => [...prev, { lat: r.metadata!.lat!, lng: r.metadata!.lng!, label: r.display_name }]);
+      search.setQuery("");
+      search.setShowResults(false);
+      return;
+    }
+    await search.handleAtlasSelect(r as any);
+  }, [compareActive, search]);
+
+  const handleGoogleSelectCompareAware = useCallback(async (p: { place_id: string; description: string }) => {
+    if (compareActive) {
+      try {
+        const data = await fetchApi<{ place: { geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string } }>(
+          `/api/places/details?place_id=${p.place_id}`
+        );
+        if (data.place?.geometry?.location) {
+          const { lat, lng } = data.place.geometry.location;
+          setComparePoints((prev) => [...prev, { lat, lng, label: data.place.formatted_address || p.description }]);
+        }
+      } catch {
+        await search.handleGoogleSelect(p as any);
+        return;
+      }
+      search.setQuery("");
+      search.setShowResults(false);
+      return;
+    }
+    await search.handleGoogleSelect(p as any);
+  }, [compareActive, search]);
+
+  const handlePoiSelectCompareAware = useCallback((r: { formatted_address: string; geometry: { location: { lat: number; lng: number } } }) => {
+    if (compareActive) {
+      setComparePoints((prev) => [...prev, { lat: r.geometry.location.lat, lng: r.geometry.location.lng, label: r.formatted_address }]);
+      search.setQuery("");
+      search.setShowResults(false);
+      return;
+    }
+    search.handlePoiSelect(r as any);
+  }, [compareActive, search]);
 
   // ── Basemap switching ──
   useEffect(() => {
@@ -1627,10 +1682,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                 searchQuery={search.query}
                 selectedIndex={searchHighlight}
                 onSelectedIndexChange={setSearchHighlight}
-                onSearchSelect={(r) => { const q = search.query; search.handleLocalSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-                onAtlasSearchSelect={(r) => { const q = search.query; search.handleAtlasSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-                onGooglePlaceSelect={(p) => { const q = search.query; search.handleGoogleSelect(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-                onPoiSelect={(r) => { const q = search.query; search.handlePoiSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onSearchSelect={(r) => { const q = search.query; handleSearchSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onAtlasSearchSelect={(r) => { const q = search.query; handleAtlasSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onGooglePlaceSelect={(p) => { const q = search.query; handleGoogleSelectCompareAware(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onPoiSelect={(r) => { const q = search.query; handlePoiSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
                 onStreetView={handleStreetViewFromSearch}
                 onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
               />
@@ -1656,7 +1711,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
               aria-autocomplete="list"
               aria-controls="map-search-listbox"
               aria-activedescendant={searchHighlight >= 0 ? `srp-item-${searchHighlight}` : undefined}
-              placeholder="Search people, places, or cats... (press /)"
+              placeholder={compareActive ? "Search address to add to route..." : "Search people, places, or cats... (press /)"}
               value={search.query}
               onChange={(e) => { search.setQuery(e.target.value); search.setShowResults(true); }}
               onFocus={() => search.setShowResults(true)}
@@ -1700,10 +1755,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                 searchQuery={search.query}
                 selectedIndex={searchHighlight}
                 onSelectedIndexChange={setSearchHighlight}
-                onSearchSelect={(r) => { const q = search.query; search.handleLocalSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-                onAtlasSearchSelect={(r) => { const q = search.query; search.handleAtlasSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-                onGooglePlaceSelect={(p) => { const q = search.query; search.handleGoogleSelect(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-                onPoiSelect={(r) => { const q = search.query; search.handlePoiSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onSearchSelect={(r) => { const q = search.query; handleSearchSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onAtlasSearchSelect={(r) => { const q = search.query; handleAtlasSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onGooglePlaceSelect={(p) => { const q = search.query; handleGoogleSelectCompareAware(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+                onPoiSelect={(r) => { const q = search.query; handlePoiSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
                 onStreetView={handleStreetViewFromSearch}
                 onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
               />
@@ -1730,10 +1785,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             searchQuery={search.query}
             selectedIndex={searchHighlight}
             onSelectedIndexChange={setSearchHighlight}
-            onSearchSelect={(r) => { const q = search.query; search.handleLocalSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-            onAtlasSearchSelect={(r) => { const q = search.query; search.handleAtlasSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-            onGooglePlaceSelect={(p) => { const q = search.query; search.handleGoogleSelect(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
-            onPoiSelect={(r) => { const q = search.query; search.handlePoiSelect(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onSearchSelect={(r) => { const q = search.query; handleSearchSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onAtlasSearchSelect={(r) => { const q = search.query; handleAtlasSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onGooglePlaceSelect={(p) => { const q = search.query; handleGoogleSelectCompareAware(p); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
+            onPoiSelect={(r) => { const q = search.query; handlePoiSelectCompareAware(r); if (q.length >= 3) addToSearchHistory(q); setSearchHighlight(-1); }}
             onStreetView={handleStreetViewFromSearch}
             onClearSearch={() => { search.setQuery(""); search.setShowResults(false); }}
           />
