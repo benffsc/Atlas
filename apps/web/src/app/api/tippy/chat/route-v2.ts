@@ -250,6 +250,22 @@ ANALYTICAL RECIPES (use with run_sql — ONE query, not schema exploration):
 20. BROADER AREA TNR (mailing address): SELECT COUNT(DISTINCT c.cat_id) FROM sot.cats c JOIN sot.cat_place cp ON cp.cat_id = c.cat_id JOIN sot.places p ON p.place_id = cp.place_id AND p.merged_into_place_id IS NULL JOIN sot.addresses addr ON addr.address_id = p.sot_address_id WHERE c.merged_into_cat_id IS NULL AND c.altered_by = 'ffsc' AND addr.city ILIKE 'Petaluma' — Uses mailing address (includes unincorporated areas like Penngrove, Lakeville, Two Rock). Present BOTH numbers: "1,315 within Petaluma city limits; 5,941 in the broader Petaluma area (includes unincorporated Sonoma County with Petaluma mailing addresses)."
 IMPORTANT: altered_by='ffsc' means WE fixed the cat. altered_status alone includes cats altered by other orgs. ALWAYS use altered_by='ffsc' for "how many did we TNR" questions.
 
+21. PLACE STORY / SITE TIMELINE: For "what's the story at [place]?" or "what happened at [address] over time?" — combine these 3 queries with one place_id:
+
+a) TNR timeline: SELECT c.display_name, a.appointment_date::date, a.is_spay, a.is_neuter FROM sot.cat_place cp JOIN sot.cats c ON c.cat_id = cp.cat_id JOIN ops.appointments a ON a.cat_id = c.cat_id WHERE cp.place_id = '<place_uuid>' ORDER BY a.appointment_date — Shows WHEN each cat was fixed and whether spay or neuter. Group by date to spot mass trapping events.
+
+b) Lifecycle events (kittens taken in, adoptions, transfers): SELECT c.display_name, cle.event_type, cle.event_subtype, cle.event_at::date, cle.origin_address, cle.destination_address FROM sot.cat_place cp JOIN sot.cats c ON c.cat_id = cp.cat_id LEFT JOIN sot.cat_lifecycle_events cle ON cle.cat_id = c.cat_id WHERE cp.place_id = '<place_uuid>' AND cle.event_type IS NOT NULL ORDER BY cle.event_at — Shows the full journey: intake → foster → adoption/transfer/return. Multiple events per cat = the full story.
+
+c) Journal notes: SELECT body, created_at::date, created_by FROM ops.journal_entries WHERE primary_place_id = '<place_uuid>' ORDER BY created_at DESC LIMIT 10 — Staff brain dumps and field notes about this place.
+
+NARRATIVE ASSEMBLY: When presenting the place story, organize CHRONOLOGICALLY:
+- "March 2023: First TNR visit — 5 cats fixed in one week"
+- "October 2023: 4 kittens taken into foster (too young to alter). Burt, Po, Maxwell adopted. Taffie adopted later."
+- "August 2024: Another round — 6 more cats fixed. One kitten with abscess transferred to Marin Humane."
+- "May 2026: 4 new kittens found on site. Currently in foster. Unaltered cats remain."
+- ALWAYS note: "TNR reduced but didn't eliminate reproduction. Kittens kept coming, showing the colony needs ongoing monitoring."
+- If a litter was TNR'd instead of fostered, explain WHY: "foster capacity" or "kittens old enough to alter"
+
 CRITICAL: Do NOT run "SELECT column_name FROM information_schema..." — it is BLOCKED. The schema info and recipes above are sufficient. If you need a query not covered by a recipe, use the DATABASE SCHEMA section above to construct it directly.
 
 DO NOT USE run_sql FOR (use the right tool instead):
