@@ -333,13 +333,26 @@ export async function POST(request: NextRequest) {
             const lng = top.geometry?.location?.lng;
 
             if (addr) {
+              // Extract unit info from original text before geocoding strips it
+              const unitMatch = addressHint.match(/\b(unit|apt|apartment|suite|ste|#|sp|space|lot)\s*[#]?\s*(\w+)/i);
+              const unitStr = unitMatch ? `${unitMatch[1]} ${unitMatch[2]}`.trim() : null;
+
+              // Include unit in address for find_or_create to preserve it
+              const addrWithUnit = unitStr && !addr.toLowerCase().includes(unitStr.toLowerCase())
+                ? addr.replace(/,/, ` ${unitStr},`)
+                : addr;
+
               const placeResult = await queryOne<{ place_id: string }>(
                 `SELECT sot.find_or_create_place_deduped($1, NULL, $2, $3, 'atlas_ui')::TEXT AS place_id`,
-                [addr, lat ?? null, lng ?? null]
+                [addrWithUnit, lat ?? null, lng ?? null]
               );
               if (placeResult?.place_id) {
                 body.place_id = placeResult.place_id;
-                console.log(`[POST /api/requests] Auto-resolved place from text: "${addressHint}" → ${addr} (${placeResult.place_id})`);
+                // Preserve unit in location_description if not already set
+                if (unitStr && !body.location_description) {
+                  body.location_description = unitStr;
+                }
+                console.log(`[POST /api/requests] Auto-resolved place from text: "${addressHint}" → ${addrWithUnit} (${placeResult.place_id})`);
               }
             }
           }
