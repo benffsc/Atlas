@@ -137,6 +137,9 @@ import {
   Minimize2,
   Expand,
   Shrink,
+  Bell,
+  MessageCircle,
+  Play,
   type LucideIcon,
 } from "lucide-react";
 
@@ -308,6 +311,14 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   "minimize-2": Minimize2,
   expand: Expand,
   shrink: Shrink,
+
+  // Notifications + showcase
+  bell: Bell,
+  Bell: Bell,
+  "message-circle": MessageCircle,
+  MessageCircle: MessageCircle,
+  play: Play,
+  Play: Play,
 };
 
 export type IconName = keyof typeof ICON_MAP;

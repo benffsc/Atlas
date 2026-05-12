@@ -1195,11 +1195,11 @@ body.presentation-mode .showcase-toolbar ~ .presentation-indicator {
 .showcase-toolbar {
   position: fixed;
   bottom: 24px;
-  right: 24px;
+  left: 24px;
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 6px;
   font-family: "Raleway", "Helvetica Neue", sans-serif;
 }
