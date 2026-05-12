@@ -2012,24 +2012,30 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                   {SERVICE_ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
                 </select>
               </div>
-              <MapVisualizationMode
-                enabledLayers={enabledLayers}
-                onToggleLayer={toggleLayer}
-                counts={atlasSubLayerCounts}
-                compareMode={compareMode}
-                compareCount={comparedHexes.length}
-                onCompareToggle={() => {
-                  if (compareMode) {
-                    setCompareMode(false);
-                    if (comparedHexes.length >= 2) setShowComparePanel(true);
-                  } else {
-                    setCompareMode(true);
-                    setComparedHexes([]);
-                    setShowComparePanel(false);
-                    setSelectedHex(null);
-                  }
-                }}
-              />
+              {analystMode ? (
+                <div className="map-layer-panel__layers">
+                  <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
+                </div>
+              ) : (
+                <MapVisualizationMode
+                  enabledLayers={enabledLayers}
+                  onToggleLayer={toggleLayer}
+                  counts={atlasSubLayerCounts}
+                  compareMode={compareMode}
+                  compareCount={comparedHexes.length}
+                  onCompareToggle={() => {
+                    if (compareMode) {
+                      setCompareMode(false);
+                      if (comparedHexes.length >= 2) setShowComparePanel(true);
+                    } else {
+                      setCompareMode(true);
+                      setComparedHexes([]);
+                      setShowComparePanel(false);
+                      setSelectedHex(null);
+                    }
+                  }}
+                />
+              )}
             </div>
           ) : null
         }
