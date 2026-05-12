@@ -1132,9 +1132,11 @@ export async function PATCH(
     paramIndex++;
 
     // FFS-1367: Optimistic locking — client sends updated_at from last fetch
+    // Use date_trunc('milliseconds') to avoid microsecond precision mismatch
+    // between JS Date serialization (ms) and PostgreSQL timestamptz (us)
     let concurrencyCheck = "";
     if (body.updated_at) {
-      concurrencyCheck = ` AND updated_at = $${paramIndex}`;
+      concurrencyCheck = ` AND date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $${paramIndex}::timestamptz)`;
       values.push(body.updated_at);
       paramIndex++;
     }
