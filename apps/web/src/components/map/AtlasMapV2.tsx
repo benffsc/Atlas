@@ -50,6 +50,7 @@ import { HexComparePanel } from "@/components/map/components/HexComparePanel";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
 import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
 import { ShowcaseMapTour } from "@/components/ShowcaseMapTour";
+import { MapVisualizationMode } from "@/components/map/components/MapVisualizationMode";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type {
   AtlasPin,
@@ -919,21 +920,21 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     return () => { document.body.classList.remove("map-heatmap-active"); };
   }, [heatmapEnabled]);
 
-  // Boost pin visibility when hexbin overlay is active — add white halo so pins
-  // pop against the colored hexagons. Pins render in Google Maps' markerLayer
-  // (above the hexbin overlayLayer) so they're already on top; this just makes
-  // them visually distinct.
+  // Hide pins when hexbin overlay is active — hexbins are the primary
+  // visualization in this mode, pins are distracting clutter.
   useEffect(() => {
     const STYLE_ID = "atlas-map-hexbin-boost";
     if (!document.getElementById(STYLE_ID)) {
       const style = document.createElement("style");
       style.id = STYLE_ID;
       style.textContent = [
-        "body.map-hexbin-active .atlas-pin-active svg {" +
-        "  filter: drop-shadow(0 0 3px white) drop-shadow(0 0 6px white) drop-shadow(0 2px 2px rgba(0,0,0,0.4));" +
+        "body.map-hexbin-active .atlas-pin-active," +
+        "body.map-hexbin-active .atlas-pin-ref," +
+        "body.map-hexbin-active .atlas-pin-hotspot {" +
+        "  opacity: 0; pointer-events: none; transition: opacity 150ms ease-out;" +
         "}",
-        "body.map-hexbin-active .atlas-pin-ref > div {" +
-        "  box-shadow: 0 0 0 3px white, 0 2px 4px rgba(0,0,0,0.4);" +
+        ".atlas-pin-active, .atlas-pin-ref, .atlas-pin-hotspot {" +
+        "  transition: opacity 150ms ease-out;" +
         "}",
       ].join("\n");
       document.head.appendChild(style);
@@ -2011,9 +2012,24 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                   {SERVICE_ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
                 </select>
               </div>
-              <div className="map-layer-panel__layers">
-                <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
-              </div>
+              <MapVisualizationMode
+                enabledLayers={enabledLayers}
+                onToggleLayer={toggleLayer}
+                counts={atlasSubLayerCounts}
+                compareMode={compareMode}
+                compareCount={comparedHexes.length}
+                onCompareToggle={() => {
+                  if (compareMode) {
+                    setCompareMode(false);
+                    if (comparedHexes.length >= 2) setShowComparePanel(true);
+                  } else {
+                    setCompareMode(true);
+                    setComparedHexes([]);
+                    setShowComparePanel(false);
+                    setSelectedHex(null);
+                  }
+                }}
+              />
             </div>
           ) : null
         }
@@ -2031,9 +2047,24 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                 {SERVICE_ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
               </select>
             </div>
-            <div className="map-layer-panel__layers">
-              <GroupedLayerControl groups={atlasMapLayerGroups} enabledLayers={enabledLayers} onToggleLayer={toggleLayer} inline counts={atlasSubLayerCounts} pinKey={pinKey} />
-            </div>
+            <MapVisualizationMode
+              enabledLayers={enabledLayers}
+              onToggleLayer={toggleLayer}
+              counts={atlasSubLayerCounts}
+              compareMode={compareMode}
+              compareCount={comparedHexes.length}
+              onCompareToggle={() => {
+                if (compareMode) {
+                  setCompareMode(false);
+                  if (comparedHexes.length >= 2) setShowComparePanel(true);
+                } else {
+                  setCompareMode(true);
+                  setComparedHexes([]);
+                  setShowComparePanel(false);
+                  setSelectedHex(null);
+                }
+              }}
+            />
           </div>
       </PortalOrInline>
 
