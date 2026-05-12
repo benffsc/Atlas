@@ -22,7 +22,7 @@ import { useEffect, useState, useCallback } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { ImpactMethodologyDrawer, type ImpactMetric } from "./ImpactMethodologyDrawer";
-import type { ImpactMethodology } from "@/app/api/dashboard/impact/route";
+import type { ImpactMethodology, EconomicModel } from "@/app/api/dashboard/impact/route";
 
 interface YearlyRow {
   year: number;
@@ -81,7 +81,9 @@ export function YearlyImpactChart() {
   const [yearRange, setYearRange] = useState<[number, number] | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [methodology, setMethodology] = useState<ImpactMethodology | null>(null);
+  const [economicModel, setEconomicModel] = useState<EconomicModel | null>(null);
   const [methodologyStartYear, setMethodologyStartYear] = useState(2013);
+  const [totalCatsAltered, setTotalCatsAltered] = useState(0);
   const [auditMetric, setAuditMetric] = useState<ImpactMetric | null>(null);
   const { value: kittensMultiplier } = useAppConfig<number>("impact.kittens_prevented_per_altered_cat");
   const { value: shelterCostPerKitten } = useAppConfig<number>("impact.shelter_cost_per_kitten_usd");
@@ -90,7 +92,7 @@ export function YearlyImpactChart() {
     let cancelled = false;
     Promise.all([
       fetchApi<YearlyData>("/api/dashboard/impact/yearly").catch(() => null),
-      fetchApi<{ methodology: ImpactMethodology; start_year: number }>("/api/dashboard/impact").catch(() => null),
+      fetchApi<{ methodology: ImpactMethodology; economic_model?: EconomicModel; start_year: number; cats_altered: number }>("/api/dashboard/impact").catch(() => null),
     ]).then(([yearlyResult, impactResult]) => {
       if (cancelled) return;
       if (yearlyResult && Array.isArray(yearlyResult.years)) {
@@ -104,6 +106,8 @@ export function YearlyImpactChart() {
       if (impactResult && "methodology" in impactResult) {
         setMethodology(impactResult.methodology);
         setMethodologyStartYear(impactResult.start_year ?? 1990);
+        if (impactResult.economic_model) setEconomicModel(impactResult.economic_model);
+        if (impactResult.cats_altered) setTotalCatsAltered(impactResult.cats_altered);
       }
     });
     return () => { cancelled = true; };
@@ -245,10 +249,14 @@ export function YearlyImpactChart() {
     : `${yearRange[0]}\u2013${yearRange[1]}`;
 
   // Computed impact stats for selected range
-  const kMult = kittensMultiplier ?? 10;
-  const sMult = shelterCostPerKitten ?? 200;
-  const kittensPrevented = rangeTotal * kMult;
-  const shelterCostAvoided = kittensPrevented * sMult;
+  // Use v2 economic model when available, scaled by the ratio of displayed cats to total
+  const v2Ratio = totalCatsAltered > 0 ? rangeTotal / totalCatsAltered : 1;
+  const kittensPrevented = economicModel
+    ? Math.round(economicModel.moderate.kittens_prevented * v2Ratio)
+    : rangeTotal * (kittensMultiplier ?? 10);
+  const shelterCostAvoided = economicModel
+    ? Math.round(economicModel.moderate.costs.total * v2Ratio)
+    : kittensPrevented * (shelterCostPerKitten ?? 200);
 
   function fmtBig(n: number): string {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -297,7 +305,7 @@ export function YearlyImpactChart() {
         {([
           { metric: "cats_altered" as ImpactMetric, value: fmtBig(rangeTotal), label: "Cats Altered", color: "var(--foreground)" },
           { metric: "kittens_prevented" as ImpactMetric, value: `~${fmtBig(kittensPrevented)}`, label: "Kittens Prevented", color: "var(--primary, #2563eb)" },
-          { metric: "shelter_cost_avoided" as ImpactMetric, value: fmtCurrency(shelterCostAvoided), label: "Shelter Costs Avoided", color: "var(--foreground)" },
+          { metric: "shelter_cost_avoided" as ImpactMetric, value: fmtCurrency(shelterCostAvoided), label: economicModel ? "Community Costs Avoided" : "Shelter Costs Avoided", color: "var(--foreground)" },
         ]).map((stat) => (
           <button
             key={stat.metric}
@@ -319,7 +327,7 @@ export function YearlyImpactChart() {
             </div>
             {methodology && (
               <div style={{ fontSize: "0.7rem", color: "var(--primary)", marginTop: "0.25rem" }}>
-                See the math &rarr;
+                {stat.metric === "kittens_prevented" ? "See the model" : stat.metric === "shelter_cost_avoided" ? "See the breakdown" : "See the data"} &rarr;
               </div>
             )}
           </button>
@@ -516,6 +524,7 @@ export function YearlyImpactChart() {
         onClose={() => setAuditMetric(null)}
         metric={auditMetric}
         methodology={methodology}
+        economicModel={economicModel}
         startYear={methodologyStartYear}
         computedAt={new Date().toISOString()}
       />
