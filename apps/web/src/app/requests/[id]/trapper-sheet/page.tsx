@@ -153,6 +153,7 @@ export default function TrapperSheetPage() {
   const [relatedPeople, setRelatedPeople] = useState<RelatedPerson[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [corridorPlaces, setCorridorPlaces] = useState<CorridorPlace[]>([]);
+  const [corridorNotes, setCorridorNotes] = useState<Array<{ body: string; date: string; actor: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [includeKittenPage, setIncludeKittenPage] = useState(false);
@@ -176,11 +177,24 @@ export default function TrapperSheetPage() {
         if (result.place_id) {
           fetchApi<{ mode: string; places: CorridorPlace[] }>(`/api/places/${result.place_id}/colony-context`)
             .then((ctx) => {
-              // Only show corridor/colony places on print (not "nearby" suggestions)
               if (ctx.mode === "colony" || ctx.mode === "corridor") {
                 const others = (ctx.places || []).filter(p => p.relationship !== "self");
                 setCorridorPlaces(others);
               }
+            })
+            .catch(() => {});
+
+          // Fetch recent brain dumps / journal entries for the place
+          fetchApi<{ entries: Array<{ body: string; created_at: string; created_by_staff_name: string | null; occurred_at: string | null }> }>(
+            `/api/journal?place_id=${result.place_id}&limit=3`
+          )
+            .then((jData) => {
+              const notes = (jData.entries || []).map(e => ({
+                body: e.body,
+                date: e.occurred_at || e.created_at,
+                actor: e.created_by_staff_name,
+              }));
+              setCorridorNotes(notes);
             })
             .catch(() => {});
         }
@@ -455,6 +469,24 @@ export default function TrapperSheetPage() {
                       [{p.request_status === "completed" ? "Done" : p.request_status}]
                     </span>
                   )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Field Intel (brain dumps from journal) */}
+        {corridorNotes.length > 0 && (
+          <div className="info-card" style={{ fontSize: "8.5pt", background: "#eff6ff", borderColor: "#bfdbfe" }}>
+            <strong>Recent Intel:</strong>
+            <div style={{ marginTop: "2px", display: "flex", flexDirection: "column", gap: "2px" }}>
+              {corridorNotes.map((n, i) => (
+                <div key={i} style={{ borderLeft: "2px solid #93c5fd", paddingLeft: "5px" }}>
+                  <span style={{ color: "#555" }}>
+                    {new Date(n.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {n.actor && ` — ${n.actor}`}:
+                  </span>{" "}
+                  {n.body.length > 150 ? n.body.slice(0, 150) + "..." : n.body}
                 </div>
               ))}
             </div>

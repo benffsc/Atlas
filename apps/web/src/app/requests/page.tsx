@@ -66,6 +66,8 @@ interface Request {
   is_archived: boolean;
   // FFS-155: Resolution outcome
   resolution_outcome: string | null;
+  // Recent activity heat
+  recent_activity_count: number;
 }
 
 
@@ -654,11 +656,26 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
             }}
           >
             <span>{formatDateLocal(request.source_created_at || request.created_at)}</span>
-            {request.updated_at && request.updated_at.slice(0,10) !== request.created_at.slice(0,10) && (
-              <span style={{ color: getActivityColor(request.updated_at) || "var(--text-muted)" }}>
-                Activity {formatRelativeTime(request.updated_at)}
-              </span>
-            )}
+            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              {(request.recent_activity_count ?? 0) > 0 && (
+                <span style={{
+                  fontSize: "0.6rem",
+                  fontWeight: 700,
+                  padding: "1px 5px",
+                  borderRadius: "8px",
+                  background: (request.recent_activity_count ?? 0) >= 3 ? "#fef2f2" : "#fffbeb",
+                  color: (request.recent_activity_count ?? 0) >= 3 ? "#dc2626" : "#d97706",
+                  border: `1px solid ${(request.recent_activity_count ?? 0) >= 3 ? "#fecaca" : "#fde68a"}`,
+                }}>
+                  {request.recent_activity_count} this week
+                </span>
+              )}
+              {request.updated_at && request.updated_at.slice(0,10) !== request.created_at.slice(0,10) && (
+                <span style={{ color: getActivityColor(request.updated_at) || "var(--text-muted)" }}>
+                  Activity {formatRelativeTime(request.updated_at)}
+                </span>
+              )}
+            </span>
           </div>
 
           {/* TNR Progress mini-bar */}

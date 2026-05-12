@@ -33,6 +33,7 @@ interface RequestListRow {
   active_trapper_count: number;
   place_has_location: boolean;
   data_quality_flags: string[];
+  recent_activity_count: number;
   no_trapper_reason: string | null;
   primary_trapper_name: string | null;
   assignment_status: string;
@@ -216,7 +217,13 @@ export async function GET(request: NextRequest) {
         vrl.requester_is_site_contact,
         vrl.site_contact_name,
         COALESCE(r.is_archived, FALSE) AS is_archived,
-        r.resolution_outcome
+        r.resolution_outcome,
+        COALESCE((
+          SELECT COUNT(*)::INT FROM ops.journal_entries je
+          WHERE (je.primary_place_id = r.place_id OR je.primary_request_id = r.request_id)
+            AND je.is_archived = FALSE
+            AND je.created_at >= NOW() - INTERVAL '7 days'
+        ), 0) AS recent_activity_count
       FROM ops.v_request_list vrl
       JOIN ops.requests r ON r.request_id = vrl.request_id
       ${whereClause}
