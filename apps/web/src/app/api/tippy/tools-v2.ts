@@ -44,6 +44,7 @@ export interface ToolResultCatMeta {
   null_status_count?: number;
   rate_among_known?: number;
   rate_overall?: number;
+  interpretation_guidance?: string[];
 }
 
 export interface ToolResultNarrativeSeed {
@@ -248,6 +249,12 @@ function wrapPlaceResult(
     null_status_count: nullCount,
     rate_among_known: rateAmongKnown,
     rate_overall: rateOverall,
+    interpretation_guidance: [
+      "RECENCY: Lead with activity from last 3 months. Flag data >2 years as 'historical clinic data from [year]'. Recent brain dumps and corridor notes are HIGH priority.",
+      "CLINIC PATTERNS: 10+ cats in one day = mass trapping event (mention trapper + date). 1 cat/few months from residence = pet owner, not colony. Kittens every spring = reproduction not broken. No appointments in 8+ months = needs check-in.",
+      "FRESHNESS: ClinicHQ syncs next-day. ShelterLuv syncs every 6 hours. SL can arrive before CHQ (foster before microchip — normal). Include source: 'Per clinic records from May 7...'",
+      "NARRATIVE: Tell the story chronologically. Group appointments by date to spot trapping events. Explain WHY kittens keep coming despite TNR. End with what to DO next.",
+    ],
   };
 
   return result;

@@ -199,3 +199,19 @@ export function detectStrategicIntent(message: string): boolean {
 
   return strategicPatterns.some((p) => p.test(lower));
 }
+
+/**
+ * Detect if user wants a polished deliverable (email, report, summary).
+ * When true, inject DATA DELIVERABLES guidance into the system prompt.
+ */
+export function detectDeliverableIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  const deliverablePatterns: RegExp[] = [
+    /\b(?:write|draft|prepare|create)\s+(?:a\s+)?(?:summary|report|email|memo|brief)/,
+    /\b(?:summary|report|email|memo)\s+(?:for|to)\s+\w+/,
+    /\bcan\s+you\s+(?:write|summarize|put together)/,
+    /\bwith\s+methodology/,
+    /\bsend\s+(?:this|that|it)\s+to\s+\w+/,
+  ];
+  return deliverablePatterns.some((p) => p.test(lower));
+}
