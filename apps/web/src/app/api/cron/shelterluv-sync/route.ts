@@ -419,6 +419,58 @@ export async function GET(request: NextRequest) {
         console.error(`[SL-SYNC] Animals: ${skippedCount} unchanged (skipped), ${changedCount} with updates (will process)`);
       }
 
+      // APPLY UPDATES: For existing animals with changed data, update sot.cats fields directly
+      // This catches: status changes (foster→adopted), name updates, death records, microchip adds
+      if (changedCount > 0) {
+        const updatedCats = await execute(
+          `WITH changed AS (
+            SELECT sr.id AS staged_id,
+              c.cat_id,
+              sr.payload->>'Name' AS sl_name,
+              sr.payload->>'Status' AS sl_status,
+              sr.payload->>'Sex' AS sl_sex,
+              sr.payload->>'Breed' AS sl_breed,
+              sr.payload->>'Color' AS sl_color,
+              sr.payload->>'Altered' AS sl_altered,
+              sr.payload->'Microchips' AS sl_chips
+            FROM ops.staged_records sr
+            JOIN sot.cats c ON c.shelterluv_animal_id = sr.payload->>'Internal-ID'
+              AND c.merged_into_cat_id IS NULL
+            WHERE sr.source_system = 'shelterluv' AND sr.source_table = 'animals'
+              AND sr.is_processed IS NOT TRUE
+          )
+          UPDATE sot.cats c SET
+            display_name = CASE
+              WHEN ch.sl_name IS NOT NULL AND ch.sl_name != '' AND LENGTH(ch.sl_name) > 3
+                AND ch.sl_name NOT LIKE 'D_H %' AND ch.sl_name NOT LIKE 'D_M %'
+                THEN ch.sl_name
+              ELSE c.display_name
+            END,
+            sex = COALESCE(NULLIF(ch.sl_sex, ''), c.sex),
+            breed = COALESCE(NULLIF(ch.sl_breed, ''), c.breed),
+            is_deceased = CASE WHEN ch.sl_status = 'Deceased' THEN TRUE ELSE c.is_deceased END,
+            updated_at = NOW()
+          FROM changed ch
+          WHERE c.cat_id = ch.cat_id`
+        );
+        if (updatedCats.rowCount && updatedCats.rowCount > 0) {
+          console.error(`[SL-SYNC] Updated ${updatedCats.rowCount} existing cats with ShelterLuv changes`);
+        }
+
+        // Mark these as processed
+        await execute(
+          `UPDATE ops.staged_records sr
+           SET is_processed = TRUE, updated_at = NOW()
+           WHERE sr.source_system = 'shelterluv' AND sr.source_table = 'animals'
+             AND sr.is_processed IS NOT TRUE
+             AND EXISTS (
+               SELECT 1 FROM sot.cats c
+               WHERE c.shelterluv_animal_id = sr.payload->>'Internal-ID'
+                 AND c.merged_into_cat_id IS NULL
+             )`
+        );
+      }
+
       const unprocessedAnimals = await queryRows<{ id: string }>(
         `SELECT id::text FROM ops.staged_records
          WHERE source_system = 'shelterluv'
