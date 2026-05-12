@@ -368,22 +368,55 @@ export async function GET(request: NextRequest) {
     if (!syncType || syncType === "animals") {
       const animalBatchSize = 2000;
 
-      // OPTIMIZATION: Skip re-synced animals that already exist in sot.cats
-      // with matching shelterluv_animal_id. These are redundant updates from
-      // full API re-fetches. Only process truly NEW animals.
-      const skipped = await execute(
-        `UPDATE ops.staged_records sr
-         SET is_processed = TRUE, updated_at = NOW()
-         WHERE sr.source_system = 'shelterluv' AND sr.source_table = 'animals'
-           AND sr.is_processed IS NOT TRUE
-           AND EXISTS (
-             SELECT 1 FROM sot.cats c
-             WHERE c.shelterluv_animal_id = sr.payload->>'Internal-ID'
-               AND c.merged_into_cat_id IS NULL
-           )`
+      // OPTIMIZATION: Smart change detection for re-synced animals.
+      // ShelterLuv re-sends the entire database every sync. Most records are
+      // identical to what we already have. Only process if data CHANGED.
+      //
+      // Fields that matter: Status, Name, Microchips, Altered, Sex, Color,
+      // CurrentLocation, AssociatedPerson, LastUpdatedUnixTime
+      //
+      // Strategy:
+      // 1. Skip if animal exists AND LastUpdatedUnixTime hasn't changed
+      // 2. Process if new animal OR data has changed
+      const skipResult = await execute(
+        `WITH existing AS (
+          SELECT sr.id AS staged_id,
+            c.cat_id,
+            sr.payload->>'LastUpdatedUnixTime' AS incoming_ts,
+            -- Compare against the timestamp we last processed
+            (SELECT MAX(sr2.payload->>'LastUpdatedUnixTime')
+             FROM ops.staged_records sr2
+             WHERE sr2.source_system = 'shelterluv' AND sr2.source_table = 'animals'
+               AND sr2.is_processed = TRUE
+               AND sr2.payload->>'Internal-ID' = sr.payload->>'Internal-ID'
+            ) AS last_processed_ts
+          FROM ops.staged_records sr
+          JOIN sot.cats c ON c.shelterluv_animal_id = sr.payload->>'Internal-ID'
+            AND c.merged_into_cat_id IS NULL
+          WHERE sr.source_system = 'shelterluv' AND sr.source_table = 'animals'
+            AND sr.is_processed IS NOT TRUE
+        )
+        UPDATE ops.staged_records sr
+        SET is_processed = TRUE, updated_at = NOW()
+        FROM existing e
+        WHERE sr.id = e.staged_id
+          AND e.incoming_ts = e.last_processed_ts`
       );
-      if (skipped.rowCount && skipped.rowCount > 0) {
-        console.error(`[SL-SYNC] Skipped ${skipped.rowCount} re-synced animals (already in sot.cats)`);
+      const skippedCount = skipResult.rowCount || 0;
+
+      // Count how many have actual changes (different timestamp = data changed)
+      const changedResult = await queryOne<{ cnt: number }>(
+        `SELECT COUNT(*)::int AS cnt
+         FROM ops.staged_records sr
+         JOIN sot.cats c ON c.shelterluv_animal_id = sr.payload->>'Internal-ID'
+           AND c.merged_into_cat_id IS NULL
+         WHERE sr.source_system = 'shelterluv' AND sr.source_table = 'animals'
+           AND sr.is_processed IS NOT TRUE`
+      );
+      const changedCount = changedResult?.cnt || 0;
+
+      if (skippedCount > 0 || changedCount > 0) {
+        console.error(`[SL-SYNC] Animals: ${skippedCount} unchanged (skipped), ${changedCount} with updates (will process)`);
       }
 
       const unprocessedAnimals = await queryRows<{ id: string }>(
