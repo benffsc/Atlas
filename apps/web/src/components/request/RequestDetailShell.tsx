@@ -101,26 +101,15 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
     setSaving(true);
     setError(null);
     try {
-      await postApi(`/api/requests/${requestId}`, { status: newStatus, updated_at: request.updated_at }, { method: "PATCH" });
+      // Fetch fresh updated_at immediately before PATCH to avoid stale-data 409s.
+      // Panel data can be minutes old (loaded from list), but we still want
+      // optimistic locking for real concurrent edits by multiple staff.
+      const fresh = await fetchApi<{ updated_at: string }>(`/api/requests/${requestId}`);
+      await postApi(`/api/requests/${requestId}`, { status: newStatus, updated_at: fresh.updated_at }, { method: "PATCH" });
       setPreviousStatus(oldStatus);
       await refreshAndNotify();
     } catch (err) {
       const apiErr = err as ApiError;
-      // 409 = stale data — auto-refresh and retry once with fresh updated_at
-      if (apiErr.code === 409) {
-        try {
-          const fresh = await fetchApi<{ updated_at: string }>(`/api/requests/${requestId}`);
-          await postApi(`/api/requests/${requestId}`, { status: newStatus, updated_at: fresh.updated_at }, { method: "PATCH" });
-          setPreviousStatus(oldStatus);
-          await refreshAndNotify();
-          return;
-        } catch (retryErr) {
-          const retryApiErr = retryErr as ApiError;
-          setError(retryApiErr.message || "Failed to update status after retry");
-          await refreshRequest();
-          return;
-        }
-      }
       setError(apiErr.message || "Failed to update status");
     } finally {
       setSaving(false);
