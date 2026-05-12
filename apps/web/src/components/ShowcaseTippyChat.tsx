@@ -323,33 +323,41 @@ export function ShowcaseTippyChat() {
     );
   }
 
-  // ── Open: Chat panel ──
+  // ── Open: Large centered panel (presentation-friendly) ──
   const isBusy = phase === "tools" || phase === "typing-response";
 
   return (
     <div style={{
-      position: "fixed", bottom: 16, right: 16, zIndex: 1001,
-      width: 420, maxWidth: "calc(100vw - 32px)",
-      height: 580, maxHeight: "calc(100vh - 100px)",
+      position: "fixed", inset: 0, zIndex: 1001,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "rgba(0, 0, 0, 0.4)",
+      backdropFilter: "blur(4px)",
+      animation: "showcase-overlay-in 200ms ease-out",
+    }}
+    onClick={(e) => { if (e.target === e.currentTarget) setIsOpen(false); }}
+    >
+    <div style={{
+      width: 720, maxWidth: "calc(100vw - 48px)",
+      height: 680, maxHeight: "calc(100vh - 80px)",
       background: "var(--card-bg, #fff)",
       border: "1px solid var(--border, #e5e7eb)",
-      borderRadius: 16,
-      boxShadow: "0 12px 40px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.08)",
+      borderRadius: 20,
+      boxShadow: "0 24px 80px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.1)",
       display: "flex", flexDirection: "column", overflow: "hidden",
-      animation: "tippy-bubble-in 0.3s ease-out",
+      animation: "showcase-chat-in 300ms ease-out",
     }}>
       {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "10px 16px", borderBottom: "1px solid var(--border, #e5e7eb)",
+        padding: "14px 24px", borderBottom: "1px solid var(--border, #e5e7eb)",
         background: "linear-gradient(135deg, #f0f4ff 0%, #f0fdf4 100%)", flexShrink: 0,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/tippy-mascot.png" alt="Tippy" style={{ width: 28, height: 28, objectFit: "contain" }} />
+          <img src="/tippy-mascot.png" alt="Tippy" style={{ width: 36, height: 36, objectFit: "contain" }} />
           <div>
-            <div style={{ fontWeight: 600, fontSize: "0.85rem", lineHeight: 1.2 }}>Tippy</div>
-            <div style={{ fontSize: "0.6rem", color: "var(--muted, #6b7280)" }}>AI Operations Assistant</div>
+            <div style={{ fontWeight: 600, fontSize: "1.05rem", lineHeight: 1.2 }}>Tippy</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted, #6b7280)" }}>AI Operations Assistant</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
@@ -367,14 +375,14 @@ export function ShowcaseTippyChat() {
       </div>
 
       {/* Messages area */}
-      <div style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Welcome */}
         {messages.length === 0 && !isBusy && (
           <div style={{ textAlign: "center", padding: "16px 0", color: "var(--muted)" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/tippy-mascot.png" alt="" style={{ width: 44, height: 44, objectFit: "contain", margin: "0 auto 6px", display: "block", opacity: 0.8 }} />
-            <div style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: 2 }}>Hi! I&apos;m Tippy.</div>
-            <div style={{ fontSize: "0.75rem" }}>Click a question below or type your own.</div>
+            <div style={{ fontSize: "1.1rem", fontWeight: 500, marginBottom: 4 }}>Hi! I&apos;m Tippy.</div>
+            <div style={{ fontSize: "0.9rem" }}>Click a question below or type your own.</div>
           </div>
         )}
 
@@ -387,7 +395,7 @@ export function ShowcaseTippyChat() {
             borderRadius: 12,
             background: msg.role === "user" ? "var(--primary, #3b82f6)" : "var(--section-bg, #f3f4f6)",
             color: msg.role === "user" ? "#fff" : "var(--foreground)",
-            fontSize: "0.82rem", lineHeight: 1.5,
+            fontSize: "0.95rem", lineHeight: 1.6,
             borderBottomRightRadius: msg.role === "user" ? 4 : 12,
             borderBottomLeftRadius: msg.role === "assistant" ? 4 : 12,
           }}>
@@ -425,7 +433,7 @@ export function ShowcaseTippyChat() {
             alignSelf: "flex-start", maxWidth: "92%", padding: "10px 14px",
             borderRadius: "12px 12px 12px 4px",
             background: "var(--section-bg, #f3f4f6)", color: "var(--foreground)",
-            fontSize: "0.82rem", lineHeight: 1.5,
+            fontSize: "0.95rem", lineHeight: 1.6,
           }}>
             <div className="tippy-markdown">
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{responseText}</ReactMarkdown>
@@ -454,7 +462,7 @@ export function ShowcaseTippyChat() {
               <button key={idx} onClick={() => handleChipClick(idx)} style={{
                 padding: "5px 10px", borderRadius: 16,
                 background: "var(--section-bg, #f3f4f6)", border: "1px solid transparent",
-                color: "var(--foreground)", fontSize: "0.72rem", cursor: "pointer",
+                color: "var(--foreground)", fontSize: "0.85rem", cursor: "pointer",
                 transition: "border-color 150ms, background 150ms", lineHeight: 1.3,
               }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; }}
@@ -472,7 +480,7 @@ export function ShowcaseTippyChat() {
         <div style={{ padding: "6px 14px 2px", borderTop: "1px solid var(--border)", textAlign: "center", flexShrink: 0 }}>
           <button onClick={resetAll} style={{
             padding: "5px 12px", background: "var(--section-bg)", border: "1px solid var(--border)",
-            borderRadius: 16, fontSize: "0.72rem", color: "var(--muted)", cursor: "pointer",
+            borderRadius: 16, fontSize: "0.85rem", color: "var(--muted)", cursor: "pointer",
           }}>Start over</button>
         </div>
       )}
@@ -492,7 +500,7 @@ export function ShowcaseTippyChat() {
             disabled={isBusy}
             style={{
               flex: 1, background: "none", border: "none", outline: "none",
-              fontSize: "0.82rem", color: "var(--foreground)",
+              fontSize: "0.95rem", color: "var(--foreground)",
             }}
           />
           <button type="submit" disabled={!input.trim() || isBusy} style={{
@@ -504,6 +512,7 @@ export function ShowcaseTippyChat() {
           }}>Send</button>
         </div>
       </form>
+    </div>
     </div>
   );
 }
