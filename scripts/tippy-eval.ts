@@ -383,6 +383,13 @@ Can we follow up in 6 weeks?`,
     prompt: "Can you write me a summary of our Petaluma TNR numbers for Pip with methodology?",
     expect: { tool: ["run_sql", "area_stats"] },
   },
+
+  // Place story — should use full_place_briefing or run_sql to build narrative
+  {
+    id: "place_story",
+    prompt: "What's the full story at the Chevron on Todd Rd? I want the timeline of everything that happened there.",
+    expect: { tool: ["full_place_briefing", "place_search", "run_sql"] },
+  },
 ];
 
 // =============================================================================
