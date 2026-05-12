@@ -55,25 +55,24 @@ const DEMO_CONVERSATIONS: DemoConversation[] = [
     question: "What's the situation at the Todd Rd gas station?",
     tools: ["Looking up place", "Tracing cat journeys", "Checking ShelterLuv outcomes"],
     response:
-      "**Chevron Todd Rd** — 28 cats TNR'd, but the work isn't done\n\n" +
-      "Someone called about one cat. We've now helped 28. But **there are still " +
-      "unaltered cats on site**, and they keep producing kittens.\n\n" +
+      "**Chevron Todd Rd** — 28 cats trapped, neutered, and returned\n\n" +
+      "A community member called about one cat behind a gas station. We've now " +
+      "TNR'd 28 at this site — trapped, fixed at our clinic, and returned to " +
+      "the colony. That's the mission: **stabilize the population in place.**\n\n" +
+      "**But the work isn't done.** Unaltered cats remain on site, and they " +
+      "keep producing kittens:\n\n" +
       "**Current situation (May 2026):**\n" +
-      "- 4 new kittens found on site — all in foster care, too young to alter\n" +
-      "- 1 kitten with an abscess was transferred to Marin Humane for treatment\n" +
+      "- 4 new kittens found — currently in foster, too young to alter yet\n" +
+      "- 1 kitten with an abscess transferred to Marin Humane for medical care\n" +
       "- Community contact continues to monitor the colony\n" +
       "- 2 trappers assigned to the site\n\n" +
-      "**Previous litter — all found homes:**\n\n" +
-      "| Cat | Journey | Current Status |\n|-----|---------|---------------|\n" +
-      "| Burt | Feral → foster → adopted | Home in Santa Rosa |\n" +
-      "| Po | Feral → foster → adopted | Home in Petaluma |\n" +
-      "| Maxwell | Feral → foster → adopted | Home in Rohnert Park |\n" +
-      "| Taffie | Feral → foster → adopted | Home in Santa Rosa |\n\n" +
-      "**This is the story in one site:** We've altered 28 cats and placed 4 in homes. " +
-      "But unaltered cats remain, and kittens keep coming. The 4 new ones are safe in " +
-      "foster — when they're old enough, they'll be fixed and either returned or placed.\n\n" +
-      "**This is why the work continues.** One site, years of effort, and we're not done yet. " +
-      "Every dollar funds the next clinic day that gets us closer.",
+      "When those kittens are old enough, they'll be spayed/neutered — and either " +
+      "returned to the colony or, if they're young enough to socialize, placed in " +
+      "homes. A previous litter from this same site (Burt, Po, Maxwell, Taffie) " +
+      "all ended up adopted — a bonus on top of the core TNR work.\n\n" +
+      "**This is the cycle we're trying to break.** 28 cats fixed, but unaltered " +
+      "cats remain and kittens keep coming. Every clinic day gets us closer to " +
+      "stabilizing this colony for good.",
   },
   {
     question: "Where should we focus limited resources?",
