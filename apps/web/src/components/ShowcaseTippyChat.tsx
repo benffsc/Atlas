@@ -66,10 +66,10 @@ const DEMO_CONVERSATIONS: DemoConversation[] = [
       "- 1 kitten with an abscess transferred to Marin Humane for medical care\n" +
       "- Community contact continues to monitor the colony\n" +
       "- 2 trappers assigned to the site\n\n" +
-      "When those kittens are old enough, they'll be spayed/neutered — and either " +
-      "returned to the colony or, if they're young enough to socialize, placed in " +
-      "homes. A previous litter from this same site (Burt, Po, Maxwell, Taffie) " +
-      "all ended up adopted — a bonus on top of the core TNR work.\n\n" +
+      "Since these kittens are young enough to socialize, they're on a placement " +
+      "track — they'll be spayed/neutered and adopted or placed as barn cats. " +
+      "A previous litter from this same site (Burt, Po, Maxwell, Taffie) all " +
+      "found homes the same way.\n\n" +
       "**This is the cycle we're trying to break.** 28 cats fixed, but unaltered " +
       "cats remain and kittens keep coming. Every clinic day gets us closer to " +
       "stabilizing this colony for good.",
