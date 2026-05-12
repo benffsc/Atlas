@@ -67,16 +67,16 @@ interface AuditResponse {
 
 const METRIC_LABELS: Record<ImpactMetric, { title: string; heroLabel: string }> = {
   cats_altered: {
-    title: "Cats altered — methodology",
+    title: "How we count cats altered",
     heroLabel: "cats altered",
   },
   kittens_prevented: {
-    title: "Kittens prevented — methodology",
+    title: "The population model",
     heroLabel: "kittens prevented",
   },
   shelter_cost_avoided: {
-    title: "Shelter costs avoided — methodology",
-    heroLabel: "shelter costs avoided",
+    title: "The cost model",
+    heroLabel: "community costs avoided",
   },
 };
 
