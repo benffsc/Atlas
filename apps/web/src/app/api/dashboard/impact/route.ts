@@ -1,9 +1,10 @@
 import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
-// Revalidate every 5 minutes. Numbers only change slowly but a stale error
-// response shouldn't hide the impact card for a full hour.
-export const revalidate = 300;
+// Force dynamic — the v2 economic model calls ops.compute_economic_impact()
+// which reads from ops.app_config at runtime. ISR was serving stale v1 numbers.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 interface ImpactRow {
   cats_altered: number;
@@ -403,7 +404,7 @@ export async function GET() {
     };
 
     return apiSuccess(response, {
-      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600" },
+      headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
     console.error("Error fetching dashboard impact:", error);
