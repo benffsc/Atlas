@@ -283,16 +283,36 @@ export async function GET() {
         kittens_prevented: {
           value: kittensPrevented,
           formula: economicModel
-            ? "Sex-aware model: females × litters/yr × kittens/litter × survival × reproductive_years + male contribution"
+            ? `${Math.round(catsAltered * 0.5).toLocaleString()} females × 2.5 litters/yr × 4 kittens × 25% survival × 5 yrs + male contribution`
             : `cats_altered × ${kittensMultiplier}`,
           multiplier: kittensMultiplier,
           assumptions: economicModel
             ? [
-                { label: "Female ratio", value: "50%", rationale: "Approximately half of altered cats are female. Only females prevented from reproducing directly." },
-                { label: "Litters per year", value: "2.5", rationale: "Unaltered female community cats produce 2–3 litters per year (Nutter et al., 2004)." },
-                { label: "Kittens per litter", value: "4.0", rationale: "Average litter size for community cats (Nutter et al., 2004, JAVMA)." },
-                { label: "Kitten survival rate", value: "25%", rationale: "75% kitten mortality in unmanaged colonies (Nutter et al., 2004; Levy et al., 2003)." },
-                { label: "Reproductive lifespan", value: "5 years", rationale: "Average reproductive years for an unaltered community cat (McCarthy et al., 2013)." },
+                {
+                  label: "Sex ratio",
+                  value: "~50% female",
+                  rationale: `Of ${catsAltered.toLocaleString()} cats altered, roughly half are female. Each spayed female is directly prevented from reproducing. Males contribute indirectly by not impregnating other females — but since many spayed females already exist, the male contribution has diminishing returns (we apply a 30% non-overlap factor).`,
+                },
+                {
+                  label: "Litters per year × kittens per litter",
+                  value: "2.5 litters × 4 kittens",
+                  rationale: "An unaltered female community cat produces 2–3 litters per year (ASPCA, Alley Cat Allies). Average litter size is 4.0 kittens (Nutter et al., 2004, JAVMA). That's 10 kittens born per female per year before mortality.",
+                },
+                {
+                  label: "Kitten survival rate",
+                  value: "25% survive",
+                  rationale: "75% of kittens born in unmanaged outdoor colonies die before reaching 6 months — from exposure, predation, disease, and starvation (Nutter et al., 2004; Levy et al., 2003). Only about 1 in 4 survive to adulthood. This is one of the main reasons our kitten prevention number is lower than a simple birth count.",
+                },
+                {
+                  label: "Reproductive lifespan",
+                  value: "5 years",
+                  rationale: "An unaltered community cat typically reproduces for 3–5 years before mortality or reproductive decline (McCarthy et al., 2013). We use 5 years as the upper-mid range. For each cat we alter, we prevent 5 years of future litters.",
+                },
+                {
+                  label: "The full chain",
+                  value: `~${Math.round(kittensPrevented).toLocaleString()} kittens`,
+                  rationale: `Putting it together: ~${Math.round(catsAltered * 0.5).toLocaleString()} females × 2.5 litters/yr × 4 kittens/litter × 25% survival × 5 years = ${Math.round(catsAltered * 0.5 * 2.5 * 4 * 0.25 * 5).toLocaleString()} from females, plus male contribution. Of these prevented kittens, 30% would have entered shelters, 70% would have remained outdoors generating animal control, disease, and property costs.`,
+                },
               ]
             : [
                 {
@@ -318,17 +338,41 @@ export async function GET() {
         shelter_cost_avoided: {
           value: shelterCostAvoided,
           formula: economicModel
-            ? "Six cost categories: shelter intake + animal control + property damage + disease + kitten placement + indirect costs"
+            ? `${Math.round(kittensPrevented).toLocaleString()} prevented kittens → 30% shelter + 70% outdoor → 6 cost categories`
             : `kittens_prevented × $${shelterCostMultiplier}`,
           multiplier: shelterCostMultiplier,
           assumptions: economicModel
             ? [
-                { label: "Shelter intake", value: "$300/cat", rationale: "National average shelter intake cost (ASPCA). 30% of surviving kittens enter shelters." },
-                { label: "Animal control", value: "$150/complaint", rationale: "Average response cost per complaint. 0.3 complaints per unaltered cat per year." },
-                { label: "Property damage", value: "$200/colony/yr", rationale: "Garden damage, waste, vehicle damage from unmanaged colonies." },
-                { label: "Disease costs", value: "$50/cat", rationale: "FIV, FeLV, respiratory treatment and public health monitoring per cat." },
-                { label: "Kitten placement", value: "$250/kitten", rationale: "Vetting, spay/neuter, foster supplies, transport per placed kitten." },
-                { label: "Indirect multiplier", value: "1.3×", rationale: "Environmental impact, volunteer time, admin overhead — 30% above direct costs." },
+                {
+                  label: "Shelter intake (30% of surviving kittens)",
+                  value: `$${Math.round(economicModel.moderate.costs.shelter).toLocaleString()}`,
+                  rationale: `Of the ~${Math.round(kittensPrevented).toLocaleString()} kittens prevented, only ~25% would survive to adulthood (75% kitten mortality). Of those survivors, approximately 30% would eventually enter the shelter system — through owner surrender, stray intake, or animal control pickup. At $300 per cat for intake processing (vaccines, medical screening, housing, staff time), that's ${Math.round(kittensPrevented * 0.25 * 0.30).toLocaleString()} cats × $300. The other 70% of survivors remain as free-roaming community cats, generating the costs below.`,
+                },
+                {
+                  label: "Animal control responses",
+                  value: `$${Math.round(economicModel.moderate.costs.animal_control).toLocaleString()}`,
+                  rationale: `Each unaltered community cat generates roughly 0.3 animal control complaints per year (noise, fighting, spraying, trespassing). Over a 5-year reproductive lifespan, that's 1.5 complaints per cat. At $150 per officer response (dispatch, vehicle, investigation, follow-up), this adds up across ${catsAltered.toLocaleString()} cats prevented from being unaltered nuisance animals.`,
+                },
+                {
+                  label: "Property damage from colonies",
+                  value: `$${Math.round(economicModel.moderate.costs.property_damage).toLocaleString()}`,
+                  rationale: "Unmanaged cat colonies cause ~$200/year in property damage per colony: garden destruction, vehicle scratches from cats sheltering on/under cars, feces contamination, odor damage. We estimate approximately 1 colony per 15 unaltered cats. This is conservative — actual damage from large unmanaged colonies can be significantly higher.",
+                },
+                {
+                  label: "Disease-related costs",
+                  value: `$${Math.round(economicModel.moderate.costs.disease).toLocaleString()}`,
+                  rationale: "Each prevented kitten avoids becoming a potential vector for FIV, FeLV, upper respiratory infections, and parasites. At ~$50 per cat in veterinary treatment and public health monitoring costs (rabies surveillance, disease outbreak response), the prevented kittens represent avoided public health burden.",
+                },
+                {
+                  label: "Kitten placement & foster (30% of survivors)",
+                  value: `$${Math.round(economicModel.moderate.costs.placement).toLocaleString()}`,
+                  rationale: "The same 30% of surviving kittens that enter shelters also need placement: spay/neuter surgery, vetting, foster supplies, transport to adopters, and administrative processing. At $250 per kitten placed, this represents the rescue pipeline cost that TNR prevents from being necessary.",
+                },
+                {
+                  label: "Indirect & environmental costs (30% uplift)",
+                  value: `$${Math.round(economicModel.moderate.costs.indirect).toLocaleString()}`,
+                  rationale: "The direct categories above don't capture everything: volunteer time coordinating TNR that would be needed for larger populations, environmental impact on bird and wildlife populations, administrative overhead for animal services, and reduced property values in areas with visible cat colonies. We apply a conservative 1.3× multiplier (30% above direct costs) — economic studies typically use 1.5–2.0×.",
+                },
               ]
             : [
                 {
