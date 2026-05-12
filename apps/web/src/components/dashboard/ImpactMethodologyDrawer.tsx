@@ -23,7 +23,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import { fetchApi } from "@/lib/api-client";
-import type { ImpactMethodology } from "@/app/api/dashboard/impact/route";
+import { CostWaterfallChart } from "@/components/charts/CostWaterfallChart";
+import type { ImpactMethodology, EconomicModel } from "@/app/api/dashboard/impact/route";
 
 interface YearlyRow {
   year: number;
@@ -88,11 +89,14 @@ function formatHeroNumber(metric: ImpactMetric, value: number): string {
   return value.toLocaleString();
 }
 
+type ConfidenceTier = "conservative" | "moderate" | "high";
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   metric: ImpactMetric | null;
   methodology: ImpactMethodology | null;
+  economicModel?: EconomicModel | null;
   startYear: number;
   computedAt: string;
 }
@@ -102,6 +106,7 @@ export function ImpactMethodologyDrawer({
   onClose,
   metric,
   methodology,
+  economicModel,
   startYear,
   computedAt,
 }: Props) {
@@ -110,6 +115,7 @@ export function ImpactMethodologyDrawer({
   const [auditError, setAuditError] = useState(false);
   const [yearly, setYearly] = useState<YearlyData | null>(null);
   const [yearlyLoading, setYearlyLoading] = useState(false);
+  const [confidenceTier, setConfidenceTier] = useState<ConfidenceTier>("moderate");
 
   useEffect(() => {
     if (!isOpen || !metric) {
@@ -361,6 +367,41 @@ export function ImpactMethodologyDrawer({
                 </p>
               </div>
             )}
+          </section>
+        )}
+
+        {/* Economic model breakdown (v2) */}
+        {economicModel && (metric === "shelter_cost_avoided" || metric === "kittens_prevented") && (
+          <section className="impact-audit-section">
+            <h4 className="impact-audit-section-title">Economic model breakdown</h4>
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+              {(["conservative", "moderate", "high"] as ConfidenceTier[]).map((tier) => (
+                <button
+                  key={tier}
+                  type="button"
+                  onClick={() => setConfidenceTier(tier)}
+                  style={{
+                    padding: "0.2rem 0.6rem",
+                    borderRadius: 4,
+                    fontSize: "0.72rem",
+                    fontWeight: confidenceTier === tier ? 700 : 400,
+                    border: `1px solid ${confidenceTier === tier ? "var(--primary)" : "var(--card-border)"}`,
+                    background: confidenceTier === tier ? "var(--primary)" : "transparent",
+                    color: confidenceTier === tier ? "#fff" : "var(--text-secondary)",
+                    cursor: "pointer",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {tier}
+                </button>
+              ))}
+            </div>
+            <CostWaterfallChart costs={economicModel[confidenceTier].costs} />
+            <p className="impact-audit-sample-note" style={{ marginTop: "0.5rem" }}>
+              {confidenceTier === "conservative" && "Conservative: 60% of moderate estimate. Defensible floor for cautious external communication."}
+              {confidenceTier === "moderate" && "Moderate: Base model output using peer-reviewed parameters. Best single estimate."}
+              {confidenceTier === "high" && "High: 180% of moderate estimate. Supported by literature but near upper bound."}
+            </p>
           </section>
         )}
 

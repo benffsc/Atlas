@@ -1,4 +1,4 @@
-import { queryOne } from "@/lib/db";
+import { queryOne, queryRows } from "@/lib/db";
 import { apiSuccess, apiServerError } from "@/lib/api-response";
 
 // Revalidate every 5 minutes. Numbers only change slowly but a stale error
@@ -21,6 +21,39 @@ interface ImpactRow {
   shelter_cost_rationale: string;
   kittens_source_label: string;
   kittens_source_url: string;
+}
+
+interface EconomicImpactRow {
+  tier: string;
+  kittens_prevented: number;
+  shelter_cost: number;
+  animal_control_cost: number;
+  property_damage_cost: number;
+  disease_cost: number;
+  placement_cost: number;
+  indirect_cost: number;
+  total_cost: number;
+}
+
+export interface CostBreakdown {
+  shelter: number;
+  animal_control: number;
+  property_damage: number;
+  disease: number;
+  placement: number;
+  indirect: number;
+  total: number;
+}
+
+export interface EconomicModelTier {
+  kittens_prevented: number;
+  costs: CostBreakdown;
+}
+
+export interface EconomicModel {
+  conservative: EconomicModelTier;
+  moderate: EconomicModelTier;
+  high: EconomicModelTier;
 }
 
 export interface ImpactMethodology {
@@ -69,6 +102,7 @@ export interface ImpactResponse {
   computed_at: string;
   labels: ImpactLabels;
   methodology: ImpactMethodology;
+  economic_model?: EconomicModel;
 }
 
 /**
@@ -159,6 +193,41 @@ export async function GET() {
     const kittensPrevented = catsAltered * kittensMultiplier;
     const shelterCostAvoided = kittensPrevented * shelterCostMultiplier;
 
+    // Fetch v2 economic model (multi-category × 3 tiers) if available
+    let economicModel: EconomicModel | undefined;
+    try {
+      const ecoRows = await queryRows<EconomicImpactRow>(
+        `SELECT tier, kittens_prevented::numeric, shelter_cost::numeric,
+                animal_control_cost::numeric, property_damage_cost::numeric,
+                disease_cost::numeric, placement_cost::numeric,
+                indirect_cost::numeric, total_cost::numeric
+         FROM ops.compute_economic_impact($1)`,
+        [catsAltered]
+      );
+      if (ecoRows.length === 3) {
+        const tierMap = Object.fromEntries(ecoRows.map(r => [r.tier, r]));
+        const toTier = (r: EconomicImpactRow): EconomicModelTier => ({
+          kittens_prevented: Number(r.kittens_prevented),
+          costs: {
+            shelter: Number(r.shelter_cost),
+            animal_control: Number(r.animal_control_cost),
+            property_damage: Number(r.property_damage_cost),
+            disease: Number(r.disease_cost),
+            placement: Number(r.placement_cost),
+            indirect: Number(r.indirect_cost),
+            total: Number(r.total_cost),
+          },
+        });
+        economicModel = {
+          conservative: toTier(tierMap.conservative),
+          moderate: toTier(tierMap.moderate),
+          high: toTier(tierMap.high),
+        };
+      }
+    } catch {
+      // v2 functions may not exist yet — gracefully degrade
+    }
+
     const response: ImpactResponse = {
       enabled: row.enabled,
       cats_altered: catsAltered,
@@ -173,6 +242,7 @@ export async function GET() {
         kittens_prevented: row.label_kittens_prevented,
         shelter_cost_avoided: row.label_shelter_cost_avoided,
       },
+      economic_model: economicModel,
       methodology: {
         cats_altered: {
           value: catsAltered,

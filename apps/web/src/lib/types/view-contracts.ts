@@ -993,3 +993,28 @@ export interface ListResponse<T> {
   limit: number;
   offset: number;
 }
+
+// =============================================================================
+// IMPACT / ECONOMIC VIEWS
+// =============================================================================
+
+/**
+ * Contract for ops.v_economic_impact_by_city
+ * @see sql/schema/v2/MIG_3136__impact_economic_functions.sql
+ * @route /api/beacon/impact/by-city
+ */
+export interface VCityImpactRow {
+  city_name: string;
+  cats_altered: number;
+  female_count: number;
+  male_count: number;
+  places_served: number;
+  kittens_prevented: number;
+  shelter_cost: number;
+  animal_control_cost: number;
+  property_damage_cost: number;
+  disease_cost: number;
+  placement_cost: number;
+  indirect_cost: number;
+  total_cost: number;
+}

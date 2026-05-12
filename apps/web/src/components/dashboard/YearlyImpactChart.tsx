@@ -196,6 +196,40 @@ export function YearlyImpactChart() {
     ? `M${lastCompleted.x},${lastCompleted.y} L${projectedPt.x},${projectedPt.y}`
     : "";
 
+  // Least-squares regression line
+  const regressionLine = (() => {
+    if (completedPts.length < 3) return null;
+    const n = completedPts.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    completedPts.forEach((p, i) => {
+      const val = p.row.donor_facing_count;
+      sumX += i;
+      sumY += val;
+      sumXY += i * val;
+      sumX2 += i * i;
+    });
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    const startVal = intercept;
+    const endVal = intercept + slope * (n - 1);
+    const startY = padT + plotH - (Math.min(Math.max(startVal, 0), maxCount) / maxCount) * plotH;
+    const endY = padT + plotH - (Math.min(Math.max(endVal, 0), maxCount) / maxCount) * plotH;
+
+    // Optionally extend 2-3 years forward as projection zone
+    const projYears = Math.min(3, 10);
+    const projVal = intercept + slope * (n - 1 + projYears);
+    const projX = completedPts[n - 1].x + (plotW / Math.max(n - 1, 1)) * projYears;
+    const projY = padT + plotH - (Math.min(Math.max(projVal, 0), maxCount) / maxCount) * plotH;
+
+    return {
+      x1: completedPts[0].x, y1: startY,
+      x2: completedPts[n - 1].x, y2: endY,
+      projX: Math.min(projX, chartW - padR), projY,
+      slope: Math.round(slope),
+    };
+  })();
+
   // X-axis labels (sparse)
   const labelInterval = allPoints.length > 20 ? 5 : allPoints.length > 12 ? 3 : allPoints.length > 8 ? 2 : 1;
 
@@ -340,6 +374,34 @@ export function YearlyImpactChart() {
               stroke="var(--primary, #2563eb)" strokeWidth={2.5}
               strokeLinejoin="round" strokeLinecap="round"
             />
+          )}
+
+          {/* Regression trend line */}
+          {regressionLine && (
+            <>
+              <line
+                x1={regressionLine.x1} y1={regressionLine.y1}
+                x2={regressionLine.x2} y2={regressionLine.y2}
+                stroke="var(--warning-bg, #f59e0b)" strokeWidth={1.5}
+                opacity={0.5}
+              />
+              {/* Forward projection zone (dashed) */}
+              <line
+                x1={regressionLine.x2} y1={regressionLine.y2}
+                x2={regressionLine.projX} y2={regressionLine.projY}
+                stroke="var(--warning-bg, #f59e0b)" strokeWidth={1}
+                strokeDasharray="4 3" opacity={0.3}
+              />
+              {/* Slope annotation */}
+              <text
+                x={regressionLine.x2 + 4}
+                y={regressionLine.y2 - 6}
+                fontSize="9" fill="var(--warning-bg, #f59e0b)"
+                fontFamily="inherit" fontWeight="600" opacity={0.7}
+              >
+                {regressionLine.slope >= 0 ? "+" : ""}{regressionLine.slope} cats/yr
+              </text>
+            </>
           )}
 
           {/* Dashed + faded projection line to annualized pace */}

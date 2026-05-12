@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { fetchApi } from "@/lib/api-client";
 import { SkeletonStats, SkeletonText } from "@/components/feedback/Skeleton";
+import { AlterationRateSlider } from "@/components/charts/AlterationRateSlider";
 
 interface ForecastPoint {
   month: number;
@@ -425,6 +426,17 @@ export default function ScenariosPage() {
           </div>
         </>
       )}
+
+      {/* Alteration Rate Economic Projection */}
+      <div className="card card-elevated" style={{ padding: "1.25rem", marginTop: "2rem" }}>
+        <h2 style={{ margin: "0 0 0.5rem 0", fontSize: "1.1rem", fontWeight: 600 }}>
+          Economic Impact Projection
+        </h2>
+        <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: "0 0 1rem 0" }}>
+          Drag the slider to see how changing the alteration rate affects economic impact over 10 years.
+        </p>
+        <AlterationRateSlider />
+      </div>
 
       {/* Empty state */}
       {!forecast && !loading && !placeId && (

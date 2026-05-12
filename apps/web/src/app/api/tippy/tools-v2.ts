@@ -1011,6 +1011,49 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
       required: ["action_type"],
     },
   },
+
+  // 16. economic_impact
+  {
+    name: "economic_impact",
+    description: `Get economic impact data with defensible confidence ranges. Use for:
+- "How much have we saved Petaluma?" → query_type: "by_city", city: "Petaluma"
+- "What's our total economic impact?" → query_type: "total"
+- "Compare Santa Rosa vs Petaluma impact" → query_type: "comparison", cities: ["Santa Rosa", "Petaluma"]
+- "What if we reach 80% alteration?" → query_type: "projection", target_rate: 80
+
+Returns structured ranges (conservative/moderate/high) with per-category cost breakdown:
+shelter intake, animal control, property damage, disease, kitten placement, indirect costs.
+All parameters configurable via ops.app_config. Methodology citable for donor communication.`,
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query_type: {
+          type: "string",
+          enum: ["total", "by_city", "comparison", "projection"],
+          description: "Type of economic impact query",
+        },
+        city: {
+          type: "string",
+          description: "City name (for by_city query)",
+        },
+        cities: {
+          type: "array",
+          items: { type: "string" },
+          description: "City names to compare (for comparison query)",
+        },
+        target_rate: {
+          type: "number",
+          description: "Target alteration rate percentage (for projection query, default 75)",
+        },
+        tier: {
+          type: "string",
+          enum: ["conservative", "moderate", "high"],
+          description: "Confidence tier to use (default: moderate). Conservative for cautious external communication, high for upper range.",
+        },
+      },
+      required: ["query_type"],
+    },
+  },
 ];
 
 // =============================================================================
@@ -4954,6 +4997,173 @@ async function linkCorridorPlaceImpl(
   }
 }
 
+// =============================================================================
+// IMPLEMENTATION: 16. economic_impact
+// =============================================================================
+
+async function economicImpact(
+  queryType: string,
+  city?: string,
+  cities?: string[],
+  targetRate?: number,
+  tier?: string,
+): Promise<ToolResult> {
+  const effectiveTier = tier || "moderate";
+
+  try {
+    switch (queryType) {
+      case "total": {
+        const rows = await queryRows<{
+          tier: string; cats_altered: number; kittens_prevented: number;
+          shelter_cost: number; animal_control_cost: number; property_damage_cost: number;
+          disease_cost: number; placement_cost: number; indirect_cost: number; total_cost: number;
+        }>(
+          `SELECT tier, cats_altered::int, kittens_prevented::numeric, shelter_cost::numeric,
+                  animal_control_cost::numeric, property_damage_cost::numeric, disease_cost::numeric,
+                  placement_cost::numeric, indirect_cost::numeric, total_cost::numeric
+           FROM ops.v_economic_impact_summary`
+        );
+        if (rows.length === 0) return { success: false, error: "No impact data available" };
+
+        const byTier = Object.fromEntries(rows.map(r => [r.tier, {
+          ...r,
+          kittens_prevented: Number(r.kittens_prevented),
+          shelter_cost: Number(r.shelter_cost),
+          animal_control_cost: Number(r.animal_control_cost),
+          property_damage_cost: Number(r.property_damage_cost),
+          disease_cost: Number(r.disease_cost),
+          placement_cost: Number(r.placement_cost),
+          indirect_cost: Number(r.indirect_cost),
+          total_cost: Number(r.total_cost),
+        }]));
+
+        return {
+          success: true,
+          data: {
+            query_type: "total",
+            tiers: byTier,
+            recommended_tier: effectiveTier,
+            methodology: "Sex-aware multi-category economic model (v2). Categories: shelter intake, animal control, property damage, disease, kitten placement, indirect costs. All parameters from ops.app_config.",
+          },
+          caveats: [
+            "All economic estimates are modeled, not directly measured",
+            "Three tiers: conservative (60% of moderate), moderate (base model), high (180% of moderate)",
+            "Parameters are configurable in /admin/config and should be updated with local data when available",
+          ],
+        };
+      }
+
+      case "by_city": {
+        if (!city) return { success: false, error: "city parameter required for by_city query" };
+        const rows = await queryRows<{
+          tier: string; city_name: string; cats_altered: number;
+          female_count: number; male_count: number; places_served: number;
+          kittens_prevented: number; total_cost: number;
+          shelter_cost: number; animal_control_cost: number;
+          property_damage_cost: number; disease_cost: number;
+          placement_cost: number; indirect_cost: number;
+        }>(
+          `SELECT tier, city_name, cats_altered::int, female_count::int, male_count::int,
+                  places_served::int, kittens_prevented::numeric, total_cost::numeric,
+                  shelter_cost::numeric, animal_control_cost::numeric,
+                  property_damage_cost::numeric, disease_cost::numeric,
+                  placement_cost::numeric, indirect_cost::numeric
+           FROM ops.v_economic_impact_by_city WHERE city_name ILIKE $1`,
+          [`%${city}%`]
+        );
+
+        if (rows.length === 0) return { success: false, error: `No data for city: ${city}. City boundaries may not be loaded.` };
+
+        const byTier = Object.fromEntries(rows.map(r => [r.tier, {
+          ...r,
+          kittens_prevented: Number(r.kittens_prevented),
+          total_cost: Number(r.total_cost),
+          shelter_cost: Number(r.shelter_cost),
+          animal_control_cost: Number(r.animal_control_cost),
+          property_damage_cost: Number(r.property_damage_cost),
+          disease_cost: Number(r.disease_cost),
+          placement_cost: Number(r.placement_cost),
+          indirect_cost: Number(r.indirect_cost),
+        }]));
+
+        return {
+          success: true,
+          data: {
+            query_type: "by_city",
+            city: rows[0].city_name,
+            tiers: byTier,
+            recommended_tier: effectiveTier,
+          },
+          caveats: [
+            "City boundaries from OpenStreetMap — cats outside city limits but in the area are not counted",
+            "Uses PostGIS spatial join to place addresses, not string matching",
+          ],
+        };
+      }
+
+      case "comparison": {
+        if (!cities || cities.length < 2) return { success: false, error: "At least 2 cities required for comparison" };
+        const placeholders = cities.map((_, i) => `$${i + 1}`).join(", ");
+        const rows = await queryRows<{
+          tier: string; city_name: string; cats_altered: number; total_cost: number;
+          kittens_prevented: number; places_served: number;
+        }>(
+          `SELECT tier, city_name, cats_altered::int, total_cost::numeric,
+                  kittens_prevented::numeric, places_served::int
+           FROM ops.v_economic_impact_by_city WHERE tier = '${effectiveTier}' AND city_name ILIKE ANY(ARRAY[${placeholders}])`,
+          cities.map(c => `%${c}%`)
+        );
+
+        return {
+          success: true,
+          data: {
+            query_type: "comparison",
+            tier: effectiveTier,
+            cities: rows.map(r => ({
+              ...r,
+              total_cost: Number(r.total_cost),
+              kittens_prevented: Number(r.kittens_prevented),
+            })),
+          },
+        };
+      }
+
+      case "projection": {
+        const rate = targetRate || 75;
+        const orgRow = await queryOne<{ total_altered: number; total_cats: number }>(
+          `SELECT
+             COUNT(*) FILTER (WHERE altered_status IN ('spayed','neutered','altered','Yes')) AS total_altered,
+             COUNT(*) AS total_cats
+           FROM sot.cats WHERE merged_into_cat_id IS NULL`
+        );
+        if (!orgRow) return { success: false, error: "No cat data available" };
+        const currentRate = orgRow.total_cats > 0 ? (orgRow.total_altered / orgRow.total_cats * 100) : 0;
+        const gap = Math.max(rate - currentRate, 0);
+        const additionalNeeded = Math.round(gap * orgRow.total_cats / 100);
+
+        return {
+          success: true,
+          data: {
+            query_type: "projection",
+            current_rate: Math.round(currentRate * 10) / 10,
+            target_rate: rate,
+            total_cats: orgRow.total_cats,
+            additional_alterations_needed: additionalNeeded,
+            estimated_savings_from_gap: additionalNeeded * 6.25 * 200, // rough moderate estimate
+            note: `Reaching ${rate}% would require altering ~${additionalNeeded.toLocaleString()} more cats`,
+          },
+        };
+      }
+
+      default:
+        return { success: false, error: `Unknown query_type: ${queryType}. Use: total, by_city, comparison, projection` };
+    }
+  } catch (error) {
+    console.error("economicImpact error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Economic impact query failed" };
+  }
+}
+
 const TOOL_DISPATCH: Record<string, ToolHandler> = {
   run_sql: (input) =>
     runReadOnlySql(input.sql as string, input.reasoning as string),
@@ -5016,6 +5226,14 @@ const TOOL_DISPATCH: Record<string, ToolHandler> = {
   create_reminder: (input, ctx) => createReminderImpl(input, ctx),
   send_message: (input, ctx) => sendMessageImpl(input, ctx),
   log_event: (input, ctx) => logEvent(input, ctx),
+  economic_impact: (input) =>
+    economicImpact(
+      input.query_type as string,
+      input.city as string | undefined,
+      input.cities as string[] | undefined,
+      input.target_rate as number | undefined,
+      input.tier as string | undefined,
+    ),
 };
 
 export async function executeToolCallV2(
