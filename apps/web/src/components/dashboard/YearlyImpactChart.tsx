@@ -527,6 +527,13 @@ export function YearlyImpactChart() {
         economicModel={economicModel}
         startYear={methodologyStartYear}
         computedAt={new Date().toISOString()}
+        displayValue={
+          auditMetric === "cats_altered" ? rangeTotal
+          : auditMetric === "kittens_prevented" ? kittensPrevented
+          : auditMetric === "shelter_cost_avoided" ? shelterCostAvoided
+          : undefined
+        }
+        displayLabel={rangeLabel}
       />
     </section>
   );

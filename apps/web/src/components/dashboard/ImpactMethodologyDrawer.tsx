@@ -99,6 +99,10 @@ interface Props {
   economicModel?: EconomicModel | null;
   startYear: number;
   computedAt: string;
+  /** Override the hero number to match what the user clicked on (e.g., filtered by year range) */
+  displayValue?: number;
+  /** Override the "since YEAR" label (e.g., "2013–2026") */
+  displayLabel?: string;
 }
 
 export function ImpactMethodologyDrawer({
@@ -109,6 +113,8 @@ export function ImpactMethodologyDrawer({
   economicModel,
   startYear,
   computedAt,
+  displayValue,
+  displayLabel,
 }: Props) {
   const [audit, setAudit] = useState<AuditResponse | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -182,10 +188,10 @@ export function ImpactMethodologyDrawer({
         {/* Hero number */}
         <div className="impact-audit-hero">
           <div className="impact-audit-hero-number">
-            {formatHeroNumber(metric, m.value)}
+            {formatHeroNumber(metric, displayValue ?? m.value)}
           </div>
           <div className="impact-audit-hero-label">
-            {label.heroLabel} since {startYear}
+            {label.heroLabel} {displayLabel ?? `since ${startYear}`}
           </div>
         </div>
 
