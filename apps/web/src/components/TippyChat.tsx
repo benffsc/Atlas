@@ -6,6 +6,14 @@ import { TippyFeedbackModal } from "@/components/modals";
 import { Icon } from "@/components/ui/Icon";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { ActionCard, type ActionCardData } from "@/components/tippy/ActionCard";
+import { ArtifactRenderer } from "@/components/tippy/ArtifactRenderer";
+
+interface ArtifactData {
+  artifact_id: string;
+  html: string;
+  title?: string;
+  height?: number;
+}
 
 interface Message {
   id: string;
@@ -271,6 +279,7 @@ export function TippyChat() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [anomalyCount, setAnomalyCount] = useState(0);
   const [actionCards, setActionCards] = useState<Map<string, ActionCardData>>(new Map());
+  const [artifacts, setArtifacts] = useState<ArtifactData[]>([]);
   const [isExpanded, setIsExpanded] = useState(true);
   const [showBubble, setShowBubble] = useState(true);
   const [historyFetched, setHistoryFetched] = useState(false);
@@ -449,6 +458,16 @@ export function TippyChat() {
                 return next;
               });
             }
+          } else if (event.type === "artifact") {
+            const artifactData = event.data as unknown as ArtifactData;
+            if (artifactData.html) {
+              setArtifacts(prev => [...prev, {
+                artifact_id: artifactData.artifact_id || `art_${Date.now()}`,
+                html: artifactData.html,
+                title: artifactData.title,
+                height: artifactData.height,
+              }]);
+            }
           } else if (event.type === "error") {
             const errData = event.data as { message?: string };
             assistantContent = errData.message || "Sorry, something went wrong. Please try again.";
@@ -588,6 +607,7 @@ export function TippyChat() {
     setView("chat");
     setHasBriefed(false);
     setActionCards(new Map());
+    setArtifacts([]);
     setHistoryFetched(false);
   }, [setConversationId]);
 
@@ -1079,7 +1099,20 @@ export function TippyChat() {
                   }}
                 >
                   {msg.role === "assistant" ? (
-                    <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
+                    <>
+                      <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
+                      {/* Render any artifacts emitted during this message */}
+                      {!isStreaming && artifacts.length > 0 && msg === messages[messages.length - 1] && (
+                        artifacts.map((art) => (
+                          <ArtifactRenderer
+                            key={art.artifact_id}
+                            html={art.html}
+                            title={art.title}
+                            height={art.height}
+                          />
+                        ))
+                      )}
+                    </>
                   ) : (
                     msg.content
                   )}

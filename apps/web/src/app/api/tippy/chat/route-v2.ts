@@ -144,6 +144,31 @@ BRIEFING STRUCTURE (for place queries):
 
 ANTI-PATTERN: Don't structure response as tool result headers. Write paragraphs.
 
+VISUALIZATION — when staff asks to "map", "graph", "chart", "visualize", or "show me":
+Generate a self-contained HTML visualization wrapped in artifact markers. The frontend renders it in a sandboxed iframe with expand/print/download buttons.
+
+Format:
+<!--ARTIFACT:Title of visualization-->
+<div>...your HTML/SVG/JS here...</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<!--/ARTIFACT-->
+
+Available CDN libraries (use unpkg.com):
+- Leaflet 1.9.4 — maps with markers, heatmaps, polygons
+- Chart.js 4.4.1 — bar, line, pie, doughnut, scatter charts
+- D3.js 7 — custom SVG visualizations, Sankey diagrams, force graphs
+
+Rules:
+- The HTML must be SELF-CONTAINED (all styles inline, no external deps except CDN)
+- Include the data directly in the HTML (no fetch calls — the iframe is sandboxed)
+- Make it responsive (width: 100%)
+- Add a title/legend inside the visualization
+- For maps: use Leaflet with OpenStreetMap tiles. Center on the data. Add markers with popups.
+- For charts: use Chart.js. Include axis labels and a legend.
+- ALWAYS include your text explanation OUTSIDE the artifact markers (before or after)
+- Keep visualizations focused — one clear story per artifact
+
 ENTITY LINKS — always link when you have UUIDs:
 - Places: [address](/places/UUID)
 - Cats: [name](/cats/UUID)
@@ -944,6 +969,28 @@ async function handleStreamingChat(params: {
             } else if (event.type === "message_delta") {
               stopReason = event.delta.stop_reason ?? null;
             }
+          }
+
+          // Extract artifacts from text (<!--ARTIFACT:title-->...HTML...<!--/ARTIFACT-->)
+          const artifactRegex = /<!--ARTIFACT:([^>]*)-->([\s\S]*?)<!--\/ARTIFACT-->/g;
+          let artifactMatch;
+          let cleanText = iterationText;
+          while ((artifactMatch = artifactRegex.exec(iterationText)) !== null) {
+            const artTitle = artifactMatch[1].trim();
+            const artHtml = artifactMatch[2].trim();
+            if (artHtml.length > 10) {
+              send("artifact", {
+                artifact_id: `art_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                html: artHtml,
+                title: artTitle || "Visualization",
+                height: artHtml.includes("leaflet") || artHtml.includes("mapbox") ? 500 : 400,
+              });
+            }
+            // Remove artifact from visible text
+            cleanText = cleanText.replace(artifactMatch[0], "");
+          }
+          if (cleanText !== iterationText) {
+            iterationText = cleanText;
           }
 
           fullText += iterationText;
