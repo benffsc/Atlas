@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { postApi } from "@/lib/api-client";
+import { patchRequest } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import type { RequestDetail } from "@/app/requests/[id]/types";
 import type { RequestFieldConfig, SectionCompletion } from "./types";
@@ -134,7 +134,7 @@ export function useRequestSectionEdit({
         return;
       }
 
-      await postApi(`/api/requests/${request.request_id}`, { ...payload, updated_at: request.updated_at }, { method: "PATCH" });
+      await patchRequest(request.request_id, payload);
       await onSaved();
       setIsEditing(false);
     } catch (err) {

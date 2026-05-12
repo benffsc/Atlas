@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
-import { postApi } from "@/lib/api-client";
+import { postApi, patchRequest } from "@/lib/api-client";
 import type { RequestDetail } from "@/app/requests/[id]/types";
 
 interface ExtractedField {
@@ -138,7 +138,7 @@ export function EnrichmentDrawer({
         return;
       }
 
-      await postApi(`/api/requests/${requestId}`, { ...patch, updated_at: request.updated_at }, { method: "PATCH" });
+      await patchRequest(requestId, patch);
 
       // Fire-and-forget journal entry with full original text
       postApi("/api/journal", {

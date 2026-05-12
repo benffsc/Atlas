@@ -13,7 +13,7 @@ import { MediaGallery } from "@/components/media";
 import { SmartField, TabBar, TabPanel } from "@/components/ui";
 import { Icon } from "@/components/ui/Icon";
 import { formatPhone, formatAddress } from "@/lib/formatters";
-import { fetchApi, postApi } from "@/lib/api-client";
+import { fetchApi, postApi, patchRequest } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import { LANGUAGE_OPTIONS, getLabel, getShortLabel } from "@/lib/form-options";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, getStatusColor } from "@/lib/design-tokens";
@@ -101,11 +101,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
     setSaving(true);
     setError(null);
     try {
-      // Fetch fresh updated_at immediately before PATCH to avoid stale-data 409s.
-      // Panel data can be minutes old (loaded from list), but we still want
-      // optimistic locking for real concurrent edits by multiple staff.
-      const fresh = await fetchApi<{ updated_at: string }>(`/api/requests/${requestId}`);
-      await postApi(`/api/requests/${requestId}`, { status: newStatus, updated_at: fresh.updated_at }, { method: "PATCH" });
+      await patchRequest(requestId, { status: newStatus });
       setPreviousStatus(oldStatus);
       await refreshAndNotify();
     } catch (err) {
@@ -140,7 +136,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
     if (!renameValue.trim()) return;
     setSavingRename(true);
     try {
-      await postApi(`/api/requests/${requestId}`, { summary: renameValue.trim(), updated_at: request?.updated_at }, { method: "PATCH" });
+      await patchRequest(requestId, { summary: renameValue.trim() });
       await refreshAndNotify();
       setRenaming(false);
     } catch {
@@ -153,7 +149,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   const handleSiteContactChange = async (personId: string | null) => {
     setSavingSiteContact(true);
     try {
-      await postApi(`/api/requests/${requestId}`, { site_contact_person_id: personId, updated_at: request?.updated_at }, { method: "PATCH" });
+      await patchRequest(requestId, { site_contact_person_id: personId });
       postApi("/api/journal", {
         request_id: requestId,
         entry_kind: "system",

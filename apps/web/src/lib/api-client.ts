@@ -220,3 +220,19 @@ export async function postApi<T>(
     ...options,
   });
 }
+
+/**
+ * PATCH a request with fresh optimistic locking.
+ * Fetches the current updated_at immediately before patching to avoid
+ * stale-data 409 errors from panels/drawers loaded with old data.
+ */
+export async function patchRequest<T = unknown>(
+  requestId: string,
+  patch: Record<string, unknown>,
+): Promise<T> {
+  const fresh = await fetchApi<{ updated_at: string }>(`/api/requests/${requestId}`);
+  return postApi<T>(`/api/requests/${requestId}`, {
+    ...patch,
+    updated_at: fresh.updated_at,
+  }, { method: "PATCH" });
+}

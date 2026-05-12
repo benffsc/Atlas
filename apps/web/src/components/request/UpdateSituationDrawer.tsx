@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
-import { postApi } from "@/lib/api-client";
+import { postApi, patchRequest } from "@/lib/api-client";
 import { formatPhone, formatAddress } from "@/lib/formatters";
 import type { RequestDetail } from "@/app/requests/[id]/types";
 
@@ -200,7 +200,7 @@ export function UpdateSituationDrawer({
       }
 
       if (Object.keys(requestPatch).length > 0) {
-        await postApi(`/api/requests/${requestId}`, { ...requestPatch, updated_at: request.updated_at }, { method: "PATCH" });
+        await patchRequest(requestId, requestPatch);
       }
 
       // 1b. Preserve old address as requester's home when changing cat location
