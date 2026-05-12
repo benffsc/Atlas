@@ -52,27 +52,29 @@ const DEMO_CONVERSATIONS: DemoConversation[] = [
       "Want me to show the corridor on the map?",
   },
   {
-    question: "What's the situation at the Todd Rd gas station?",
-    tools: ["Looking up place", "Tracing cat journeys", "Checking ShelterLuv outcomes"],
+    question: "What's the full story at the Chevron on Todd Rd?",
+    tools: ["Analyzing location", "Loading clinic timeline", "Tracing cat journeys", "Checking ShelterLuv outcomes"],
     response:
-      "**Chevron Todd Rd** — 28 cats trapped, neutered, and returned\n\n" +
-      "A community member called about one cat behind a gas station. We've now " +
-      "TNR'd 28 at this site — trapped, fixed at our clinic, and returned to " +
-      "the colony. That's the mission: **stabilize the population in place.**\n\n" +
-      "**But the work isn't done.** Unaltered cats remain on site, and they " +
-      "keep producing kittens:\n\n" +
-      "**Current situation (May 2026):**\n" +
-      "- 4 new kittens found — currently in foster, too young to alter yet\n" +
-      "- 1 kitten with an abscess transferred to Marin Humane for medical care\n" +
-      "- Community contact continues to monitor the colony\n" +
-      "- 2 trappers assigned to the site\n\n" +
-      "Since these kittens are young enough to socialize, they're on a placement " +
-      "track — they'll be spayed/neutered and adopted or placed as barn cats. " +
-      "A previous litter from this same site (Burt, Po, Maxwell, Taffie) all " +
-      "found homes the same way.\n\n" +
-      "**This is the cycle we're trying to break.** 28 cats fixed, but unaltered " +
-      "cats remain and kittens keep coming. Every clinic day gets us closer to " +
-      "stabilizing this colony for good.",
+      "**Chevron Todd Rd (3825 Santa Rosa Ave)** — 3 years of TNR at one site\n\n" +
+      "Someone called about one cat behind a gas station. Here's what happened:\n\n" +
+      "**March 2023:** First TNR round — 5 cats fixed in one week (3 calicos, 1 black, 1 buff tabby).\n\n" +
+      "**July 2023:** First kitten litter found. Maxwell (grey/white M) taken into foster. " +
+      "Adopted Sept 7 at an on-site adoption event.\n\n" +
+      "**October 2023:** Second litter — Burt (orange/white M), Po, and Taffie taken into " +
+      "foster. All three adopted into homes.\n\n" +
+      "**August 2024:** Another TNR round — 6 more adults fixed. One kitten with an abscess " +
+      "transferred to Marin Humane for treatment.\n\n" +
+      "**October 2024:** 3 more cats fixed.\n\n" +
+      "**May 2026:** 4 new kittens found on site (all under 1 lb). Currently in foster, " +
+      "too young to alter. On a placement track — they'll be fixed and adopted or placed " +
+      "as barn cats once they're old enough. Community contact monitors the site. " +
+      "2 trappers assigned.\n\n" +
+      "**The full picture:** 28 cats TNR'd and returned to the colony. 4 kittens from " +
+      "earlier litters placed in homes. But unaltered cats remain, and kittens keep coming — " +
+      "**that's the cycle TNR is designed to break.** Each round gets us closer to " +
+      "stabilizing this colony for good.\n\n" +
+      "*This narrative was assembled from clinic records, ShelterLuv lifecycle data, and " +
+      "staff field notes — three systems, one story.*",
   },
   {
     question: "Where should we focus limited resources?",

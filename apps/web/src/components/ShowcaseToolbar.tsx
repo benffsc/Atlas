@@ -8,7 +8,8 @@
  * (ShowcaseTippyChat), not through this toolbar.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 
 interface ShowcaseToolbarProps {
   onExit: () => void;
@@ -16,6 +17,7 @@ interface ShowcaseToolbarProps {
 
 export function ShowcaseToolbar({ onExit }: ShowcaseToolbarProps) {
   const [expanded, setExpanded] = useState(false);
+  const pathname = usePathname();
 
   // ESC exits showcase mode
   useEffect(() => {
@@ -26,8 +28,22 @@ export function ShowcaseToolbar({ onExit }: ShowcaseToolbarProps) {
     return () => document.removeEventListener("keydown", handler);
   }, [onExit]);
 
-  const isOnDemo = typeof window !== "undefined" &&
-    (window.location.pathname.startsWith("/demo") || window.location.pathname.startsWith("/walkthrough"));
+  const isOnDemo = pathname?.startsWith("/demo") || pathname?.startsWith("/walkthrough");
+  const isOnMap = pathname === "/map";
+
+  const startMapTour = useCallback(() => {
+    if (isOnMap) {
+      // Already on map — just dispatch the event
+      window.dispatchEvent(new CustomEvent("showcase:maptour"));
+    } else {
+      // Navigate to map, then dispatch after a delay for load
+      window.location.href = "/map";
+      // The tour will be triggered by the map page detecting showcase mode
+      // OR we store intent in sessionStorage and the map picks it up
+      sessionStorage.setItem("showcase:maptour-pending", "1");
+    }
+    setExpanded(false);
+  }, [isOnMap]);
 
   return (
     <div className="showcase-toolbar" role="toolbar" aria-label="Showcase controls">
@@ -44,13 +60,20 @@ export function ShowcaseToolbar({ onExit }: ShowcaseToolbarProps) {
 
       {expanded && (
         <div className="showcase-toolbar-panel">
-          {!isOnDemo && (
-            <div className="showcase-toolbar-section">
+          <div className="showcase-toolbar-section">
+            <span className="showcase-toolbar-label">Demos</span>
+            <button
+              className="showcase-toolbar-btn"
+              onClick={startMapTour}
+            >
+              Colony Tour
+            </button>
+            {!isOnDemo && (
               <a href="/walkthrough/" className="showcase-toolbar-btn">
                 Guided Walkthrough
               </a>
-            </div>
-          )}
+            )}
+          </div>
           <div className="showcase-toolbar-divider" />
           <button
             className="showcase-toolbar-btn showcase-toolbar-exit"

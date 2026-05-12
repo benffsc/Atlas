@@ -49,6 +49,7 @@ import { HexDetailPanel } from "@/components/map/components/HexDetailPanel";
 import { HexComparePanel } from "@/components/map/components/HexComparePanel";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
 import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
+import { ShowcaseMapTour } from "@/components/ShowcaseMapTour";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type {
   AtlasPin,
@@ -2276,6 +2277,9 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           <span className="map-loading-text">Loading map data...</span>
         </div>
       )}
+
+      {/* Showcase map tour — listens for "showcase:maptour" event */}
+      <ShowcaseMapTour map={map} />
 
     </div>
   );
