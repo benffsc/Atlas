@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { formatDistance } from "@/components/map/hooks/useMeasurement";
 import { fetchApi } from "@/lib/api-client";
 
@@ -34,6 +34,7 @@ interface Props {
   onClear: () => void;
   onClose: () => void;
   onReorder: (from: number, to: number) => void;
+  onAddPoint: (point: ComparePoint) => void;
 }
 
 function haversine(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
@@ -53,10 +54,14 @@ function formatDuration(seconds: number): string {
   return mins > 0 ? `${hours} hr ${mins} min` : `${hours} hr`;
 }
 
-export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, onReorder }: Props) {
+export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, onReorder, onAddPoint }: Props) {
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
   const [loadingDirections, setLoadingDirections] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Array<{ place_id: string; description: string }>>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchDirections = useCallback(async () => {
     if (points.length < 2) return;
@@ -129,8 +134,8 @@ export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, 
       {/* Waypoints */}
       <div style={{ padding: "10px 14px" }}>
         {points.length === 0 ? (
-          <div style={{ color: "var(--text-tertiary)", fontStyle: "italic", padding: "1rem 0", textAlign: "center" }}>
-            Click pins on the map to add stops
+          <div style={{ color: "var(--text-tertiary)", fontStyle: "italic", padding: "0.5rem 0", textAlign: "center", fontSize: "0.8rem" }}>
+            Search for addresses or click pins on the map
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -183,6 +188,102 @@ export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, 
             ))}
           </div>
         )}
+
+        {/* Add stop search */}
+        <div style={{ marginTop: 8, position: "relative" }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                const q = e.target.value;
+                setSearchQuery(q);
+                if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                if (q.length < 3) { setSearchResults([]); return; }
+                searchTimeoutRef.current = setTimeout(async () => {
+                  setSearching(true);
+                  try {
+                    const res = await fetchApi<{ predictions: Array<{ place_id: string; description: string }> }>(
+                      `/api/places/autocomplete?input=${encodeURIComponent(q)}`
+                    );
+                    setSearchResults(res.predictions || []);
+                  } catch { setSearchResults([]); }
+                  setSearching(false);
+                }, 300);
+              }}
+              placeholder="Search address to add stop..."
+              style={{
+                flex: 1,
+                padding: "7px 10px",
+                fontSize: "0.8rem",
+                border: "1px solid var(--border, #e5e7eb)",
+                borderRadius: 6,
+                outline: "none",
+                background: "var(--card-bg, #fff)",
+              }}
+              onFocus={() => { if (searchQuery.length >= 3 && searchResults.length > 0) setSearchResults(searchResults); }}
+            />
+            {searching && (
+              <div style={{ display: "flex", alignItems: "center", padding: "0 4px", color: "var(--text-tertiary)", fontSize: "0.7rem" }}>
+                ...
+              </div>
+            )}
+          </div>
+          {searchResults.length > 0 && (
+            <div style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              zIndex: 10,
+              background: "var(--background, #fff)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              boxShadow: "var(--shadow-md)",
+              marginTop: 4,
+              maxHeight: 200,
+              overflowY: "auto",
+            }}>
+              {searchResults.map((r) => (
+                <button
+                  key={r.place_id}
+                  onClick={async () => {
+                    try {
+                      const detail = await fetchApi<{ place: { geometry: { location: { lat: number; lng: number } }; formatted_address: string } }>(
+                        `/api/places/details?place_id=${r.place_id}`
+                      );
+                      if (detail.place?.geometry?.location) {
+                        onAddPoint({
+                          lat: detail.place.geometry.location.lat,
+                          lng: detail.place.geometry.location.lng,
+                          label: detail.place.formatted_address || r.description,
+                        });
+                      }
+                    } catch { /* non-fatal */ }
+                    setSearchQuery("");
+                    setSearchResults([]);
+                  }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    padding: "8px 12px",
+                    border: "none",
+                    borderBottom: "1px solid var(--border, #f3f4f6)",
+                    background: "transparent",
+                    textAlign: "left",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                    color: "var(--foreground)",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--primary-bg, #eff6ff)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  {r.description}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Distance summary */}

@@ -2143,6 +2143,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                 return next;
               });
             }}
+            onAddPoint={(point) => setComparePoints((prev) => [...prev, point])}
           />
         </div>
       )}
