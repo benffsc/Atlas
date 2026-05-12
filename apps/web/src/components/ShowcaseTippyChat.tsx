@@ -52,24 +52,28 @@ const DEMO_CONVERSATIONS: DemoConversation[] = [
       "Want me to show the corridor on the map?",
   },
   {
-    question: "What happened to the cats from the Todd Rd gas station?",
+    question: "What's the situation at the Todd Rd gas station?",
     tools: ["Looking up place", "Tracing cat journeys", "Checking ShelterLuv outcomes"],
     response:
-      "**Chevron Todd Rd** — 28 cats TNR'd at this commercial site\n\n" +
-      "A community member called about one cat. We ended up helping 28. Here's where " +
-      "some of them are now:\n\n" +
-      "| Cat Name | Journey | Current Status |\n|----------|---------|---------------|\n" +
-      "| Burt | Feral behind gas station → foster → adopted | Home in Santa Rosa |\n" +
+      "**Chevron Todd Rd** — 28 cats TNR'd, but the work isn't done\n\n" +
+      "Someone called about one cat. We've now helped 28. But **there are still " +
+      "unaltered cats on site**, and they keep producing kittens.\n\n" +
+      "**Current situation (May 2026):**\n" +
+      "- 4 new kittens found on site — all in foster care, too young to alter\n" +
+      "- 1 kitten with an abscess was transferred to Marin Humane for treatment\n" +
+      "- Community contact continues to monitor the colony\n" +
+      "- 2 trappers assigned to the site\n\n" +
+      "**Previous litter — all found homes:**\n\n" +
+      "| Cat | Journey | Current Status |\n|-----|---------|---------------|\n" +
+      "| Burt | Feral → foster → adopted | Home in Santa Rosa |\n" +
       "| Po | Feral → foster → adopted | Home in Petaluma |\n" +
       "| Maxwell | Feral → foster → adopted | Home in Rohnert Park |\n" +
-      "| Taffie | Feral → foster → adopted | Home in Santa Rosa |\n" +
-      "| (kitten) | Feral → medical care → transferred | Partner rescue |\n\n" +
-      "**That's 5 cats who started as ferals behind a gas station and ended up in loving " +
-      "homes.** The system traces each cat's complete journey — from origin address through " +
-      "intake, foster, and final placement.\n\n" +
-      "New kittens were found at this site in May 2026 and are currently in foster care. " +
-      "The site has an active community contact who monitors and 2 assigned trappers.\n\n" +
-      "This is the full lifecycle: **find → fix → track → place.** Every step recorded.",
+      "| Taffie | Feral → foster → adopted | Home in Santa Rosa |\n\n" +
+      "**This is the story in one site:** We've altered 28 cats and placed 4 in homes. " +
+      "But unaltered cats remain, and kittens keep coming. The 4 new ones are safe in " +
+      "foster — when they're old enough, they'll be fixed and either returned or placed.\n\n" +
+      "**This is why the work continues.** One site, years of effort, and we're not done yet. " +
+      "Every dollar funds the next clinic day that gets us closer.",
   },
   {
     question: "Where should we focus limited resources?",
