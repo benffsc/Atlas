@@ -157,16 +157,16 @@ export function ImpactSummary() {
   const ratio = allCats > 0 ? filteredCats / allCats : 1;
   const useFiltered = timeRange !== "all" && filteredCats > 0 && yearlyData.length > 0;
 
-  const displayCats = useFiltered ? filteredCats : (data?.cats_altered ?? 0);
-  const displayKittens = useFiltered
-    ? Math.round((data?.kittens_prevented ?? 0) * ratio)
-    : (data?.kittens_prevented ?? 0);
-  const displayCost = useFiltered
-    ? Math.round((data?.shelter_cost_avoided ?? 0) * ratio)
-    : (data?.shelter_cost_avoided ?? 0);
-
-  // Confidence ranges from economic model (scaled by ratio if filtered)
+  // Always prefer v2 economic model when available — immune to server-side caching issues
   const eco = data?.economic_model;
+  const baseKittens = eco?.moderate.kittens_prevented ?? data?.kittens_prevented ?? 0;
+  const baseCost = eco?.moderate.costs.total ?? data?.shelter_cost_avoided ?? 0;
+  const baseCats = data?.cats_altered ?? 0;
+
+  const displayCats = useFiltered ? filteredCats : baseCats;
+  const displayKittens = useFiltered ? Math.round(baseKittens * ratio) : Math.round(baseKittens);
+  const displayCost = useFiltered ? Math.round(baseCost * ratio) : Math.round(baseCost);
+
   const consKittens = eco ? Math.round(eco.conservative.kittens_prevented * (useFiltered ? ratio : 1)) : 0;
   const highKittens = eco ? Math.round(eco.high.kittens_prevented * (useFiltered ? ratio : 1)) : 0;
   const consCost = eco ? Math.round(eco.conservative.costs.total * (useFiltered ? ratio : 1)) : 0;
