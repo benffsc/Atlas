@@ -91,7 +91,7 @@ function RangeBar({ low, mid, high, format }: { low: number; mid: number; high: 
 type TimeRange = "all" | "5yr" | "1yr";
 
 const TIME_RANGES: Array<{ key: TimeRange; label: string }> = [
-  { key: "all", label: "All time" },
+  { key: "all", label: "Since 2013" },
   { key: "5yr", label: "Last 5 years" },
   { key: "1yr", label: "This year" },
 ];

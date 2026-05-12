@@ -136,12 +136,10 @@ export async function GET() {
         -- Count first-time alterations by service item (MIG_3075).
         -- Uses service_type (actual surgery) not is_spay/is_neuter (status checkbox).
         -- Each cat counted only once (first surgery date).
+        -- Limited to 2013+ until pre-2013 data is verified.
         SELECT
           COUNT(*)::int AS cats_altered,
-          COALESCE(
-            EXTRACT(YEAR FROM MIN(first_surgery))::int,
-            EXTRACT(YEAR FROM CURRENT_DATE)::int
-          ) AS start_year
+          2013 AS start_year
         FROM (
           SELECT cat_id, MIN(appointment_date) AS first_surgery
           FROM ops.appointments
@@ -149,19 +147,21 @@ export async function GET() {
             AND service_type IS NOT NULL
             AND service_type ~* 'Cat Spay|Cat Neuter'
           GROUP BY cat_id
+          HAVING MIN(appointment_date) >= '2013-01-01'
         ) first_surgeries
       ),
       ref_counts AS (
         SELECT
           COALESCE(SUM(donor_facing_count), 0)::int AS total,
-          MIN(year)::int AS start_year
+          2013 AS start_year
         FROM ops.v_alteration_counts_by_year
+        WHERE year >= 2013
       ),
       counts AS (
         SELECT
           GREATEST(ref_counts.total, db_counts.cats_altered) AS cats_altered,
           db_counts.cats_altered AS cats_altered_db_only,
-          LEAST(ref_counts.start_year, db_counts.start_year) AS start_year
+          2013 AS start_year
         FROM db_counts, ref_counts
       )
       SELECT

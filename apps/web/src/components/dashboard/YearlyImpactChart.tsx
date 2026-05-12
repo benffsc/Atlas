@@ -67,7 +67,6 @@ interface Preset {
 }
 
 const PRESETS: Preset[] = [
-  { label: "All time", getRange: (min, max) => [min, max] },
   { label: "Since 2013", getRange: (_, max) => [2013, max] },
   { label: "Last 10 years", getRange: (_, max) => [max - 9, max] },
   { label: "Last 5 years", getRange: (_, max) => [max - 4, max] },
