@@ -367,6 +367,25 @@ export async function GET(request: NextRequest) {
     // Process animals first (creates cats + detects fosters)
     if (!syncType || syncType === "animals") {
       const animalBatchSize = 2000;
+
+      // OPTIMIZATION: Skip re-synced animals that already exist in sot.cats
+      // with matching shelterluv_animal_id. These are redundant updates from
+      // full API re-fetches. Only process truly NEW animals.
+      const skipped = await execute(
+        `UPDATE ops.staged_records sr
+         SET is_processed = TRUE, updated_at = NOW()
+         WHERE sr.source_system = 'shelterluv' AND sr.source_table = 'animals'
+           AND sr.is_processed IS NOT TRUE
+           AND EXISTS (
+             SELECT 1 FROM sot.cats c
+             WHERE c.shelterluv_animal_id = sr.payload->>'Internal-ID'
+               AND c.merged_into_cat_id IS NULL
+           )`
+      );
+      if (skipped.rowCount && skipped.rowCount > 0) {
+        console.error(`[SL-SYNC] Skipped ${skipped.rowCount} re-synced animals (already in sot.cats)`);
+      }
+
       const unprocessedAnimals = await queryRows<{ id: string }>(
         `SELECT id::text FROM ops.staged_records
          WHERE source_system = 'shelterluv'
