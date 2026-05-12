@@ -300,6 +300,56 @@ export async function POST(request: NextRequest) {
     return apiBadRequest(`Invalid priority. Must be one of: ${REQUEST_PRIORITY.join(', ')}`);
   }
 
+  // Auto-resolve place from text when place_id is missing
+  // Extracts address-like text from summary + location_description,
+  // geocodes via Google, and creates/finds the place via centralized function.
+  if (!body.place_id) {
+    const addressHint = [body.summary, body.location_description]
+      .filter(Boolean)
+      .join(" ");
+
+    // Attempt if text contains a street number (209 Olive) or a street suffix (Olive St, Main Road, etc.)
+    const hasAddressPattern = addressHint && (
+      /\d+\s+\w/.test(addressHint) ||
+      /\b(st|street|ave|avenue|dr|drive|rd|road|ln|lane|way|blvd|ct|court|pl|place|cir|circle)\b/i.test(addressHint)
+    );
+    if (hasAddressPattern) {
+      try {
+        const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+        if (GOOGLE_API_KEY) {
+          const geoUrl = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+          geoUrl.searchParams.set("address", addressHint);
+          geoUrl.searchParams.set("key", GOOGLE_API_KEY);
+          // Bias toward Sonoma County
+          geoUrl.searchParams.set("bounds", "38.1,-123.1|38.85,-122.4");
+
+          const geoRes = await fetch(geoUrl.toString());
+          const geoData = await geoRes.json();
+
+          if (geoData.status === "OK" && geoData.results?.length > 0) {
+            const top = geoData.results[0];
+            const addr = top.formatted_address;
+            const lat = top.geometry?.location?.lat;
+            const lng = top.geometry?.location?.lng;
+
+            if (addr) {
+              const placeResult = await queryOne<{ place_id: string }>(
+                `SELECT sot.find_or_create_place_deduped($1, NULL, $2, $3, 'atlas_ui')::TEXT AS place_id`,
+                [addr, lat ?? null, lng ?? null]
+              );
+              if (placeResult?.place_id) {
+                body.place_id = placeResult.place_id;
+                console.log(`[POST /api/requests] Auto-resolved place from text: "${addressHint}" → ${addr} (${placeResult.place_id})`);
+              }
+            }
+          }
+        }
+      } catch (resolveErr) {
+        console.warn("[POST /api/requests] Auto-resolve place from text failed (non-blocking):", resolveErr);
+      }
+    }
+  }
+
   try {
     const result = await queryOne<{ request_id: string }>(
       `INSERT INTO ops.requests (
