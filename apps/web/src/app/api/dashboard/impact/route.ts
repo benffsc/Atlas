@@ -403,7 +403,7 @@ export async function GET() {
     };
 
     return apiSuccess(response, {
-      headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=7200" },
+      headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600" },
     });
   } catch (error) {
     console.error("Error fetching dashboard impact:", error);
