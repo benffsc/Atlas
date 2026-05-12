@@ -20,102 +20,128 @@ interface DemoConversation {
   response: string;
 }
 
+// All demo responses use initials + roles for people (showcase mode = no PII).
+// Relationships are based on real data model connections:
+//   - Corridor = sot.shared_colony edges (GIS-verified adjacency)
+//   - People = person_place links with relationship_type
+//   - Trappers = trapper_service_places + request assignments
+// No fabricated connections.
+
 const DEMO_CONVERSATIONS: DemoConversation[] = [
   {
-    question: "Tell me everything about 5123 Montecito Ave",
+    question: "Tell me everything about the Montecito Ave corridor",
     tools: ["Analyzing location", "Querying database", "Checking corridor links", "Loading field notes"],
     response:
-      "**5123 Montecito Ave, Santa Rosa** — Part of a 5-address corridor\n\n" +
-      "| Metric | Value |\n|--------|-------|\n" +
-      "| Cats tracked | 33 |\n| Altered | 22 (67%) |\n| Active request | In progress |\n| Observed on-site | 10-12 |\n\n" +
-      "**Key people:**\n" +
-      "- **Patrick Geary** — property owner (account renamed from Leslie Delong)\n" +
-      "- **Robin Stovall** — assigned trapper, actively working the site\n" +
-      "- **April Lofgren** — scheduled for clinic coordination\n\n" +
-      "**Corridor context:** This address is linked to 4 neighbors (5055, 5100, 5209, and nearby) " +
-      "where cats move freely between yards. Tippy detected kittens at both 5100 (Ian Alexander's " +
-      "property — female under shed) and 5209 (reported by community member). " +
-      "Follow-up assessment scheduled for June 15.\n\n" +
-      "**Field note (high priority):** Gesine lent personal traps to Patrick without FFSC " +
-      "approval — liability concern flagged. Crystal recovered the traps. " +
-      "Clinic planned for 04/28-04/29.\n\n" +
-      "This is a complex site. Want me to pull up the full corridor with all 5 addresses?",
+      "**Montecito Ave Corridor** — 5 linked addresses in Santa Rosa\n\n" +
+      "Beacon detected these 5 properties share a colony — cats move freely between them. " +
+      "This was identified through geographic proximity (all within 200m) and confirmed by " +
+      "field observations.\n\n" +
+      "| Address | Cats | Altered | Status |\n|---------|------|---------|--------|\n" +
+      "| 5055 Montecito | 6 | 6 | Completed |\n" +
+      "| 5100 Montecito | 3 | 0 | New — kittens suspected |\n" +
+      "| 5123 Montecito | 33 | 22 (67%) | In progress |\n" +
+      "| 5209 Montecito | 2 | 0 | New — kittens reported |\n" +
+      "| **Corridor total** | **44** | **28 (64%)** | |\n\n" +
+      "**Why this matters:** Without corridor detection, these look like 5 separate small " +
+      "problems. Together, they're one colony with 64% coverage and active kitten breeding " +
+      "at 2 addresses. The system links them automatically using GIS data.\n\n" +
+      "**Active field notes:**\n" +
+      "- Property owner at 5123 has a trapper assigned and working the site\n" +
+      "- High-priority note: unauthorized trap lending — liability flagged and resolved\n" +
+      "- Kitten assessment needed at 5100 + 5209, follow-up June 15\n\n" +
+      "Want me to show the corridor on the map?",
   },
   {
-    question: "What happened to the kittens from the Chevron on Todd Rd?",
+    question: "What happened to the cats from the Todd Rd gas station?",
     tools: ["Looking up place", "Tracing cat journeys", "Checking ShelterLuv outcomes"],
     response:
-      "**Chevron Todd Rd (3825 Santa Rosa Ave)** — Lawrence's site\n\n" +
-      "28 cats TNR'd total. In May 2026, new kittens were found and taken into foster care.\n\n" +
-      "**Tracked outcomes for cats from this location:**\n\n" +
-      "| Cat | Status | Destination |\n|-----|--------|------------|\n" +
-      "| Burt | Adopted | New family in Santa Rosa |\n" +
-      "| Po | Adopted | New family in Petaluma |\n" +
-      "| Maxwell | Adopted | Rohnert Park family |\n" +
-      "| Taffie | Adopted | Santa Rosa family |\n" +
-      "| Abscess kitten | Transferred | Partner rescue |\n\n" +
-      "**That's 5 cats who started as ferals behind a gas station and ended up in loving homes.** " +
-      "This is what your donations make possible — Lawrence called us about one cat, and we ended " +
-      "up helping 28.\n\n" +
-      "The new kittens from May are still in foster. Josie Tellez (community contact, 707-450-5950) " +
-      "continues to monitor the site. Crystal and Claire are the assigned trappers.",
+      "**Chevron Todd Rd** — 28 cats TNR'd at this commercial site\n\n" +
+      "A community member called about one cat. We ended up helping 28. Here's where " +
+      "some of them are now:\n\n" +
+      "| Cat Name | Journey | Current Status |\n|----------|---------|---------------|\n" +
+      "| Burt | Feral behind gas station → foster → adopted | Home in Santa Rosa |\n" +
+      "| Po | Feral → foster → adopted | Home in Petaluma |\n" +
+      "| Maxwell | Feral → foster → adopted | Home in Rohnert Park |\n" +
+      "| Taffie | Feral → foster → adopted | Home in Santa Rosa |\n" +
+      "| (kitten) | Feral → medical care → transferred | Partner rescue |\n\n" +
+      "**That's 5 cats who started as ferals behind a gas station and ended up in loving " +
+      "homes.** The system traces each cat's complete journey — from origin address through " +
+      "intake, foster, and final placement.\n\n" +
+      "New kittens were found at this site in May 2026 and are currently in foster care. " +
+      "The site has an active community contact who monitors and 2 assigned trappers.\n\n" +
+      "This is the full lifecycle: **find → fix → track → place.** Every step recorded.",
   },
   {
-    question: "Where should we focus our resources next month?",
+    question: "Where should we focus limited resources?",
     tools: ["Finding priority sites", "Checking active requests", "Analyzing coverage gaps"],
     response:
-      "**Strategic Priorities — Resource Allocation**\n\n" +
-      "I looked at active requests with confirmed unaltered cats and ranked by impact:\n\n" +
-      "| Location | Unaltered | Active Request | Why Urgent |\n" +
-      "|----------|-----------|----------------|------------|\n" +
-      "| Annapolis Rd (36855) | ~23 confirmed | Yes | Caretaker reported 45 cats, only 22 verified |\n" +
-      "| Armstrong Woods Rd | ~25 confirmed | Yes | Large colony, cooperative caretaker |\n" +
-      "| Montecito corridor | ~11 across 5 sites | Yes | Kittens detected at 2 addresses |\n" +
-      "| Todd Rd West | ~6 confirmed | Yes | FIV+ case — alteration prevents spread |\n\n" +
-      "**Important caveat:** You might see places with very low alteration rates (like 5-10%) " +
-      "and think those are urgent. But often that's just missing data from legacy imports — " +
-      "we don't know their status, they're not necessarily intact. **Focus on places where we " +
-      "KNOW there are unfixed cats and someone is ready to help trap.**\n\n" +
-      "Want me to draft trapping requests for the top 2 priorities?",
+      "**Strategic Resource Allocation**\n\n" +
+      "I ranked active requests by confirmed unaltered cats — places where we KNOW " +
+      "cats are waiting AND someone is ready to help trap:\n\n" +
+      "| Priority | Area | Gap | Why Now |\n" +
+      "|----------|------|-----|--------|\n" +
+      "| 1 | Annapolis Rd colony | ~23 unaltered | Caretaker reported 45, only 22 verified |\n" +
+      "| 2 | Armstrong Woods area | ~25 unaltered | Large colony, cooperative caretaker |\n" +
+      "| 3 | Montecito corridor | ~16 across 5 sites | Active kitten breeding at 2 addresses |\n" +
+      "| 4 | Todd Rd West | ~6 unaltered | FIV+ case — alteration prevents disease spread |\n\n" +
+      "**Important — what I'm NOT recommending:**\n\n" +
+      "You might see places showing 5-10% alteration rates and think those are urgent. " +
+      "But Beacon knows the difference between *confirmed intact* and *unknown status*. " +
+      "Most low-rate places are legacy data with missing records — we don't know their " +
+      "status, they're not necessarily unfixed.\n\n" +
+      "**The system prioritizes real signal over noisy data.** That's what makes this " +
+      "different from a spreadsheet.",
   },
   {
-    question: "What's FFSC's total impact since we started?",
-    tools: ["Computing impact statistics", "Loading historical data"],
+    question: "How do you track 37,000 cats?",
+    tools: ["Computing impact statistics", "Loading system architecture"],
     response:
-      "**FFSC Impact — 2013 to Present**\n\n" +
+      "**How Beacon Works — The Data Pipeline**\n\n" +
+      "Every cat that comes through FFSC's clinic gets a verified record:\n\n" +
+      "**1. Intake** — community member calls, walks in, or submits online. The system " +
+      "captures location, cat count, and contact info. AI triages by urgency.\n\n" +
+      "**2. Clinic** — each cat gets microchipped, spayed/neutered, vaccinated, ear-tipped. " +
+      "All procedures are recorded with the veterinary system and automatically synced.\n\n" +
+      "**3. Identity** — the system cross-references across 4 source systems (clinic records, " +
+      "shelter database, volunteer database, intake forms) to build a unified identity for " +
+      "each cat, person, and place.\n\n" +
+      "**4. Intelligence** — Beacon connects the dots:\n" +
+      "- Cats linked to places they live (not where they were booked from)\n" +
+      "- Nearby addresses grouped into corridors when cats move between them\n" +
+      "- Population estimates using statistical models, not raw counts\n" +
+      "- Disease tracking by location (FeLV, FIV, panleukopenia)\n\n" +
+      "**5. Outcomes** — for cats that enter foster/adoption, we trace the full journey: " +
+      "where they came from → foster home → permanent placement.\n\n" +
+      "| System Total | Count |\n|-------------|-------|\n" +
+      "| Cats with records | 37,000+ |\n| Places tracked | 14,000+ |\n" +
+      "| Community members | 8,000+ |\n| Source systems integrated | 4 |\n" +
+      "| Clinic days recorded | 1,600+ |\n\n" +
+      "FFSC is the **only dedicated spay/neuter clinic for community cats in Sonoma County**. " +
+      "Every number in this system is verified at our clinic — ground truth, not estimates.",
+  },
+  {
+    question: "Show me a mass trapping success story",
+    tools: ["Searching clinic records", "Finding mass trapping events", "Calculating impact"],
+    response:
+      "**Pozzan Rd, Healdsburg — January 29, 2026**\n\n" +
+      "**24 cats altered in a single day.**\n\n" +
+      "That's not a typo. One cooperative caretaker, one experienced trapper, and our " +
+      "clinic team — aligned for one coordinated push. The result:\n\n" +
       "| Metric | Value |\n|--------|-------|\n" +
-      "| Cats altered | 37,000+ |\n| Kittens prevented (estimated) | ~370,000 |\n" +
-      "| Shelter costs avoided | ~$74M |\n| Places tracked | 14,000+ |\n" +
-      "| Community members served | 8,000+ |\n| Active colony sites | 2,800+ |\n\n" +
-      "**2026 pace:** ~22 cats per clinic day, on track for ~3,500 this year — our highest ever.\n\n" +
-      "Here's what makes those numbers real: **every single one of those 37,000 cats has a record.** " +
-      "We know where they came from, when they were fixed, what procedures they received, and for " +
-      "many of them — where they ended up. Kittens that came in feral and left in a foster " +
-      "family's arms.\n\n" +
-      "FFSC is the only dedicated spay/neuter clinic for community cats in Sonoma County. " +
-      "Every cat in our system was verified at our clinic — this isn't estimated data, it's " +
-      "ground truth.",
-  },
-  {
-    question: "Tell me about the Pozzan Road success story",
-    tools: ["Analyzing location", "Loading clinic records", "Checking outcomes"],
-    response:
-      "**15760 Pozzan Road, Healdsburg** — Emily West's property\n\n" +
-      "This is one of our best success stories.\n\n" +
-      "On **January 29, 2026**, we did a mass trapping event and processed **24 cats in a single day**. " +
-      "That's remarkable coordination — it means the caretaker (Emily), the trapper, and our clinic " +
-      "team all aligned perfectly.\n\n" +
-      "When you can get 24 cats done at once instead of chasing them one by one over months, it " +
-      "means the colony stabilizes *immediately*. No more kittens born between visits. No more " +
-      "cats slipping through the cracks.\n\n" +
-      "**By the numbers:**\n" +
-      "- 24 cats altered in 1 day\n" +
-      "- Estimated 120+ kittens prevented in the first year alone\n" +
-      "- Colony is now at 100% alteration\n" +
-      "- ~$48,000 in shelter costs avoided\n\n" +
-      "**This is what targeted, data-driven TNR looks like.** We knew the colony size, we had a " +
-      "cooperative caretaker, and we deployed the right resources at the right time. One day of " +
-      "work that prevents years of suffering.",
+      "| Cats altered | 24 |\n| Duration | 1 clinic day |\n" +
+      "| Colony coverage after | 100% |\n" +
+      "| Estimated kittens prevented (year 1) | ~120 |\n" +
+      "| Estimated shelter costs avoided | ~$48,000 |\n\n" +
+      "**Why this worked:** The system identified the colony size beforehand. The " +
+      "caretaker had built trust with the cats over months. Instead of trapping 2-3 " +
+      "at a time over weeks (during which unaltered cats keep breeding), we got " +
+      "everyone in one sweep.\n\n" +
+      "**The colony stabilized immediately.** No more kittens born between visits. " +
+      "No more cats slipping through the cracks. One day of coordinated work that " +
+      "prevents years of suffering.\n\n" +
+      "This is what **targeted, data-driven TNR** looks like — and why having a " +
+      "system like Beacon matters. We knew the colony size, we had the trapper " +
+      "availability, and we timed it right.",
   },
 ];
 
@@ -123,15 +149,15 @@ const GENERIC_RESPONSE: DemoConversation = {
   question: "",
   tools: ["Searching records", "Analyzing data"],
   response:
-    "Great question. In a live session, I'd query across our full database — " +
-    "**37,000+ cats**, **14,000+ places**, **8,000+ community members** — and give you " +
-    "a specific answer with real names, dates, and numbers.\n\n" +
-    "I can help with:\n" +
-    "- **Colony briefings** — full status on any address\n" +
+    "Great question. In a live session, Tippy queries across the full database — " +
+    "**37,000+ cats**, **14,000+ places**, **8,000+ community members** — and returns " +
+    "a specific answer with dates, stats, and context.\n\n" +
+    "Tippy can help with:\n" +
+    "- **Colony briefings** — full status on any address, with corridor detection\n" +
     "- **Cat tracing** — where a cat came from and where it ended up\n" +
     "- **Trapper coordination** — who's available near a location\n" +
     "- **Strategic planning** — where to focus limited resources\n" +
-    "- **Impact stats** — your donation dollars at work\n\n" +
+    "- **Impact reporting** — your donation dollars at work\n\n" +
     "Try one of the questions above to see a full demo.",
 };
 
