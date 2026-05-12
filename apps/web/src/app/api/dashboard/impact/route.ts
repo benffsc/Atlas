@@ -190,8 +190,10 @@ export async function GET() {
     const startYear = row.start_year ?? new Date().getFullYear();
     const kittensMultiplier = row.kittens_multiplier;
     const shelterCostMultiplier = row.shelter_cost_multiplier;
-    const kittensPrevented = catsAltered * kittensMultiplier;
-    const shelterCostAvoided = kittensPrevented * shelterCostMultiplier;
+
+    // v1 flat multiplier fallback
+    let kittensPrevented = catsAltered * kittensMultiplier;
+    let shelterCostAvoided = kittensPrevented * shelterCostMultiplier;
 
     // Fetch v2 economic model (multi-category × 3 tiers) if available
     let economicModel: EconomicModel | undefined;
@@ -223,9 +225,13 @@ export async function GET() {
           moderate: toTier(tierMap.moderate),
           high: toTier(tierMap.high),
         };
+
+        // Promote v2 moderate tier to hero numbers
+        kittensPrevented = economicModel.moderate.kittens_prevented;
+        shelterCostAvoided = economicModel.moderate.costs.total;
       }
     } catch {
-      // v2 functions may not exist yet — gracefully degrade
+      // v2 functions may not exist yet — gracefully degrade to v1
     }
 
     const response: ImpactResponse = {
@@ -276,51 +282,78 @@ export async function GET() {
         },
         kittens_prevented: {
           value: kittensPrevented,
-          formula: `cats_altered × ${kittensMultiplier}`,
+          formula: economicModel
+            ? "Sex-aware model: females × litters/yr × kittens/litter × survival × reproductive_years + male contribution"
+            : `cats_altered × ${kittensMultiplier}`,
           multiplier: kittensMultiplier,
-          assumptions: [
-            {
-              label: "Kittens prevented per altered cat",
-              value: String(kittensMultiplier),
-              rationale: row.kittens_rationale,
-            },
-          ],
-          sources: row.kittens_source_url
+          assumptions: economicModel
             ? [
-                {
-                  label: row.kittens_source_label,
-                  url: row.kittens_source_url,
-                },
+                { label: "Female ratio", value: "50%", rationale: "Approximately half of altered cats are female. Only females prevented from reproducing directly." },
+                { label: "Litters per year", value: "2.5", rationale: "Unaltered female community cats produce 2–3 litters per year (Nutter et al., 2004)." },
+                { label: "Kittens per litter", value: "4.0", rationale: "Average litter size for community cats (Nutter et al., 2004, JAVMA)." },
+                { label: "Kitten survival rate", value: "25%", rationale: "75% kitten mortality in unmanaged colonies (Nutter et al., 2004; Levy et al., 2003)." },
+                { label: "Reproductive lifespan", value: "5 years", rationale: "Average reproductive years for an unaltered community cat (McCarthy et al., 2013)." },
               ]
-            : [{ label: row.kittens_source_label, url: "#" }],
+            : [
+                {
+                  label: "Kittens prevented per altered cat",
+                  value: String(kittensMultiplier),
+                  rationale: row.kittens_rationale,
+                },
+              ],
+          sources: [
+            { label: "Nutter FB et al. (2004) JAVMA 225(9):1399-1402", url: "#" },
+            { label: "Levy JK et al. (2003) JAVMA 222(1):42-46", url: "#" },
+            ...(row.kittens_source_url
+              ? [{ label: row.kittens_source_label, url: row.kittens_source_url }]
+              : [{ label: row.kittens_source_label, url: "#" }]),
+          ],
           caveats: [
             "This is an estimate, not a direct count. Actual prevented kittens cannot be measured.",
-            `The multiplier of ${kittensMultiplier} is configurable via /admin/config (key: impact.kittens_prevented_per_altered_cat).`,
+            economicModel
+              ? "Uses sex-aware v2 model with per-parameter confidence. See /admin/impact-model to adjust."
+              : `The multiplier of ${kittensMultiplier} is configurable via /admin/config (key: impact.kittens_prevented_per_altered_cat).`,
           ],
         },
         shelter_cost_avoided: {
           value: shelterCostAvoided,
-          formula: `kittens_prevented × $${shelterCostMultiplier}`,
+          formula: economicModel
+            ? "Six cost categories: shelter intake + animal control + property damage + disease + kitten placement + indirect costs"
+            : `kittens_prevented × $${shelterCostMultiplier}`,
           multiplier: shelterCostMultiplier,
-          assumptions: [
-            {
-              label: "Shelter cost per kitten avoided",
-              value: `$${shelterCostMultiplier}`,
-              rationale: row.shelter_cost_rationale,
-            },
-          ],
+          assumptions: economicModel
+            ? [
+                { label: "Shelter intake", value: "$300/cat", rationale: "National average shelter intake cost (ASPCA). 30% of surviving kittens enter shelters." },
+                { label: "Animal control", value: "$150/complaint", rationale: "Average response cost per complaint. 0.3 complaints per unaltered cat per year." },
+                { label: "Property damage", value: "$200/colony/yr", rationale: "Garden damage, waste, vehicle damage from unmanaged colonies." },
+                { label: "Disease costs", value: "$50/cat", rationale: "FIV, FeLV, respiratory treatment and public health monitoring per cat." },
+                { label: "Kitten placement", value: "$250/kitten", rationale: "Vetting, spay/neuter, foster supplies, transport per placed kitten." },
+                { label: "Indirect multiplier", value: "1.3×", rationale: "Environmental impact, volunteer time, admin overhead — 30% above direct costs." },
+              ]
+            : [
+                {
+                  label: "Shelter cost per kitten avoided",
+                  value: `$${shelterCostMultiplier}`,
+                  rationale: row.shelter_cost_rationale,
+                },
+              ],
           sources: [
-            {
-              label: "Typical shelter intake cost ranges (industry average)",
-              url: "#",
-            },
+            { label: "ASPCA shelter cost studies", url: "#" },
+            { label: "National Animal Care & Control Association", url: "#" },
+            { label: "Marsh P (2010) — Replacing Myth with Math", url: "#" },
           ],
-          caveats: [
-            "Actual costs vary significantly by shelter and region",
-            "Does not include indirect costs (euthanasia, community complaints, TNR program operations)",
-            "Based on kittens_prevented, which is itself a conservative estimate",
-            `The multiplier of $${shelterCostMultiplier} is configurable via /admin/config (key: impact.shelter_cost_per_kitten_usd).`,
-          ],
+          caveats: economicModel
+            ? [
+                "Actual costs vary by region. These are national averages with Sonoma County adjustments.",
+                "Three confidence tiers: conservative (60%), moderate (base), high (180%). Toggle in the cost breakdown below.",
+                "All parameters editable at /admin/impact-model. See the cost breakdown chart for per-category detail.",
+              ]
+            : [
+                "Actual costs vary significantly by shelter and region",
+                "Does not include indirect costs (euthanasia, community complaints, TNR program operations)",
+                "Based on kittens_prevented, which is itself a conservative estimate",
+                `The multiplier of $${shelterCostMultiplier} is configurable via /admin/config (key: impact.shelter_cost_per_kitten_usd).`,
+              ],
         },
       },
     };

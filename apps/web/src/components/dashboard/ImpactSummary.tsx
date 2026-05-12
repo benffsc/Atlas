@@ -215,7 +215,9 @@ export function ImpactSummary() {
                   : formatCurrency(data.shelter_cost_avoided)
               ) : <span className="impact-skeleton" />}
             </div>
-            <div className="impact-label">{labels.shelter_cost_avoided}</div>
+            <div className="impact-label">
+              {data?.economic_model ? "community costs avoided" : labels.shelter_cost_avoided}
+            </div>
             {data?.economic_model && (
               <div className="impact-confidence-badge">
                 {formatCurrency(data.economic_model.conservative.costs.total)} – {formatCurrency(data.economic_model.high.costs.total)}
