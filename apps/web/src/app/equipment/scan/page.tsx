@@ -72,6 +72,7 @@ export default function StaffScanPage() {
   const [state, setState] = useState<PageState>("idle");
   const [equipment, setEquipment] = useState<ScanResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [lastBarcode, setLastBarcode] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [forceGenericCard, setForceGenericCard] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -130,6 +131,7 @@ export default function StaffScanPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     const id = ++scanIdRef.current;
+    setLastBarcode(barcode);
     if (state !== "checkout") { setActiveAction(null); setForceGenericCard(false); }
     setState("loading"); setErrorMessage(""); setShowCamera(false);
     try {
@@ -290,8 +292,20 @@ export default function StaffScanPage() {
       {showCamera && <CameraScanner onScan={handleScan} onClose={() => setShowCamera(false)} />}
 
       {state === "idle" && errorMessage && (
-        <div style={{ padding: "1rem", background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: 10, textAlign: "center", marginBottom: "1rem" }}>
-          <p style={{ color: "var(--warning-text)", fontWeight: 600, margin: 0 }}>{errorMessage}</p>
+        <div style={{ padding: "1.25rem", background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: 12, textAlign: "center", marginBottom: "1rem" }}>
+          <Icon name="help-circle" size={36} color="var(--warning-text)" />
+          <p style={{ color: "var(--warning-text)", fontWeight: 600, fontSize: "1rem", margin: "0.5rem 0 0.25rem" }}>Not Recognized</p>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "0 0 1rem" }}>
+            {errorMessage || `No equipment matches "${lastBarcode}".`}
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+            <Button variant="outline" size="md" icon="arrow-left" onClick={() => setErrorMessage("")}>
+              Try Again
+            </Button>
+            <Button variant="primary" size="md" icon="plus" onClick={() => window.location.href = `/equipment/add?barcode=${encodeURIComponent(lastBarcode)}`}>
+              Add Equipment
+            </Button>
+          </div>
         </div>
       )}
 
