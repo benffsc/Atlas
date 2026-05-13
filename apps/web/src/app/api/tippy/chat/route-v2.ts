@@ -12,6 +12,7 @@ import {
   detectIntentAndForceToolChoice,
   detectStrategicIntent,
   detectDeliverableIntent,
+  detectVisualizationIntent,
 } from "@/lib/tippy-routing";
 import { KNOWN_GAPS } from "../knowledge";
 
@@ -144,31 +145,6 @@ BRIEFING STRUCTURE (for place queries):
 
 ANTI-PATTERN: Don't structure response as tool result headers. Write paragraphs.
 
-VISUALIZATION — when staff asks to "map", "graph", "chart", "visualize", or "show me":
-Generate a self-contained HTML visualization wrapped in artifact markers. The frontend renders it in a sandboxed iframe with expand/print/download buttons.
-
-Format:
-<!--ARTIFACT:Title of visualization-->
-<div>...your HTML/SVG/JS here...</div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<!--/ARTIFACT-->
-
-Available CDN libraries (use unpkg.com):
-- Leaflet 1.9.4 — maps with markers, heatmaps, polygons
-- Chart.js 4.4.1 — bar, line, pie, doughnut, scatter charts
-- D3.js 7 — custom SVG visualizations, Sankey diagrams, force graphs
-
-Rules:
-- The HTML must be SELF-CONTAINED (all styles inline, no external deps except CDN)
-- Include the data directly in the HTML (no fetch calls — the iframe is sandboxed)
-- Make it responsive (width: 100%)
-- Add a title/legend inside the visualization
-- For maps: use Leaflet with OpenStreetMap tiles. Center on the data. Add markers with popups.
-- For charts: use Chart.js. Include axis labels and a legend.
-- ALWAYS include your text explanation OUTSIDE the artifact markers (before or after)
-- Keep visualizations focused — one clear story per artifact
-
 ENTITY LINKS — always link when you have UUIDs:
 - Places: [address](/places/UUID)
 - Cats: [name](/cats/UUID)
@@ -245,13 +221,7 @@ DO NOT USE run_sql FOR (use the right tool instead):
 - "How many cats alive/living/surviving" → recipe #2
 - Overall impact → recipe #9
 
-METHODOLOGY DISCLOSURE (MANDATORY):
-When presenting estimated or derived numbers (survival estimates, population projections, coverage rates):
-- Say "estimated" not "are" — never present a model output as ground truth
-- State the methodology: what rate, what source, what assumptions
-- Note data gaps: "we only have 254 confirmed deceased out of 35K+ altered cats — most mortality is untracked"
-- If using a configurable rate, say so: "using our current 13% annual attrition rate (adjustable as we collect more data)"
-This applies to ALL analytical responses. Numbers without methodology are worse than no answer.`;
+When presenting estimates, say "estimated" not "are" and state methodology.`;
 
 function buildEngineerBlock(): string {
   return `\n\n**COMMUNICATION STYLE — ENGINEER:**\nBe direct and technical. Lead with data. Reference table names. Mention data quality issues explicitly. Skip narrative fluff.`;
@@ -337,6 +307,15 @@ function buildOnboardingBlock(): string {
   return `\n\nONBOARDING: New user. Define TNR terminology on first use. Include page links. Offer walkthroughs. Be detailed but not overwhelming.`;
 }
 
+function buildVisualizationBlock(): string {
+  return `\n\nVISUALIZATION MODE — generate a self-contained HTML visualization:
+Format: <!--ARTIFACT:Title-->...HTML/SVG/JS...<!--/ARTIFACT-->
+CDN libs (unpkg.com): Leaflet 1.9.4 (maps), Chart.js 4.4.1 (charts), D3.js 7 (custom SVG)
+Rules: self-contained, data embedded (no fetch), responsive, include legend/title.
+Maps: Leaflet + OpenStreetMap tiles. Charts: Chart.js with axis labels.
+ALWAYS include text explanation OUTSIDE artifact markers.`;
+}
+
 function buildDeliverableBlock(): string {
   return `\n\nDATA DELIVERABLE MODE — format as polished, email-ready output:
 1. Headline number + comparison (city limits vs broader area, this year vs last)
@@ -357,6 +336,7 @@ function buildSystemPrompt(params: {
   isNewUser?: boolean;
   isStrategicQuery?: boolean;
   isDeliverable?: boolean;
+  isVisualization?: boolean;
 }): string {
   let prompt = BASE_PROMPT;
 
@@ -374,6 +354,7 @@ function buildSystemPrompt(params: {
   if (params.memoryContext) prompt += "\n\n" + params.memoryContext;
   if (params.isStrategicQuery) prompt += buildStrategicBlock();
   if (params.isDeliverable) prompt += buildDeliverableBlock();
+  if (params.isVisualization) prompt += buildVisualizationBlock();
 
   return prompt;
 }
@@ -1227,6 +1208,7 @@ export async function handleV2(request: NextRequest): Promise<Response> {
   // Intent detection
   const isStrategicQuery = detectStrategicIntent(message);
   const isDeliverable = detectDeliverableIntent(message);
+  const isVisualization = detectVisualizationIntent(message);
 
   // Preflight + memory context
   const [preflightContext, memoryContext] = await Promise.all([
@@ -1245,6 +1227,7 @@ export async function handleV2(request: NextRequest): Promise<Response> {
     isNewUser,
     isStrategicQuery,
     isDeliverable,
+    isVisualization,
   });
 
   // Intent detection for forced tool choice

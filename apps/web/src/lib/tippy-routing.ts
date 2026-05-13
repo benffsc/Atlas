@@ -204,6 +204,16 @@ export function detectStrategicIntent(message: string): boolean {
  * Detect if user wants a polished deliverable (email, report, summary).
  * When true, inject DATA DELIVERABLES guidance into the system prompt.
  */
+export function detectVisualizationIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  const vizPatterns: RegExp[] = [
+    /\b(?:map|chart|graph|plot|visuali[sz]e|show me|diagram|heatmap)\b/,
+    /\b(?:map it|graph it|chart it|plot it)\b/,
+    /\b(?:on a map|on the map|as a map)\b/,
+  ];
+  return vizPatterns.some((p) => p.test(lower));
+}
+
 export function detectDeliverableIntent(message: string): boolean {
   const lower = message.toLowerCase();
   const deliverablePatterns: RegExp[] = [
