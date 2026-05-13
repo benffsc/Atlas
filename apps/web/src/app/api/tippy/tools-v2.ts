@@ -2054,13 +2054,30 @@ async function getPlaceRecentContext(
     [placeId, JSON.stringify([{ entity_id: placeId }])]
   ).catch(() => []);
 
+  // 8. Ingest discrepancies — records that were skipped/orphaned during import
+  const ingestSkipped = await queryRows<{
+    source_record_id: string;
+    skip_reason: string;
+    notes: string | null;
+    source_date: string;
+  }>(
+    `SELECT s.source_record_id, s.skip_reason, s.notes, s.source_date::text
+     FROM ops.ingest_skipped s
+     JOIN ops.appointments a ON a.place_id = $1
+     WHERE s.source_date = a.appointment_date
+       AND s.resolved_at IS NULL
+     LIMIT 5`,
+    [placeId]
+  ).catch(() => []);
+
   const hasContext =
     googleMapsNotes.length > 0 ||
     recentRequests.length > 0 ||
     clinicAccountNotes.length > 0 ||
     journalEntries.length > 0 ||
     extractedEntities.length > 0 ||
-    tippyTickets.length > 0;
+    tippyTickets.length > 0 ||
+    ingestSkipped.length > 0;
 
   const summaryParts: string[] = [];
   if (googleMapsNotes.length > 0)
@@ -2083,6 +2100,10 @@ async function getPlaceRecentContext(
     summaryParts.push(
       `${tippyTickets.length} open tippy ticket(s)`
     );
+  if (ingestSkipped.length > 0)
+    summaryParts.push(
+      `${ingestSkipped.length} ingest discrepanc${ingestSkipped.length === 1 ? "y" : "ies"} (data integrity)`
+    );
 
   const wrapped = wrapPlaceResult(
     {
@@ -2100,6 +2121,7 @@ async function getPlaceRecentContext(
       journal_entries: journalEntries,
       extracted_note_entities: extractedEntities,
       tippy_tickets: tippyTickets.length > 0 ? tippyTickets : undefined,
+      ingest_discrepancies: ingestSkipped.length > 0 ? ingestSkipped : undefined,
       summary: hasContext
         ? `Found context for ${place.display_name || place.formatted_address}: ${summaryParts.join(", ")}.`
         : `No notes, requests, journal entries, or Google Maps context on file for ${place.display_name || place.formatted_address} in the last ${lookbackDays} days.`,

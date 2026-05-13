@@ -181,6 +181,7 @@ DATA QUALITY:
 - Shared phones can cross-link households
 - Our data = what we've DISCOVERED, not what EXISTS
 - High rates + low requests = limited data, not success
+- ClinicHQ 3-file exports can have MISSING records: cat_info/owner_info present but appointment_info missing. Check ops.ingest_skipped for orphan_reference entries. If found, mention: "Note: 1 appointment was missing from the ClinicHQ export but the cat data exists."
 
 NARRATIVE SYNTHESIS (when narrative_seed present in tool results):
 - Lead with headline
