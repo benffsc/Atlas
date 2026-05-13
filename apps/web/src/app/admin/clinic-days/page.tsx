@@ -705,7 +705,7 @@ export default function ClinicDaysPage() {
                   </div>
                   <div style={{ fontSize: "0.7rem", color: "var(--muted)", display: "flex", justifyContent: "space-between" }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {entry.client_name || entry.parsed_owner_name || ""}
+                      {entry.parsed_owner_name || entry.client_name || ""}
                     </span>
                     {entry.waiver_id && (
                       <span title="Waiver linked" style={{ opacity: 0.5 }}>📄</span>
@@ -881,7 +881,13 @@ export default function ClinicDaysPage() {
               </h3>
               <div style={{ fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "5px" }}>
                 {drawerEntry.appointment_number && <div><strong>Appt #:</strong> {drawerEntry.appointment_number}</div>}
-                <div><strong>Booked as:</strong> {drawerEntry.client_name || drawerEntry.parsed_owner_name || "—"}</div>
+                <div><strong>Checked in as:</strong> {drawerEntry.parsed_owner_name || drawerEntry.client_name || "—"}</div>
+                {drawerEntry.client_name && drawerEntry.parsed_owner_name &&
+                  drawerEntry.client_name.toLowerCase() !== drawerEntry.parsed_owner_name.toLowerCase() && (
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-tertiary)" }}>
+                    <strong>CHQ account:</strong> {drawerEntry.client_name}
+                  </div>
+                )}
                 {drawerEntry.client_address && <div><strong>Address:</strong> {drawerEntry.client_address}</div>}
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <strong>CDN #:</strong>
