@@ -62,6 +62,8 @@ export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, 
   const [searchResults, setSearchResults] = useState<Array<{ place_id: string; description: string }>>([]);
   const [searching, setSearching] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const fetchDirections = useCallback(async () => {
     if (points.length < 2) return;
@@ -190,16 +192,17 @@ export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, 
         )}
 
         {/* Add stop search */}
-        <div style={{ marginTop: 8, position: "relative" }}>
+        <div style={{ marginTop: 8 }}>
           <div style={{ display: "flex", gap: 4 }}>
             <input
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => {
                 const q = e.target.value;
                 setSearchQuery(q);
                 if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-                if (q.length < 3) { setSearchResults([]); return; }
+                if (q.length < 3) { setSearchResults([]); setDropdownRect(null); return; }
                 searchTimeoutRef.current = setTimeout(async () => {
                   setSearching(true);
                   try {
@@ -207,6 +210,11 @@ export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, 
                       `/api/places/autocomplete?input=${encodeURIComponent(q)}`
                     );
                     setSearchResults(res.predictions || []);
+                    // Position dropdown below input
+                    if (searchInputRef.current) {
+                      const rect = searchInputRef.current.getBoundingClientRect();
+                      setDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                    }
                   } catch { setSearchResults([]); }
                   setSearching(false);
                 }, 300);
@@ -221,7 +229,12 @@ export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, 
                 outline: "none",
                 background: "var(--card-bg, #fff)",
               }}
-              onFocus={() => { if (searchQuery.length >= 3 && searchResults.length > 0) setSearchResults(searchResults); }}
+              onFocus={() => {
+                if (searchQuery.length >= 3 && searchResults.length > 0 && searchInputRef.current) {
+                  const rect = searchInputRef.current.getBoundingClientRect();
+                  setDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                }
+              }}
             />
             {searching && (
               <div style={{ display: "flex", alignItems: "center", padding: "0 4px", color: "var(--text-tertiary)", fontSize: "0.7rem" }}>
@@ -229,19 +242,18 @@ export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, 
               </div>
             )}
           </div>
-          {searchResults.length > 0 && (
+          {searchResults.length > 0 && dropdownRect && (
             <div style={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              right: 0,
-              zIndex: 10,
+              position: "fixed",
+              top: dropdownRect.top,
+              left: dropdownRect.left,
+              width: dropdownRect.width,
+              zIndex: 9999,
               background: "var(--background, #fff)",
               border: "1px solid var(--border)",
               borderRadius: 8,
-              boxShadow: "var(--shadow-md)",
-              marginTop: 4,
-              maxHeight: 200,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+              maxHeight: 240,
               overflowY: "auto",
             }}>
               {searchResults.map((r) => (
@@ -262,6 +274,7 @@ export function DistanceComparePanel({ points, onRemovePoint, onClear, onClose, 
                     } catch { /* non-fatal */ }
                     setSearchQuery("");
                     setSearchResults([]);
+                    setDropdownRect(null);
                   }}
                   style={{
                     display: "block",
