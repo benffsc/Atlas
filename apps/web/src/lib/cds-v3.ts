@@ -166,12 +166,12 @@ const SIGNAL_WEIGHTS = {
   owner_name: 0.25,
   cat_name: 0.20,
   sex: 0.12,
-  weight: 0.15,
+  weight: 0.20,
   waiver_chip: 0.08,
   chip_direct: 0.08,
   shelter_id: 0.04,
-  appt_number: 0.04,
-  time_order: 0.04,
+  appt_number: 0.01,
+  time_order: 0.02,
 } as const;
 
 const FOSTER_WEIGHTS = {
@@ -569,6 +569,15 @@ function buildScoreMatrix(
         score -= 0.15; // Hard penalty for sex mismatch
       }
 
+      // Weight mismatch penalty (applied after weighting)
+      if (
+        entry.weight_lbs != null &&
+        appt.cat_weight != null &&
+        Math.abs(entry.weight_lbs - appt.cat_weight) > 0.5
+      ) {
+        score -= 0.10; // Penalty for significant weight difference
+      }
+
       // CDN match is a hard override — always top score
       if (signals.cdn_match > 0) {
         score = 10.0; // Guaranteed assignment
@@ -693,9 +702,11 @@ function scoreSignals(
   // ── Weight ──
   if (entry.weight_lbs != null && appt.cat_weight != null) {
     const diff = Math.abs(entry.weight_lbs - appt.cat_weight);
-    if (diff < 0.5) signals.weight = 1.0;
-    else if (diff < 1.0) signals.weight = 0.7;
-    else if (diff < 2.0) signals.weight = 0.3;
+    if (diff < 0.1) signals.weight = 1.0;
+    else if (diff < 0.3) signals.weight = 0.85;
+    else if (diff < 0.5) signals.weight = 0.7;
+    else if (diff < 1.0) signals.weight = 0.4;
+    else if (diff < 2.0) signals.weight = 0.15;
     else signals.weight = 0;
   }
 
@@ -1199,8 +1210,39 @@ async function classifyUnmatchedEntries(
     [clinicDate]
   );
 
+  // Load unclaimed appointments (not matched to any entry) for owner similarity check
+  const unclaimedAppts = await queryRows<{
+    client_name: string | null;
+    account_owner_name: string | null;
+  }>(
+    `SELECT a.client_name, oa.display_name AS account_owner_name
+     FROM ops.appointments a
+     LEFT JOIN ops.clinic_accounts oa ON oa.account_id = a.owner_account_id
+     WHERE a.appointment_date = $1
+       AND a.merged_into_appointment_id IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM ops.clinic_day_entries e2
+         JOIN ops.clinic_days cd2 ON cd2.clinic_day_id = e2.clinic_day_id
+         WHERE cd2.clinic_date = $1
+           AND e2.matched_appointment_id = a.appointment_id
+           AND e2.cancellation_reason IS NULL
+       )`,
+    [clinicDate]
+  );
+
   let classified = 0;
   for (const entry of unmatched) {
+    // If this entry has an owner name similar to an unclaimed appointment,
+    // skip classification — the match likely exists but wasn't found by scoring
+    if (entry.parsed_owner_name && unclaimedAppts.length > 0) {
+      const entryOwner = normalizeForGrouping(entry.parsed_owner_name);
+      const hasOwnerMatch = unclaimedAppts.some((appt) => {
+        const apptOwner = normalizeForGrouping(appt.client_name ?? appt.account_owner_name ?? "");
+        return apptOwner.length > 0 && stringSimilarity(entryOwner, apptOwner) >= 0.3;
+      });
+      if (hasOwnerMatch) continue; // Skip — likely a real booking that CDS couldn't match
+    }
+
     const reason = classifyDeterministic(entry);
     if (reason) {
       await execute(
