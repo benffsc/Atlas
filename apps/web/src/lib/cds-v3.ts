@@ -1004,7 +1004,8 @@ async function linkCancelledEntriesToCats(clinicDate: string): Promise<void> {
 // ── Helper: Waiver Cat Rescue ──────────────────────────────────────────
 
 async function rescueCatsFromWaivers(clinicDate: string): Promise<number> {
-  const result = await queryOne<{ count: number }>(
+  // Pass 1: Set cat_id from waiver when waiver has a matched cat (chipped cats)
+  const catResult = await queryOne<{ count: number }>(
     `WITH rescued AS (
        UPDATE ops.clinic_day_entries e
        SET cat_id = ws.matched_cat_id
@@ -1022,7 +1023,27 @@ async function rescueCatsFromWaivers(clinicDate: string): Promise<number> {
      SELECT COUNT(*)::int AS count FROM rescued`,
     [clinicDate]
   );
-  return result?.count ?? 0;
+
+  // Pass 2: Link waiver_scan_id by CDN match — works for unchipped cats too
+  // (kittens taken to foster, wellness-only visits without microchip)
+  const waiverResult = await queryOne<{ count: number }>(
+    `WITH linked AS (
+       UPDATE ops.clinic_day_entries e
+       SET waiver_scan_id = ws.waiver_id
+       FROM ops.clinic_days cd,
+            ops.waiver_scans ws
+       WHERE cd.clinic_day_id = e.clinic_day_id
+         AND cd.clinic_date = $1
+         AND ws.parsed_date = cd.clinic_date
+         AND ws.ocr_clinic_number = e.line_number
+         AND e.waiver_scan_id IS NULL
+       RETURNING e.entry_id
+     )
+     SELECT COUNT(*)::int AS count FROM linked`,
+    [clinicDate]
+  );
+
+  return (catResult?.count ?? 0) + (waiverResult?.count ?? 0);
 }
 
 // ── Helper: LLM Tiebreaker ─────────────────────────────────────────────
