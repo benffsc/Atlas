@@ -422,6 +422,36 @@ export async function GET(request: NextRequest) {
       if (stats.budgetReached) break;
     }
 
+    // FFS-1473: OCR retry pass — process pending/failed waivers
+    if (process.env.ANTHROPIC_API_KEY && !stats.budgetReached) {
+      try {
+        const pendingWaivers = await queryRows<{ waiver_id: string; parsed_date: string | null }>(
+          `SELECT waiver_id, parsed_date::text FROM ops.get_pending_ocr_waivers(20)`
+        );
+        if (pendingWaivers.length > 0) {
+          log.push(`OCR retry: ${pendingWaivers.length} pending waivers`);
+          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          for (const pw of pendingWaivers) {
+            try {
+              const ocrResult = await processWaiverOCR(pw.waiver_id, anthropic, (msg) => log.push(`  OCR retry: ${msg}`));
+              if (ocrResult.success && ocrResult.ocr_result) {
+                stats.ocrProcessed++;
+                if (ocrResult.matched_cat_id) stats.ocrMatched++;
+                if (ocrResult.cdn_set) stats.ocrCdnSet++;
+                // Add successfully OCR'd date to trigger CDS re-run
+                if (pw.parsed_date) datesWithNewWaivers.add(pw.parsed_date);
+              }
+            } catch (ocrErr) {
+              stats.ocrErrors++;
+              log.push(`  OCR retry error: ${ocrErr instanceof Error ? ocrErr.message : String(ocrErr)}`);
+            }
+          }
+        }
+      } catch (err) {
+        log.push(`OCR retry query error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     // Trigger CDS re-run for dates that got new waivers AND already have
     // a prior CDS run. New waivers feed Phase 1 (CDN candidates), Phase 6
     // (waiver bridge), and Phase 7 (chip signals) — not just OCR CDNs.

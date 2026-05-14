@@ -172,6 +172,24 @@ export async function POST(
       console.error("[BATCH] Orphan detection error (non-fatal):", err);
     }
 
+    // FFS-1472: Recover orphan cat_info rows as appointments
+    // After orphan detection, try to create appointments from cat_info + owner_info
+    let orphansRecovered = 0;
+    if (orphansLogged > 0) {
+      try {
+        const recoverResult = await queryOne<{ recover_orphan_cat_info_as_appointments: { orphan_appointments_recovered?: number } }>(
+          `SELECT ops.recover_orphan_cat_info_as_appointments($1)`,
+          [batchId]
+        );
+        orphansRecovered = recoverResult?.recover_orphan_cat_info_as_appointments?.orphan_appointments_recovered ?? 0;
+        if (orphansRecovered > 0) {
+          console.error(`[BATCH] Recovered ${orphansRecovered} appointments from orphan cat_info rows (FFS-1472)`);
+        }
+      } catch (err) {
+        console.error("[BATCH] Orphan recovery error (non-fatal):", err);
+      }
+    }
+
     // MIG_3043: Auto-reconcile clinic day matching when ClinicHQ data arrives
     // If master list was imported before ClinicHQ, re-run matching now
     let reconciliation: { date: string; newly_matched: number } | null = null;
@@ -278,6 +296,7 @@ export async function POST(
       reconciliation,
       cds_triggered: cdsResults.length > 0 ? cdsResults : undefined,
       orphans_logged: orphansLogged,
+      orphans_recovered: orphansRecovered || undefined,
       message: allSuccess
         ? "All 3 files processed successfully"
         : anySuccess
