@@ -264,7 +264,7 @@ export default function TrapperSheetPage() {
 
   const hasUrgencyAlert = (data.urgency_reasons && data.urgency_reasons.length > 0) || data.has_medical_concerns;
   const showKittenPage = data.has_kittens || includeKittenPage;
-  const totalPages = showKittenPage ? 2 : 1;
+  const totalPages = 2;
   const isRecon = mode === "recon";
   const sheetTitle = isRecon ? "Recon Sheet" : "Trapper Assignment Sheet";
 
@@ -308,7 +308,7 @@ export default function TrapperSheetPage() {
       {/* Print Controls */}
       <PrintControlsPanel
         title={sheetTitle}
-        description={`Dense 1-page layout${showKittenPage ? " + kitten page" : ""}. Print via Ctrl+P.`}
+        description="Front: case info. Back: field notes. Print double-sided via Ctrl+P."
         backHref={`/requests/${id}`}
         backLabel="Back to Request"
       >
@@ -651,14 +651,28 @@ export default function TrapperSheetPage() {
           </div>
         )}
 
-        {/* Notes */}
-        <div className="section">
-          <div className="section-title">Notes</div>
-          {data.notes && (
-            <EditableTextArea value={data.notes} size="sm" style={{ marginBottom: "3px" }} />
-          )}
-          <EditableTextArea placeholder="Trapper notes..." size="lg" />
-        </div>
+        {/* Case Situation */}
+        {data.notes && (
+          <div className="section">
+            <div className="section-title">Case Situation</div>
+            <div className="info-card" style={{ fontSize: "8.5pt", whiteSpace: "pre-wrap", lineHeight: 1.3 }}>
+              {data.notes}
+            </div>
+          </div>
+        )}
+
+        <PrintFooter
+          left={`Ref: ${data.request_id.slice(0, 8)} | ${formatPrintValue(data.status)} | ${formatPrintDate(data.created_at)}`}
+          right={`Page 1 of ${totalPages}`}
+        />
+      </div>
+
+      {/* ═══════════════════ PAGE 2: Field Notes (back) ═══════════════════ */}
+      <div className="print-page">
+        <PrintHeader
+          title={isRecon ? "Recon Field Notes" : "Trapper Field Notes"}
+          subtitle={`${data.place_address || data.place_name || "Location"} — ${data.requester_name || "Requester"}`}
+        />
 
         {/* Trapper Recon */}
         <div className="staff-box" style={{ background: "#fef3c7", borderColor: "#fcd34d", marginBottom: "6px" }}>
@@ -703,20 +717,8 @@ export default function TrapperSheetPage() {
           </div>
         )}
 
-        <PrintFooter
-          left={`Ref: ${data.request_id.slice(0, 8)} | ${formatPrintValue(data.status)} | ${formatPrintDate(data.created_at)}`}
-          right={`Page 1 of ${totalPages}`}
-        />
-      </div>
-
-      {/* ═══════════════════ PAGE 2: Kitten Details ═══════════════════ */}
-      {showKittenPage && (
-        <div className="print-page">
-          <PrintHeader
-            title="Kitten Details"
-            subtitle={`${data.place_address || data.place_name || "Location"} — ${data.requester_name || "Requester"}`}
-          />
-
+        {/* Kitten Details (if applicable) */}
+        {showKittenPage && (
           <div className="section">
             <div className="section-title">Kitten Information</div>
             <div className="field-row" style={{ alignItems: "center" }}>
@@ -735,7 +737,6 @@ export default function TrapperSheetPage() {
                 <Bubble filled={kitten4plus} label="4+ mo" />
               </div>
             </div>
-
             <div className="options-row" style={{ marginTop: "4px" }}>
               <span className="options-label" style={{ minWidth: "60px" }}>Behavior:</span>
               <Bubble filled={data.kitten_behavior === "friendly"} label="Friendly" />
@@ -743,7 +744,6 @@ export default function TrapperSheetPage() {
               <Bubble filled={data.kitten_behavior === "feral"} label="Feral" />
               <Bubble filled={!data.kitten_behavior} label="Unknown" />
             </div>
-
             <div className="info-card" style={{ marginTop: "4px" }}>
               <div className="options-row" style={{ marginBottom: "2px" }}>
                 <span className="options-label" style={{ minWidth: "65px" }}>Contained?</span>
@@ -766,7 +766,6 @@ export default function TrapperSheetPage() {
                 ))}
               </div>
             </div>
-
             <EditableTextArea
               label="Kitten details (colors, where they hide, feeding schedule)"
               value={data.kitten_notes}
@@ -775,28 +774,19 @@ export default function TrapperSheetPage() {
               style={{ marginTop: "6px" }}
             />
           </div>
+        )}
 
-          <div className="field-row" style={{ marginTop: "8px" }}>
-            <EditableField
-              label="Contact (from page 1)"
-              value={
-                [
-                  data.requester_name,
-                  data.requester_phone ? formatPhone(data.requester_phone) : null,
-                ]
-                  .filter(Boolean)
-                  .join(" — ") || null
-              }
-              style={{ flex: 2 }}
-            />
-          </div>
-
-          <PrintFooter
-            left={`Ref: ${data.request_id.slice(0, 8)} | ${nameFull}`}
-            right="Page 2 of 2"
-          />
+        {/* Trapper Notes — big blank area for handwriting */}
+        <div className="section" style={{ flex: 1 }}>
+          <div className="section-title">Trapper Notes</div>
+          <EditableTextArea placeholder="Notes from the field..." size="xl" />
         </div>
-      )}
+
+        <PrintFooter
+          left={`Ref: ${data.request_id.slice(0, 8)} | ${nameFull}`}
+          right="Page 2 of 2"
+        />
+      </div>
     </div>
   );
 }
