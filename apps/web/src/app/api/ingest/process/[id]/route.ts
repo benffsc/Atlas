@@ -322,6 +322,30 @@ export async function processUpload(uploadId: string, existingUpload?: FileUploa
         Object.assign(results, procResult.run_clinichq_post_processing);
       }
 
+      // Phase B2: CDS v3.1 supplementary steps (FFS-1470, FFS-1467)
+      if (upload.source_table === 'cat_info') {
+        try {
+          const weightResult = await queryOne<{ propagate_weight_for_unchipped_cats: unknown }>(
+            `SELECT ops.propagate_weight_for_unchipped_cats($1)`,
+            [uploadId]
+          );
+          if (weightResult?.propagate_weight_for_unchipped_cats) {
+            Object.assign(results, weightResult.propagate_weight_for_unchipped_cats);
+          }
+        } catch { /* SUPPLEMENTARY — don't block */ }
+      }
+
+      if (upload.source_table === 'appointment_info') {
+        try {
+          const nameResult = await queryOne<{ apply_compound_name_parsing: unknown }>(
+            `SELECT ops.apply_compound_name_parsing()`
+          );
+          if (nameResult?.apply_compound_name_parsing) {
+            Object.assign(results, nameResult.apply_compound_name_parsing);
+          }
+        } catch { /* SUPPLEMENTARY — don't block */ }
+      }
+
       // Phase C: Entity linking (idempotent, cron safety net)
       await runEntityLinking(uploadId, results, saveProgress);
 
