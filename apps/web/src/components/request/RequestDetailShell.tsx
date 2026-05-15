@@ -81,6 +81,66 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
   // Tab state
   const [activeTab, setActiveTab] = useState<string>("case");
+  const [copied, setCopied] = useState(false);
+
+  const copyForText = useCallback(() => {
+    if (!request) return;
+    const lines: string[] = [];
+
+    // Title + address
+    lines.push(request.summary || request.place_name || "Request");
+    const addr = formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code });
+    if (addr) lines.push(addr);
+    if (request.location_description) lines.push(request.location_description);
+
+    // Contact
+    lines.push("");
+    if (request.requester_name) {
+      const contactParts = [request.requester_name];
+      if (request.requester_phone) contactParts.push(formatPhone(request.requester_phone));
+      lines.push(`Contact: ${contactParts.join(" — ")}`);
+    }
+
+    // Site contact if different
+    if (request.site_contact_name && !request.requester_is_site_contact) {
+      const siteParts = [request.site_contact_name];
+      if (request.site_contact_phone) siteParts.push(formatPhone(request.site_contact_phone));
+      lines.push(`Site: ${siteParts.join(" — ")}`);
+    }
+
+    // Cat info
+    const catParts: string[] = [];
+    if (request.estimated_cat_count != null) catParts.push(`${request.estimated_cat_count} cats`);
+    if (request.eartip_count != null && request.eartip_count > 0) catParts.push(`${request.eartip_count} eartipped`);
+    if (request.has_kittens) catParts.push("kittens present");
+    if (catParts.length > 0) lines.push(`Cats: ${catParts.join(", ")}`);
+
+    // Key logistics
+    if (request.dogs_on_site === "yes") lines.push("Dogs on site");
+    if (request.traps_overnight_safe === false) lines.push("Traps NOT safe overnight");
+    if (request.permission_status === "pending") lines.push("Permission: PENDING");
+
+    // Field contacts
+    if (relatedPeople.length > 0) {
+      lines.push("");
+      for (const rp of relatedPeople) {
+        const rpParts = [`${rp.display_name || "Unknown"} (${rp.relationship_type.replace(/_/g, " ")})`];
+        if (rp.phone) rpParts.push(formatPhone(rp.phone));
+        lines.push(rpParts.join(" — "));
+      }
+    }
+
+    // Notes (truncated)
+    if (request.notes) {
+      lines.push("");
+      lines.push(request.notes.length > 200 ? request.notes.slice(0, 200) + "..." : request.notes);
+    }
+
+    navigator.clipboard.writeText(lines.join("\n")).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [request, relatedPeople]);
 
   const handleQuickStatusChange = async (newStatus: string) => {
     if (!request) return;
@@ -219,6 +279,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
             {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
             <a href={`/requests/${requestId}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem", textDecoration: "none" }}>Trapper Sheet</a>
+            <button onClick={copyForText} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{copied ? "Copied!" : "Copy for Text"}</button>
             <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
           </div>
         </div>
@@ -263,6 +324,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
             {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
             <a href={`/requests/${requestId}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem", textDecoration: "none" }}>Trapper Sheet</a>
+            <button onClick={copyForText} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{copied ? "Copied!" : "Copy for Text"}</button>
             <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
           </div>
         )}
