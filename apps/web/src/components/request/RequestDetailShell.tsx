@@ -88,24 +88,45 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
     const lines: string[] = [];
 
     // Title + address
-    lines.push(request.summary || request.place_name || "Request");
+    const summary = request.summary || request.place_name || "Request";
+    lines.push(summary);
     const addr = formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code });
     if (addr) lines.push(addr);
     if (request.location_description) lines.push(request.location_description);
 
-    // Contact
+    // Contacts — start with all names from the summary (e.g. "Heather/Debra")
+    // then add requester + site contact with phone numbers
     lines.push("");
+    const shownNames = new Set<string>();
+
     if (request.requester_name) {
       const contactParts = [request.requester_name];
       if (request.requester_phone) contactParts.push(formatPhone(request.requester_phone));
       lines.push(`Contact: ${contactParts.join(" — ")}`);
+      shownNames.add(request.requester_name.toLowerCase());
     }
 
-    // Site contact if different
     if (request.site_contact_name && !request.requester_is_site_contact) {
       const siteParts = [request.site_contact_name];
       if (request.site_contact_phone) siteParts.push(formatPhone(request.site_contact_phone));
       lines.push(`Site: ${siteParts.join(" — ")}`);
+      shownNames.add(request.site_contact_name.toLowerCase());
+    }
+
+    // Extract additional names from summary (split by / or &)
+    // e.g. "Heather Ausburne/Debra Ziehm Hessel Road" → "Debra Ziehm"
+    if (summary) {
+      const nameParts = summary.split(/[\/&]/).map(s => s.trim());
+      if (nameParts.length > 1) {
+        for (const part of nameParts) {
+          // Strip trailing location words (Road, St, Ave, Dr, etc.)
+          const cleaned = part.replace(/\s+(road|rd|street|st|ave|avenue|dr|drive|ln|lane|way|blvd|ct|court)\.?\s*$/i, "").trim();
+          if (cleaned && !shownNames.has(cleaned.toLowerCase()) && /^[A-Z]/.test(cleaned)) {
+            lines.push(`Also: ${cleaned}`);
+            shownNames.add(cleaned.toLowerCase());
+          }
+        }
+      }
     }
 
     // Cat info
@@ -124,16 +145,17 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
     if (relatedPeople.length > 0) {
       lines.push("");
       for (const rp of relatedPeople) {
+        if (shownNames.has((rp.display_name || "").toLowerCase())) continue;
         const rpParts = [`${rp.display_name || "Unknown"} (${rp.relationship_type.replace(/_/g, " ")})`];
         if (rp.phone) rpParts.push(formatPhone(rp.phone));
         lines.push(rpParts.join(" — "));
       }
     }
 
-    // Notes (truncated)
+    // Notes — full text, not truncated
     if (request.notes) {
       lines.push("");
-      lines.push(request.notes.length > 200 ? request.notes.slice(0, 200) + "..." : request.notes);
+      lines.push(request.notes);
     }
 
     navigator.clipboard.writeText(lines.join("\n")).then(() => {
