@@ -157,7 +157,8 @@ export interface RequestDetail {
   // Activity tracking
   last_activity_at: string | null;
   last_activity_type: string | null;
-  // Place info
+  // Site + Place info
+  site_id?: string | null;
   place_id: string | null;
   place_name: string | null;
   place_address: string | null;

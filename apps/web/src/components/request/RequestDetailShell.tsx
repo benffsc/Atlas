@@ -24,6 +24,7 @@ import {
 } from "@/app/requests/styles";
 import { useRequestDetail } from "@/hooks/useRequestDetail";
 import { useRequestModals } from "./RequestModals";
+import { LogUpdateDrawer } from "./LogUpdateDrawer";
 import { ResolutionBanner } from "./sections/ResolutionBanner";
 import { RelatedPeopleSection } from "./sections/RelatedPeopleSection";
 import { ColonyContextSection } from "./sections/ColonyContextSection";
@@ -82,6 +83,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   // Tab state
   const [activeTab, setActiveTab] = useState<string>("case");
   const [copied, setCopied] = useState(false);
+  const [showLogUpdate, setShowLogUpdate] = useState(false);
 
   const copyForText = useCallback(() => {
     if (!request) return;
@@ -298,6 +300,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
           <Breadcrumbs items={breadcrumbs} />
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={() => setShowLogUpdate(true)} className="btn btn-sm" style={{ background: "#059669", color: "#fff" }}>Log Update</button>
             <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
             {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
             <a href={`/requests/${requestId}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem", textDecoration: "none" }}>Trapper Sheet</a>
@@ -343,6 +346,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
         {/* Panel-mode action buttons (moved inside hero card) */}
         {isPanel && (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+            <button onClick={() => setShowLogUpdate(true)} className="btn btn-sm" style={{ background: "#059669", color: "#fff" }}>Log Update</button>
             <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
             {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
             <a href={`/requests/${requestId}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem", textDecoration: "none" }}>Trapper Sheet</a>
@@ -739,6 +743,16 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
       {/* All modals rendered by hook */}
       {modals.element}
+
+      {/* Log Update drawer */}
+      <LogUpdateDrawer
+        isOpen={showLogUpdate}
+        onClose={() => setShowLogUpdate(false)}
+        requestId={requestId}
+        siteId={request.site_id}
+        placeId={request.place_id}
+        onSaved={() => { refreshAndNotify(); fetchJournalEntries(); fetchRelatedPeople(); }}
+      />
     </div>
   );
 }
