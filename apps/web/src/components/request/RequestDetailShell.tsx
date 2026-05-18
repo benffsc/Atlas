@@ -7,14 +7,16 @@ import { EditHistory, ContactCard } from "@/components/common";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { ErrorState } from "@/components/feedback/EmptyState";
-import { RequestSection, GuidedActionBar, REQUEST_SECTIONS } from "@/components/request";
+import { RequestSection, REQUEST_SECTIONS } from "@/components/request";
+import { RowActionMenu } from "@/components/shared/RowActionMenu";
+import { StatusDropdown } from "./StatusDropdown";
+import { Button } from "@/components/ui/Button";
+import { isTerminalStatus } from "@/lib/request-status";
 import { StatusBadge, PriorityBadge, PropertyTypeBadge } from "@/components/badges";
 import { MediaGallery } from "@/components/media";
 import { SmartField, TabBar, TabPanel } from "@/components/ui";
 import { Icon } from "@/components/ui/Icon";
 import { formatPhone, formatAddress } from "@/lib/formatters";
-import PlaceResolver from "@/components/forms/PlaceResolver";
-import type { ResolvedPlace } from "@/components/forms/PlaceResolver";
 import { fetchApi, postApi, patchRequest } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import { LANGUAGE_OPTIONS, getLabel, getShortLabel } from "@/lib/form-options";
@@ -79,11 +81,6 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   // History toggle
   const [showHistory, setShowHistory] = useState(false);
 
-  // Change location state
-  const [changingLocation, setChangingLocation] = useState(false);
-  const [locationPlace, setLocationPlace] = useState<ResolvedPlace | null>(null);
-  const [savingLocation, setSavingLocation] = useState(false);
-
   // Geocode state
   const [geocoding, setGeocoding] = useState(false);
 
@@ -94,6 +91,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   const [activeTab, setActiveTab] = useState<string>("case");
   const [copied, setCopied] = useState(false);
   const [showLogUpdate, setShowLogUpdate] = useState(false);
+  const [logUpdateInitialSection, setLogUpdateInitialSection] = useState<string | undefined>(undefined);
 
   const copyForText = useCallback(() => {
     if (!request) return;
@@ -258,28 +256,6 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
     }
   };
 
-  const handleChangeLocation = async () => {
-    if (!locationPlace?.place_id) return;
-    setSavingLocation(true);
-    try {
-      await patchRequest(requestId, { place_id: locationPlace.place_id });
-      postApi("/api/journal", {
-        request_id: requestId,
-        entry_kind: "system",
-        tags: ["location_change"],
-        body: `Changed location to ${locationPlace.formatted_address || locationPlace.display_name}`,
-      }).catch(() => {});
-      await refreshAndNotify();
-      setChangingLocation(false);
-      setLocationPlace(null);
-    } catch (err) {
-      const apiErr = err as ApiError;
-      setError(apiErr.message || "Failed to change location");
-    } finally {
-      setSavingLocation(false);
-    }
-  };
-
   const handleGeocode = async () => {
     if (!request?.place_id) return;
     setGeocoding(true);
@@ -340,20 +316,33 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
     { label: "Source", value: request.source_system?.replace(/_/g, " ") },
   ];
 
+  // Build overflow menu actions
+  const overflowActions = [
+    // Logging (only for active requests with place)
+    ...(request.place_id && !isTerminalStatus(request.status) ? [
+      { label: "Log Visit", onClick: () => modals.open("observation") },
+      { label: "Log Session", onClick: () => modals.open("tripReport") },
+    ] : []),
+    // Communication
+    ...(request.requester_email ? [
+      { label: "Email Requester", onClick: () => modals.open("email"), dividerBefore: true as const },
+    ] : []),
+    { label: copied ? "Copied!" : "Copy for Text", onClick: copyForText, dividerBefore: !request.requester_email },
+    { label: "Trapper Sheet", onClick: () => window.open(`/requests/${requestId}/trapper-sheet`, "_blank") },
+    // Utility
+    { label: showHistory ? "Hide History" : "Edit History", onClick: () => setShowHistory(!showHistory), dividerBefore: true as const },
+    // Danger zone
+    ...(request.is_archived
+      ? [{ label: "Restore", onClick: handleRestore, dividerBefore: true as const }]
+      : [{ label: "Archive", onClick: () => modals.open("archive"), variant: "danger" as const, dividerBefore: true as const }]),
+  ];
+
   return (
     <div ref={containerRef} style={{ maxWidth: isPanel ? undefined : "900px", margin: "0 auto", padding: isNarrow ? "0.5rem" : "0.75rem" }}>
-      {/* Breadcrumbs + top actions (page mode only) */}
+      {/* Breadcrumbs (page mode only) */}
       {!isPanel && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+        <div style={{ marginBottom: "0.75rem" }}>
           <Breadcrumbs items={breadcrumbs} />
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-            <button onClick={() => setShowLogUpdate(true)} className="btn btn-sm" style={{ background: "#059669", color: "#fff" }}>Log Update</button>
-            <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
-            {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
-            <a href={`/requests/${requestId}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem", textDecoration: "none" }}>Trapper Sheet</a>
-            <button onClick={copyForText} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{copied ? "Copied!" : "Copy for Text"}</button>
-            <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
-          </div>
         </div>
       )}
 
@@ -390,25 +379,28 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
           {request.is_archived && <span className="badge" style={{ background: COLORS.gray500, color: COLORS.white }}>Archived</span>}
         </div>
 
-        {/* Panel-mode action buttons (moved inside hero card) */}
-        {isPanel && (
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
-            <button onClick={() => setShowLogUpdate(true)} className="btn btn-sm" style={{ background: "#059669", color: "#fff" }}>Log Update</button>
-            <button onClick={() => modals.open("situation")} className="btn btn-sm" style={{ background: "#7c3aed", color: "#fff" }}>Update Situation</button>
-            {request.requester_email && <button onClick={() => modals.open("email")} className="btn btn-sm btn-secondary">Email</button>}
-            <a href={`/requests/${requestId}/trapper-sheet`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem", textDecoration: "none" }}>Trapper Sheet</a>
-            <button onClick={copyForText} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{copied ? "Copied!" : "Copy for Text"}</button>
-            <button onClick={() => setShowHistory(!showHistory)} className="btn btn-sm btn-secondary" style={{ fontSize: "0.8rem" }}>{showHistory ? "Hide History" : "History"}</button>
+        {/* Consolidated action row */}
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+          <Button variant="primary" size="sm" onClick={() => setShowLogUpdate(true)} icon="pencil">
+            Log Update
+          </Button>
+          <StatusDropdown
+            request={request}
+            saving={saving}
+            previousStatus={previousStatus}
+            onStatusChange={handleQuickStatusChange}
+            onOpenModal={(modal) => {
+              if (modal === "close") modals.open("close");
+              else if (modal === "hold") modals.open("hold");
+              else if (modal === "redirect") modals.open("redirect");
+              else if (modal === "handoff") modals.open("handoff");
+            }}
+            onUndo={() => previousStatus && handleQuickStatusChange(previousStatus)}
+          />
+          <div style={{ marginLeft: "auto" }}>
+            <RowActionMenu actions={overflowActions} />
           </div>
-        )}
-
-        {/* GuidedActionBar */}
-        <GuidedActionBar
-          request={request}
-          saving={saving}
-          onStatusChange={handleQuickStatusChange}
-          onOpenModal={modals.handleOpenActionBarModal}
-        />
+        </div>
 
         {/* Inline error banner for status changes */}
         {error && request && (
@@ -418,46 +410,12 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
           </div>
         )}
 
-        {/* Secondary actions */}
-        <div style={{ display: "flex", gap: SPACING.sm, flexWrap: "wrap", marginBottom: SPACING.lg }}>
-          {request.status !== "redirected" && request.status !== "handed_off" && !isResolved && (
-            <>
-              <button onClick={() => modals.open("redirect")} className="btn btn-sm btn-secondary">Redirect</button>
-              <button onClick={() => modals.open("handoff")} className="btn btn-sm btn-secondary">Hand Off</button>
-            </>
-          )}
-          {previousStatus && previousStatus !== request.status && (
-            <button onClick={() => handleQuickStatusChange(previousStatus)} disabled={saving} style={{ padding: `0.35rem ${SPACING.md}`, fontSize: TYPOGRAPHY.size.sm, background: "transparent", color: COLORS.gray500, border: `1px dashed ${COLORS.gray500}`, borderRadius: BORDERS.radius.md, cursor: "pointer" }}>Undo</button>
-          )}
-          <div style={{ marginLeft: "auto" }}>
-            {request.is_archived ? (
-              <button onClick={handleRestore} disabled={saving} className="btn btn-sm" style={{ background: COLORS.success, color: COLORS.white }}>
-                {saving ? "Restoring..." : "Restore"}
-              </button>
-            ) : (
-              <button onClick={() => modals.open("archive")} className="btn btn-sm" style={{ background: COLORS.gray500, color: COLORS.white }}>Archive</button>
-            )}
-          </div>
-        </div>
-
         {/* Attribute grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem", padding: "0.75rem 0", borderTop: "1px solid var(--border)" }}>
           {heroAttributes.map((attr) => (
             <div key={attr.label}>
               <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>{attr.label}</div>
-              {attr.label === "Location" && changingLocation ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                  <PlaceResolver
-                    value={locationPlace}
-                    onChange={(place: ResolvedPlace | null) => setLocationPlace(place)}
-                    placeholder="Search for new address..."
-                  />
-                  <div style={{ display: "flex", gap: "0.3rem" }}>
-                    <button onClick={handleChangeLocation} disabled={!locationPlace || savingLocation} className="btn btn-sm" style={{ fontSize: "0.75rem" }}>{savingLocation ? "..." : "Save"}</button>
-                    <button onClick={() => { setChangingLocation(false); setLocationPlace(null); }} className="btn btn-sm btn-secondary" style={{ fontSize: "0.75rem" }}>Cancel</button>
-                  </div>
-                </div>
-              ) : attr.label === "Location" ? (
+              {attr.label === "Location" ? (
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                   {attr.href && attr.value ? (
                     <a href={attr.href} onClick={request.place_id ? (e) => { if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); modals.preview.open("place", request.place_id!); } } : undefined} style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>
@@ -466,7 +424,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
                   ) : (
                     <span style={{ fontSize: "0.85rem", fontWeight: 500, color: attr.value ? "var(--foreground)" : "var(--text-muted)" }}>{attr.value || "—"}</span>
                   )}
-                  <button onClick={() => setChangingLocation(true)} title="Change location" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", opacity: 0.7, padding: 0 }}><Icon name="pencil" size={12} /></button>
+                  <button onClick={() => { setShowLogUpdate(true); setLogUpdateInitialSection("location"); }} title="Change location" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", opacity: 0.7, padding: 0 }}><Icon name="pencil" size={12} /></button>
                   {request.place_id && !request.place_coordinates && (
                     <button onClick={handleGeocode} disabled={geocoding} title="Geocode this address" className="btn btn-sm" style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem" }}>{geocoding ? "..." : "Geocode"}</button>
                   )}
@@ -820,10 +778,13 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
       {/* Log Update drawer */}
       <LogUpdateDrawer
         isOpen={showLogUpdate}
-        onClose={() => setShowLogUpdate(false)}
+        onClose={() => { setShowLogUpdate(false); setLogUpdateInitialSection(undefined); }}
         requestId={requestId}
+        request={request}
         siteId={request.site_id}
         placeId={request.place_id}
+        fixedCount={request.colony_verified_altered ?? 0}
+        initialSection={logUpdateInitialSection}
         onSaved={() => { refreshAndNotify(); fetchJournalEntries(); fetchRelatedPeople(); }}
       />
     </div>

@@ -4,11 +4,9 @@ import { useState, useCallback, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { LogSiteVisitModal, CompleteRequestModal, CloseRequestModal, HoldRequestModal, RedirectRequestModal, HandoffRequestModal, SendEmailModal, CreateColonyModal, ArchiveRequestModal, TripReportModal } from "@/components/modals";
 import { LegacyUpgradeWizard } from "@/components/forms";
-import { UpdateSituationDrawer } from "@/components/request/UpdateSituationDrawer";
 import { EntityPreviewModal } from "@/components/search";
 import { useEntityPreviewModal } from "@/hooks/useEntityPreviewModal";
 import type { RequestDetail } from "@/app/requests/[id]/types";
-import type { JournalEntry } from "@/components/sections";
 
 type ModalName =
   | "observation"
@@ -22,7 +20,6 @@ type ModalName =
   | "colony"
   | "upgrade"
   | "archive"
-  | "situation"
   | "history";
 
 interface UseRequestModalsProps {
@@ -171,14 +168,6 @@ export function useRequestModals({
           onCancel={close}
         />
       )}
-      <UpdateSituationDrawer
-        isOpen={openModal === "situation"}
-        requestId={requestId}
-        request={request}
-        fixedCount={request.colony_verified_altered ?? request.linked_cat_count ?? 0}
-        onClose={close}
-        onSuccess={() => { close(); refreshRequest(); fetchJournalEntries(); }}
-      />
       <EntityPreviewModal
         isOpen={preview.isOpen}
         onClose={preview.close}
