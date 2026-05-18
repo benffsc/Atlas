@@ -288,7 +288,8 @@ export async function GET(
         NULL::TEXT AS redirect_reason,
         NULL::TIMESTAMPTZ AS redirect_at,
         r.transfer_type,
-        -- Place info (use address if place name matches requester name)
+        -- Site + Place info
+        r.site_id,
         r.place_id,
         CASE
           WHEN p.display_name IS NOT NULL AND per.display_name IS NOT NULL

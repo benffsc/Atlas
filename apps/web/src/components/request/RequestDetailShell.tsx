@@ -13,6 +13,8 @@ import { MediaGallery } from "@/components/media";
 import { SmartField, TabBar, TabPanel } from "@/components/ui";
 import { Icon } from "@/components/ui/Icon";
 import { formatPhone, formatAddress } from "@/lib/formatters";
+import PlaceResolver from "@/components/forms/PlaceResolver";
+import type { ResolvedPlace } from "@/components/forms/PlaceResolver";
 import { fetchApi, postApi, patchRequest } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import { LANGUAGE_OPTIONS, getLabel, getShortLabel } from "@/lib/form-options";
@@ -76,6 +78,14 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
   // History toggle
   const [showHistory, setShowHistory] = useState(false);
+
+  // Change location state
+  const [changingLocation, setChangingLocation] = useState(false);
+  const [locationPlace, setLocationPlace] = useState<ResolvedPlace | null>(null);
+  const [savingLocation, setSavingLocation] = useState(false);
+
+  // Geocode state
+  const [geocoding, setGeocoding] = useState(false);
 
   // Site contact editing state
   const [savingSiteContact, setSavingSiteContact] = useState(false);
@@ -248,6 +258,42 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
     }
   };
 
+  const handleChangeLocation = async () => {
+    if (!locationPlace?.place_id) return;
+    setSavingLocation(true);
+    try {
+      await patchRequest(requestId, { place_id: locationPlace.place_id });
+      postApi("/api/journal", {
+        request_id: requestId,
+        entry_kind: "system",
+        tags: ["location_change"],
+        body: `Changed location to ${locationPlace.formatted_address || locationPlace.display_name}`,
+      }).catch(() => {});
+      await refreshAndNotify();
+      setChangingLocation(false);
+      setLocationPlace(null);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to change location");
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
+  const handleGeocode = async () => {
+    if (!request?.place_id) return;
+    setGeocoding(true);
+    try {
+      await postApi(`/api/places/${request.place_id}/geocode`, {});
+      await refreshAndNotify();
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setError(apiErr.message || "Failed to geocode");
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   // ─── Loading ───
   if (loading) {
     return (
@@ -282,8 +328,9 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   const isResolved = request.status === "completed" || request.status === "cancelled" || request.status === "partial";
 
   // ─── Hero attribute grid data ───
+  const locationDisplay = request.place_name || (request.place_address ? formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true }) : null);
   const heroAttributes = [
-    { label: "Location", value: request.place_name || (request.place_address ? formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true }) : null), href: request.place_id ? `/places/${request.place_id}` : undefined },
+    { label: "Location", value: locationDisplay, href: request.place_id ? `/places/${request.place_id}` : undefined, editable: true },
     { label: "Zone", value: request.place_service_zone },
     { label: "Requester", value: request.requester_name, href: request.requester_person_id ? `/people/${request.requester_person_id}` : undefined },
     { label: "Contact", value: request.requester_phone ? formatPhone(request.requester_phone) : request.requester_email },
@@ -398,8 +445,34 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
           {heroAttributes.map((attr) => (
             <div key={attr.label}>
               <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>{attr.label}</div>
-              {attr.href && attr.value ? (
-                <a href={attr.href} onClick={attr.label === "Requester" && request.requester_person_id ? (e) => { if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); modals.preview.open("person", request.requester_person_id!); } } : attr.label === "Location" && request.place_id ? (e) => { if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); modals.preview.open("place", request.place_id!); } } : undefined} style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>
+              {attr.label === "Location" && changingLocation ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                  <PlaceResolver
+                    value={locationPlace}
+                    onChange={(place: ResolvedPlace | null) => setLocationPlace(place)}
+                    placeholder="Search for new address..."
+                  />
+                  <div style={{ display: "flex", gap: "0.3rem" }}>
+                    <button onClick={handleChangeLocation} disabled={!locationPlace || savingLocation} className="btn btn-sm" style={{ fontSize: "0.75rem" }}>{savingLocation ? "..." : "Save"}</button>
+                    <button onClick={() => { setChangingLocation(false); setLocationPlace(null); }} className="btn btn-sm btn-secondary" style={{ fontSize: "0.75rem" }}>Cancel</button>
+                  </div>
+                </div>
+              ) : attr.label === "Location" ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                  {attr.href && attr.value ? (
+                    <a href={attr.href} onClick={request.place_id ? (e) => { if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); modals.preview.open("place", request.place_id!); } } : undefined} style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>
+                      {attr.value}
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: "0.85rem", fontWeight: 500, color: attr.value ? "var(--foreground)" : "var(--text-muted)" }}>{attr.value || "—"}</span>
+                  )}
+                  <button onClick={() => setChangingLocation(true)} title="Change location" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", opacity: 0.7, padding: 0 }}><Icon name="pencil" size={12} /></button>
+                  {request.place_id && !request.place_coordinates && (
+                    <button onClick={handleGeocode} disabled={geocoding} title="Geocode this address" className="btn btn-sm" style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem" }}>{geocoding ? "..." : "Geocode"}</button>
+                  )}
+                </div>
+              ) : attr.href && attr.value ? (
+                <a href={attr.href} onClick={attr.label === "Requester" && request.requester_person_id ? (e) => { if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); modals.preview.open("person", request.requester_person_id!); } } : undefined} style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>
                   {attr.value}
                 </a>
               ) : (

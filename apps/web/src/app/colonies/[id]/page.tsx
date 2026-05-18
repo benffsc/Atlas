@@ -8,8 +8,11 @@ import { SkeletonStats, SkeletonList } from "@/components/feedback/Skeleton";
 import { ErrorState } from "@/components/feedback/EmptyState";
 import { StatusBadge } from "@/components/badges";
 import { Icon } from "@/components/ui/Icon";
+import { Button } from "@/components/ui/Button";
 import { TabBar, TabPanel } from "@/components/ui";
-import { fetchApi } from "@/lib/api-client";
+import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { fetchApi, postApi } from "@/lib/api-client";
+import { useToast } from "@/components/feedback/Toast";
 import { formatRelativeTime } from "@/lib/formatters";
 import { formatPhone } from "@/lib/formatters";
 
@@ -63,6 +66,17 @@ interface TimelineEvent {
   tags: string[];
 }
 
+interface SiteTrapper {
+  id: string;
+  trapper_person_id: string;
+  display_name: string | null;
+  trapper_type: string | null;
+  is_primary: boolean;
+  status: string;
+  assigned_at: string;
+  notes: string | null;
+}
+
 // ── Helpers ──
 
 const EVENT_ICONS: Record<string, { icon: string; color: string }> = {
@@ -93,12 +107,24 @@ export default function ColonyStoryPage() {
   const [colony, setColony] = useState<ColonyDetail | null>(null);
   const [people, setPeople] = useState<ColonyPerson[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [siteTrappers, setSiteTrappers] = useState<SiteTrapper[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("story");
+  const [showAssignTrapper, setShowAssignTrapper] = useState(false);
+  const [assigningTrapper, setAssigningTrapper] = useState(false);
+  const [trapperPick, setTrapperPick] = useState<PersonReference>({ person_id: null, display_name: "", is_resolved: false });
+  const toast = useToast();
 
   const colonyName = colony?.colony_name || "Colony";
   const { breadcrumbs } = useNavigationContext(colonyName);
+
+  const fetchTrappers = useCallback(async () => {
+    try {
+      const data = await fetchApi<{ trappers: SiteTrapper[] }>(`/api/colonies/${id}/trappers`);
+      setSiteTrappers(data.trappers || []);
+    } catch { /* non-blocking */ }
+  }, [id]);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -115,9 +141,38 @@ export default function ColonyStoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+    fetchTrappers();
+  }, [id, fetchTrappers]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleAssignTrapper = async () => {
+    if (!trapperPick.person_id) return;
+    setAssigningTrapper(true);
+    try {
+      await postApi(`/api/colonies/${id}/trappers`, { trapper_person_id: trapperPick.person_id });
+      toast.success(`Assigned ${trapperPick.display_name}`);
+      setTrapperPick({ person_id: null, display_name: "", is_resolved: false });
+      setShowAssignTrapper(false);
+      fetchTrappers();
+      // Refresh timeline to show assignment event
+      fetchApi<{ events: TimelineEvent[] }>(`/api/colonies/${id}/timeline`).then(d => setTimeline(d.events || [])).catch(() => {});
+    } catch {
+      toast.error("Failed to assign trapper");
+    } finally {
+      setAssigningTrapper(false);
+    }
+  };
+
+  const handleUnassignTrapper = async (assignmentId: string) => {
+    try {
+      await fetchApi(`/api/colonies/${id}/trappers`, { method: "DELETE", body: JSON.stringify({ assignment_id: assignmentId }), headers: { "Content-Type": "application/json" } });
+      toast.success("Trapper unassigned");
+      fetchTrappers();
+    } catch {
+      toast.error("Failed to unassign");
+    }
+  };
 
   if (loading) {
     return (
@@ -170,6 +225,47 @@ export default function ColonyStoryPage() {
           <StatBox label="Completed" value={completedRequests.length} />
         </div>
       </div>
+
+      {/* ═══ Trappers section (above tabs) ═══ */}
+      {siteTrappers.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+          <Icon name="target" size={14} color="var(--primary)" />
+          <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>Trappers:</span>
+          {siteTrappers.map(t => (
+            <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", padding: "0.2rem 0.5rem", borderRadius: "4px", background: "var(--primary-bg, #f0fdf4)", border: "1px solid var(--primary)", fontSize: "0.8rem" }}>
+              <a href={`/people/${t.trapper_person_id}?from=colonies`} style={{ color: "var(--primary)", textDecoration: "none", fontWeight: 500 }}>{t.display_name || "Unknown"}</a>
+              {t.is_primary && <span style={{ fontSize: "0.6rem", background: "var(--primary)", color: "#fff", padding: "0 3px", borderRadius: "2px" }}>1°</span>}
+              <button onClick={() => handleUnassignTrapper(t.id)} title="Unassign" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: "0.8rem", padding: 0 }}>&times;</button>
+            </span>
+          ))}
+          <button onClick={() => setShowAssignTrapper(true)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", fontSize: "0.75rem", fontWeight: 500 }}>+ Assign</button>
+        </div>
+      )}
+
+      {/* Assign trapper inline */}
+      {(showAssignTrapper || siteTrappers.length === 0) && (
+        <div style={{ marginBottom: "0.75rem", padding: "0.75rem", background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Assign Trapper</span>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+            <div style={{ flex: 1 }}>
+              <PersonReferencePicker
+                value={trapperPick}
+                onChange={setTrapperPick}
+                placeholder="Search for a trapper..."
+                requireResolved
+              />
+            </div>
+            <Button size="sm" variant="primary" onClick={handleAssignTrapper} disabled={!trapperPick.person_id || assigningTrapper} loading={assigningTrapper}>
+              Assign
+            </Button>
+            {siteTrappers.length > 0 && (
+              <Button size="sm" variant="secondary" onClick={() => setShowAssignTrapper(false)}>Cancel</Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ═══ Tabs ═══ */}
       <TabBar

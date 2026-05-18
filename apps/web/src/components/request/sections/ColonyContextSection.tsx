@@ -54,12 +54,19 @@ interface ColonyContextPerson {
   phone: string | null;
 }
 
+interface SiteTrapperRef {
+  person_id: string;
+  display_name: string | null;
+  is_primary: boolean;
+}
+
 export interface ColonyContext {
   mode: ContextMode;
   colony: ColonyInfo | null;
   places: ColonyContextPlace[];
   requests: ColonyContextRequest[];
   people?: ColonyContextPerson[];
+  site_trappers?: SiteTrapperRef[];
   total_cats: number;
   altered_cats: number;
 }
@@ -258,6 +265,24 @@ export function ColonyContextSection({ placeId, currentRequestId, onPlaceClick, 
                 <span style={{ fontWeight: 500, color: "var(--foreground)" }}>{p.display_name}</span>
                 <span style={{ fontSize: "0.65rem", padding: "0 3px", borderRadius: "3px", background: "var(--muted-bg, #f3f4f6)" }}>{p.role_label}</span>
               </span>
+            ))}
+          </div>
+        )}
+
+        {/* Site trappers */}
+        {data.site_trappers && data.site_trappers.length > 0 && (
+          <div style={{
+            padding: "0.4rem 1rem",
+            borderTop: "1px solid var(--border, #f0f0f0)",
+            display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap",
+            fontSize: "0.8rem",
+          }}>
+            <Icon name="target" size={13} color="var(--primary)" />
+            <span style={{ fontWeight: 500, fontSize: "0.7rem", textTransform: "uppercase", color: "var(--muted)", letterSpacing: "0.03em" }}>Trapper:</span>
+            {data.site_trappers.map(t => (
+              <a key={t.person_id} href={`/people/${t.person_id}`} style={{ fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>
+                {t.display_name || "Unknown"}
+              </a>
             ))}
           </div>
         )}

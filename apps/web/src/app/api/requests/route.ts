@@ -43,6 +43,7 @@ interface RequestListRow {
   requester_is_site_contact: boolean | null;
   site_contact_name: string | null;
   is_archived: boolean;
+  site_id: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -216,6 +217,7 @@ export async function GET(request: NextRequest) {
         vrl.requester_role_at_submission,
         vrl.requester_is_site_contact,
         vrl.site_contact_name,
+        r.site_id,
         COALESCE(r.is_archived, FALSE) AS is_archived,
         r.resolution_outcome,
         COALESCE((

@@ -68,6 +68,8 @@ interface Request {
   resolution_outcome: string | null;
   // Recent activity heat
   recent_activity_count: number;
+  // Site grouping
+  site_id: string | null;
 }
 
 
@@ -902,6 +904,91 @@ function StatusGroupedCards({
   );
 }
 
+function SiteGroupedCards({
+  requests,
+  onTrapperAction,
+  actionMenuId,
+  onToggleMenu,
+  onCardClick,
+}: {
+  requests: Request[];
+  onTrapperAction?: (requestId: string, reason: string) => void;
+  actionMenuId?: string | null;
+  onToggleMenu?: (id: string | null) => void;
+  onCardClick?: (requestId: string) => void;
+}) {
+  // Group by site_id, null site_id = ungrouped
+  const siteGroups = new Map<string | null, Request[]>();
+  for (const req of requests) {
+    const key = req.site_id;
+    if (!siteGroups.has(key)) siteGroups.set(key, []);
+    siteGroups.get(key)!.push(req);
+  }
+
+  // Sort sites by total recent_activity_count desc, ungrouped last
+  const sortedSites = Array.from(siteGroups.entries()).sort((a, b) => {
+    if (a[0] === null) return 1;
+    if (b[0] === null) return -1;
+    const aHeat = a[1].reduce((s, r) => s + r.recent_activity_count, 0);
+    const bHeat = b[1].reduce((s, r) => s + r.recent_activity_count, 0);
+    return bHeat - aHeat;
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {sortedSites.map(([siteId, siteRequests]) => {
+        // Use the first request's address as site header
+        const primary = siteRequests[0];
+        const siteName = primary.place_address || primary.place_name || "Unknown Location";
+        const totalHeat = siteRequests.reduce((s, r) => s + r.recent_activity_count, 0);
+
+        return (
+          <div key={siteId || "ungrouped"}>
+            {/* Site header */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: "0.75rem",
+              marginBottom: "0.75rem", padding: "0.5rem 0.75rem",
+              background: siteId ? "var(--section-bg, #f9fafb)" : "transparent",
+              borderRadius: "8px",
+              borderLeft: siteId ? "4px solid var(--primary)" : "4px solid var(--border, #e5e7eb)",
+            }}>
+              {siteId ? (
+                <a href={`/colonies/${siteId}`} style={{ fontSize: "1rem", fontWeight: 600, color: "var(--primary)", textDecoration: "none" }}>
+                  {siteName}
+                </a>
+              ) : (
+                <span style={{ fontSize: "1rem", fontWeight: 600, color: "var(--muted)" }}>Ungrouped</span>
+              )}
+              <span style={{ fontSize: "0.85rem", fontWeight: 600, padding: "0.1rem 0.4rem", background: "var(--primary)", color: "#fff", borderRadius: "10px" }}>
+                {siteRequests.length}
+              </span>
+              {totalHeat > 0 && (
+                <span style={{ fontSize: "0.7rem", padding: "1px 6px", borderRadius: "4px", background: totalHeat >= 5 ? COLORS.successLight : COLORS.warningLight, color: totalHeat >= 5 ? COLORS.successDark : COLORS.warningDark }}>
+                  {totalHeat} recent
+                </span>
+              )}
+            </div>
+
+            {/* Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(max(var(--card-min-width, 240px), calc((100% - 3rem) / 5)), 1fr))", gap: "1rem" }}>
+              {siteRequests.map((req) => (
+                <RequestCard
+                  key={req.request_id}
+                  request={req}
+                  onTrapperAction={onTrapperAction}
+                  actionMenuId={actionMenuId}
+                  onToggleMenu={onToggleMenu}
+                  onCardClick={onCardClick}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const FILTER_DEFAULTS = {
   status: "",
   trapper: "",
@@ -912,6 +999,7 @@ const FILTER_DEFAULTS = {
   view: "cards",
   showArchived: "false",
   selected: "",
+  groupBy: "",
 };
 
 function RequestsPageContent() {
@@ -1193,6 +1281,12 @@ function RequestsPageContent() {
           value={filters.showArchived}
           onChange={(v) => setFilter("showArchived", v)}
         />
+        <FilterChip
+          label="Group"
+          options={[{ value: "site", label: "By Site" }]}
+          value={filters.groupBy}
+          onChange={(v) => setFilter("groupBy", v)}
+        />
         <FilterDivider />
         {/* Sort Dropdown */}
         <select
@@ -1270,7 +1364,7 @@ function RequestsPageContent() {
           priority: "Priority",
           kittens: "Kittens",
         }}
-        exclude={["q", "sort", "view", "selected", "showArchived"]}
+        exclude={["q", "sort", "view", "selected", "showArchived", "groupBy"]}
         onRemove={(key) => setFilter(key as keyof typeof FILTER_DEFAULTS, FILTER_DEFAULTS[key as keyof typeof FILTER_DEFAULTS])}
         onClearAll={clearFilters}
       />
@@ -1374,6 +1468,14 @@ function RequestsPageContent() {
             onClick: () => { window.location.href = "/requests/new"; },
           }}
           size="lg"
+        />
+      ) : filters.view === "cards" && filters.groupBy === "site" ? (
+        <SiteGroupedCards
+          requests={requests}
+          onTrapperAction={handleQuickTrapperAction}
+          actionMenuId={actionMenuId}
+          onToggleMenu={setActionMenuId}
+          onCardClick={handleRowClick}
         />
       ) : filters.view === "cards" ? (
         <StatusGroupedCards

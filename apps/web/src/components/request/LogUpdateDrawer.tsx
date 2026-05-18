@@ -40,6 +40,7 @@ interface InlineContact {
   name: string;
   phone: string;
   role: string;
+  isTrapper: boolean;
 }
 
 interface InlineAddress {
@@ -78,6 +79,13 @@ export function LogUpdateDrawer({ isOpen, onClose, requestId, siteId, placeId, o
   const [updateCats, setUpdateCats] = useState(false);
   const [catCount, setCatCount] = useState("");
 
+  // Change location toggle
+  const [changeLocation, setChangeLocation] = useState(false);
+  const [newLocation, setNewLocation] = useState<ResolvedPlace | null>(null);
+
+  // Permission granted toggle
+  const [grantPermission, setGrantPermission] = useState(false);
+
   const reset = useCallback(() => {
     setBody("");
     setUpdateType("note");
@@ -89,6 +97,9 @@ export function LogUpdateDrawer({ isOpen, onClose, requestId, siteId, placeId, o
     setNewStatus("working");
     setUpdateCats(false);
     setCatCount("");
+    setChangeLocation(false);
+    setNewLocation(null);
+    setGrantPermission(false);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -113,12 +124,24 @@ export function LogUpdateDrawer({ isOpen, onClose, requestId, siteId, placeId, o
       for (const contact of contacts) {
         if (!contact.name.trim()) continue;
         try {
-          await postApi(`/api/requests/${requestId}/field-contacts`, {
+          const result = await postApi<{ person_id?: string }>(`/api/requests/${requestId}/field-contacts`, {
             first_name: contact.name.trim().split(/\s+/)[0],
             last_name: contact.name.trim().split(/\s+/).slice(1).join(" ") || undefined,
             phone: contact.phone.trim() || undefined,
             relationship_type: contact.role,
           });
+          // Promote to trapper if checked
+          if (contact.isTrapper && result?.person_id) {
+            try {
+              await postApi("/api/trappers", {
+                person_id: result.person_id,
+                trapper_type: "community_trapper",
+                reason: "promoted_via_log_update",
+              });
+            } catch {
+              // Non-blocking
+            }
+          }
         } catch {
           // Non-blocking — contact creation failure shouldn't stop the update
         }
@@ -157,6 +180,24 @@ export function LogUpdateDrawer({ isOpen, onClose, requestId, siteId, placeId, o
         }
       }
 
+      // 6. Change request location (if toggled)
+      if (changeLocation && newLocation?.place_id) {
+        try {
+          await patchRequest(requestId, { place_id: newLocation.place_id });
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      // 7. Permission granted (if toggled)
+      if (grantPermission) {
+        try {
+          await patchRequest(requestId, { permission_status: "granted" });
+        } catch {
+          // Non-blocking
+        }
+      }
+
       toast.success("Update logged");
       handleClose();
       onSaved();
@@ -165,10 +206,10 @@ export function LogUpdateDrawer({ isOpen, onClose, requestId, siteId, placeId, o
     } finally {
       setSaving(false);
     }
-  }, [body, updateType, contacts, addresses, changeStatus, newStatus, updateCats, catCount, requestId, siteId, handleClose, onSaved, toast]);
+  }, [body, updateType, contacts, addresses, changeStatus, newStatus, updateCats, catCount, changeLocation, newLocation, grantPermission, requestId, siteId, handleClose, onSaved, toast]);
 
   const addContact = useCallback(() => {
-    setContacts(prev => [...prev, { id: `c-${Date.now()}`, name: "", phone: "", role: "neighbor" }]);
+    setContacts(prev => [...prev, { id: `c-${Date.now()}`, name: "", phone: "", role: "neighbor", isTrapper: false }]);
     setShowAddContact(true);
   }, []);
 
@@ -258,36 +299,46 @@ export function LogUpdateDrawer({ isOpen, onClose, requestId, siteId, placeId, o
           {contacts.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {contacts.map(c => (
-                <div key={c.id} style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={c.name}
-                    onChange={(e) => updateContact(c.id, "name", e.target.value)}
-                    placeholder="Name"
-                    style={{ ...inputStyle, flex: 2 }}
-                  />
-                  <input
-                    type="tel"
-                    value={c.phone}
-                    onChange={(e) => updateContact(c.id, "phone", e.target.value)}
-                    placeholder="Phone"
-                    style={{ ...inputStyle, flex: 2 }}
-                  />
-                  <select
-                    value={c.role}
-                    onChange={(e) => updateContact(c.id, "role", e.target.value)}
-                    style={{ ...inputStyle, flex: 1.5 }}
-                  >
-                    {RELATED_PERSON_RELATIONSHIP_OPTIONS.map(o => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => removeContact(c.id)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: "1rem" }}
-                  >
-                    &times;
-                  </button>
+                <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                  <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      value={c.name}
+                      onChange={(e) => updateContact(c.id, "name", e.target.value)}
+                      placeholder="Name"
+                      style={{ ...inputStyle, flex: 2 }}
+                    />
+                    <input
+                      type="tel"
+                      value={c.phone}
+                      onChange={(e) => updateContact(c.id, "phone", e.target.value)}
+                      placeholder="Phone"
+                      style={{ ...inputStyle, flex: 2 }}
+                    />
+                    <select
+                      value={c.role}
+                      onChange={(e) => updateContact(c.id, "role", e.target.value)}
+                      style={{ ...inputStyle, flex: 1.5 }}
+                    >
+                      {RELATED_PERSON_RELATIONSHIP_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => removeContact(c.id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: "1rem" }}
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.75rem", color: "var(--text-muted)", paddingLeft: "0.25rem", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={c.isTrapper}
+                      onChange={(e) => setContacts(prev => prev.map(ct => ct.id === c.id ? { ...ct, isTrapper: e.target.checked } : ct))}
+                    />
+                    Is a community trapper
+                  </label>
                 </div>
               ))}
             </div>
@@ -360,6 +411,27 @@ export function LogUpdateDrawer({ isOpen, onClose, requestId, siteId, placeId, o
                 style={{ ...inputStyle, width: "60px" }}
               />
             )}
+          </label>
+
+          {/* Change request location */}
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+            <input type="checkbox" checked={changeLocation} onChange={(e) => setChangeLocation(e.target.checked)} />
+            Change request location
+          </label>
+          {changeLocation && (
+            <div style={{ paddingLeft: "1.5rem" }}>
+              <PlaceResolver
+                value={newLocation}
+                onChange={(place: ResolvedPlace | null) => setNewLocation(place)}
+                placeholder="Search for new address..."
+              />
+            </div>
+          )}
+
+          {/* Permission granted */}
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+            <input type="checkbox" checked={grantPermission} onChange={(e) => setGrantPermission(e.target.checked)} />
+            Permission granted
           </label>
         </div>
       </div>

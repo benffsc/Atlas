@@ -173,7 +173,20 @@ export const GET = withErrorHandling(async (
     const totalCats = corridorPlaces.reduce((s, p) => s + p.cat_count, 0);
     const alteredCats = corridorPlaces.reduce((s, p) => s + p.altered_count, 0);
 
-    return apiSuccess({ mode, colony, places: corridorPlaces, requests, people, total_cats: totalCats, altered_cats: alteredCats });
+    // Fetch site-level trapper assignments
+    let site_trappers: { person_id: string; display_name: string | null; is_primary: boolean }[] = [];
+    if (colony) {
+      site_trappers = await queryRows<{ person_id: string; display_name: string | null; is_primary: boolean }>(
+        `SELECT sa.trapper_person_id AS person_id, p.display_name, sa.is_primary
+         FROM ops.site_assignments sa
+         JOIN sot.people p ON p.person_id = sa.trapper_person_id
+         WHERE sa.site_id = $1 AND sa.status = 'active'
+         ORDER BY sa.is_primary DESC, sa.assigned_at`,
+        [colony.colony_id]
+      );
+    }
+
+    return apiSuccess({ mode, colony, places: corridorPlaces, requests, people, site_trappers, total_cats: totalCats, altered_cats: alteredCats });
   }
 
   // ── 3. No colony, no corridor — check for nearby activity ──
