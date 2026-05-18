@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 const PUBLIC_PATHS = [
   "/login",
   "/change-password",
+  "/welcome",
   "/story",
   "/impact",
   "/api/auth/login",
@@ -98,9 +99,8 @@ export async function middleware(request: NextRequest) {
     }
 
     // Non-API routes redirect to login
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    const welcomeUrl = new URL("/welcome", request.url);
+    return NextResponse.redirect(welcomeUrl);
   }
 
   // Enforce password change: redirect to /change-password if cookie is set
