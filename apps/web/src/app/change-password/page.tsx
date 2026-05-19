@@ -169,6 +169,9 @@ export default function ChangePasswordPage() {
             padding: "24px",
           }}
         >
+          {/* Hidden username for password manager association */}
+          <input type="hidden" name="username" autoComplete="username" value={staffName} />
+
           {/* Current Password */}
           <div style={{ marginBottom: "16px" }}>
             <label
@@ -183,6 +186,7 @@ export default function ChangePasswordPage() {
             </label>
             <input
               type="password"
+              autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder={isRequired ? "Enter default password" : "Enter current password"}
@@ -215,6 +219,7 @@ export default function ChangePasswordPage() {
             </label>
             <input
               type="password"
+              autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Enter new password (8+ characters)"
@@ -242,6 +247,7 @@ export default function ChangePasswordPage() {
             </label>
             <input
               type="password"
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm new password"
