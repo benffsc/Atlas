@@ -269,7 +269,7 @@ export default function StaffScanPage() {
 
   const showSmartCard = state === "found" && equipment && !forceGenericCard;
   const cs = equipment?.custody_status;
-  const useSmartCard = showSmartCard && (cs === "checked_out" || cs === "missing" || cs === "available");
+  const useSmartCard = showSmartCard && (cs === "checked_out" || cs === "assigned" || cs === "missing" || cs === "available");
   const personName = checkoutBorrowerType === "department"
     ? (DEPARTMENTS.find((d) => d.value === checkoutDept)?.label || checkoutDept)
     : `${checkoutPerson.first_name} ${checkoutPerson.last_name}`.trim();
@@ -309,7 +309,7 @@ export default function StaffScanPage() {
         </div>
       )}
 
-      {useSmartCard && cs === "checked_out" && <HeroCheckinCard equipmentId={equipment.equipment_id} equipmentName={equipment.display_name} custodianName={equipment.custodian_name || equipment.current_holder_name || null} custodianId={equipment.current_custodian_id || null} currentCondition={equipment.condition_status} daysOut={equipment.days_checked_out} onComplete={handleSmartCardComplete} onOtherActions={() => setForceGenericCard(true)} />}
+      {useSmartCard && (cs === "checked_out" || cs === "assigned") && <HeroCheckinCard equipmentId={equipment.equipment_id} equipmentName={equipment.display_name} custodianName={equipment.custodian_name || equipment.current_holder_name || null} custodianId={equipment.current_custodian_id || null} currentCondition={equipment.condition_status} daysOut={equipment.days_checked_out} onComplete={handleSmartCardComplete} onOtherActions={() => setForceGenericCard(true)} />}
       {useSmartCard && cs === "missing" && <FoundTrapFlow equipmentId={equipment.equipment_id} equipmentName={equipment.display_name} onComplete={handleSmartCardComplete} />}
       {useSmartCard && cs === "available" && <AvailableTrapCard equipmentId={equipment.equipment_id} equipmentName={equipment.display_name} onComplete={handleSmartCardComplete} onCheckOut={handleAddToCart} />}
 

@@ -413,7 +413,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
   // ── Display logic ──
   const showSmartCard = state === "found" && equipment && !forceGenericCard;
   const smartCardStatus = equipment?.custody_status;
-  const useSmartCard = showSmartCard && (smartCardStatus === "checked_out" || smartCardStatus === "missing" || smartCardStatus === "available");
+  const useSmartCard = showSmartCard && (smartCardStatus === "checked_out" || smartCardStatus === "assigned" || smartCardStatus === "missing" || smartCardStatus === "available");
   const personName = `${checkoutPerson.first_name} ${checkoutPerson.last_name}`.trim();
   const inCartMode = state === "checkout_cart" || checkoutCart.length > 0;
 
@@ -718,7 +718,7 @@ export function EquipmentDrawer({ isOpen, onClose, onComplete }: EquipmentDrawer
       )}
 
       {/* ═══ SMART CARDS — non-checkout scan results ═══ */}
-      {useSmartCard && smartCardStatus === "checked_out" && (
+      {useSmartCard && (smartCardStatus === "checked_out" || smartCardStatus === "assigned") && (
         <HeroCheckinCard
           equipmentId={equipment.equipment_id}
           equipmentName={equipment.display_name}
