@@ -316,7 +316,7 @@ export default function StaffScanPage() {
       {(state === "found" || state === "action") && equipment && (forceGenericCard || !useSmartCard) && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <KioskEquipmentCard equipment={equipment} onAction={(a) => a === "check_out" ? handleAddToCart() : handleAction(a)} />
-          {state === "action" && activeAction && activeAction !== "check_out" && activeAction !== "check_in" && (
+          {state === "action" && activeAction && activeAction !== "check_out" && (
             <SimpleActionConfirm equipmentId={equipment.equipment_id} action={activeAction} actionLabel={getLabel(EQUIPMENT_EVENT_TYPE_OPTIONS, activeAction)} currentCondition={equipment.condition_status} onComplete={handleActionComplete} onCancel={handleActionCancel} />
           )}
           {state === "found" && <Button variant="ghost" icon="scan-barcode" fullWidth onClick={handleReset}>Scan Another</Button>}
