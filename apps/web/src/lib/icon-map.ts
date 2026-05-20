@@ -140,6 +140,11 @@ import {
   Bell,
   MessageCircle,
   Play,
+  Type,
+  Columns3,
+  ImageIcon,
+  Download,
+  Quote,
   type LucideIcon,
 } from "lucide-react";
 
@@ -215,6 +220,14 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   baby: Baby,
   "scroll-text": ScrollText,
   "square-kanban": SquareKanban,
+
+  // Meeting slides
+  type: Type,
+  columns: Columns3,
+  image: ImageIcon,
+  download: Download,
+  quote: Quote,
+  "bar-chart-3": BarChart3,
 
   // Kiosk
   "scan-barcode": ScanBarcode,

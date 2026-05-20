@@ -723,6 +723,7 @@ export function TrappersSidebar({ children }: { children: React.ReactNode }) {
         { label: "Observations", href: "/trappers/observations", icon: "telescope" },
         { label: "Onboarding", href: "/trappers/onboarding", icon: "file-text" },
         { label: "Training Materials", href: "/trappers/materials", icon: "book-open" },
+        { label: "Meetings", href: "/trappers/meetings", icon: "presentation" },
       ],
     },
     {
