@@ -30,6 +30,8 @@ const PUBLIC_PATHS = [
   "/api/story-config",
   "/api/version",
   "/api/health",
+  "/public/map",
+  "/api/public/map-density",
   "/kiosk",
   "/trapper-survey",
   "/api/trapper-survey",

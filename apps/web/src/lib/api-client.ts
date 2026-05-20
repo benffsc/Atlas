@@ -65,7 +65,8 @@ export async function fetchApi<T>(
     response.status === 401 &&
     typeof window !== "undefined" &&
     !window.location.pathname.startsWith("/login") &&
-    !window.location.pathname.startsWith("/change-password")
+    !window.location.pathname.startsWith("/change-password") &&
+    !window.location.pathname.startsWith("/public")
   ) {
     const returnPath = window.location.pathname + window.location.search;
     window.location.href = `/login?redirect=${encodeURIComponent(returnPath)}&reason=session_expired`;
@@ -128,7 +129,8 @@ export async function fetchApiWithMeta<T>(
     response.status === 401 &&
     typeof window !== "undefined" &&
     !window.location.pathname.startsWith("/login") &&
-    !window.location.pathname.startsWith("/change-password")
+    !window.location.pathname.startsWith("/change-password") &&
+    !window.location.pathname.startsWith("/public")
   ) {
     const returnPath = window.location.pathname + window.location.search;
     window.location.href = `/login?redirect=${encodeURIComponent(returnPath)}&reason=session_expired`;

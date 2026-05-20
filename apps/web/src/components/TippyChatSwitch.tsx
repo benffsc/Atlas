@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { TippyChat } from "@/components/TippyChat";
 import { ShowcaseTippyChat } from "@/components/ShowcaseTippyChat";
 
@@ -16,6 +17,7 @@ const STORAGE_KEY = "beacon.presentation_mode";
 const BODY_CLASS = "presentation-mode";
 
 export function TippyChatSwitch() {
+  const pathname = usePathname();
   const [isShowcase, setIsShowcase] = useState(false);
 
   useEffect(() => {
@@ -30,6 +32,8 @@ export function TippyChatSwitch() {
     observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
+
+  if (pathname?.startsWith("/public")) return null;
 
   return isShowcase ? <ShowcaseTippyChat /> : <TippyChat />;
 }
