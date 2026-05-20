@@ -18,15 +18,15 @@ interface SlideRow {
   display_order: number;
 }
 
-// Dark-first backgrounds matching the presentation cinematic style
+// FFSC brand charcoal backgrounds
 const BG_COLORS: Record<string, string> = {
-  default: "0f0f17",
-  dark: "0a0a0f",
-  accent: "0f1729",
-  photo_bg: "050508",
+  default: "4d4d4d",
+  dark: "3d3d3d",
+  accent: "555555",
+  photo_bg: "333333",
 };
 
-// All styles are dark — always use light text
+// All bg styles are dark charcoal — always use white text
 const isDarkBg = () => true;
 
 function addTitleSlide(pptx: PptxGenJS, slide: SlideRow) {
@@ -102,7 +102,7 @@ function addStatsSlide(pptx: PptxGenJS, slide: SlideRow) {
       s.addText(stat.value, {
         x, y: 2, w: colW, h: 1,
         fontSize: 36, bold: true, align: "center",
-        color: stat.highlight ? "2563eb" : textColor,
+        color: stat.highlight ? "7bc67e" : textColor,
       });
       s.addText(stat.label, {
         x, y: 3, w: colW, h: 0.6,

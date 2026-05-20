@@ -57,12 +57,9 @@ function ContentSlide({ slide }: { slide: Slide }) {
   return (
     <div className="meeting-slide-inner meeting-slide-inner-wide">
       {slide.title && (
-        <>
-          <div className="meeting-slide-eyebrow">{slide.title}</div>
-          <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.25rem)" }}>
-            {slide.title}
-          </h2>
-        </>
+        <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.25rem)", textAlign: "left" }}>
+          {slide.title}
+        </h2>
       )}
       {lines.length > 0 && (
         <ul className="meeting-slide-bullets">
@@ -93,12 +90,9 @@ function StatsSlide({ slide, autoStats }: { slide: Slide; autoStats?: MeetingSta
   return (
     <div className="meeting-slide-inner meeting-slide-inner-wide">
       {slide.title && (
-        <>
-          <div className="meeting-slide-eyebrow">By the numbers</div>
-          <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.25rem)" }}>
-            {slide.title}
-          </h2>
-        </>
+        <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.25rem)" }}>
+          {slide.title}
+        </h2>
       )}
       <div className="meeting-stats-grid">
         {stats.map((stat, i) => (

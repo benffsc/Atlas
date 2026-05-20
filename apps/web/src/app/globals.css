@@ -5240,19 +5240,19 @@ a:focus-visible {
 }
 
 /* ============================================================================
-   Meeting Presentation Mode — Trapper meeting deck (keynote-style)
-   Mirrors the gala /demo deck: dark cinematic, Merriweather headings,
-   radial gradient accents, glassmorphic nav, scroll-snap, keyboard nav.
+   Meeting Presentation Mode — FFSC brand deck style
+   Warm charcoal gray (#4d4d4d), bold white sans-serif, photo-forward layouts,
+   clean nonprofit aesthetic matching Beacon Deck 1.
    ============================================================================ */
 
 .meeting-present {
   position: fixed;
   inset: 0;
-  background: #0a0a0f;
-  color: #f5f5f5;
+  background: #4d4d4d;
+  color: #ffffff;
   z-index: 9990;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .meeting-present-slides {
@@ -5272,42 +5272,29 @@ a:focus-visible {
   position: relative;
 }
 
-/* Background variants — match gala deck radial gradients */
+/* Background variants — FFSC charcoal palette */
 .meeting-present-slide[data-bg="default"] {
-  background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(37, 99, 235, 0.08) 0%, transparent 70%),
-              #0f0f17;
-  color: #f5f5f5;
+  background: #4d4d4d;
 }
 
 .meeting-present-slide[data-bg="dark"] {
-  background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(37, 99, 235, 0.15) 0%, transparent 70%),
-              #0a0a0f;
-  color: #f5f5f5;
+  background: #3d3d3d;
 }
 
 .meeting-present-slide[data-bg="accent"] {
-  background: radial-gradient(ellipse 90% 70% at 50% 40%, rgba(37, 99, 235, 0.2) 0%, transparent 60%),
-              linear-gradient(165deg, #0f1729 0%, #0a0a0f 100%);
-  color: #f5f5f5;
+  background: #555555;
 }
 
 .meeting-present-slide[data-bg="photo_bg"] {
-  background: #050508;
-  color: #f5f5f5;
-}
-
-/* Light variant for contrast */
-.meeting-present-slide[data-bg="light"] {
-  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-  color: #1a1a2e;
+  background: #333333;
 }
 
 /* Slide inner containers */
 .meeting-slide-inner {
-  max-width: 720px;
+  max-width: 780px;
   width: 100%;
   text-align: center;
-  animation: meeting-fade-in 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: meeting-fade-in 0.5s ease-out;
 }
 
 .meeting-slide-inner-wide {
@@ -5315,230 +5302,193 @@ a:focus-visible {
 }
 
 @keyframes meeting-fade-in {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* --- Typography: Merriweather headings, system body (matches gala) --- */
+/* --- Typography: Bold sans-serif (matches FFSC deck) --- */
 
 .meeting-slide-heading {
-  font-family: "Merriweather", "Raleway", Georgia, serif;
-  font-size: clamp(2rem, 4.5vw, 3rem);
-  font-weight: 800;
-  margin: 0 0 1.25rem;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-
-.meeting-slide-eyebrow {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(37, 99, 235, 0.9);
-  margin-bottom: 1.25rem;
-  padding: 0.25rem 0.75rem;
-  border: 1px solid rgba(37, 99, 235, 0.3);
-  border-radius: 20px;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 700;
+  margin: 0 0 1rem;
+  line-height: 1.15;
+  color: #ffffff;
+  letter-spacing: -0.01em;
 }
 
 .meeting-slide-subtitle {
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  color: rgba(255, 255, 255, 0.55);
+  font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+  color: rgba(255, 255, 255, 0.75);
   margin: 0;
-  line-height: 1.7;
+  line-height: 1.6;
   white-space: pre-line;
-  font-family: "Raleway", sans-serif;
+  font-style: italic;
 }
 
 .meeting-slide-hint {
   margin-top: 3rem;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.3);
-  animation: meeting-pulse 2s ease-in-out infinite;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.35);
+  animation: meeting-pulse 2.5s ease-in-out infinite;
 }
 
 .meeting-slide-hint kbd {
   display: inline-block;
   padding: 0.15rem 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 4px;
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   margin: 0 0.15rem;
 }
 
 @keyframes meeting-pulse {
-  0%, 100% { opacity: 0.3; }
+  0%, 100% { opacity: 0.35; }
   50% { opacity: 0.8; }
 }
 
-/* --- Content slide: bullets --- */
+/* --- Content slide: bullets (round dots, matches FFSC deck) --- */
 
 .meeting-slide-bullets {
   list-style: none;
   padding: 0;
-  margin: 2rem 0 0;
+  margin: 1.5rem 0 0;
   text-align: left;
 }
 
 .meeting-slide-bullets li {
-  font-size: clamp(1.05rem, 1.8vw, 1.3rem);
-  padding: 0.6rem 0 0.6rem 2rem;
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  padding: 0.55rem 0 0.55rem 1.75rem;
   position: relative;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .meeting-slide-bullets li::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 1.1rem;
-  width: 8px;
-  height: 8px;
+  top: 1.05rem;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #2563eb;
-  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 /* --- Stats slide: scoreboard grid --- */
 
 .meeting-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1.5rem;
-  margin-top: 2.5rem;
-  padding: 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1.25rem;
+  margin-top: 2rem;
+  padding: 0 0.5rem;
 }
 
 .meeting-stat {
   text-align: center;
   padding: 1.5rem 1rem;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: transform 200ms ease, background 200ms ease;
-}
-
-.meeting-stat:hover {
-  background: rgba(255, 255, 255, 0.07);
-  transform: translateY(-2px);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .meeting-stat-value {
-  font-family: "Merriweather", Georgia, serif;
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 900;
+  font-size: clamp(2.2rem, 4.5vw, 3.2rem);
+  font-weight: 700;
   line-height: 1;
-  letter-spacing: -0.02em;
-  color: #fff;
+  color: #ffffff;
 }
 
 .meeting-stat-highlight .meeting-stat-value {
-  color: #60a5fa;
+  color: #7bc67e;
 }
 
 .meeting-stat-highlight {
-  border-color: rgba(37, 99, 235, 0.25);
-  background: rgba(37, 99, 235, 0.06);
+  background: rgba(123, 198, 126, 0.12);
 }
 
 .meeting-stat-label {
-  font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.55);
   margin-top: 0.5rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
+  font-weight: 500;
 }
 
 /* --- Photo slide --- */
 
 .meeting-slide-image {
   max-width: 100%;
-  max-height: 58vh;
-  border-radius: 12px;
-  margin: 1.5rem auto;
+  max-height: 60vh;
+  border-radius: 4px;
+  margin: 1.25rem auto;
   display: block;
   object-fit: contain;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .meeting-slide-caption {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-style: italic;
-  color: rgba(255, 255, 255, 0.4);
-  margin-top: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 0.5rem;
 }
 
 /* --- Two column slide --- */
 
 .meeting-two-col {
   display: flex;
-  gap: 2.5rem;
-  margin-top: 2rem;
+  gap: 2rem;
+  margin-top: 1.5rem;
   text-align: left;
 }
 
 .meeting-two-col-panel {
   flex: 1;
-  font-size: clamp(1rem, 1.5vw, 1.15rem);
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.75);
-  padding: 1.5rem;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: clamp(1rem, 1.6vw, 1.2rem);
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 1.25rem 1.5rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* --- Quote slide --- */
 
 .meeting-slide-quote {
-  font-family: "Merriweather", Georgia, serif;
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
   font-style: italic;
-  line-height: 1.5;
-  margin: 0;
+  line-height: 1.45;
+  margin: 0 auto;
   padding: 0;
   border: none;
-  color: #fff;
-  max-width: 640px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.meeting-slide-quote::before {
-  content: "";
-  display: block;
-  width: 48px;
-  height: 3px;
-  background: #2563eb;
-  margin: 0 auto 2rem;
-  border-radius: 2px;
+  color: #ffffff;
+  max-width: 700px;
+  font-weight: 300;
 }
 
 .meeting-slide-attribution {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: 1.05rem;
+  color: rgba(255, 255, 255, 0.5);
   margin-top: 2rem;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-/* --- Navigation bar (glassmorphic, matches gala) --- */
+/* --- Navigation bar --- */
 
 .meeting-present-nav {
   position: fixed;
-  bottom: 1.5rem;
+  bottom: 1.25rem;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.5rem 1rem;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  gap: 0.75rem;
+  padding: 0.4rem 0.85rem;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 40px;
   z-index: 9991;
@@ -5567,7 +5517,7 @@ a:focus-visible {
 
 .meeting-present-dots {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 .meeting-present-dot {
@@ -5575,7 +5525,7 @@ a:focus-visible {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   border: none;
   cursor: pointer;
   padding: 0;
@@ -5583,45 +5533,44 @@ a:focus-visible {
 }
 
 .meeting-present-dot:hover {
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .meeting-present-dot-active {
-  background: #2563eb;
-  width: 20px;
+  background: #ffffff;
+  width: 18px;
   border-radius: 4px;
 }
 
 .meeting-present-counter {
   position: fixed;
-  bottom: 1.5rem;
-  right: 2rem;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.25);
+  bottom: 1.25rem;
+  right: 1.5rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.3);
   z-index: 9991;
   font-variant-numeric: tabular-nums;
 }
 
 .meeting-present-exit {
   position: fixed;
-  top: 1rem;
-  right: 1.5rem;
+  top: 0.75rem;
+  right: 1rem;
   appearance: none;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.35);
-  padding: 0.35rem 0.85rem;
-  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.4);
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
   font-size: 0.78rem;
   cursor: pointer;
   z-index: 9991;
   transition: all 150ms ease;
-  letter-spacing: 0.02em;
 }
 
 .meeting-present-exit:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* --- Responsive --- */
@@ -5630,7 +5579,7 @@ a:focus-visible {
   .meeting-slide-heading { font-size: 1.8rem; }
   .meeting-slide-bullets li { font-size: 1rem; padding-left: 1.25rem; }
   .meeting-stat-value { font-size: 2rem; }
-  .meeting-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .meeting-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
   .meeting-two-col { flex-direction: column; gap: 1rem; }
   .meeting-slide-quote { font-size: 1.4rem; }
   .meeting-two-col-panel { padding: 1rem; }
