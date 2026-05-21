@@ -140,6 +140,66 @@ export default function TrapperMaterialsPage() {
         </p>
       </div>
 
+      {/* Pinned reference packet */}
+      <div
+        style={{
+          background: "var(--card-bg)",
+          border: "1px solid var(--card-border)",
+          borderRadius: "8px",
+          padding: "1rem 1.25rem",
+          marginBottom: "1.25rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+            Common Conditions in Community Cats
+          </div>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: "0.15rem" }}>
+            12-section reference packet: URI, ear mites, ringworm, FIV, FeLV, mange, and more. Print-ready.
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+          <a
+            href="/trapper-conditions-packet.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: "0.5rem 1rem",
+              background: "var(--primary)",
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
+              textDecoration: "none",
+              fontWeight: 500,
+              fontSize: "0.85rem",
+            }}
+          >
+            View
+          </a>
+          <a
+            href="/trapper-conditions-packet.html"
+            download="FFSC-Common-Conditions-Packet.html"
+            style={{
+              padding: "0.5rem 1rem",
+              background: "var(--bg-secondary)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--card-border)",
+              borderRadius: "6px",
+              textDecoration: "none",
+              fontWeight: 500,
+              fontSize: "0.85rem",
+            }}
+          >
+            Download
+          </a>
+        </div>
+      </div>
+
       {/* Category filters */}
       <div
         style={{

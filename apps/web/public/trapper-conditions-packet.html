@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FFSC Trapper Reference: Common Conditions in Community Cats</title>
+<style>
+  @page { size: letter; margin: 0.6in; }
+  .page-break { page-break-before: always; margin-top: 2.5rem; padding-top: 1.5rem; border-top: 2px solid #ddd; }
+  @media print {
+    .page-break { margin-top: 0; padding-top: 0; border-top: none; }
+    body { font-size: 11pt; padding: 0.5in; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.6;
+    font-size: 14px;
+    max-width: 8.5in;
+    margin: 0 auto;
+    padding: 0.6in;
+    background: #fff;
+  }
+  .cover { display: flex; flex-direction: column; justify-content: center; min-height: 9in; text-align: center; }
+  .cover-org { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 0.5rem; }
+  .cover h1 { font-size: 28px; font-weight: 700; margin-bottom: 0.5rem; color: #2d2d2d; }
+  .cover .subtitle { font-size: 16px; color: #555; margin-bottom: 2rem; }
+  .cover .toc { text-align: left; max-width: 440px; margin: 0 auto; }
+  .cover .toc h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 0.5rem; }
+  .cover .toc-item { padding: 0.3rem 0; border-bottom: 1px solid #eee; font-size: 14px; }
+  .cover-footer { margin-top: 2rem; font-size: 11px; color: #999; line-height: 1.6; }
+  .condition-header { background: #4d4d4d; color: #fff; padding: 0.8rem 1.1rem; border-radius: 5px; margin-bottom: 1rem; }
+  .condition-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 0.1rem; }
+  .condition-header .tagline { font-size: 13px; opacity: 0.8; }
+  h3 { font-size: 15px; font-weight: 700; color: #333; margin: 1rem 0 0.4rem; }
+  p { font-size: 14px; line-height: 1.6; color: #333; margin-bottom: 0.6rem; }
+  ul { padding-left: 1.2rem; margin-bottom: 0.6rem; }
+  li { font-size: 14px; line-height: 1.55; color: #333; margin-bottom: 0.3rem; }
+  .img-row { display: flex; gap: 0.75rem; margin: 0.75rem 0; flex-wrap: wrap; }
+  .img-row img { flex: 1; min-width: 180px; max-height: 200px; object-fit: contain; border-radius: 5px; background: #f5f5f5; }
+  .img-caption { font-size: 11px; color: #888; margin-top: 0.2rem; margin-bottom: 0.75rem; }
+  .callout { background: #f5f5f5; border-left: 3px solid #4d4d4d; padding: 0.6rem 0.85rem; margin: 0.75rem 0; font-size: 14px; border-radius: 0 4px 4px 0; }
+  .callout b { color: #1a1a1a; }
+  .alert { background: #fff3cd; border-left: 3px solid #d4a017; padding: 0.6rem 0.85rem; margin: 0.75rem 0; font-size: 14px; font-weight: 500; border-radius: 0 4px 4px 0; }
+  .citation { font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 0.5rem; margin-top: 1rem; line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 13px; }
+  th { background: #4d4d4d; color: #fff; padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; }
+  td { padding: 0.45rem 0.75rem; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) { background: #f9f9f9; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER PAGE ============ -->
+<div class="cover">
+  <div class="cover-org">Forgotten Felines of Sonoma County</div>
+  <h1>Common Conditions<br>in Community Cats</h1>
+  <div class="subtitle">Trapper Reference Packet / Summer 2026</div>
+  <div class="toc">
+    <h3>Contents</h3>
+    <div class="toc-item">1. Upper Respiratory Infections (Cat Colds)</div>
+    <div class="toc-item">2. Ear Mites</div>
+    <div class="toc-item">3. Ringworm</div>
+    <div class="toc-item">4. Flea Allergy Dermatitis</div>
+    <div class="toc-item">5. Mange (Notoedric Mange)</div>
+    <div class="toc-item">6. FIV (Feline Immunodeficiency Virus)</div>
+    <div class="toc-item">7. FeLV (Feline Leukemia Virus)</div>
+    <div class="toc-item">8. Pillow Foot (Plasma Cell Pododermatitis)</div>
+    <div class="toc-item">9. Eosinophilic Granuloma Complex</div>
+    <div class="toc-item">10. Cryptorchidism (Retained Testicle)</div>
+    <div class="toc-item">11. Pregnant Cats and TNR</div>
+    <div class="toc-item">12. Post-TNR Recovery and Ear Tips</div>
+  </div>
+  <div class="cover-footer">
+    Based on veterinary articles sourced by Jennifer Cochran, FFSC Clinic Coordinator.<br>
+    Condensed for trapper reference. Full citations per section.<br><br>
+    <b>FFSC is a spay/neuter clinic for unowned cats.</b> We are not a full-service veterinary hospital.<br>
+    We can help with wellness on a limited basis, but our core mission is TNR.<br>
+    This packet helps you understand what you're seeing in the field, what's a true<br>
+    emergency vs. an unfortunate but manageable situation, and what to tell residents.
+  </div>
+</div>
+
+<!-- ============ 1. URI ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>1. Upper Respiratory Infections</h2>
+    <div class="tagline">Also called "cat colds": the most common condition you'll encounter</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>Upper respiratory infection (URI) is the cat version of a common cold. It's caused by viruses, mainly two: feline herpesvirus (also called FHV-1) and feline calicivirus (FCV). These viruses are everywhere in outdoor cat colonies. Nearly every community cat has been exposed at some point in their life.</p>
+  <p>Here's the key thing to understand: most adult cats carry these viruses permanently without showing symptoms. The virus goes dormant inside the cat's body and can reactivate when the cat is under stress. Trapping, transport, confinement in a trap, unfamiliar environments, being around other stressed cats. All of these are stressors that can trigger a URI flare-up. A cat that looked perfectly healthy when you set the trap may start sneezing by the time you pick it up the next morning. That doesn't mean the cat was sick before. It means the stress of being trapped activated a virus it was already carrying.</p>
+
+  <h3>What does it look like?</h3>
+  <p>URI exists on a spectrum from barely noticeable to life-threatening. Here's how to tell where a cat falls:</p>
+  <p><b>Mild (most common, proceed with TNR):</b> Occasional sneezing, slightly watery eyes, clear nasal discharge. The cat is still eating and active. You might notice the cat sneezing a few times when you check the trap. This is the most common form and is not a concern for surgery.</p>
+  <p><b>Moderate (still okay for TNR, note on intake form):</b> Frequent sneezing, yellow or green nasal discharge, crusty eyes that may be partially shut, reduced appetite. The cat may be quieter than normal and less interested in food. Write "URI moderate" on the intake form so clinic staff are aware, but the cat can still safely go through surgery.</p>
+  <p><b>Severe (flag for the vet before surgery):</b> Thick discharge blocking the nostrils so the cat breathes through its mouth. Ulcers visible on the tongue or gums. Complete refusal to eat. Significant lethargy. The cat barely responds when you approach the trap. This level of URI needs the vet to evaluate before proceeding. Let the clinic know ahead of time so they can assess whether to proceed, delay, or provide supportive care first.</p>
+
+  <h3>How common is it?</h3>
+  <p>Extremely. Studies show that 29 to 38 percent of cats are actively shedding URI viruses when they arrive at shelters, and that's just the ones showing signs at that moment. In outdoor colonies, the viruses are considered endemic, meaning they are essentially always present in the population. Virtually every community cat has been exposed.</p>
+  <p>Kittens are hit hardest because their immune systems are still developing. URI is the number one killer of kittens in shelters and colonies. Adult cats with healthy immune systems usually recover on their own, but kittens under 8 weeks can deteriorate quickly.</p>
+
+  <h3>Why stress matters</h3>
+  <p>This is important for trappers to understand. Stress is the primary trigger for URI flare-ups in cats that are already carrying the virus. The longer a cat stays in a stressful situation (confined in a trap, in an unfamiliar place, hearing other cats, unable to hide), the worse the URI can get. A cat that was mildly sneezing can develop severe URI within 24 to 48 hours if stress isn't minimized.</p>
+  <p>This is why processing speed matters. Get the cat to the clinic and back to its home territory as quickly as possible. During recovery, keep the trap covered and in a quiet location. A calm cat recovers faster than a stressed cat.</p>
+
+  <h3>Can a cat with URI still be TNR'd?</h3>
+  <p><b>Mild to moderate: Yes, absolutely.</b> The vast majority of cats you trap with sneezing or eye discharge can safely go through surgery. TNR clinics see this every single day. The FVRCP vaccination given at surgery helps protect the cat against the most severe forms of URI going forward. It won't cure an existing infection, but it reduces the severity of future flare-ups.</p>
+  <p><b>Severe: Communicate with the clinic.</b> If a cat is open-mouth breathing, has completely blocked nostrils, or is non-responsive, call the clinic before bringing it in. The vet will decide whether to proceed, delay surgery until the cat stabilizes, or provide supportive care (fluids, antibiotics for secondary bacterial infection).</p>
+
+  <div class="alert">
+    <b>Do not hold cats in traps longer than necessary.</b> This is the single most important thing you can do to prevent URI from getting worse. A cat that was sneezing a little when trapped can develop severe, life-threatening URI if kept confined and stressed for days. Males should be released 24 hours after surgery. Females should be released within 48 to 72 hours. The faster they're back in their territory, the faster they recover.
+  </div>
+
+  <h3>What about kittens?</h3>
+  <p>Kittens with URI are a more serious concern than adults. A kitten with crusty eyes, green discharge, and labored breathing needs veterinary attention, not just TNR. If you trap a very young kitten (under 8 weeks) with severe URI, contact the clinic or a foster coordinator. These kittens may need supportive care (eye cleaning, antibiotics, syringe feeding) before they're stable enough for surgery.</p>
+  <p>For kittens over 2 pounds with mild URI (some sneezing, slightly watery eyes), they can generally proceed with surgery as long as they're eating and active.</p>
+
+  <div class="callout">
+    <b>Can you catch it?</b> No. Feline herpesvirus and feline calicivirus cannot infect humans or dogs. These are cat-specific viruses. You cannot get a "cat cold" from handling a sneezing cat.
+  </div>
+
+  <div class="callout">
+    <b>Is this an emergency or just unfortunate?</b> In most cases, URI in adult community cats is unfortunate but manageable. It's the feline equivalent of a cold: unpleasant but not dangerous. True emergencies are: kittens under 8 weeks with severe URI, any cat with open-mouth breathing, or any cat that has stopped eating entirely for more than 24 hours.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "That sneezing cat has a cat cold, an upper respiratory infection that's extremely common in outdoor cats. Just like human colds, most cats recover on their own within a week or two. It cannot spread to people or dogs. When we bring the cat in for surgery, the clinic will vaccinate it, which helps protect against the worst forms. The best thing you can do right now is make sure the cat has access to food and water. Keeping up nutrition helps them fight it off."
+  </div>
+
+  <div class="citation">
+    Sources: ASPCA Pro, "Feline Upper Respiratory Infection." Alley Cat Allies, "Post-Surgery Care." URI prevalence: PMC11209048, scoping review of feline URI in shelters. UC Davis Koret Shelter Medicine Program, URI management protocols.
+  </div>
+</div>
+
+<!-- ============ 2. EAR MITES ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>2. Ear Mites</h2>
+    <div class="tagline">Otodectes cynotis: tiny parasites that live inside the ear canal</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>Ear mites are microscopic parasites that live inside a cat's ear canal. They feed on the wax and oils in the ear. The mite responsible for almost all cases is called Otodectes cynotis. These mites are extremely contagious between cats through direct contact, and they spread quickly through a colony once one cat is infected.</p>
+
+  <h3>What does it look like?</h3>
+  <p>The most obvious sign is dark brown or black, crumbly debris inside the ears. It looks like coffee grounds or dark earwax. The cat will scratch at its ears constantly, shake its head, and may tilt its head to one side. In severe cases, the constant scratching can cause wounds around the ears and even lead to secondary bacterial infections.</p>
+  <p>If you look inside the ear of a trapped cat and see dark, crusty buildup, that's almost certainly ear mites.</p>
+
+  <h3>How common is it?</h3>
+  <p>Very common in community cats. Studies of feral cat populations found ear mites in 29 to 37 percent of cats examined. Ear mites are responsible for more than half of all ear infections in cats. Both ears are usually affected, and cats living in colonies tend to have worse infestations because the mites keep spreading back and forth between cats.</p>
+
+  <h3>Can it be treated?</h3>
+  <p>Yes, easily. A single dose of anti-parasitic medication (like selamectin, which is the active ingredient in Revolution) clears the infestation. TNR clinics routinely administer this during surgery. Once a colony goes through TNR and every cat gets treated, the mite burden in the group drops dramatically.</p>
+
+  <h3>Can ear mites spread to other cats in the colony?</h3>
+  <p>Yes, and this is one of the main reasons TNR is so effective against ear mites. Ear mites spread through direct contact between cats: head rubbing, grooming, sleeping together. In an untreated colony, the mites circulate endlessly because as soon as one cat clears them, it gets re-infested by a neighbor. When you TNR an entire colony and every cat gets a dose of anti-parasitic medication at surgery, you break this cycle. The colony-wide mite burden drops dramatically and stays low.</p>
+
+  <div class="callout">
+    <b>Is this an emergency or just unfortunate?</b> Ear mites are unfortunate but not an emergency. They cause discomfort and itching, but they're not life-threatening. The exception is very severe, long-standing infestations that have caused deep ear infections or aural hematomas (blood blisters on the ear flap from excessive head shaking). If a cat's ear flap is swollen like a balloon, that's worth flagging to the vet.
+  </div>
+
+  <div class="callout">
+    <b>Can you catch it?</b> Ear mites are primarily a cat and dog parasite. In rare cases of very heavy exposure, they can cause temporary skin irritation on humans (itchy bumps on hands or arms), but they cannot establish a permanent infestation on people. Wash your hands after handling cats with ear mites.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "Those crusty, dark ears are caused by ear mites, tiny parasites that are extremely common in outdoor cat colonies. They spread between cats through contact. The good news is they're very easy to treat. When we bring the cat in for surgery, the clinic gives a medication that clears them up. Once all the cats in the colony have been through TNR, the mite problem goes way down."
+  </div>
+
+  <div class="citation">
+    Sources: PMC11112181, Otodectes prevalence in stray cats. PMC7244689, Otodectes in urban cats. PMC10741284, chronic otitis review, J Feline Med Surg.
+  </div>
+</div>
+
+<!-- ============ 3. RINGWORM ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>3. Ringworm</h2>
+    <div class="tagline">A fungal skin infection (not actually a worm)</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>Ringworm is a fungal infection of the skin, hair, and sometimes nails. Despite the name, there is no worm involved. The name comes from the round, ring-shaped rash it can cause in people. In cats, one species of fungus (called Microsporum canis) causes almost all cases. Ringworm is contagious. Cats can spread it to other cats, to dogs, and to people.</p>
+
+  <div class="img-row">
+    <img src="https://cdn.ncbi.nlm.nih.gov/pmc/blobs/03f0/11148949/0704840c262d/10.1177_1098612X13489222-fig2.jpg" alt="Ringworm - circular hair loss patch">
+    <img src="https://cdn.ncbi.nlm.nih.gov/pmc/blobs/03f0/11148949/7c3ab5594b23/10.1177_1098612X13489222-fig3.jpg" alt="Ringworm - head and ear lesions">
+  </div>
+  <div class="img-caption">Left: Circular patch of hair loss caused by the ringworm fungus. Right: Ringworm on the head and ears, a common starting point. (ABCD Guidelines / J Feline Med Surg, PMC11148949).</div>
+
+  <h3>What does it look like?</h3>
+  <p>Ringworm can be hard to spot in cats. Sometimes the only sign is a faint "cigarette ash" scaling deep in the coat. You might not notice it unless you're looking closely. More obvious cases show round, thickened patches of skin where the hair has fallen out. You'll most commonly see these on the head, ears, chest, front legs, and along the ridge of the back. The claws can also be affected. They become rough, pitted, and may look deformed.</p>
+  <p><b>Important:</b> Some cats, especially longhaired breeds, can carry and spread ringworm without showing any visible signs at all. They look completely normal but are shedding fungal spores everywhere they go.</p>
+
+  <h3>How common is it?</h3>
+  <p>About 2 percent of cats entering shelters test positive for ringworm. Kittens are 8 times more likely to have it than adult cats. In healthy adult community cats, ringworm often clears up on its own within 3 to 5 months without treatment. Kittens and cats with weakened immune systems have a harder time fighting it off.</p>
+
+  <h3>How does it spread?</h3>
+  <p>Through direct contact with an infected cat, or by touching contaminated surfaces. The fungal spores are tough. They can survive on traps, carriers, towels, bedding, carpet, and other surfaces <b>for up to 18 months</b>. This is why cleaning equipment matters.</p>
+
+  <h3>Cleaning your traps and equipment</h3>
+  <p>After transporting a cat with suspected ringworm, clean your traps with <b>diluted bleach: 1 pint of chlorine bleach per 1 gallon of water</b>. This kills the spores. Wipe down all hard surfaces. Wash any towels or trap covers in hot water with bleach.</p>
+
+  <div class="alert">
+    <b>Protect yourself:</b> Ringworm spreads easily to people, especially children and anyone with a weakened immune system. Wear gloves when handling a cat you suspect has ringworm. Wash your hands thoroughly afterward. If you develop round, red, scaly patches on your skin, see a doctor. It responds well to over-the-counter antifungal cream.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "Those bald patches are likely ringworm, which despite the name is a fungal infection, not a worm. In healthy outdoor cats, it usually clears up on its own in a few months. It can spread to people through direct contact, so wash your hands after touching the cat and avoid rubbing the bald spots. If you do get it, it's treatable with antifungal cream from the pharmacy."
+  </div>
+
+  <div class="citation">
+    Sources: Ryan Llera, BSc, DVM et al. "Ringworm in Cats." VCA Animal Hospitals. ABCD Guidelines, PMC11148949. Shelter prevalence: PMC10814264. Images: ABCD Guidelines / J Feline Med Surg.
+  </div>
+</div>
+
+<!-- ============ 4. FLEA ALLERGY ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>4. Flea Allergy Dermatitis</h2>
+    <div class="tagline">The number one skin condition in cats, caused by an allergy to flea bites</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>Some cats develop a severe allergic reaction to flea saliva. When a flea bites, it injects a small amount of saliva into the skin. In a cat that's allergic, even a single flea bite can trigger intense itching that lasts for days. The cat scratches and licks obsessively, which causes hair loss and skin damage. This is called flea allergy dermatitis, and it's the most common skin disease in cats worldwide.</p>
+
+  <div class="img-row">
+    <img src="https://cdn.ncbi.nlm.nih.gov/pmc/blobs/01ce/5606602/b961dc76808e/vetsci-04-00025-g001.jpg" alt="Flea allergy dermatitis in cat">
+  </div>
+  <div class="img-caption">Allergic dermatitis with hair loss and skin inflammation (Veterinary Sciences journal, PMC5606602).</div>
+
+  <h3>What does it look like?</h3>
+  <p>The most common pattern is hair loss around the tail base, lower back, belly, and inner thighs. The cat licks these areas so much that the fur gets thin or disappears entirely. You may also feel tiny, crusty bumps when you run your hand over the cat's back. These feel like millet seeds and are called "miliary dermatitis."</p>
+  <p>The classic call from a resident: "There's a cat here that's going bald on its belly." That's almost always flea allergy.</p>
+
+  <h3>How is this different from mange or ringworm?</h3>
+  <p>All three can cause hair loss, and residents often can't tell them apart. Here's the quick guide:</p>
+  <ul>
+    <li><b>Flea allergy:</b> Hair loss concentrated around the tail base, lower back, and belly. The cat licks the areas obsessively. Skin underneath is pink/irritated but not crusty. You may see or feel tiny bumps along the back.</li>
+    <li><b>Ringworm:</b> Round, well-defined bald patches with dry, scaly edges. Can appear anywhere. Less itchy. Contagious.</li>
+    <li><b>Mange:</b> Starts on the ears and face. Thick, gray-brown crusting. Intense scratching. Looks much worse than flea allergy.</li>
+  </ul>
+
+  <h3>Can it be treated?</h3>
+  <p>Yes. The key is killing the fleas. At TNR surgery, the clinic typically gives a flea treatment (often Revolution/selamectin) that kills current fleas and prevents reinfestation for about 30 days. Once the fleas are gone, the itching stops and the fur grows back. For cats with severe flea allergy in heavily infested colonies, repeat trapping may be needed for additional treatments.</p>
+
+  <div class="callout">
+    <b>Is this an emergency or just unfortunate?</b> Flea allergy is unfortunate but not an emergency. The cat is uncomfortable and itchy, but it's not life-threatening. The hair grows back once the fleas are treated. The main risk is secondary skin infection from excessive scratching. If the skin looks raw, oozing, or infected, note it on the intake form.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "That hair loss is almost certainly from flea allergy. The cat is so itchy from flea bites that it's licking all its fur off. It's not contagious to people and it's not a disease. It's basically a severe allergic reaction. When we bring the cat in for surgery, the clinic will give it flea treatment. The fur will grow back once the fleas are under control."
+  </div>
+
+  <div class="citation">
+    Sources: Merck Veterinary Manual, "Flea Allergy Dermatitis in Dogs and Cats." VCA Animal Hospitals, "Flea Allergy Dermatitis in Cats." PMC5606602, cutaneous hypersensitivity dermatoses in cats.
+  </div>
+</div>
+
+<!-- ============ 5. MANGE ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>5. Mange</h2>
+    <div class="tagline">Notoedric mange, a mite infestation that looks terrible but is very treatable</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>Mange in cats is caused by a tiny mite called Notoedres cati (sometimes called "feline scabies"). These microscopic mites burrow into the skin and cause intense itching, crusting, and hair loss. Mange is different from ear mites. Ear mites stay in the ears, while mange mites attack the skin on the face, ears, and body.</p>
+  <p>Mange is relatively rare compared to other conditions on this list, but when it shows up in a colony, it spreads quickly through direct contact and can affect multiple cats at once.</p>
+
+  <div class="img-row">
+    <img src="https://cdn.ncbi.nlm.nih.gov/pmc/blobs/cad2/4456520/96943bc4b66a/12639_2013_357_Fig1_HTML.jpg" alt="Mange - facial crusting in cat">
+    <img src="https://cdn.ncbi.nlm.nih.gov/pmc/blobs/28d3/9200890/e1db29d14afe/fvets-09-849525-g0001.jpg" alt="Mange - before and after treatment">
+  </div>
+  <div class="img-caption">Left: Facial crusting and hair loss caused by Notoedres cati mites (PMC4456520). Right: Before and after treatment. Mange responds dramatically to medication (PMC9200890, Frontiers in Vet Science).</div>
+
+  <h3>What does it look like?</h3>
+  <p>Mange typically starts on the edges of the ears and quickly spreads to the face and head. The skin becomes thick, crusty, and scaly. Hair falls out in large patches. The cat scratches intensely and may have open sores from scratching. In advanced cases, the crusting spreads to the neck, legs, and body. The cat may look like it's "wearing a mask" of thick, gray-brown crust.</p>
+  <p><b>This is the condition that makes people call and say "there's a dying cat in my yard."</b> Cats with mange look terrible, but with treatment they can make a remarkable recovery.</p>
+
+  <h3>Can it be treated?</h3>
+  <p>Yes, very effectively. A single dose of anti-parasitic medication (ivermectin or selamectin) starts clearing the condition. The before-and-after photos in vet literature are dramatic. Cats go from looking near-death to fully furred and healthy within weeks. This is why it's important to trap these cats rather than assume they're beyond help.</p>
+
+  <div class="alert">
+    <b>Protect yourself:</b> Notoedres cati mites CAN temporarily get on human skin. If you handle a cat with mange without gloves, you may develop itchy red bumps on your hands and arms. The good news is that these mites cannot actually reproduce on humans. The bumps go away on their own within a few weeks. Still, <b>always wear gloves</b> when handling a cat with suspected mange.
+  </div>
+
+  <div class="callout">
+    <b>Priority trap these cats.</b> Untreated mange can be fatal, especially in kittens and older cats. If a resident reports a cat with severe hair loss and crusty skin, prioritize trapping it.
+  </div>
+
+  <div class="callout">
+    <b>How to tell mange from ringworm:</b> Mange causes intense scratching and starts on the ears and face, with thick crusting. Ringworm causes circular bald patches that are usually less itchy and can appear anywhere on the body. If the cat is frantically scratching its head and ears, think mange. If it has neat round bald spots, think ringworm.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "That cat has mange, a mite infestation that causes the crusty skin and hair loss. I know it looks terrible, but it's actually very treatable with medication. We want to trap this cat right away because mange can be dangerous if left untreated, but one treatment often starts the recovery. Please don't try to handle the cat yourself. Let us trap it safely."
+  </div>
+
+  <div class="citation">
+    Sources: PMC4456520, "Notoedres cati in cats and its management." PMC9200890, "Notoedric Mange and Aelurostrongylidosis in Domestic Cats." Merck Veterinary Manual, "Mange in Dogs and Cats." Images: PMC4456520; PMC9200890.
+  </div>
+</div>
+
+<!-- ============ 6. FIV ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>6. FIV</h2>
+    <div class="tagline">Feline Immunodeficiency Virus: a cat-only virus that is NOT a death sentence</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>FIV stands for feline immunodeficiency virus. It's a virus that attacks the cat's immune system over time, making it harder for the cat to fight off other infections. It works similarly to HIV in people, but here's the critical thing: <b>FIV only affects cats. It cannot infect humans, dogs, or any other animal.</b></p>
+  <p>FIV is not common. Only about 1 to 5 out of every 100 cats test positive. In community cat colonies, the rate is similar or slightly higher (studies show 2 to 10 percent depending on the area). Many FIV-positive cats live completely normal, healthy lives for years. Testing positive means the virus is present in their body. It does not mean the cat is sick.</p>
+
+  <h3>What's the difference between FIV-positive and "feline AIDS"?</h3>
+  <p>This is an important distinction. <b>FIV-positive is NOT the same as having feline AIDS.</b> A positive FIV test means the cat has been exposed to the virus and has developed antibodies to it. Feline AIDS is the late stage of FIV infection where the immune system becomes severely weakened, and many cats never reach this stage. An FIV-positive cat can live a normal, happy life for 2 to 5+ years, sometimes much longer, without ever showing symptoms.</p>
+
+  <h3>How does FIV spread?</h3>
+  <p>FIV spreads primarily through <b>deep bite wounds</b>. The virus lives in an infected cat's saliva, and it gets into another cat's bloodstream when that cat is bitten hard enough to break the skin. This is why unneutered male cats are at the highest risk. They fight more than any other group.</p>
+  <p>Casual contact like grooming each other, sharing food bowls, or sneezing does NOT spread FIV effectively. Mothers can pass it to kittens, but this is uncommon.</p>
+
+  <h3>Why TNR directly reduces FIV spread</h3>
+  <p><b>Neutering a cat is one of the single best ways to reduce FIV transmission.</b> Neutered cats fight far less than intact cats. Less fighting means fewer bite wounds, which means less transmission. When you TNR an FIV-positive cat, you're directly helping to break the chain of infection in that colony. This is backed by research. Studies show that FIV prevalence drops in colonies after TNR programs are established.</p>
+
+  <div class="callout">
+    <b>Should FIV-positive cats be euthanized?</b> No. A positive FIV result on a community cat is not a reason to euthanize. The cat should be TNR'd and returned. Alley Cat Allies, the largest TNR advocacy organization, strongly recommends against routine FIV testing in TNR programs because it is costly, can produce false results, and leads to unnecessary euthanasia.
+  </div>
+
+  <div class="callout">
+    <b>Is there any risk to you?</b> None. FIV cannot infect humans. However, any cat bite (FIV-positive or not) can cause a bacterial infection. If a cat bites you, wash the wound immediately with soap and water. See a doctor if the bite is deep, is on your hand, or shows signs of infection (redness, swelling, warmth).
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "FIV is a cat-only virus. It cannot make you or your family sick. It spreads mainly through bite wounds from fighting. Getting this cat fixed will actually help reduce the spread because neutered cats fight much less. Many FIV-positive cats live healthy lives for years. A positive test is not a death sentence."
+  </div>
+
+  <div class="citation">
+    Sources: Malcolm Weir, DVM et al. "Feline Immunodeficiency Virus (FIV)." VCA Animal Hospitals. Cornell Feline Health Center FIV page. PMC7152317, FIV infection review. Community cat prevalence: PMC1255591; PMC3157072. Alley Cat Allies FIV/FeLV testing position statement.
+  </div>
+</div>
+
+<!-- ============ 7. FeLV ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>7. FeLV</h2>
+    <div class="tagline">Feline Leukemia Virus: often confused with FIV but a different disease</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>FeLV stands for feline leukemia virus. Like FIV, it attacks the cat's immune system. But FeLV is a different virus that works differently and is generally more serious. FeLV can cause cancer (lymphoma), severe anemia, and secondary infections. <b>FeLV cannot infect humans or dogs. It is cat-specific.</b></p>
+
+  <h3>How is FeLV different from FIV?</h3>
+  <p>People often confuse these two viruses. Here are the key differences:</p>
+
+  <table>
+    <tr><th>Feature</th><th>FIV</th><th>FeLV</th></tr>
+    <tr><td><b>How it spreads</b></td><td>Deep bite wounds (fighting)</td><td>Saliva, grooming, shared food bowls, mother to kittens</td></tr>
+    <tr><td><b>How common in community cats</b></td><td>2-10%</td><td>1-4%</td></tr>
+    <tr><td><b>How serious is it</b></td><td>Many cats live normal lifespans</td><td>More serious; many cats become ill within 2-3 years</td></tr>
+    <tr><td><b>Can the cat fight it off?</b></td><td>No. Once infected, always infected</td><td>Yes. Some cats clear the virus on their own</td></tr>
+    <tr><td><b>Can people catch it?</b></td><td>No</td><td>No</td></tr>
+    <tr><td><b>Does TNR help reduce spread?</b></td><td>Yes (less fighting = fewer bites)</td><td>Yes (less close contact, no kittens)</td></tr>
+  </table>
+
+  <h3>How common is FeLV in community cats?</h3>
+  <p>Less common than most people think. Studies consistently show that only 1 to 4 percent of community cats test positive for FeLV, which is the same rate as pet cats. A long-term study in San Mateo County, California, found stable low prevalence across 15 years of data. FeLV is not the epidemic that people sometimes fear.</p>
+
+  <h3>Should community cats be tested?</h3>
+  <p>Alley Cat Allies recommends against routine FIV/FeLV testing in TNR programs. Testing is expensive, initial positive results can be false (requiring a second test to confirm), and some cats that test positive will actually clear the virus on their own. A positive test result in a TNR setting too often leads to unnecessary euthanasia. The best approach is to TNR all cats, which reduces the behaviors that spread both viruses.</p>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "FeLV is a cat-only virus. It cannot spread to people. It is more serious than FIV, but it's also much less common than most people think. Only about 1 to 3 percent of community cats test positive, which is the same rate as indoor pet cats. The best protection is spay/neuter through TNR, which reduces the close contact and kitten-bearing that spreads the virus."
+  </div>
+
+  <div class="citation">
+    Sources: Cornell Feline Health Center, "Feline Leukemia Virus." Alley Cat Allies FIV/FeLV position statement. San Mateo County longitudinal study: PMC9774651. Swiss TNR study: PMC10975613. AAFP Retrovirus Guidelines: PMC11135720.
+  </div>
+</div>
+
+<!-- ============ 8. PILLOW FOOT ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>8. Pillow Foot</h2>
+    <div class="tagline">Plasma Cell Pododermatitis: an immune system condition that makes the foot pads swell</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>Pillow foot is a condition where a cat's foot pads become soft, swollen, and puffy, like little pillows. The medical name is plasma cell pododermatitis. It happens when the cat's immune system sends specialized cells (called plasma cells) into the foot pads, causing inflammation and swelling.</p>
+  <p>Nobody knows exactly what triggers it. It appears to be an immune system problem, not an infection. Some research has found a connection between pillow foot and FIV. Roughly half of all cats with pillow foot also test positive for FIV. Other cats with pillow foot improve on food allergy diets, which suggests allergies might play a role in some cases. It can affect any cat of any age or breed.</p>
+
+  <div class="img-row">
+    <img src="https://cdn.ncbi.nlm.nih.gov/pmc/blobs/fe87/12033568/bfb28e80267b/10.1177_1098612X251323424-img5.jpg" alt="Pillow foot - swollen foot pads">
+    <img src="https://pet-health-content-media.chewy.com/wp-content/uploads/2025/08/27051618/img-0417-original-0.jpg" alt="Pillow foot - puffy pad closeup">
+  </div>
+  <div class="img-caption">Left: Swollen pads with ulceration and discoloration (J Feline Med Surg, 2025). Right: Classic puffy, mushy pad (Dr. Heather Zarrella / PetMD).</div>
+
+  <h3>What does it look like?</h3>
+  <p>The foot pads swell up and get a soft, mushy texture, very different from a normal firm pad. The skin on the pad may turn purplish. In mild cases, the cat walks normally and doesn't seem bothered. In more severe cases (about 20-35 percent), the pads crack open, ulcerate, and bleed, which makes the cat limp.</p>
+  <p><b>Key detail:</b> Pillow foot usually affects multiple feet at the same time. If you see swelling on just one foot, it's more likely a tumor, insect bite, or injury, not pillow foot.</p>
+
+  <div class="callout">
+    <b>What to do:</b> If a cat you've trapped has puffy, swollen pads on more than one foot, write it on the intake form. The cat can absolutely still be spayed or neutered. Let clinic staff know so they can take a closer look and decide whether to test for FIV.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "This condition is called pillow foot. It's an immune system issue, not something contagious. Many cats with it walk around just fine and aren't in pain. The cat can still be fixed. The clinic will evaluate it and may recommend treatment."
+  </div>
+
+  <div class="citation">
+    Sources: Wendy Brooks, DVM, DABVP. "Plasma Cell Pododermatitis (Pillow Foot) in Cats." Veterinary Partner (VIN), revised Nov 18, 2024. PMC9009751, Canadian Veterinary Journal. Images: PMC12033568, J Feline Med Surg; PetMD / Dr. Heather Zarrella.
+  </div>
+</div>
+
+<!-- ============ 9. EOSINOPHILIC GRANULOMA ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>9. Eosinophilic Granuloma Complex</h2>
+    <div class="tagline">A group of skin conditions that cause sores, usually on the lips or body</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>Eosinophilic granuloma complex is the medical term for a group of three related skin conditions in cats. They're all caused by the cat's immune system overreacting, usually to an allergy. Flea bites are the most common trigger, but food allergies and environmental allergies can also cause it. <b>This is not contagious.</b> You cannot catch it from the cat, and cats cannot spread it to each other.</p>
+
+  <h3>The three forms</h3>
+  <p><b>Indolent ulcers (sometimes called "rodent ulcers"):</b> These are the most common and most recognizable. They appear as raw-looking sores on the upper lip, usually near the canine teeth. They can be small and barely noticeable or large and disfiguring. The lip can look like it's been eaten away. Despite how they look, these sores are often not painful to the cat.</p>
+  <p><b>Eosinophilic plaques:</b> Raised, red, moist, bald patches of skin. Usually found on the belly or inner thighs. These are intensely itchy. The cat licks at them obsessively.</p>
+  <p><b>Eosinophilic granulomas:</b> Firm, raised lumps or nodules, sometimes with a yellowish color. Can appear on the mouth, chin, tongue, lips, or back of the hind legs.</p>
+
+  <div class="img-row">
+    <img src="https://cdn.ncbi.nlm.nih.gov/pmc/blobs/108a/10822386/d806745e7b7d/10.1177_1098612X12451549-fig1.jpg" alt="Indolent ulcer on cat lip">
+    <img src="https://cdn.ncbi.nlm.nih.gov/pmc/blobs/108a/10822386/b389d19bcc68/10.1177_1098612X12451549-fig3.jpg" alt="Eosinophilic plaques on belly">
+  </div>
+  <div class="img-caption">Left: Indolent ulcers on the upper lip, the form you're most likely to see. Right: Multiple eosinophilic plaques on the belly. (PMC10822386, J Feline Med Surg).</div>
+
+  <h3>How is it treated?</h3>
+  <p>Treatment focuses on finding and removing the trigger. Flea control is critical. Even a single flea bite can trigger a flare-up in a sensitive cat. Steroid medications help reduce inflammation. Some cats improve on a hypoallergenic diet. Many cases resolve once the underlying allergy is addressed.</p>
+
+  <div class="callout">
+    <b>How to tell this from ringworm:</b> Eosinophilic granuloma and ringworm can both cause bald patches, but they're very different. Rodent ulcers appear specifically on the lips. Eosinophilic plaques are moist and red, usually on the belly. Neither form is contagious. Ringworm creates dry, round, scaly patches that can appear anywhere and IS contagious. If it's on the lip or the belly is red and moist, think granuloma. If it's a dry, round, scaly patch, think ringworm.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "Those sores are a condition called eosinophilic granuloma. It's usually caused by flea allergies. The cat's immune system overreacts to flea bites. It's not contagious to you or other animals. The vet can treat it with medication, and good flea control helps prevent it from coming back. The name sounds scary but it's a common and manageable condition."
+  </div>
+
+  <div class="citation">
+    Sources: Malcolm Weir, DVM et al. "Eosinophilic Granuloma Complex in Cats." VCA Animal Hospitals. Cornell Feline Health Center. Images: PMC10822386, J Feline Med Surg.
+  </div>
+</div>
+
+<!-- ============ 10. CRYPTORCHIDISM ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>10. Cryptorchidism</h2>
+    <div class="tagline">Retained testicle: when a male cat looks neutered but isn't</div>
+  </div>
+
+  <h3>What is it?</h3>
+  <p>Cryptorchidism means one or both testicles didn't drop into the scrotum where they belong. Instead, the testicle stays stuck somewhere inside the cat's body, either in the abdomen (belly area) or in the inguinal canal (the passage between the belly and the scrotum, near the groin).</p>
+  <p>In a normal male cat, the testicles descend into the scrotum by about 2 months of age. If they haven't come down by 6 months, they probably never will. This affects about 1 to 2 out of every 100 male cats. A study of over 100,000 feral cats in TNR programs found a rate of 1.3 percent. The condition appears to be genetic, running in families.</p>
+
+  <div class="img-row">
+    <img src="https://veteriankey.com/wp-content/uploads/2016/09/B9780702043369000391_f039-005-9780702043369.jpg" alt="Cryptorchid anatomy in cats">
+    <img src="https://images.ctfassets.net/4dmg3l1sxd6g/6a5Hlfogv9kWKfGzkzrDeH/f84e7517a46fa6764e46cab41845e0b9/CTE_crypto-neuter-Figure-2.png_-_en" alt="Cryptorchid surgery in cat">
+  </div>
+  <div class="img-caption">Left: Anatomy of cryptorchid testicles in cats. The testicle can be stuck in the abdomen or inguinal canal (Textbook of Small Animal Surgery). Right: Surgical approach to find a retained testicle in a cat (Clinician's Brief).</div>
+
+  <h3>Why this matters for trappers</h3>
+  <p>A cryptorchid cat <b>looks neutered from the outside</b> because you can't see any testicles in the scrotum. But the cat <b>is not neutered</b>. The retained testicle still produces testosterone and (in most cases) sperm. This cat is still spraying, still fighting, still breeding, still fathering kittens. He just looks like he's been fixed.</p>
+
+  <h3>How to spot a cryptorchid cat in the field</h3>
+  <ul>
+    <li>No visible testicles, BUT strong "tomcat" urine smell</li>
+    <li>Spraying behavior, urine marking territory</li>
+    <li>Fighting with other cats, aggressive behavior</li>
+    <li>Muscular build and wide, jowly head (typical of intact males)</li>
+    <li>No ear tip (if the cat had been neutered through TNR, it would have an ear tip)</li>
+  </ul>
+  <p><b>The combination of "no visible testicles + intact male behavior + no ear tip" = almost certainly cryptorchid.</b></p>
+
+  <h3>Surgery is different for these cats</h3>
+  <p>A normal neuter takes just a few minutes. A cryptorchid neuter is more involved because the vet has to find the hidden testicle. If it's in the inguinal canal (near the groin), the vet makes a small extra incision. If it's in the abdomen, the vet needs to open the belly to find it, similar to a spay. Both testicles must be removed. There is a cancer risk if a retained testicle is left inside.</p>
+
+  <div class="alert">
+    <b>These cats absolutely need to be TNR'd.</b> A cryptorchid cat is still reproducing and still spreading intact male behavior through the colony. The surgery just takes longer. It's even more important to neuter these cats because the condition is genetic. If they keep breeding, their male kittens are more likely to be cryptorchid too.
+  </div>
+
+  <div class="callout">
+    <b>What to do:</b> If you trap a male cat with no visible testicles but he's clearly acting intact (spraying, strong odor, aggressive, no ear tip), write "possible cryptorchid" on the intake form. Let the clinic know so they can plan for a longer surgery.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "This cat looks neutered but probably has a retained testicle. That means it's still inside his body where you can't see it. He's still able to make kittens and that's why he's still spraying and fighting. The clinic can fix him, it just requires a more involved surgery than a normal neuter."
+  </div>
+
+  <div class="citation">
+    Sources: Krista Williams, BSc, DVM et al. "Retained Testicle (Cryptorchidism) in Cats." VCA Animal Hospitals. Prevalence in TNR programs: PMC10822539 (study of 103,643 feral cats). Images: Textbook of Small Animal Surgery (via VeterianKey); Clinician's Brief.
+  </div>
+</div>
+
+<!-- ============ 11. PREGNANT CATS ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>11. Pregnant Cats and TNR</h2>
+    <div class="tagline">One of the most common and emotionally difficult situations in trapping</div>
+  </div>
+
+  <h3>How common is it?</h3>
+  <p>Very. A large study of over 100,000 feral cats across 7 TNR programs found that <b>about 16 percent of female cats brought in for spay surgery were pregnant</b>. During peak breeding season (March and April), that number jumps to 37 to 58 percent of females. The average litter size is about 4 kittens.</p>
+  <p>If you're trapping during spring and summer, you will encounter pregnant cats. This is a normal part of TNR work.</p>
+
+  <h3>What happens when a pregnant cat is brought to the clinic?</h3>
+  <p>There are two approaches, and your clinic's policy determines which one is used:</p>
+  <p><b>Spay-abort (proceed with surgery):</b> The cat is spayed as planned, which terminates the pregnancy. This is standard practice at most high-volume TNR clinics. The reasoning: this may be the only opportunity to trap and spay this cat, the surgery protects her from future health risks of repeated pregnancies, and most kittens born to feral mothers outdoors don't survive their first year.</p>
+  <p><b>Hold and foster:</b> The cat is kept in a confined space (large crate or bathroom) until she gives birth, then spayed after the kittens are weaned at about 8 weeks. Kittens can potentially be socialized for adoption if they're young enough. This requires a foster home and significantly more resources.</p>
+
+  <h3>Early pregnancy is invisible</h3>
+  <p>In the first few weeks, there is no way to tell from the outside that a cat is pregnant. The vet often discovers it during surgery. Don't feel bad about trapping a pregnant cat. You had no way to know, and spaying her is still the right thing to do.</p>
+
+  <div class="alert">
+    <b>If you trap a nursing mother:</b> This is time-sensitive. A nursing mother separated from her kittens for too long means the kittens can die. If you trap a cat that is clearly nursing (enlarged nipples, milk), alert the clinic immediately. Standard practice is to spay her and return her within 24 hours. She WILL go back to her kittens and continue nursing after surgery. Do not hold nursing mothers longer than absolutely necessary.
+  </div>
+
+  <div class="callout">
+    <b>During kitten season (March-September):</b> Check your traps frequently. A nursing mother in a trap too long is an emergency. Process quickly and communicate with the clinic about turnaround time.
+  </div>
+
+  <div class="callout">
+    <b>What to tell a worried resident:</b> "We know this is an emotional topic. The reality is that repeated pregnancies are hard on feral mothers, and most kittens born outdoors don't survive their first year. Spaying during pregnancy is safer for the mother than repeated births, and it prevents future litters. If we find nursing kittens nearby, we'll get mom back within 24 hours so she can keep caring for them."
+  </div>
+
+  <div class="citation">
+    Sources: PMC10822539, "Population characteristics of feral cats in 7 US TNR programs" (103,643 cats). Alley Cat Allies, "TNR Scenarios: Pregnant Cat." Best Friends Animal Society, "Community Cat Programs Handbook."
+  </div>
+</div>
+
+<!-- ============ 12. POST-TNR RECOVERY ============ -->
+<div class="page-break"></div>
+<div>
+  <div class="condition-header">
+    <h2>12. Post-TNR Recovery and Ear Tips</h2>
+    <div class="tagline">What to expect after surgery and what the ear tip means</div>
+  </div>
+
+  <h3>What is the ear tip?</h3>
+  <p>Ear tipping is a small surgical procedure performed under anesthesia at the same time as spay/neuter surgery. The vet removes about a quarter inch (1 cm) from the tip of the cat's <b>left ear</b>. It's done under sterile conditions and the cat feels nothing because it's already under anesthesia for surgery.</p>
+  <p>The ear tip is the universal sign that a community cat has been through a TNR program. It has been spayed or neutered, vaccinated, and returned to its territory. It's visible from a distance, which prevents the cat from being re-trapped unnecessarily. The ear heals quickly, there is minimal bleeding, and it does not cause ongoing discomfort.</p>
+
+  <h3>Recovery after surgery</h3>
+  <p>After surgery, the clinic will return the cat to you in the same covered trap with clean newspaper inside. Here's what to expect during the recovery period:</p>
+  <p><b>Males:</b> Can typically be released 24 hours after surgery. Males recover quickly from neuter surgery.</p>
+  <p><b>Females:</b> Need 48 to 72 hours of recovery before release. Spay surgery is more involved and requires more healing time.</p>
+
+  <h3>What to do during recovery</h3>
+  <ul>
+    <li>Keep the cat in the covered trap in a quiet, temperature-controlled area (garage, spare room)</li>
+    <li>Provide food and water through the trap. Do NOT open the trap</li>
+    <li>Keep the trap covered to reduce stress. A calm cat heals faster</li>
+    <li>Check on the cat periodically but minimize disturbance</li>
+  </ul>
+
+  <h3>What to watch for (when to call the clinic)</h3>
+  <ul>
+    <li>Excessive bleeding at the incision site or ear tip</li>
+    <li>Refusal to eat for more than 24 hours after surgery</li>
+    <li>Significant lethargy beyond the first day (some grogginess day 1 is normal)</li>
+    <li>Signs of infection: swelling, discharge, or heat around the incision</li>
+    <li>Open-mouth breathing or any sign of respiratory distress</li>
+  </ul>
+
+  <div class="callout">
+    <b>Most cats recover uneventfully.</b> The vast majority of cats eat within a few hours of returning from surgery, rest quietly, and are ready for release on schedule. Complications are uncommon. When in doubt, call the clinic.
+  </div>
+
+  <div class="callout">
+    <b>What to tell residents who see an ear-tipped cat:</b> "That notch on the cat's left ear means this cat has already been spayed or neutered and vaccinated through a TNR program. It's not an injury. It was done by a veterinarian under anesthesia during surgery. It's the universal sign that someone in the community is already managing this cat colony. If you see a cat with a tipped left ear, you know it's been taken care of."
+  </div>
+
+  <div class="citation">
+    Sources: Alley Cat Allies, "Eartipping Protocol" and "Post-Surgery Care." Best Friends Animal Society, "Post-Surgery Recovery." PMC10812308, ear-tipping practices in US TNR programs.
+  </div>
+</div>
+
+<!-- ============ BACK COVER ============ -->
+<div class="page-break"></div>
+<div class="cover" style="min-height: 7in;">
+  <div class="cover-org">Forgotten Felines of Sonoma County</div>
+  <h1 style="font-size: 22px; margin-bottom: 1rem;">Questions?</h1>
+  <p style="font-size: 14px; color: #555; max-width: 460px; margin: 0 auto; line-height: 1.7;">
+    If you encounter a cat with any of these conditions in the field, note it on the intake form. <b>None of these conditions prevent a cat from being TNR'd.</b><br><br>
+    For questions, contact the clinic:<br>
+    <b>info@forgottenfelines.com</b><br>
+    <b>(707) 576-7999</b>
+  </p>
+  <div class="cover-footer" style="margin-top: 1.5rem;">
+    Sources: VCA Animal Hospitals, Veterinary Partner (VIN), Cornell Feline Health Center,<br>
+    Merck Veterinary Manual, Journal of Feline Medicine and Surgery, ASPCA Pro,<br>
+    Alley Cat Allies, Best Friends Animal Society, Frontiers in Veterinary Science<br><br>
+    Based on articles sourced by Jennifer Cochran, FFSC Clinic Coordinator. Not a substitute for veterinary advice.<br>
+    Summer 2026
+  </div>
+</div>
+
+</body>
+</html>
