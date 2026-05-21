@@ -305,6 +305,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
   // ─── Hero attribute grid data ───
   const locationDisplay = request.place_name || (request.place_address ? formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true }) : null);
+  const PII_LABELS = new Set(["Location", "Requester", "Contact"]);
   const heroAttributes = [
     { label: "Location", value: locationDisplay, href: request.place_id ? `/places/${request.place_id}` : undefined, editable: true },
     { label: "Zone", value: request.place_service_zone },
@@ -358,7 +359,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             </div>
           ) : (
             <>
-              <h1 style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", lineHeight: 1.2 }}>{request.summary || request.place_name || "FFR Request"}</h1>
+              <h1 data-pii="name" style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", lineHeight: 1.2 }}>{request.summary || request.place_name || "FFR Request"}</h1>
               <button onClick={startRename} title="Rename" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem", color: "var(--muted)", opacity: 0.7 }}><Icon name="pencil" size={14} /></button>
             </>
           )}
@@ -413,7 +414,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
         {/* Attribute grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem", padding: "0.75rem 0", borderTop: "1px solid var(--border)" }}>
           {heroAttributes.map((attr) => (
-            <div key={attr.label}>
+            <div key={attr.label} {...(PII_LABELS.has(attr.label) ? { "data-pii": "name" } : {})}>
               <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>{attr.label}</div>
               {attr.label === "Location" ? (
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>

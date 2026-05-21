@@ -432,7 +432,7 @@ function PlaceRow({ place, isLast, currentRequestId, colony, onPlaceClick, onSet
       </span>
 
       {place.primary_contact && (
-        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "110px", flexShrink: 0 }}>
+        <span data-pii="name" style={{ fontSize: "0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "110px", flexShrink: 0 }}>
           {place.primary_contact}
         </span>
       )}
@@ -501,7 +501,7 @@ function NearbyActivityBanner({ data, currentRequestId, onDismiss, onCreateColon
               {place.display_name || place.formatted_address}
             </a>
             {place.cat_count > 0 && <span style={{ color: "#6b7280" }}>{place.cat_count} cats</span>}
-            {place.primary_contact && <span style={{ color: "#9ca3af" }}>{place.primary_contact}</span>}
+            {place.primary_contact && <span data-pii="name" style={{ color: "#9ca3af" }}>{place.primary_contact}</span>}
             {place.request_status && place.request_id !== currentRequestId && (
               <a href={`/requests/${place.request_id}?from=requests`} style={{ textDecoration: "none" }}>
                 <StatusBadge status={place.request_status} size="sm" />

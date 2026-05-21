@@ -1103,14 +1103,62 @@ body.presentation-mode .action-row span {
   transition: opacity 200ms ease;
 }
 
-/* PII redaction in showcase/presentation mode */
+/* ── PII redaction in showcase/presentation mode ──
+ * Blurs person names, phones, emails, and full addresses across the app.
+ * Uses both targeted [data-pii] tags AND broad structural selectors
+ * so new pages don't leak PII without explicit opt-in.
+ */
+
+/* Tagged elements */
 body.presentation-mode [data-pii] {
   filter: blur(5px);
   user-select: none;
   pointer-events: none;
-  transition: filter 200ms ease;
 }
-body.presentation-mode [data-pii]:hover {
+
+/* Map — place detail drawer: person names, cat details, addresses */
+body.presentation-mode .place-detail-drawer h2,
+body.presentation-mode .place-detail-drawer [href*="/people/"],
+body.presentation-mode .place-detail-drawer [href*="/cats/"] {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Request detail page — hero title, requester info, contact, notes */
+body.presentation-mode .card h1,
+body.presentation-mode [href*="/people/"],
+body.presentation-mode .contact-card-name,
+body.presentation-mode .contact-card-phone,
+body.presentation-mode .contact-card-email {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Nearby activity / colony context — person names next to addresses */
+body.presentation-mode .colony-context-person,
+body.presentation-mode .nearby-person-name {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Request list — card & table views (supplements [data-pii] tags) */
+body.presentation-mode .request-card-requester,
+body.presentation-mode .request-card-trapper {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Intake queue — submitter names, phones, emails */
+body.presentation-mode .intake-submitter-name,
+body.presentation-mode .intake-contact {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Global — any element with these common PII data attributes */
+body.presentation-mode [data-pii]:hover,
+body.presentation-mode .place-detail-drawer h2:hover,
+body.presentation-mode [href*="/people/"]:hover {
   filter: blur(5px); /* no unblur on hover */
 }
 
