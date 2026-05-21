@@ -54,20 +54,32 @@ function TitleSlide({ slide, isFirst }: { slide: Slide; isFirst?: boolean }) {
 
 function ContentSlide({ slide }: { slide: Slide }) {
   const lines = slide.body?.split("\n").filter(Boolean) || [];
+  const hasImage = !!slide.image_url;
+
   return (
     <div className="meeting-slide-inner meeting-slide-inner-wide">
-      {slide.title && (
-        <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.25rem)", textAlign: "left" }}>
-          {slide.title}
-        </h2>
-      )}
-      {lines.length > 0 && (
-        <ul className="meeting-slide-bullets">
-          {lines.map((line, i) => (
-            <li key={i}>{line.replace(/^[-*]\s*/, "")}</li>
-          ))}
-        </ul>
-      )}
+      <div className={hasImage ? "meeting-split-layout" : ""}>
+        <div className={hasImage ? "meeting-split-text" : ""}>
+          {slide.title && (
+            <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.25rem)", textAlign: "left" }}>
+              {slide.title}
+            </h2>
+          )}
+          {lines.length > 0 && (
+            <ul className="meeting-slide-bullets">
+              {lines.map((line, i) => (
+                <li key={i}>{line.replace(/^[-*]\s*/, "")}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {hasImage && (
+          <div className="meeting-split-image">
+            <img src={slide.image_url!} alt={slide.image_caption || ""} />
+            {slide.image_caption && <div className="meeting-split-caption">{slide.image_caption}</div>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
