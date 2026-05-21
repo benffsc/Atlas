@@ -3645,16 +3645,10 @@
   background: var(--map-control-hover);
 }
 
-/* ── Bottom controls (zoom + fullscreen) ── */
+/* ── Zoom + fullscreen controls (rendered inside MapControls on desktop) ── */
 
 .map-bottom-controls {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 1000;
+  display: none;
 }
 
 /* ── Legend — bottom-left of map viewport ── */
@@ -3712,9 +3706,7 @@
     height: 100dvh;
   }
 
-  .map-bottom-controls {
-    bottom: 80px;
-  }
+  /* Zoom/fullscreen now inside MapControls — old container hidden */
 }
 
 /* ── Visualization Mode Switcher ── */

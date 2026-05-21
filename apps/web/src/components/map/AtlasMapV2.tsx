@@ -1897,6 +1897,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
               }
             }}
             compareCount={comparedHexes.length}
+            onZoomIn={() => map?.setZoom((map.getZoom() || 11) + 1)}
+            onZoomOut={() => map?.setZoom((map.getZoom() || 11) - 1)}
+            isFullscreen={isFullscreen}
+            onFullscreenToggle={handleFullscreenToggle}
           />
         }
       >

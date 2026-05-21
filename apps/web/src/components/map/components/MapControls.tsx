@@ -124,6 +124,12 @@ interface MapControlsProps {
   compareMode?: boolean;
   onCompareToggle?: () => void;
   compareCount?: number;
+  /** Zoom controls */
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  /** Fullscreen toggle */
+  isFullscreen?: boolean;
+  onFullscreenToggle?: () => void;
 }
 
 export function MapControls({
@@ -148,6 +154,10 @@ export function MapControls({
   compareMode = false,
   onCompareToggle,
   compareCount = 0,
+  onZoomIn,
+  onZoomOut,
+  isFullscreen = false,
+  onFullscreenToggle,
 }: MapControlsProps) {
   const [showBasemapMenu, setShowBasemapMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -389,6 +399,33 @@ export function MapControls({
             </span>
           )}
         </button>
+      )}
+
+      {/* Zoom + Fullscreen — moved here from bottom-right to avoid Tippy overlap */}
+      {onFullscreenToggle && (
+        <button
+          onClick={onFullscreenToggle}
+          title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+          className={`map-control-btn map-control-btn--icon ${isFullscreen ? "map-control-btn--active" : ""}`}
+        >
+          {isFullscreen ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" />
+              <line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
+              <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          )}
+        </button>
+      )}
+      {onZoomIn && onZoomOut && (
+        <div className="map-zoom-controls" role="group" aria-label="Zoom controls">
+          <button onClick={onZoomIn} title="Zoom in (+)" aria-label="Zoom in">+</button>
+          <button onClick={onZoomOut} title="Zoom out (-)" aria-label="Zoom out">{"\u2212"}</button>
+        </div>
       )}
     </div>
   );

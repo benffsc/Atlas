@@ -3,7 +3,6 @@
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import { ToastProvider } from "@/components/feedback/Toast";
-import { MapCaption } from "@/components/map/MapCaption";
 
 const MapSpinner = () => (
   <div
@@ -53,7 +52,6 @@ export default function AtlasMapPage() {
     <Suspense fallback={<MapSpinner />}>
       <ToastProvider>
         <AtlasMapV2 />
-        <MapCaption />
       </ToastProvider>
     </Suspense>
   );
