@@ -78,6 +78,26 @@ export const DEFAULT_TOUR_STOPS: TourStop[] = [
     stat: { value: "FIV+", label: "disease alert active" },
   },
   {
+    label: "Cat Density Heatmap",
+    description: "Hexbin view shows concentration of colony activity across Santa Rosa. Darker cells = more cats needing TNR. This helps prioritize trapping resources.",
+    lat: 38.44,
+    lng: -122.714,
+    zoom: 12,
+    pauseMs: 6000,
+    stat: { value: "Hexbin", label: "density view" },
+    layers: ["cat-density-heatmap"],
+  },
+  {
+    label: "TNR Priority Zones",
+    description: "Areas color-coded by TNR urgency — red zones have unaltered colonies, green zones are managed. Beacon identifies where our efforts will have the greatest impact.",
+    lat: 38.44,
+    lng: -122.72,
+    zoom: 11,
+    pauseMs: 6000,
+    stat: { value: "Priority", label: "zone analysis" },
+    layers: ["tnr-priority"],
+  },
+  {
     label: "County-Wide Coverage",
     description: "From Cloverdale to Petaluma, Bodega Bay to Sonoma Valley. 37,000+ cats altered since 2013 — every one verified at our clinic.",
     lat: 38.50,
@@ -139,6 +159,14 @@ export function ShowcaseMapTour({ map, stops = DEFAULT_TOUR_STOPS, onComplete }:
     // Fly to location
     map.panTo({ lat: stop.lat, lng: stop.lng });
     map.setZoom(stop.zoom);
+
+    // Activate map layers if specified (e.g., hexbin views)
+    if (stop.layers && stop.layers.length > 0) {
+      window.dispatchEvent(new CustomEvent("showcase:layers", { detail: stop.layers }));
+    } else {
+      // Reset layers when stop has none
+      window.dispatchEvent(new CustomEvent("showcase:layers", { detail: [] }));
+    }
 
     // Progress bar animation
     setProgress(0);

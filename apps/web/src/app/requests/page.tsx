@@ -581,7 +581,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
                 whiteSpace: "nowrap",
               }}
             >
-              {request.place_name}
+              <span data-pii="address">{request.place_name}</span>
               {request.place_city && ` • ${request.place_city}`}
             </div>
           )}
@@ -595,7 +595,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
                 marginTop: "4px",
               }}
             >
-              Trapper: {request.primary_trapper_name}
+              Trapper: <span data-pii="name">{request.primary_trapper_name}</span>
               {request.active_trapper_count > 1 && ` +${request.active_trapper_count - 1}`}
             </div>
           )}
@@ -613,7 +613,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
             {/* Requestor */}
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
               <span style={{ color: COLORS.primary, fontWeight: 500 }}>Requestor:</span>
-              <span style={{ color: "var(--text-secondary)" }}>
+              <span style={{ color: "var(--text-secondary)" }} data-pii="name">
                 {request.requester_name || "Unknown"}
               </span>
               {request.requester_role_at_submission && request.requester_role_at_submission !== "unknown" && (
@@ -633,7 +633,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
             {request.site_contact_name && !request.requester_is_site_contact && (
               <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
                 <span style={{ color: COLORS.success, fontWeight: 500 }}>Site:</span>
-                <span style={{ color: "var(--text-secondary)" }}>
+                <span style={{ color: "var(--text-secondary)" }} data-pii="name">
                   {request.site_contact_name}
                 </span>
               </div>
@@ -1600,7 +1600,7 @@ function RequestsPageContent() {
                   <td>
                     {req.place_name ? (
                       <div>
-                        <div style={{ fontWeight: 500 }}>{req.place_name}</div>
+                        <div style={{ fontWeight: 500 }} data-pii="address">{req.place_name}</div>
                         {req.place_city && (
                           <div className="text-muted text-sm">{req.place_city}</div>
                         )}
@@ -1623,7 +1623,7 @@ function RequestsPageContent() {
                   <td className="text-sm">
                     {req.primary_trapper_name ? (
                       <div>
-                        <span>{req.primary_trapper_name}</span>
+                        <span data-pii="name">{req.primary_trapper_name}</span>
                         {req.active_trapper_count > 1 && (
                           <span className="text-muted"> +{req.active_trapper_count - 1}</span>
                         )}
@@ -1636,7 +1636,7 @@ function RequestsPageContent() {
                   </td>
                   <td>
                     {req.requester_name ? (
-                      <span>{req.requester_name}</span>
+                      <span data-pii="name">{req.requester_name}</span>
                     ) : (
                       <span className="text-muted">Unknown</span>
                     )}

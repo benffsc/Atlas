@@ -87,6 +87,31 @@ export function useMapLayers({ atlasPins }: { atlasPins: AtlasPin[] }) {
     if (newUrl !== curUrl) router.replace(newUrl, { scroll: false });
   }, [enabledLayers, pathname, router, searchParams]);
 
+  // Listen for showcase tour layer activation
+  useEffect(() => {
+    const LAYER_MAP: Record<string, string> = {
+      "cat-density-heatmap": "hexbin_density",
+      "tnr-priority": "hexbin_intact",
+      "disease-heatmap": "hexbin_disease",
+    };
+    const handler = (e: Event) => {
+      const layers = (e as CustomEvent).detail as string[];
+      setEnabledLayers(prev => {
+        const next = { ...prev };
+        // Turn off all hexbin/heatmap layers first
+        for (const id of [...HEXBIN_LAYER_IDS, ...HEATMAP_LAYER_IDS]) next[id] = false;
+        // Activate requested layers
+        for (const l of layers) {
+          const mapped = LAYER_MAP[l] || l;
+          if (mapped in next) next[mapped] = true;
+        }
+        return next;
+      });
+    };
+    window.addEventListener("showcase:layers", handler);
+    return () => window.removeEventListener("showcase:layers", handler);
+  }, []);
+
   const toggleLayer = useCallback((layerId: string) => {
     setEnabledLayers(prev => {
       const next = { ...prev };

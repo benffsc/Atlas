@@ -1103,6 +1103,17 @@ body.presentation-mode .action-row span {
   transition: opacity 200ms ease;
 }
 
+/* PII redaction in showcase/presentation mode */
+body.presentation-mode [data-pii] {
+  filter: blur(5px);
+  user-select: none;
+  pointer-events: none;
+  transition: filter 200ms ease;
+}
+body.presentation-mode [data-pii]:hover {
+  filter: blur(5px); /* no unblur on hover */
+}
+
 /* Hide old indicator pill when showcase toolbar is present */
 body.presentation-mode .showcase-toolbar ~ .presentation-indicator {
   display: none;
