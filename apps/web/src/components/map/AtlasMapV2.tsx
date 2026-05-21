@@ -50,6 +50,7 @@ import { HexComparePanel } from "@/components/map/components/HexComparePanel";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
 import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
 import { ShowcaseMapTour } from "@/components/ShowcaseMapTour";
+import { ScreensaverTour } from "@/components/showcase/ScreensaverTour";
 import { MapVisualizationMode } from "@/components/map/components/MapVisualizationMode";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type {
@@ -1345,6 +1346,13 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         case "F":
           handleFullscreenToggle();
           break;
+        case "t":
+        case "T":
+          // Toggle TV screensaver tour (showcase mode only)
+          if (localStorage.getItem("beacon.presentation_mode") === "true") {
+            window.dispatchEvent(new CustomEvent("screensaver:toggle"));
+          }
+          break;
       }
     };
 
@@ -1352,6 +1360,17 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, handleFullscreenToggle, handleMeasureToggle, handleMyLocation, toggleLayer]);
+
+  // ── Screensaver tour fly-to ──
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { lat, lng, zoom } = (e as CustomEvent).detail;
+      map?.panTo({ lat, lng });
+      map?.setZoom(zoom);
+    };
+    window.addEventListener("screensaver:fly-to", handler);
+    return () => window.removeEventListener("screensaver:fly-to", handler);
+  }, [map]);
 
   // ── Street View from search ──
   const handleStreetViewFromSearch = useCallback((lat: number, lng: number, address?: string) => {
@@ -2323,8 +2342,33 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       {/* Showcase map tour — listens for "showcase:maptour" event */}
       <ShowcaseMapTour map={map} />
 
+      {/* TV screensaver tour — idle-triggered, auto-looping (only in showcase mode) */}
+      <ScreensaverTourGate />
+
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Screensaver tour — only active in showcase/presentation mode
+// ---------------------------------------------------------------------------
+function ScreensaverTourGate() {
+  const [active, setActive] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("beacon.presentation_mode") === "true";
+  });
+
+  useEffect(() => {
+    // Check on mount and when localStorage changes (cross-tab)
+    const check = () =>
+      setActive(localStorage.getItem("beacon.presentation_mode") === "true");
+    check();
+    window.addEventListener("storage", check);
+    return () => window.removeEventListener("storage", check);
+  }, []);
+
+  if (!active) return null;
+  return <ScreensaverTour enabled />;
 }
 
 // ---------------------------------------------------------------------------

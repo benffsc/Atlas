@@ -17,6 +17,7 @@ interface ShowcaseToolbarProps {
 
 export function ShowcaseToolbar({ onExit }: ShowcaseToolbarProps) {
   const [expanded, setExpanded] = useState(false);
+  const [tvTourActive, setTvTourActive] = useState(false);
   const pathname = usePathname();
 
   // ESC exits showcase mode
@@ -33,17 +34,38 @@ export function ShowcaseToolbar({ onExit }: ShowcaseToolbarProps) {
 
   const startMapTour = useCallback(() => {
     if (isOnMap) {
-      // Already on map — just dispatch the event
       window.dispatchEvent(new CustomEvent("showcase:maptour"));
     } else {
-      // Navigate to map, then dispatch after a delay for load
       window.location.href = "/map";
-      // The tour will be triggered by the map page detecting showcase mode
-      // OR we store intent in sessionStorage and the map picks it up
       sessionStorage.setItem("showcase:maptour-pending", "1");
     }
     setExpanded(false);
   }, [isOnMap]);
+
+  const toggleTvTour = useCallback(() => {
+    if (tvTourActive) {
+      // Stop: dispatch toggle to the ScreensaverTour on the map page
+      window.dispatchEvent(new CustomEvent("screensaver:toggle"));
+      setTvTourActive(false);
+    } else {
+      setTvTourActive(true);
+      if (isOnMap) {
+        window.dispatchEvent(new CustomEvent("screensaver:toggle"));
+      } else {
+        sessionStorage.setItem("screensaver:pending", "1");
+        window.location.href = "/map";
+      }
+    }
+    setExpanded(false);
+  }, [isOnMap, tvTourActive]);
+
+  // Sync with tour state changes
+  useEffect(() => {
+    const handler = () => setTvTourActive(false);
+    // When tour stops externally (ESC, etc.)
+    window.addEventListener("screensaver:stopped", handler);
+    return () => window.removeEventListener("screensaver:stopped", handler);
+  }, []);
 
   return (
     <div className="showcase-toolbar" role="toolbar" aria-label="Showcase controls">
@@ -66,13 +88,23 @@ export function ShowcaseToolbar({ onExit }: ShowcaseToolbarProps) {
               className="showcase-toolbar-btn"
               onClick={startMapTour}
             >
-              Colony Tour
+              Map Tour
             </button>
             {!isOnDemo && (
               <a href="/walkthrough/" className="showcase-toolbar-btn">
-                Guided Walkthrough
+                Informational Deck
               </a>
             )}
+          </div>
+          <div className="showcase-toolbar-divider" />
+          <div className="showcase-toolbar-section">
+            <span className="showcase-toolbar-label">Loop</span>
+            <button
+              className={`showcase-toolbar-btn ${tvTourActive ? "showcase-toolbar-btn--active" : ""}`}
+              onClick={toggleTvTour}
+            >
+              {tvTourActive ? "Stop Loop" : "TV Screensaver"}
+            </button>
           </div>
           <div className="showcase-toolbar-divider" />
           <button

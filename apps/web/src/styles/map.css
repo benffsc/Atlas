@@ -3684,6 +3684,26 @@
   z-index: 10;
 }
 
+/* ── TV Tour: full-bleed map viewport ── */
+body.tv-tour-active .map-shell {
+  display: block;
+}
+
+body.tv-tour-active .map-nav-rail,
+body.tv-tour-active .map-top-bar,
+body.tv-tour-active .map-sidebar {
+  display: none;
+}
+
+body.tv-tour-active .map-shell__content {
+  display: block;
+  height: 100dvh;
+}
+
+body.tv-tour-active .map-shell__viewport {
+  height: 100dvh;
+}
+
 /* ── Mobile: hide shell chrome, render map fullscreen ── */
 
 @media (max-width: 767px) {
