@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
 
 interface Slide {
@@ -254,6 +254,8 @@ const SLIDE_RENDERERS: Record<
 export default function PresentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isPrint = searchParams.get("print") === "true";
   const [slides, setSlides] = useState<Slide[]>([]);
   const [autoStats, setAutoStats] = useState<MeetingStats | null>(null);
   const [current, setCurrent] = useState(0);
@@ -356,6 +358,26 @@ export default function PresentPage({ params }: { params: Promise<{ id: string }
             Back to editor
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // Print mode: static layout, one slide per page, no nav
+  if (isPrint) {
+    return (
+      <div className="meeting-print">
+        {slides.map((slide, idx) => {
+          const Renderer = SLIDE_RENDERERS[slide.slide_type] || ContentSlide;
+          return (
+            <section
+              key={slide.slide_id}
+              className="meeting-print-slide"
+              data-bg={slide.background_style}
+            >
+              <Renderer slide={slide} autoStats={autoStats} isFirst={idx === 0} />
+            </section>
+          );
+        })}
       </div>
     );
   }

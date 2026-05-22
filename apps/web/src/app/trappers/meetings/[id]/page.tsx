@@ -589,6 +589,17 @@ function MeetingEditorContent({ meetingId }: { meetingId: string }) {
             Export PPTX
           </Button>
           <Button
+            variant="outline"
+            icon="download"
+            disabled={slides.length === 0}
+            onClick={() => {
+              const w = window.open(`/trappers/meetings/${meetingId}/present?print=true`, "_blank");
+              if (w) { w.onload = () => { setTimeout(() => w.print(), 1000); }; }
+            }}
+          >
+            Save as PDF
+          </Button>
+          <Button
             icon="presentation"
             onClick={() => router.push(`/trappers/meetings/${meetingId}/present`)}
             disabled={slides.length === 0}

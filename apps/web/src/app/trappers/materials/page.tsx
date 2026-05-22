@@ -160,7 +160,7 @@ export default function TrapperMaterialsPage() {
             Common Conditions in Community Cats
           </div>
           <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: "0.15rem" }}>
-            12-section reference packet: URI, ear mites, ringworm, FIV, FeLV, mange, and more. Print-ready.
+            15-section reference packet: URI, ear mites, ringworm, FIV, FeLV, abscesses, tapeworms, and more.
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
@@ -181,22 +181,24 @@ export default function TrapperMaterialsPage() {
           >
             View
           </a>
-          <a
-            href="/trapper-conditions-packet.html"
-            download="FFSC-Common-Conditions-Packet.html"
+          <button
+            onClick={() => {
+              const w = window.open("/trapper-conditions-packet.html", "_blank");
+              if (w) { w.onload = () => { setTimeout(() => w.print(), 500); }; }
+            }}
             style={{
               padding: "0.5rem 1rem",
               background: "var(--bg-secondary)",
               color: "var(--text-primary)",
               border: "1px solid var(--card-border)",
               borderRadius: "6px",
-              textDecoration: "none",
+              cursor: "pointer",
               fontWeight: 500,
               fontSize: "0.85rem",
             }}
           >
-            Download
-          </a>
+            Save as PDF
+          </button>
         </div>
       </div>
 
