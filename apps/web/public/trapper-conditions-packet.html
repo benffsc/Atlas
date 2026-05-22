@@ -5,11 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FFSC Trapper Reference: Common Conditions in Community Cats</title>
 <style>
-  @page { size: letter; margin: 0.6in; }
+  @page { size: letter; margin: 0.5in 0.6in; }
   .page-break { page-break-before: always; margin-top: 2.5rem; padding-top: 1.5rem; border-top: 2px solid #ddd; }
   @media print {
-    .page-break { margin-top: 0; padding-top: 0; border-top: none; }
-    body { font-size: 11pt; padding: 0.5in; }
+    body { font-size: 11pt; padding: 0; margin: 0; max-width: none; }
+    .page-break { margin-top: 0; padding-top: 0; border-top: none; page-break-before: always; }
+    .cover { min-height: auto; height: 100vh; justify-content: center; }
+    .condition-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .callout, .alert { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th, tr:nth-child(even) { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h3 { page-break-after: avoid; }
+    .callout, .alert { page-break-inside: avoid; }
+    .img-row { page-break-inside: avoid; }
+    .img-row img { max-height: 160px; }
+    .citation { page-break-before: avoid; }
+    p, li { orphans: 2; widows: 2; }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
