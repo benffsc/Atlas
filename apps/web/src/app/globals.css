@@ -5720,32 +5720,41 @@ a:focus-visible {
 }
 
 .meeting-slide-bullets li {
-  font-size: clamp(1.2rem, 2.2vw, 1.5rem);
-  padding: 0.5rem 0 0.5rem 1.75rem;
+  font-size: clamp(1.3rem, 2.4vw, 1.65rem);
+  padding: 0.4rem 0 0.4rem 1.75rem;
   position: relative;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.9);
 }
 
-/* Sub-items: lines that start with whitespace get smaller text */
+/* Sub-items: smaller, indented, lighter color, no bullet */
 .meeting-slide-bullets li.sub-item {
-  font-size: clamp(1rem, 1.8vw, 1.2rem);
-  padding-left: 3rem;
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  padding-left: 3.25rem;
   color: rgba(255, 255, 255, 0.7);
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
 }
 
 .meeting-slide-bullets li.sub-item::before {
-  left: 1.75rem;
+  left: 2rem;
   width: 5px;
   height: 5px;
-  background: rgba(255, 255, 255, 0.4);
+  top: 0.85rem;
+  background: rgba(255, 255, 255, 0.35);
 }
 
-/* Heading lines within bullets (bold text that introduces a section) */
+/* Heading lines: bold, slightly bigger, top margin for separation */
 .meeting-slide-bullets li.heading-item {
-  font-weight: 600;
-  margin-top: 0.5rem;
-  font-size: clamp(1.25rem, 2.3vw, 1.55rem);
+  font-weight: 700;
+  margin-top: 0.75rem;
+  font-size: clamp(1.35rem, 2.5vw, 1.7rem);
+  color: #ffffff;
+  list-style: none;
+}
+
+.meeting-slide-bullets li.heading-item::before {
+  display: none;
 }
 
 .meeting-slide-bullets li::before {

@@ -91,30 +91,45 @@ function ContentSlide({ slide }: { slide: Slide }) {
   const rawLines = slide.body?.split("\n").filter(Boolean) || [];
   const hasImage = !!slide.image_url;
 
-  // Classify lines: sub-items (indented), headings (end with :), or normal
-  const classifyLine = (line: string) => {
+  // Classify lines with context: after a heading, items become sub-items
+  // until the next heading or standalone paragraph
+  const classified = rawLines.map((line, i) => {
     const trimmed = line.replace(/^[-*]\s*/, "");
-    const isIndented = line.startsWith("  ") || line.startsWith("   ") || line.startsWith("\t");
-    const isHeading = trimmed.endsWith(":") && trimmed.length < 60 && !trimmed.startsWith("-");
-    return { text: trimmed, isIndented, isHeading };
-  };
+    const isExplicitIndent = line.startsWith("  ") || line.startsWith("   ") || line.startsWith("\t");
+    const isHeading = trimmed.endsWith(":") && trimmed.length < 60 && !trimmed.startsWith("-") && !trimmed.includes("(");
+    return { text: trimmed, isHeading, isExplicitIndent, raw: line };
+  });
+
+  // Second pass: lines after a heading are sub-items until next heading
+  let inSection = false;
+  for (const item of classified) {
+    if (item.isHeading) {
+      inSection = true;
+      (item as { cls: string }).cls = "heading-item";
+    } else if (item.isExplicitIndent) {
+      (item as { cls: string }).cls = "sub-item";
+    } else if (inSection && item.raw.startsWith("- ")) {
+      (item as { cls: string }).cls = "sub-item";
+    } else {
+      inSection = false;
+      (item as { cls: string }).cls = "";
+    }
+  }
 
   return (
     <div className="meeting-slide-inner meeting-slide-inner-wide">
       <div className={hasImage ? "meeting-split-layout" : ""}>
         <div className={hasImage ? "meeting-split-text" : ""}>
           {slide.title && (
-            <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.5rem)", textAlign: "left" }}>
+            <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.8rem, 4vw, 2.8rem)", textAlign: "left" }}>
               {slide.title}
             </h2>
           )}
-          {rawLines.length > 0 && (
+          {classified.length > 0 && (
             <ul className="meeting-slide-bullets">
-              {rawLines.map((line, i) => {
-                const { text, isIndented, isHeading } = classifyLine(line);
-                const cls = isIndented ? "sub-item" : isHeading ? "heading-item" : "";
-                return <li key={i} className={cls}>{text}</li>;
-              })}
+              {classified.map((item, i) => (
+                <li key={i} className={(item as { cls: string }).cls}>{item.text}</li>
+              ))}
             </ul>
           )}
         </div>
