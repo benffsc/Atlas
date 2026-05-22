@@ -93,27 +93,25 @@ function ContentSlide({ slide }: { slide: Slide }) {
 
   // Classify lines with context: after a heading, items become sub-items
   // until the next heading or standalone paragraph
-  const classified = rawLines.map((line, i) => {
+  const classified: Array<{ text: string; cls: string }> = [];
+  let inSection = false;
+  for (const line of rawLines) {
     const trimmed = line.replace(/^[-*]\s*/, "");
     const isExplicitIndent = line.startsWith("  ") || line.startsWith("   ") || line.startsWith("\t");
     const isHeading = trimmed.endsWith(":") && trimmed.length < 60 && !trimmed.startsWith("-") && !trimmed.includes("(");
-    return { text: trimmed, isHeading, isExplicitIndent, raw: line };
-  });
 
-  // Second pass: lines after a heading are sub-items until next heading
-  let inSection = false;
-  for (const item of classified) {
-    if (item.isHeading) {
+    let cls = "";
+    if (isHeading) {
       inSection = true;
-      (item as { cls: string }).cls = "heading-item";
-    } else if (item.isExplicitIndent) {
-      (item as { cls: string }).cls = "sub-item";
-    } else if (inSection && item.raw.startsWith("- ")) {
-      (item as { cls: string }).cls = "sub-item";
+      cls = "heading-item";
+    } else if (isExplicitIndent) {
+      cls = "sub-item";
+    } else if (inSection && line.startsWith("- ")) {
+      cls = "sub-item";
     } else {
       inSection = false;
-      (item as { cls: string }).cls = "";
     }
+    classified.push({ text: trimmed, cls });
   }
 
   return (
@@ -128,7 +126,7 @@ function ContentSlide({ slide }: { slide: Slide }) {
           {classified.length > 0 && (
             <ul className="meeting-slide-bullets">
               {classified.map((item, i) => (
-                <li key={i} className={(item as { cls: string }).cls}>{item.text}</li>
+                <li key={i} className={item.cls}>{item.text}</li>
               ))}
             </ul>
           )}
