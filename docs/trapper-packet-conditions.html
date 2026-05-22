@@ -8,17 +8,29 @@
   @page { size: letter; margin: 0.5in 0.6in; }
   .page-break { page-break-before: always; margin-top: 2.5rem; padding-top: 1.5rem; border-top: 2px solid #ddd; }
   @media print {
-    body { font-size: 11pt; padding: 0; margin: 0; max-width: none; }
+    body { font-size: 10pt; padding: 0; margin: 0; max-width: none; line-height: 1.45; }
     .page-break { margin-top: 0; padding-top: 0; border-top: none; page-break-before: always; }
-    .cover { min-height: auto; height: 100vh; justify-content: center; }
+    .cover { min-height: auto; }
+    .cover h1 { font-size: 20pt; margin-bottom: 0.25rem; }
+    .cover .subtitle { font-size: 11pt; margin-bottom: 0.75rem; }
+    .cover .toc { max-width: 380px; }
+    .cover .toc-item { padding: 0.15rem 0; font-size: 9pt; }
+    .cover .toc h3 { font-size: 7.5pt; margin-bottom: 0.2rem; }
+    .cover-footer { margin-top: 0.75rem; font-size: 7.5pt; line-height: 1.35; }
+    .cover-org { font-size: 8pt; margin-bottom: 0.25rem; }
     .condition-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .callout, .alert { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .condition-header h2 { font-size: 14pt; }
+    .condition-header .tagline { font-size: 9pt; }
+    .callout, .alert { -webkit-print-color-adjust: exact; print-color-adjust: exact; page-break-inside: avoid; font-size: 10pt; padding: 0.4rem 0.7rem; margin: 0.5rem 0; }
     th, tr:nth-child(even) { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    h3 { page-break-after: avoid; }
-    .callout, .alert { page-break-inside: avoid; }
-    .img-row { page-break-inside: avoid; }
-    .img-row img { max-height: 160px; }
-    .citation { page-break-before: avoid; }
+    h3 { page-break-after: avoid; font-size: 11pt; margin: 0.6rem 0 0.25rem; }
+    p { font-size: 10pt; margin-bottom: 0.4rem; line-height: 1.45; }
+    li { font-size: 10pt; margin-bottom: 0.15rem; line-height: 1.4; }
+    ul { margin-bottom: 0.4rem; }
+    .img-row { page-break-inside: avoid; margin: 0.5rem 0; }
+    .img-row img { max-height: 140px; }
+    .img-caption { font-size: 8pt; margin-bottom: 0.4rem; }
+    .citation { page-break-before: avoid; font-size: 8pt; margin-top: 0.6rem; }
     p, li { orphans: 2; widows: 2; }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,7 +44,7 @@
     padding: 0.6in;
     background: #fff;
   }
-  .cover { display: flex; flex-direction: column; justify-content: center; min-height: 9in; text-align: center; }
+  .cover { display: flex; flex-direction: column; justify-content: center; text-align: center; }
   .cover-org { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 0.5rem; }
   .cover h1 { font-size: 28px; font-weight: 700; margin-bottom: 0.5rem; color: #2d2d2d; }
   .cover .subtitle { font-size: 16px; color: #555; margin-bottom: 2rem; }
@@ -87,15 +99,9 @@
   </div>
   <div class="cover-footer">
     Based on veterinary articles sourced by Jennifer Cochran, FFSC Clinic Coordinator.<br>
-    Condensed for trapper reference. Full citations per section.<br><br>
-    <b>FFSC is a spay/neuter clinic for unowned cats.</b> We are not a full-service veterinary hospital.<br>
-    We can help with wellness on a limited basis, but our core mission is TNR.<br>
-    This packet helps you understand what you're seeing in the field, what's a true<br>
-    emergency vs. an unfortunate but manageable situation, and what to tell residents.<br><br>
-    <b>If you encounter a true emergency</b> (cat hit by car, severe injury, difficulty breathing),<br>
-    take the cat to VCA PetCare East or another emergency vet hospital. We can surrender<br>
-    cats in need to them as a good samaritan if the cat can't wait. If it can wait a little,<br>
-    notify the Trapping Coordinator first and we can figure out how to proceed.
+    FFSC is a spay/neuter clinic for unowned cats, not a full-service veterinary hospital.<br><br>
+    <b>True emergency?</b> Take directly to VCA PetCare East. We can surrender as a good samaritan.<br>
+    If it can wait, call the Trapping Coordinator first.
   </div>
 </div>
 
@@ -130,7 +136,7 @@
   <p><b>Severe: Communicate with the clinic.</b> If a cat is open-mouth breathing, has completely blocked nostrils, or is non-responsive, call the clinic before bringing it in. The vet will decide whether to proceed, delay surgery until the cat stabilizes, or provide supportive care (fluids, antibiotics for secondary bacterial infection).</p>
 
   <div class="alert">
-    <b>Do not hold cats in traps longer than necessary.</b> This is the single most important thing you can do to prevent URI from getting worse. A cat that was sneezing a little when trapped can develop severe, life-threatening URI if kept confined and stressed for days. Males should be released 24 hours after surgery. Females should be released within 48 to 72 hours. The faster they're back in their territory, the faster they recover.
+    <b>Do not hold cats in traps longer than necessary.</b> This is the single most important thing you can do to prevent URI from getting worse. A cat that was sneezing a little when trapped can develop severe, life-threatening URI if kept confined and stressed for days. Cats spend the night in the trap after surgery and get released the next morning. The faster they're back in their territory, the faster they recover.
   </div>
 
   <h3>What about kittens?</h3>

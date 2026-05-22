@@ -362,6 +362,14 @@ export default function PresentPage({ params }: { params: Promise<{ id: string }
     );
   }
 
+  // Auto-trigger print dialog after slides render in print mode
+  useEffect(() => {
+    if (isPrint && loaded && slides.length > 0) {
+      const timer = setTimeout(() => window.print(), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isPrint, loaded, slides.length]);
+
   // Print mode: full-screen takeover, static layout, one slide per page
   if (isPrint) {
     return (

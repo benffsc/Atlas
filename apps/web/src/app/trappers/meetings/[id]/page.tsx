@@ -593,8 +593,7 @@ function MeetingEditorContent({ meetingId }: { meetingId: string }) {
             icon="download"
             disabled={slides.length === 0}
             onClick={() => {
-              const w = window.open(`/trappers/meetings/${meetingId}/present?print=true`, "_blank");
-              if (w) { w.onload = () => { setTimeout(() => w.print(), 1000); }; }
+              window.open(`/trappers/meetings/${meetingId}/present?print=true`, "_blank");
             }}
           >
             Save as PDF
