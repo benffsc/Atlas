@@ -6012,10 +6012,14 @@ a:focus-visible {
   .meeting-split-image { flex: none; width: 100%; }
 }
 
-/* Print mode: static layout for PDF export */
+/* Print mode: full-screen takeover for PDF export */
 .meeting-print {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
   background: #fff;
   color: #1a1a1a;
+  overflow-y: auto;
 }
 
 .meeting-print-slide {
@@ -6024,8 +6028,9 @@ a:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  page-break-after: always;
+  padding: 3rem 2rem;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .meeting-print-slide[data-bg="default"] { background: #4d4d4d; color: #fff; }
@@ -6034,11 +6039,19 @@ a:focus-visible {
 .meeting-print-slide[data-bg="photo_bg"] { background: #333333; color: #fff; }
 
 @media print {
+  /* Hide the app shell entirely */
+  body > *:not(.meeting-print) { display: none !important; }
+  .meeting-print {
+    position: static;
+    overflow: visible;
+  }
   .meeting-print-slide {
     min-height: auto;
     height: 100vh;
     page-break-after: always;
     page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .meeting-print-slide:last-child { page-break-after: avoid; }
 }

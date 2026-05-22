@@ -362,7 +362,7 @@ export default function PresentPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  // Print mode: static layout, one slide per page, no nav
+  // Print mode: full-screen takeover, static layout, one slide per page
   if (isPrint) {
     return (
       <div className="meeting-print">
