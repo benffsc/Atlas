@@ -88,23 +88,33 @@ function TitleSlide({ slide, isFirst }: { slide: Slide; isFirst?: boolean }) {
 }
 
 function ContentSlide({ slide }: { slide: Slide }) {
-  const lines = slide.body?.split("\n").filter(Boolean) || [];
+  const rawLines = slide.body?.split("\n").filter(Boolean) || [];
   const hasImage = !!slide.image_url;
+
+  // Classify lines: sub-items (indented), headings (end with :), or normal
+  const classifyLine = (line: string) => {
+    const trimmed = line.replace(/^[-*]\s*/, "");
+    const isIndented = line.startsWith("  ") || line.startsWith("   ") || line.startsWith("\t");
+    const isHeading = trimmed.endsWith(":") && trimmed.length < 60 && !trimmed.startsWith("-");
+    return { text: trimmed, isIndented, isHeading };
+  };
 
   return (
     <div className="meeting-slide-inner meeting-slide-inner-wide">
       <div className={hasImage ? "meeting-split-layout" : ""}>
         <div className={hasImage ? "meeting-split-text" : ""}>
           {slide.title && (
-            <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.25rem)", textAlign: "left" }}>
+            <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3.5vw, 2.5rem)", textAlign: "left" }}>
               {slide.title}
             </h2>
           )}
-          {lines.length > 0 && (
+          {rawLines.length > 0 && (
             <ul className="meeting-slide-bullets">
-              {lines.map((line, i) => (
-                <li key={i}>{line.replace(/^[-*]\s*/, "")}</li>
-              ))}
+              {rawLines.map((line, i) => {
+                const { text, isIndented, isHeading } = classifyLine(line);
+                const cls = isIndented ? "sub-item" : isHeading ? "heading-item" : "";
+                return <li key={i} className={cls}>{text}</li>;
+              })}
             </ul>
           )}
         </div>
@@ -399,6 +409,21 @@ export default function PresentPage({ params }: { params: Promise<{ id: string }
         onClick={() => router.push(`/trappers/meetings/${id}`)}
       >
         ESC to exit
+      </button>
+
+      {/* Fullscreen toggle */}
+      <button
+        className="meeting-present-exit"
+        style={{ right: "auto", left: "1rem" }}
+        onClick={() => {
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          } else {
+            document.documentElement.requestFullscreen();
+          }
+        }}
+      >
+        Fullscreen
       </button>
     </div>
   );
