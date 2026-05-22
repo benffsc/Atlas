@@ -34,7 +34,42 @@ interface MeetingStats {
 
 /* --- Slide renderers --- */
 
+function VideoEmbed({ slide }: { slide: Slide }) {
+  const videoUrl = slide.custom_data?.video_url as string | undefined;
+  if (!videoUrl) return null;
+
+  // Google Drive: convert share URL to embed
+  const driveMatch = videoUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  const embedSrc = driveMatch
+    ? `https://drive.google.com/file/d/${driveMatch[1]}/preview`
+    : videoUrl;
+
+  return (
+    <div className="meeting-slide-inner" style={{ maxWidth: "1100px" }}>
+      {slide.title && (
+        <h2 className="meeting-slide-heading" style={{ fontSize: "clamp(1.5rem, 3vw, 2rem)", marginBottom: "1.5rem" }}>
+          {slide.title}
+        </h2>
+      )}
+      <div style={{ position: "relative", width: "100%", paddingBottom: "56.25%", borderRadius: "8px", overflow: "hidden" }}>
+        <iframe
+          src={embedSrc}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+          allow="autoplay; encrypted-media"
+          allowFullScreen
+        />
+      </div>
+      {slide.body && (
+        <p className="meeting-slide-subtitle" style={{ marginTop: "1rem" }}>{slide.body}</p>
+      )}
+    </div>
+  );
+}
+
 function TitleSlide({ slide, isFirst }: { slide: Slide; isFirst?: boolean }) {
+  // If this title slide has a video, render the video embed instead
+  if (slide.custom_data?.video_url) return <VideoEmbed slide={slide} />;
+
   return (
     <div className="meeting-slide-inner">
       {slide.title && (
