@@ -36,6 +36,8 @@ const PUBLIC_PATHS = [
   "/trapper-survey",
   "/api/trapper-survey",
   "/api/survey-templates",
+  "/share/meeting",
+  "/api/meetings",
   "/_next",
   "/favicon.ico",
 ];

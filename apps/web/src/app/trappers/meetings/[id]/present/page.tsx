@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, use } from "react";
+import { useEffect, useState, useRef, useCallback, use, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchApi } from "@/lib/api-client";
 
@@ -251,8 +251,7 @@ const SLIDE_RENDERERS: Record<
   quote: QuoteSlide,
 };
 
-export default function PresentPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+function PresentPageInner({ id }: { id: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isPrint = searchParams.get("print") === "true";
@@ -469,5 +468,14 @@ export default function PresentPage({ params }: { params: Promise<{ id: string }
         Fullscreen
       </button>
     </div>
+  );
+}
+
+export default function PresentPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  return (
+    <Suspense fallback={<div className="meeting-present" />}>
+      <PresentPageInner id={id} />
+    </Suspense>
   );
 }
