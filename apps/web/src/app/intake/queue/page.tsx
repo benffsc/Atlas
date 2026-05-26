@@ -23,7 +23,7 @@ import { TabBar } from "@/components/ui/TabBar";
 import { DataTable } from "@/components/data-table";
 import { getIntakeColumns } from "./columns";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
-import { useShowcase } from "@/components/ShowcaseContext";
+import { useShowcase, useRedact } from "@/components/ShowcaseContext";
 import { useToast } from "@/components/feedback/Toast";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
@@ -44,6 +44,7 @@ function IntakeQueueContent() {
   const openSubmissionId = searchParams.get("open");
   const { user: currentUser } = useCurrentUser();
   const { isShowcase } = useShowcase();
+  const rd = useRedact();
 
   const [submissions, setSubmissions] = useState<IntakeSubmission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -327,7 +328,7 @@ function IntakeQueueContent() {
         appointment_date: date || null,
       }, { method: "PATCH" });
 
-      const submitterName = normalizeName(bookingSubmission.submitter_name);
+      const submitterName = rd.name(normalizeName(bookingSubmission.submitter_name));
       setShowBookingModal(false);
       setBookingSubmission(null);
       fetchSubmissions();
@@ -373,7 +374,7 @@ function IntakeQueueContent() {
 
   const handleKanbanStatusChange = async (submissionId: string, newStatus: string) => {
     const sub = submissions.find((s) => s.submission_id === submissionId);
-    const name = sub ? normalizeName(sub.submitter_name) : "Submission";
+    const name = sub ? rd.name(normalizeName(sub.submitter_name)) : "Submission";
     const label = INTAKE_COLUMNS_LABELS[newStatus] || newStatus;
     const previousStatus = sub?.submission_status || "new";
 
@@ -977,11 +978,11 @@ function IntakeQueueContent() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
-                    <span style={{ fontWeight: 500, fontSize: "0.9rem" }}>{normalizeName(sub.submitter_name)}</span>
+                    <span style={{ fontWeight: 500, fontSize: "0.9rem" }}>{rd.name(normalizeName(sub.submitter_name))}</span>
                     <SubmissionStatusBadge status={sub.submission_status} />
                   </div>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
-                    {sub.geo_formatted_address || sub.cats_address}
+                    {rd.neighborhood(sub.geo_formatted_address || sub.cats_address)}
                   </div>
                   <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.7rem", color: "var(--muted)", alignItems: "center", flexWrap: "wrap" }}>
                     <span>{sub.cat_count_estimate ?? "?"} cats</span>
@@ -1125,7 +1126,7 @@ function IntakeQueueContent() {
             if (selectedSubmission?.submission_id === declineSubmission.submission_id) {
               setSelectedSubmission({ ...selectedSubmission, submission_status: "declined" });
             }
-            showToast(`${normalizeName(declineSubmission.submitter_name)} declined`);
+            showToast(`${rd.name(normalizeName(declineSubmission.submitter_name))} declined`);
             fetchSubmissions();
           }}
         />

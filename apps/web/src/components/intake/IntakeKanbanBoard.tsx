@@ -16,6 +16,7 @@ import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 import type { IntakeSubmission } from "@/lib/intake-types";
 import { SubmissionStatusBadge, ServiceAreaBadge, formatDate, normalizeName } from "./IntakeBadges";
 import { formatPhone } from "@/lib/formatters";
+import { useRedact } from "@/components/ShowcaseContext";
 import { COLORS } from "@/lib/design-tokens";
 
 const INTAKE_COLUMNS = [
@@ -64,11 +65,12 @@ function IntakeKanbanCard({
   submission: IntakeSubmission;
   onOpenDetail?: (submission: IntakeSubmission) => void;
 }) {
+  const rd = useRedact();
   const isUrgent = submission.is_emergency;
   const isOverdue = submission.overdue;
   const isOutOfArea = submission.service_area_status === "out" && !submission.out_of_service_area_email_sent_at;
-  const phone = formatPhone(submission.phone);
-  const email = truncateEmail(submission.email);
+  const phone = rd.phone(formatPhone(submission.phone));
+  const email = rd.email(truncateEmail(submission.email));
   const contactParts = [phone, email].filter(Boolean);
 
   return (
@@ -108,7 +110,7 @@ function IntakeKanbanCard({
         }}
       >
         <span style={{ fontWeight: 500, fontSize: "0.85rem" }}>
-          {normalizeName(submission.submitter_name)}
+          {rd.name(normalizeName(submission.submitter_name))}
         </span>
         {isUrgent && (
           <span style={{ color: COLORS.error, fontSize: "0.7rem", fontWeight: 600 }}>
@@ -128,7 +130,7 @@ function IntakeKanbanCard({
           whiteSpace: "nowrap",
         }}
       >
-        {submission.geo_formatted_address || submission.cats_address || "No address"}
+        {rd.neighborhood(submission.geo_formatted_address || submission.cats_address || "No address")}
       </div>
 
       {/* Contact info */}

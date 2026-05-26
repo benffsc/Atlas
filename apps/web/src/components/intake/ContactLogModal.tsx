@@ -5,6 +5,7 @@ import type { IntakeSubmission, CommunicationLog, StaffMember } from "@/lib/inta
 import { CONTACT_METHODS, CONTACT_RESULTS } from "@/lib/intake-types";
 import { normalizeName } from "@/components/intake/IntakeBadges";
 import { formatPhone } from "@/lib/formatters";
+import { useRedact } from "@/components/ShowcaseContext";
 import { SkeletonList } from "@/components/feedback/Skeleton";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS, Z_INDEX } from "@/lib/design-tokens";
@@ -26,6 +27,7 @@ export function ContactLogModal({
   staffList,
   currentUser,
 }: ContactLogModalProps) {
+  const rd = useRedact();
   const [saving, setSaving] = useState(false);
   const [communicationLogs, setCommunicationLogs] = useState<CommunicationLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -113,11 +115,11 @@ export function ContactLogModal({
         <div style={{ marginBottom: "1rem" }}>
           <h2 style={{ margin: 0 }}>Log Contact / Journal</h2>
           <p style={{ color: "var(--muted)", margin: "0.25rem 0", fontSize: "0.9rem" }}>
-            {normalizeName(submission.submitter_name)} - {submission.email}
-            {submission.phone && ` | ${formatPhone(submission.phone)}`}
+            {rd.name(normalizeName(submission.submitter_name))} - {rd.email(submission.email)}
+            {submission.phone && ` | ${rd.phone(formatPhone(submission.phone))}`}
           </p>
           <p style={{ color: "var(--muted)", margin: 0, fontSize: "0.8rem" }}>
-            {submission.geo_formatted_address || submission.cats_address}
+            {rd.neighborhood(submission.geo_formatted_address || submission.cats_address)}
           </p>
         </div>
 

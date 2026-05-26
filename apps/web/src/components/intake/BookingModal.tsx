@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { IntakeSubmission } from "@/lib/intake-types";
 import { normalizeName } from "@/components/intake/IntakeBadges";
+import { useRedact } from "@/components/ShowcaseContext";
 import { Modal } from "@/components/ui";
 import { COLORS, TYPOGRAPHY, SPACING, BORDERS } from "@/lib/design-tokens";
 
@@ -23,6 +24,7 @@ export function BookingModal({
   saving,
   initialDate = "",
 }: BookingModalProps) {
+  const rd = useRedact();
   const [bookingDate, setBookingDate] = useState(initialDate);
   const [bookingNotes, setBookingNotes] = useState("");
 
@@ -67,7 +69,7 @@ export function BookingModal({
       footer={footer}
     >
       <p style={{ color: "var(--muted)", margin: `0 0 ${SPACING.lg}`, fontSize: TYPOGRAPHY.size.sm }}>
-        {normalizeName(submission.submitter_name)} - {submission.geo_formatted_address || submission.cats_address}
+        {rd.name(normalizeName(submission.submitter_name))} - {rd.neighborhood(submission.geo_formatted_address || submission.cats_address)}
       </p>
 
       <div style={{ marginBottom: SPACING.lg }}>

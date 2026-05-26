@@ -16,6 +16,7 @@
  */
 
 import type { IntakeSubmission } from "@/lib/intake-types";
+import { useRedact } from "@/components/ShowcaseContext";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 
@@ -48,6 +49,7 @@ export function OutOfServiceAreaBanner({
   onOverride,
   isSuppressed,
 }: OutOfServiceAreaBannerProps) {
+  const rd = useRedact();
   const status = submission.service_area_status;
 
   // Hidden states
@@ -81,7 +83,7 @@ export function OutOfServiceAreaBanner({
           </div>
           <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
             Sent {formatDate(submission.out_of_service_area_email_sent_at)} to{" "}
-            {submission.email}
+            {rd.email(submission.email)}
           </div>
         </div>
       </div>
@@ -114,7 +116,7 @@ export function OutOfServiceAreaBanner({
             Suppressed
           </div>
           <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-            {submission.email} received an out-of-area email within the last
+            {rd.email(submission.email)} received an out-of-area email within the last
             90 days. Suppression prevents duplicates.
           </div>
         </div>

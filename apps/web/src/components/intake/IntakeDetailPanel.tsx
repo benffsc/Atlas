@@ -31,6 +31,7 @@ import { SendOutOfServiceConfirmModal } from "@/components/intake/SendOutOfServi
 import { EmailSuggestionBanner } from "@/components/intake/EmailSuggestionBanner";
 import { useEmailSuggestions, type EmailSuggestion } from "@/hooks/useEmailSuggestions";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
+import { useRedact } from "@/components/ShowcaseContext";
 
 export interface IntakeDetailPanelProps {
   submission: IntakeSubmission;
@@ -68,6 +69,7 @@ export function IntakeDetailPanel({
   isMobile = false,
 }: IntakeDetailPanelProps) {
   const { success: toastSuccess, error: toastError } = useToast();
+  const rd = useRedact();
   // Status editing state
   const [editingStatus, setEditingStatus] = useState(false);
   const [statusEdits, setStatusEdits] = useState({
@@ -592,7 +594,7 @@ export function IntakeDetailPanel({
             ) : (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <h2 style={{ margin: 0 }}>{normalizeName(submission.submitter_name)}</h2>
+                  <h2 style={{ margin: 0 }}>{rd.name(normalizeName(submission.submitter_name))}</h2>
                   <button
                     onClick={() => {
                       // Parse submitter_name into first/last name
@@ -614,10 +616,10 @@ export function IntakeDetailPanel({
                   </button>
                 </div>
                 <p style={{ color: "var(--muted)", margin: "0.25rem 0", fontSize: "0.9rem" }}>
-                  {submission.email}
+                  {rd.email(submission.email)}
                   {submission.phone && (
                     <>
-                      {` | ${formatPhone(submission.phone)}`}
+                      {` | ${rd.phone(formatPhone(submission.phone))}`}
                       {!isValidPhone(submission.phone) && (
                         <span
                           style={{ fontSize: "0.7rem", background: COLORS.warning, color: COLORS.black, padding: "1px 4px", borderRadius: "3px", marginLeft: "4px", cursor: "help" }}
@@ -973,15 +975,15 @@ export function IntakeDetailPanel({
             <>
               {submission.place_id ? (
                 <a href={`/places/${submission.place_id}`} style={{ color: "inherit", textDecoration: "none" }}>
-                  <p style={{ margin: 0, fontWeight: 500 }}>{submission.cats_address}</p>
+                  <p style={{ margin: 0, fontWeight: 500 }}>{rd.neighborhood(submission.cats_address)}</p>
                 </a>
               ) : (
-                <p style={{ margin: 0 }}>{submission.cats_address}</p>
+                <p style={{ margin: 0 }}>{rd.neighborhood(submission.cats_address)}</p>
               )}
               {submission.cats_city && <p style={{ margin: 0, color: "var(--muted)" }}>{submission.cats_city}</p>}
               {submission.geo_formatted_address && submission.geo_formatted_address !== submission.cats_address && (
                 <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                  Geocoded: {submission.geo_formatted_address}
+                  Geocoded: {rd.neighborhood(submission.geo_formatted_address)}
                 </p>
               )}
               {!submission.geo_formatted_address && submission.geo_confidence === null && (
@@ -1394,10 +1396,10 @@ export function IntakeDetailPanel({
             <h3 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "1rem" }}>Third-Party Report</h3>
             <p style={{ margin: 0 }}>Reported by: {submission.third_party_relationship?.replace(/_/g, " ")}</p>
             {submission.property_owner_name && (
-              <p style={{ margin: "0.25rem 0 0" }}>Property owner: {submission.property_owner_name}</p>
+              <p style={{ margin: "0.25rem 0 0" }}>Property owner: {rd.name(submission.property_owner_name)}</p>
             )}
             {submission.property_owner_phone && (
-              <p style={{ margin: "0.25rem 0 0" }}>Owner phone: {formatPhone(submission.property_owner_phone)}</p>
+              <p style={{ margin: "0.25rem 0 0" }}>Owner phone: {rd.phone(formatPhone(submission.property_owner_phone))}</p>
             )}
           </div>
         )}
@@ -1920,7 +1922,7 @@ export function IntakeDetailPanel({
               setConfirmDialog({
                 open: true,
                 title: "Archive Submission",
-                message: `Archive "${normalizeName(submission.submitter_name)}"? This will remove it from all views.`,
+                message: `Archive "${rd.name(normalizeName(submission.submitter_name))}"? This will remove it from all views.`,
                 confirmLabel: "Archive",
                 variant: "danger",
                 onConfirm: () => {
@@ -1960,14 +1962,14 @@ export function IntakeDetailPanel({
                 setConfirmDialog({
                   open: true,
                   title: "Mark as Complete",
-                  message: `Mark "${normalizeName(submission.submitter_name)}" as Complete? This will remove it from the active queue.`,
+                  message: `Mark "${rd.name(normalizeName(submission.submitter_name))}" as Complete? This will remove it from the active queue.`,
                   confirmLabel: "Mark Complete",
                   variant: "default",
                   onConfirm: async () => {
                     setConfirmDialog(prev => ({ ...prev, open: false }));
                     await onQuickStatus(submission.submission_id, "submission_status", "complete");
                     onSubmissionUpdate({ ...submission, submission_status: "complete" });
-                    toastSuccess(`${normalizeName(submission.submitter_name)} marked as Complete`);
+                    toastSuccess(`${rd.name(normalizeName(submission.submitter_name))} marked as Complete`);
                   },
                 });
               }}
@@ -1991,7 +1993,7 @@ export function IntakeDetailPanel({
                     setConfirmDialog(prev => ({ ...prev, open: false }));
                     await onQuickStatus(submission.submission_id, "submission_status", "new");
                     onSubmissionUpdate({ ...submission, submission_status: "new" });
-                    toastSuccess(`${normalizeName(submission.submitter_name)} moved back to New`);
+                    toastSuccess(`${rd.name(normalizeName(submission.submitter_name))} moved back to New`);
                   },
                 });
               }}
@@ -2023,8 +2025,8 @@ export function IntakeDetailPanel({
       {/* FFS-1187 — Out-of-Service-Area send confirm modal */}
       <SendOutOfServiceConfirmModal
         open={showOoaConfirm}
-        recipientEmail={submission.email || ""}
-        recipientName={submission.first_name || null}
+        recipientEmail={rd.email(submission.email || "") as string}
+        recipientName={rd.name(submission.first_name || null) as string | null}
         detectedCounty={submission.county || null}
         loading={ooaSending}
         onConfirm={handleOoaSendConfirmed}

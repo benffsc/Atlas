@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { IntakeSubmission } from "@/lib/intake-types";
 import { normalizeName } from "@/components/intake/IntakeBadges";
+import { useRedact } from "@/components/ShowcaseContext";
 import { postApi } from "@/lib/api-client";
 import { Modal } from "@/components/ui";
 import { useToast } from "@/components/feedback/Toast";
@@ -21,6 +22,7 @@ export function DeclineModal({
   onClose,
   onDeclined,
 }: DeclineModalProps) {
+  const rd = useRedact();
   const { addToast } = useToast();
   const [declining, setDeclining] = useState(false);
   const [declineForm, setDeclineForm] = useState({
@@ -95,7 +97,7 @@ export function DeclineModal({
       footer={footer}
     >
       <p style={{ marginTop: 0, marginBottom: SPACING.lg, color: "var(--muted)" }}>
-        Declining <strong>{normalizeName(submission.submitter_name)}</strong> will mark this submission as not proceeding to a request.
+        Declining <strong>{rd.name(normalizeName(submission.submitter_name))}</strong> will mark this submission as not proceeding to a request.
       </p>
 
       <div style={{ marginBottom: SPACING.lg }}>

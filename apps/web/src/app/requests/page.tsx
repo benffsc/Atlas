@@ -26,6 +26,7 @@ import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
+import { useRedact } from "@/components/ShowcaseContext";
 
 interface Request {
   request_id: string;
@@ -252,6 +253,7 @@ function RequestMapPreview({ requestId, latitude, longitude, address, cachedMapU
   address?: string | null;
   cachedMapUrl?: string | null;
 }) {
+  const rd = useRedact();
   const [mapUrl, setMapUrl] = useState<string | null>(cachedMapUrl || null);
   const [nearbyData, setNearbyData] = useState<NearbyData | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
@@ -308,7 +310,7 @@ function RequestMapPreview({ requestId, latitude, longitude, address, cachedMapU
               Pending geocode
             </span>
             <span style={{ fontSize: "0.7rem", marginTop: "4px", opacity: 0.8, maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {address}
+              {rd.neighborhood(address)}
             </span>
           </>
         ) : (
@@ -453,6 +455,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
   onToggleMenu?: (id: string | null) => void;
   onCardClick?: (requestId: string) => void;
 }) {
+  const rd = useRedact();
   // Age warning border for open requests
   const createdDate = new Date(request.source_created_at || request.created_at);
   const daysOpen = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -567,7 +570,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
               whiteSpace: "nowrap",
             }}
           >
-            {request.summary || "Untitled Request"}
+            {rd.neighborhood(request.summary) || "Untitled Request"}
           </div>
 
           {/* Location */}
@@ -581,7 +584,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
                 whiteSpace: "nowrap",
               }}
             >
-              <span data-pii="address">{request.place_name}</span>
+              <span data-pii="address">{rd.neighborhood(request.place_name)}</span>
               {request.place_city && ` • ${request.place_city}`}
             </div>
           )}
@@ -595,7 +598,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
                 marginTop: "4px",
               }}
             >
-              Trapper: <span data-pii="name">{request.primary_trapper_name}</span>
+              Trapper: <span data-pii="name">{rd.name(request.primary_trapper_name)}</span>
               {request.active_trapper_count > 1 && ` +${request.active_trapper_count - 1}`}
             </div>
           )}
@@ -614,7 +617,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
               <span style={{ color: COLORS.primary, fontWeight: 500 }}>Requestor:</span>
               <span style={{ color: "var(--text-secondary)" }} data-pii="name">
-                {request.requester_name || "Unknown"}
+                {rd.name(request.requester_name) || "Unknown"}
               </span>
               {request.requester_role_at_submission && request.requester_role_at_submission !== "unknown" && (
                 <span style={{
@@ -634,7 +637,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
               <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
                 <span style={{ color: COLORS.success, fontWeight: 500 }}>Site:</span>
                 <span style={{ color: "var(--text-secondary)" }} data-pii="name">
-                  {request.site_contact_name}
+                  {rd.name(request.site_contact_name)}
                 </span>
               </div>
             )}
@@ -917,6 +920,7 @@ function SiteGroupedCards({
   onToggleMenu?: (id: string | null) => void;
   onCardClick?: (requestId: string) => void;
 }) {
+  const rd = useRedact();
   // Group by site_id, null site_id = ungrouped
   const siteGroups = new Map<string | null, Request[]>();
   for (const req of requests) {
@@ -939,7 +943,7 @@ function SiteGroupedCards({
       {sortedSites.map(([siteId, siteRequests]) => {
         // Use the first request's address as site header
         const primary = siteRequests[0];
-        const siteName = primary.place_address || primary.place_name || "Unknown Location";
+        const siteName = rd.neighborhood(primary.place_address || primary.place_name) || "Unknown Location";
         const totalHeat = siteRequests.reduce((s, r) => s + r.recent_activity_count, 0);
 
         return (
@@ -1003,6 +1007,7 @@ const FILTER_DEFAULTS = {
 };
 
 function RequestsPageContent() {
+  const rd = useRedact();
   const { addToast } = useToast();
   const { filters, setFilter, setFilters, clearFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
   const isMobile = useIsMobile();
@@ -1120,10 +1125,10 @@ function RequestsPageContent() {
         r.request_id,
         r.status,
         r.priority,
-        r.summary || "",
-        r.place_name || "",
+        rd.neighborhood(r.summary) || "",
+        rd.neighborhood(r.place_name) || "",
         r.place_city || "",
-        r.requester_name || "",
+        rd.name(r.requester_name) || "",
         r.estimated_cat_count?.toString() || "",
         r.source_created_at || r.created_at,
       ]),
@@ -1199,7 +1204,7 @@ function RequestsPageContent() {
       isDetailOpen={!!filters.selected && !isKanban}
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
-      panelTitle={selectedRequest?.summary || selectedRequest?.place_name || "Request"}
+      panelTitle={rd.neighborhood(selectedRequest?.summary || selectedRequest?.place_name) || "Request"}
       panelDetailHref={filters.selected ? `/requests/${filters.selected}?from=requests` : undefined}
     >
       <PageHeader
@@ -1600,7 +1605,7 @@ function RequestsPageContent() {
                   <td>
                     {req.place_name ? (
                       <div>
-                        <div style={{ fontWeight: 500 }} data-pii="address">{req.place_name}</div>
+                        <div style={{ fontWeight: 500 }} data-pii="address">{rd.neighborhood(req.place_name)}</div>
                         {req.place_city && (
                           <div className="text-muted text-sm">{req.place_city}</div>
                         )}
@@ -1611,7 +1616,7 @@ function RequestsPageContent() {
                   </td>
                   <td>
                     <a href={`/requests/${req.request_id}`}>
-                      {req.summary || <span className="text-muted">No summary</span>}
+                      {rd.neighborhood(req.summary) || <span className="text-muted">No summary</span>}
                     </a>
                   </td>
                   <td className="text-sm">
@@ -1623,7 +1628,7 @@ function RequestsPageContent() {
                   <td className="text-sm">
                     {req.primary_trapper_name ? (
                       <div>
-                        <span data-pii="name">{req.primary_trapper_name}</span>
+                        <span data-pii="name">{rd.name(req.primary_trapper_name)}</span>
                         {req.active_trapper_count > 1 && (
                           <span className="text-muted"> +{req.active_trapper_count - 1}</span>
                         )}
@@ -1636,7 +1641,7 @@ function RequestsPageContent() {
                   </td>
                   <td>
                     {req.requester_name ? (
-                      <span data-pii="name">{req.requester_name}</span>
+                      <span data-pii="name">{rd.name(req.requester_name)}</span>
                     ) : (
                       <span className="text-muted">Unknown</span>
                     )}

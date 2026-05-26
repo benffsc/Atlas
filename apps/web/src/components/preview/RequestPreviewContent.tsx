@@ -9,6 +9,7 @@ import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { TnrProgressBar } from "@/components/ui/TnrProgressBar";
 import { TrapperAssignments } from "@/components/sections/TrapperAssignments";
+import { useRedact } from "@/components/ShowcaseContext";
 import { COLORS } from "@/lib/design-tokens";
 import type { RequestStatus } from "@/lib/request-status";
 import { mapToPrimaryStatus } from "@/lib/request-status";
@@ -114,6 +115,7 @@ function QuickActions({ request, onStatusChange, onOpenComplete, onOpenHold }: {
  */
 export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }: RequestPreviewContentProps) {
   const { success: toastSuccess, error: toastError } = useToast();
+  const rd = useRedact();
   const [showComplete, setShowComplete] = useState(false);
   const [showHold, setShowHold] = useState(false);
   const [allExpanded, setAllExpanded] = useState<boolean | null>(null); // null = use defaults
@@ -188,8 +190,8 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
   );
 
   const contact = {
-    phone: r.requester_phone || r.site_contact_phone || null,
-    email: r.requester_email || r.site_contact_email || null,
+    phone: rd.phone(r.requester_phone || r.site_contact_phone) || null,
+    email: rd.email(r.requester_email || r.site_contact_email) || null,
   };
 
   // Quick status change (no modal needed)
@@ -350,7 +352,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
           {r.requester_name && (
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 600 }}>{r.requester_name}</span>
+                <span style={{ fontWeight: 600 }}>{rd.name(r.requester_name)}</span>
                 {r.requester_role_at_submission && r.requester_role_at_submission !== "unknown" && (
                   <span className="badge" style={{ fontSize: "0.6rem", background: r.requester_role_at_submission.includes("trapper") ? COLORS.warningLight : COLORS.infoLight, color: r.requester_role_at_submission.includes("trapper") ? COLORS.warningDark : COLORS.primaryDark }}>
                     {r.requester_role_at_submission.replace(/_/g, " ").toUpperCase()}
@@ -358,18 +360,18 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
                 )}
                 {r.requester_is_site_contact && <span className="badge" style={{ fontSize: "0.6rem", background: COLORS.successLight, color: COLORS.successDark }}>Site Contact</span>}
               </div>
-              {r.requester_phone && <div><a href={`tel:${r.requester_phone}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{formatPhone(r.requester_phone)}</a></div>}
-              {r.requester_email && <div style={{ wordBreak: "break-all", color: "var(--text-secondary)" }}>{r.requester_email}</div>}
+              {r.requester_phone && <div><a href={`tel:${r.requester_phone}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{rd.phone(formatPhone(r.requester_phone))}</a></div>}
+              {r.requester_email && <div style={{ wordBreak: "break-all", color: "var(--text-secondary)" }}>{rd.email(r.requester_email)}</div>}
             </div>
           )}
           {r.site_contact_name && !r.requester_is_site_contact && (
             <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 600 }}>{r.site_contact_name}</span>
+                <span style={{ fontWeight: 600 }}>{rd.name(r.site_contact_name)}</span>
                 <span className="badge" style={{ fontSize: "0.6rem", background: COLORS.successLight, color: COLORS.successDark }}>Site Contact</span>
               </div>
-              {r.site_contact_phone && <div><a href={`tel:${r.site_contact_phone}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{formatPhone(r.site_contact_phone)}</a></div>}
-              {r.site_contact_email && <div style={{ wordBreak: "break-all", color: "var(--text-secondary)" }}>{r.site_contact_email}</div>}
+              {r.site_contact_phone && <div><a href={`tel:${r.site_contact_phone}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{rd.phone(formatPhone(r.site_contact_phone))}</a></div>}
+              {r.site_contact_email && <div style={{ wordBreak: "break-all", color: "var(--text-secondary)" }}>{rd.email(r.site_contact_email)}</div>}
             </div>
           )}
           {!r.site_contact_name && !r.requester_is_site_contact && r.requester_role_at_submission?.includes("trapper") && (
@@ -381,12 +383,12 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
       {/* Location */}
       <CollapsibleSection title="Location" key={`location-${allExpanded}`} defaultOpen={sectionOpen(true)}>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", fontSize: "0.85rem" }}>
-          {r.place_name && <div style={{ fontWeight: 600 }}>{r.place_name}</div>}
-          {r.place_address && <div style={{ color: "var(--text-secondary)" }}>{r.place_address}</div>}
+          {r.place_name && <div style={{ fontWeight: 600 }}>{rd.neighborhood(r.place_name)}</div>}
+          {r.place_address && <div style={{ color: "var(--text-secondary)" }}>{rd.address(r.place_address)}</div>}
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             {r.place_kind && r.place_kind !== "unknown" && <span className="badge" style={{ fontSize: "0.65rem", background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>{r.place_kind.replace(/_/g, " ")}</span>}
             {r.place_service_zone && <span className="badge" style={{ fontSize: "0.65rem", background: COLORS.primaryLight, color: COLORS.primaryDark }}>Zone: {r.place_service_zone}</span>}
-            {r.place_city && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{r.place_city}</span>}
+            {r.place_city && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{rd.neighborhood(r.place_city)}</span>}
           </div>
           {r.place_coordinates && (
             <a href={`/map?lat=${r.place_coordinates.lat}&lng=${r.place_coordinates.lng}&zoom=17`}
@@ -479,7 +481,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
         <CollapsibleSection title="Feeding" key={`feeding-${allExpanded}`} defaultOpen={sectionOpen(false)}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.85rem" }}>
             <FieldCell label="Being Fed" value={r.is_being_fed ? "Yes" : r.is_being_fed === false ? "No" : "\u2014"} good={r.is_being_fed ?? undefined} />
-            {r.feeder_name && <FieldCell label="Feeder" value={r.feeder_name} />}
+            {r.feeder_name && <FieldCell label="Feeder" value={rd.name(r.feeder_name) || ""} />}
             {r.feeding_frequency && <FieldCell label="Frequency" value={r.feeding_frequency.replace(/_/g, " ")} />}
             {r.feeding_time && <FieldCell label="Time" value={r.feeding_time} />}
           </div>
@@ -500,7 +502,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
   return (
     <>
       <EntityPreviewPanel
-        title={r.summary || r.place_name || "Request"}
+        title={rd.neighborhood(r.summary || r.place_name) || "Request"}
         detailHref={`/requests/${r.request_id}`}
         onClose={onClose}
         badges={badges}
@@ -518,7 +520,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
           onClose={() => setShowComplete(false)}
           requestId={r.request_id}
           placeId={r.place_id ?? undefined}
-          placeName={r.place_name ?? undefined}
+          placeName={rd.neighborhood(r.place_name) ?? undefined}
           onSuccess={handleModalSuccess}
         />
       )}
@@ -575,6 +577,7 @@ function ExpandableText({ text, limit = 300 }: { text: string; limit?: number })
 
 /** Compact journal entry display for the preview panel. */
 function JournalPreview({ entries }: { entries: JournalEntry[] }) {
+  const rd = useRedact();
   if (entries.length === 0) {
     return <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>No journal entries yet</span>;
   }
@@ -600,7 +603,7 @@ function JournalPreview({ entries }: { entries: JournalEntry[] }) {
                 </span>
               )}
               <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                {entry.created_by_staff_name || "Staff"} · {formatDateLocal(entry.created_at)}
+                {rd.name(entry.created_by_staff_name) || "Staff"} · {formatDateLocal(entry.created_at)}
               </span>
             </div>
             <ExpandableText text={entry.body} limit={200} />
