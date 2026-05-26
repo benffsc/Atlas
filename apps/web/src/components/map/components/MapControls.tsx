@@ -85,6 +85,7 @@ export function MapControls({
 
   return (
     <div
+      className="map-controls-strip"
       role="region"
       aria-label="Map controls"
       style={{
@@ -95,6 +96,7 @@ export function MapControls({
         display: "flex",
         flexDirection: "column",
         gap: 8,
+        transition: "right 0.3s ease",
       }}
     >
       {/* Basemap */}

@@ -1360,6 +1360,15 @@
   right: 380px;
 }
 
+/* ── Shift right-side controls left when a detail drawer is open ── */
+
+.map-shell__viewport:has(.place-detail-drawer) .map-controls-strip,
+.map-shell__viewport:has(.person-detail-drawer) .map-controls-strip,
+.map-shell__viewport:has(.cat-detail-drawer) .map-controls-strip,
+.map-shell__viewport:has(.hex-detail-panel) .map-controls-strip {
+  right: 416px;
+}
+
 /* ── Hex Detail Panel ── */
 
 .hex-detail-panel {
