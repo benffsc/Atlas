@@ -47,6 +47,13 @@ const CompareIcon = () => (
   </svg>
 );
 
+const RulerIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z" />
+    <path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" />
+  </svg>
+);
+
 export type BasemapType = "street" | "satellite" | "dark";
 
 interface MapControlsProps {
@@ -60,6 +67,8 @@ interface MapControlsProps {
   onZoomOut?: () => void;
   compareActive?: boolean;
   onCompareToggle?: () => void;
+  measureActive?: boolean;
+  onMeasureToggle?: () => void;
 }
 
 const basemapOptions: Array<{ type: BasemapType; label: string; icon: React.ReactNode }> = [
@@ -79,6 +88,8 @@ export function MapControls({
   onZoomOut,
   compareActive = false,
   onCompareToggle,
+  measureActive = false,
+  onMeasureToggle,
 }: MapControlsProps) {
   const [showBasemapMenu, setShowBasemapMenu] = useState(false);
 
@@ -147,6 +158,18 @@ export function MapControls({
         >
           <CompareIcon />
           {compareActive ? "Exit" : "Compare"}
+        </button>
+      )}
+
+      {/* Measure */}
+      {onMeasureToggle && (
+        <button
+          onClick={onMeasureToggle}
+          title="Measure distance (D)"
+          className={`map-control-btn ${measureActive ? "map-control-btn--active" : ""}`}
+        >
+          <RulerIcon />
+          {measureActive ? "Stop" : "Measure"}
         </button>
       )}
 

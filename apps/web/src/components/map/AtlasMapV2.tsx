@@ -1844,6 +1844,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         onFullscreenToggle={handleFullscreenToggle}
         onZoomIn={() => map?.setZoom((map.getZoom() || 11) + 1)}
         onZoomOut={() => map?.setZoom((map.getZoom() || 11) - 1)}
+        measureActive={measureActive}
+        onMeasureToggle={handleMeasureToggle}
         compareActive={compareActive}
         onCompareToggle={() => {
           setCompareActive((prev) => !prev);
