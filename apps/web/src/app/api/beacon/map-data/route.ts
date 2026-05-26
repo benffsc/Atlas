@@ -281,33 +281,63 @@ export async function GET(req: NextRequest) {
           )`;
         }
 
-        // Date filter: all modes use first_seen_at from alteration history.
-        // Places with NO alteration history are excluded when any date filter
-        // is active (they have no appointment_date to filter on).
+        // Date filter: uses UNION of all date sources — a place shows up
+        // if ANY activity happened in the date range:
+        //   1. TNR alteration (appointment_date from clinicHQ)
+        //   2. Intake submission (submitted_at)
+        //   3. Request creation (source_created_at or created_at)
+        // Google Maps entries excluded (no meaningful dates).
         //
         // Presets (Today, This Week, etc.) set dateFrom only → "since" mode.
         // Custom range sets both → "window" mode.
         // Timeline slider sets dateTo only → "as-of" cumulative mode.
+        const dateUnion = (op: string, dateVal: string) => `
+          SELECT ah.place_id FROM sot.v_place_alteration_history ah
+            WHERE ah.${op.includes('first') ? 'first_seen_at' : 'latest_request_date'} ${op.includes('>=') ? '>=' : '<='} '${dateVal}'::date
+          UNION
+          SELECT i.place_id FROM ops.intake_submissions i
+            WHERE i.place_id IS NOT NULL AND i.submitted_at::date ${op.includes('>=') ? '>=' : '<='} '${dateVal}'::date
+          UNION
+          SELECT r.place_id FROM ops.requests r
+            WHERE r.place_id IS NOT NULL AND COALESCE(r.source_created_at, r.created_at)::date ${op.includes('>=') ? '>=' : '<='} '${dateVal}'::date
+        `;
+
         let dateCondition = "";
         if (dateFrom && dateTo) {
-          // Window mode: places first seen in this range
+          // Window mode: places with first activity in this range
           dateCondition += ` AND id IN (
             SELECT ah.place_id FROM sot.v_place_alteration_history ah
-            WHERE ah.first_seen_at >= '${dateFrom}'::date
-              AND ah.first_seen_at <= '${dateTo}'::date
+              WHERE ah.first_seen_at >= '${dateFrom}'::date AND ah.first_seen_at <= '${dateTo}'::date
+            UNION
+            SELECT i.place_id FROM ops.intake_submissions i
+              WHERE i.place_id IS NOT NULL AND i.submitted_at::date >= '${dateFrom}'::date AND i.submitted_at::date <= '${dateTo}'::date
+            UNION
+            SELECT r.place_id FROM ops.requests r
+              WHERE r.place_id IS NOT NULL AND COALESCE(r.source_created_at, r.created_at)::date >= '${dateFrom}'::date AND COALESCE(r.source_created_at, r.created_at)::date <= '${dateTo}'::date
           )`;
         } else if (dateTo) {
-          // Cumulative "as-of" mode: everything discovered up to this date
+          // Cumulative "as-of" mode: everything known up to this date
           dateCondition += ` AND id IN (
             SELECT ah.place_id FROM sot.v_place_alteration_history ah
-            WHERE ah.first_seen_at <= '${dateTo}'::date
+              WHERE ah.first_seen_at <= '${dateTo}'::date
+            UNION
+            SELECT i.place_id FROM ops.intake_submissions i
+              WHERE i.place_id IS NOT NULL AND i.submitted_at::date <= '${dateTo}'::date
+            UNION
+            SELECT r.place_id FROM ops.requests r
+              WHERE r.place_id IS NOT NULL AND COALESCE(r.source_created_at, r.created_at)::date <= '${dateTo}'::date
           )`;
         } else if (dateFrom) {
-          // "Since" mode: places with alteration activity since this date
-          // Excludes places with no alteration history (no IS NULL fallback)
+          // "Since" mode: places with any activity since this date
           dateCondition += ` AND id IN (
             SELECT ah.place_id FROM sot.v_place_alteration_history ah
-            WHERE ah.latest_request_date >= '${dateFrom}'::date
+              WHERE ah.latest_request_date >= '${dateFrom}'::date
+            UNION
+            SELECT i.place_id FROM ops.intake_submissions i
+              WHERE i.place_id IS NOT NULL AND i.submitted_at::date >= '${dateFrom}'::date
+            UNION
+            SELECT r.place_id FROM ops.requests r
+              WHERE r.place_id IS NOT NULL AND COALESCE(r.source_created_at, r.created_at)::date >= '${dateFrom}'::date
           )`;
         }
 
