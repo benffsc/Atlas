@@ -66,7 +66,10 @@ export async function fetchApi<T>(
     typeof window !== "undefined" &&
     !window.location.pathname.startsWith("/login") &&
     !window.location.pathname.startsWith("/change-password") &&
-    !window.location.pathname.startsWith("/public")
+    !window.location.pathname.startsWith("/public") &&
+    !window.location.pathname.startsWith("/share") &&
+    !window.location.pathname.startsWith("/kiosk") &&
+    !window.location.pathname.startsWith("/story")
   ) {
     const returnPath = window.location.pathname + window.location.search;
     window.location.href = `/login?redirect=${encodeURIComponent(returnPath)}&reason=session_expired`;
@@ -130,7 +133,10 @@ export async function fetchApiWithMeta<T>(
     typeof window !== "undefined" &&
     !window.location.pathname.startsWith("/login") &&
     !window.location.pathname.startsWith("/change-password") &&
-    !window.location.pathname.startsWith("/public")
+    !window.location.pathname.startsWith("/public") &&
+    !window.location.pathname.startsWith("/share") &&
+    !window.location.pathname.startsWith("/kiosk") &&
+    !window.location.pathname.startsWith("/story")
   ) {
     const returnPath = window.location.pathname + window.location.search;
     window.location.href = `/login?redirect=${encodeURIComponent(returnPath)}&reason=session_expired`;
