@@ -47,7 +47,13 @@ export const SYSTEM_VIEWS: MapView[] = [
     id: "sys_hexbin",
     name: "Hexbin Density",
     isSystem: true,
-    layers: ["hexbin_density", "hexbin_insights"],
+    layers: ["hexbin_density"],
+  },
+  {
+    id: "sys_heatmap",
+    name: "Heatmap",
+    isSystem: true,
+    layers: ["heatmap_density"],
   },
   {
     id: "sys_cat_density",
