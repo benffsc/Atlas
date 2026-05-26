@@ -4035,9 +4035,7 @@ body.tv-tour-active .map-shell__viewport {
    Labels hidden by default; shown as tooltip via title attr.
    ============================================================ */
 
-.map-control-btn .map-control-label {
-  display: none;
-}
+/* Labels visible by default for discoverability */
 
 /* ── Control Groups (Phase 3A) ── */
 

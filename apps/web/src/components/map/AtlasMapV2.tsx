@@ -1832,55 +1832,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         </BottomSheet>
       )}
 
-      {/* ── Basemap toggle + Compare button — portalled into top bar center ── */}
-      <PortalOrInline portalId="map-basemap-portal" fallback={null}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ display: "flex", gap: 2, background: "var(--card-bg, #fff)", borderRadius: 6, border: "1px solid var(--border, #e5e5e5)", padding: 2 }}>
-            {(["street", "satellite", "dark"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => setBasemap(type)}
-                style={{
-                  padding: "4px 12px",
-                  fontSize: "0.8rem",
-                  fontWeight: basemap === type ? 600 : 400,
-                  background: basemap === type ? "var(--primary)" : "transparent",
-                  color: basemap === type ? "var(--primary-foreground, #fff)" : "var(--foreground)",
-                  border: "none",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  textTransform: "capitalize",
-                }}
-              >
-                {type === "street" ? "Map" : type === "satellite" ? "Satellite" : "Dark"}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => {
-              setCompareActive((prev) => !prev);
-              if (!compareActive) {
-                setMeasureActive(false);
-                setAddPointMode(null);
-              }
-            }}
-            style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "4px 12px", fontSize: "0.8rem", fontWeight: compareActive ? 600 : 400,
-              background: compareActive ? "var(--primary)" : "var(--card-bg, #fff)",
-              color: compareActive ? "var(--primary-foreground, #fff)" : "var(--foreground)",
-              border: `1px solid ${compareActive ? "var(--primary)" : "var(--border, #e5e5e5)"}`,
-              borderRadius: 6, cursor: "pointer",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6L6 18" /><path d="M6 6l12 12" />
-              {!compareActive && <><circle cx="6" cy="6" r="2.5" fill="currentColor" /><circle cx="18" cy="18" r="2.5" fill="currentColor" /></>}
-            </svg>
-            {compareActive ? "Exit Compare" : "Compare"}
-          </button>
-        </div>
-      </PortalOrInline>
+      {/* Basemap + Compare removed from top bar — now on floating right strip */}
 
       {/* ── Map controls — right-side strip (viewport tools only) ── */}
       <MapControls

@@ -93,9 +93,10 @@ export function MapControls({
         <button
           onClick={() => setShowBasemapMenu(!showBasemapMenu)}
           title="Change basemap"
-          className={`map-control-btn map-control-btn--icon ${basemap !== "street" ? "map-control-btn--active" : ""}`}
+          className={`map-control-btn ${basemap !== "street" ? "map-control-btn--active" : ""}`}
         >
           {basemap === "dark" ? <DarkModeIcon /> : basemap === "satellite" ? <SatelliteIcon /> : <MapIcon />}
+          {basemap === "street" ? "Basemap" : basemap === "satellite" ? "Satellite" : "Dark"}
         </button>
         {showBasemapMenu && (
           <div className="map-basemap-menu">
@@ -120,7 +121,7 @@ export function MapControls({
         <button
           onClick={onFullscreenToggle}
           title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
-          className={`map-control-btn map-control-btn--icon ${isFullscreen ? "map-control-btn--active" : ""}`}
+          className={`map-control-btn ${isFullscreen ? "map-control-btn--active" : ""}`}
         >
           {isFullscreen ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -133,6 +134,7 @@ export function MapControls({
               <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
             </svg>
           )}
+          {isFullscreen ? "Exit" : "Fullscreen"}
         </button>
       )}
 
@@ -141,9 +143,10 @@ export function MapControls({
         <button
           onClick={onCompareToggle}
           title={compareActive ? "Exit compare" : "Compare distances"}
-          className={`map-control-btn map-control-btn--icon ${compareActive ? "map-control-btn--active" : ""}`}
+          className={`map-control-btn ${compareActive ? "map-control-btn--active" : ""}`}
         >
           <CompareIcon />
+          {compareActive ? "Exit" : "Compare"}
         </button>
       )}
 
@@ -152,13 +155,14 @@ export function MapControls({
         onClick={onMyLocation}
         disabled={locatingUser}
         title="My location (M)"
-        className="map-control-btn map-control-btn--icon"
+        className="map-control-btn"
         style={{
           opacity: locatingUser ? 0.7 : 1,
           cursor: locatingUser ? "wait" : "pointer",
         }}
       >
         {locatingUser ? <LoadingIcon /> : <LocationIcon />}
+        {locatingUser ? "Locating..." : "Location"}
       </button>
 
       {/* Zoom */}
