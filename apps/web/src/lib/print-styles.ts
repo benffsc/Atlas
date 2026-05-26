@@ -35,7 +35,7 @@ export const PRINT_BASE_CSS = `
   }
 
   @media print {
-    @page { size: letter; margin: 0.4in; }
+    @page { size: letter; margin: 0.35in; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
     .print-controls, .tippy-fab, .tippy-chat-panel, .tippy-speech-bubble, .showcase-toolbar { display: none !important; }
     .print-wrapper { width: 100% !important; padding: 0 !important; }
@@ -43,7 +43,7 @@ export const PRINT_BASE_CSS = `
       width: 100% !important;
       max-width: 100% !important;
       height: auto !important;
-      padding: 0.15in !important;
+      padding: 0.25in !important;
       box-shadow: none !important;
       margin: 0 !important;
       page-break-after: always;
@@ -78,8 +78,8 @@ export const PRINT_BASE_CSS = `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 6px;
-    margin-bottom: 6px;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
     border-bottom: 3px solid var(--print-accent);
   }
   .print-header h1 {
@@ -116,20 +116,20 @@ export const PRINT_BASE_CSS = `
   .priority-low { background: #6b7280; color: #fff; }
 
   /* ── Sections ── */
-  .section { margin-bottom: 6px; }
+  .section { margin-bottom: 10px; }
   .section-title {
     font-size: 10pt;
     color: var(--print-accent);
     border-bottom: 1.5px solid #ecf0f1;
-    padding-bottom: 2px;
-    margin-bottom: 4px;
+    padding-bottom: 3px;
+    margin-bottom: 6px;
   }
 
   /* ── Fields ── */
   .field-row {
     display: flex;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: 10px;
+    margin-bottom: 6px;
   }
   .field { flex: 1; min-width: 0; }
   .field.w2 { flex: 2; }
