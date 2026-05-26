@@ -41,6 +41,13 @@ const DarkModeIcon = () => (
   </svg>
 );
 
+const CompareIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 6L6 18" /><path d="M6 6l12 12" />
+    <circle cx="6" cy="6" r="2.5" fill="currentColor" /><circle cx="18" cy="18" r="2.5" fill="currentColor" />
+  </svg>
+);
+
 export type BasemapType = "street" | "satellite" | "dark";
 
 interface MapControlsProps {
@@ -52,6 +59,8 @@ interface MapControlsProps {
   onFullscreenToggle?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  compareActive?: boolean;
+  onCompareToggle?: () => void;
 }
 
 const basemapOptions: Array<{ type: BasemapType; label: string; icon: React.ReactNode }> = [
@@ -69,6 +78,8 @@ export function MapControls({
   onFullscreenToggle,
   onZoomIn,
   onZoomOut,
+  compareActive = false,
+  onCompareToggle,
 }: MapControlsProps) {
   const [showBasemapMenu, setShowBasemapMenu] = useState(false);
 
@@ -131,6 +142,17 @@ export function MapControls({
               <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
             </svg>
           )}
+        </button>
+      )}
+
+      {/* Compare distances */}
+      {onCompareToggle && (
+        <button
+          onClick={onCompareToggle}
+          title={compareActive ? "Exit compare" : "Compare distances"}
+          className={`map-control-btn map-control-btn--icon ${compareActive ? "map-control-btn--active" : ""}`}
+        >
+          <CompareIcon />
         </button>
       )}
 
