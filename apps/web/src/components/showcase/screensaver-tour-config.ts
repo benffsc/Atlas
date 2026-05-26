@@ -46,7 +46,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     variant: "hero",
     heading: "Beacon",
     body: "A smarter way to reduce unowned cat populations",
-    pauseMs: 6000,
+    pauseMs: 8000,
     showLogo: true,
   },
   // 2. The problem Beacon solves
@@ -55,7 +55,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     variant: "explainer",
     heading: "The Problem",
     body: "Spay/neuter works, but population reduction depends on timing, location, and strategy. Altering 50 cats is always good. But altering the right 50 cats, in the right area, at the right time, can change the future of an entire colony. Without better data, organizations respond to the loudest need — not the greatest impact.",
-    pauseMs: 9000,
+    pauseMs: 14000,
   },
   // 3. Map — Beacon sees the full picture (county overview)
   {
@@ -66,7 +66,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.45,
     lng: -122.72,
     zoom: 10,
-    pauseMs: 8000,
+    pauseMs: 10000,
     stat: { value: "2,800+", label: "sites tracked" },
   },
   // 4. What Beacon does — diagram-inspired capabilities
@@ -80,7 +80,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { value: "Forecast", label: "how populations will change" },
       { value: "Direct", label: "clinic capacity where it matters" },
     ],
-    pauseMs: 8000,
+    pauseMs: 12000,
   },
   // 5. Map — Geographic Intelligence (density hexbin)
   {
@@ -91,7 +91,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.44,
     lng: -122.714,
     zoom: 12,
-    pauseMs: 8000,
+    pauseMs: 10000,
     stat: { value: "Density", label: "analysis" },
     layers: ["cat-density-heatmap"],
   },
@@ -104,7 +104,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.4485,
     lng: -122.6945,
     zoom: 17,
-    pauseMs: 9000,
+    pauseMs: 11000,
     stat: { value: "5", label: "linked properties" },
   },
   // 7. Map — Disease Surveillance
@@ -116,7 +116,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.44,
     lng: -122.72,
     zoom: 11,
-    pauseMs: 8000,
+    pauseMs: 10000,
     stat: { value: "Active", label: "disease monitoring" },
     layers: ["disease-heatmap"],
   },
@@ -126,7 +126,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     variant: "explainer",
     heading: "Two Levers for Faster Impact",
     body: "Increase clinic capacity, so more cats can be altered each year. And use Beacon to target cats more strategically, so every surgery has the greatest possible impact. Together, these create faster, more humane reduction in unowned cat populations.",
-    pauseMs: 9000,
+    pauseMs: 13000,
   },
   // 9. Map — Strategic Prioritization (south SR)
   {
@@ -137,7 +137,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.408,
     lng: -122.735,
     zoom: 14,
-    pauseMs: 8000,
+    pauseMs: 10000,
     stat: { value: "~20", label: "cats per clinic day" },
   },
   // 10. Impact stats
@@ -151,7 +151,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { value: "35+", label: "years of field experience" },
       { value: "1", label: "dedicated clinic in Sonoma County" },
     ],
-    pauseMs: 8000,
+    pauseMs: 12000,
   },
   // 11. CTA
   {
@@ -159,7 +159,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     variant: "cta",
     heading: "Be Part of What Comes Next",
     body: "Beacon is still growing, and so is its potential. With your support, we can continue expanding clinic capacity, improving our data, and using Beacon to guide smarter, faster, more humane population reduction across Sonoma County.",
-    pauseMs: 8000,
+    pauseMs: 12000,
     showLogo: true,
   },
   // 12. County-wide closing
@@ -171,7 +171,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.5,
     lng: -122.78,
     zoom: 10,
-    pauseMs: 8000,
+    pauseMs: 10000,
     stat: { value: "Beacon", label: "by Forgotten Felines" },
   },
 ];
