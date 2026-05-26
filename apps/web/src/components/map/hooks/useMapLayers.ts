@@ -101,9 +101,14 @@ export function useMapLayers({ atlasPins }: { atlasPins: AtlasPin[] }) {
         // Turn off all hexbin/heatmap layers first
         for (const id of [...HEXBIN_LAYER_IDS, ...HEATMAP_LAYER_IDS]) next[id] = false;
         // Activate requested layers
+        const hasAnalytics = layers.length > 0;
         for (const l of layers) {
           const mapped = LAYER_MAP[l] || l;
           if (mapped in next) next[mapped] = true;
+        }
+        // Hide atlas pins when analytics layers are active (cleaner view)
+        if ("atlas_all" in next) {
+          next["atlas_all"] = !hasAnalytics;
         }
         return next;
       });
