@@ -35,15 +35,15 @@ export const PRINT_BASE_CSS = `
   }
 
   @media print {
-    @page { size: letter; margin: 0.3in; }
+    @page { size: letter; margin: 0.4in; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; }
-    .print-controls, .tippy-fab, .tippy-chat-panel { display: none !important; }
+    .print-controls, .tippy-fab, .tippy-chat-panel, .tippy-speech-bubble, .showcase-toolbar { display: none !important; }
     .print-wrapper { width: 100% !important; padding: 0 !important; }
     .print-page {
       width: 100% !important;
       max-width: 100% !important;
       height: auto !important;
-      padding: 0 !important;
+      padding: 0.15in !important;
       box-shadow: none !important;
       margin: 0 !important;
       page-break-after: always;
