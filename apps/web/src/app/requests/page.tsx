@@ -26,7 +26,7 @@ import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
-import { useRedact } from "@/components/ShowcaseContext";
+import { useRedact, useShowcase } from "@/components/ShowcaseContext";
 
 interface Request {
   request_id: string;
@@ -456,6 +456,7 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
   onCardClick?: (requestId: string) => void;
 }) {
   const rd = useRedact();
+  const { isShowcase } = useShowcase();
   // Age warning border for open requests
   const createdDate = new Date(request.source_created_at || request.created_at);
   const daysOpen = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -570,7 +571,9 @@ function RequestCard({ request, onTrapperAction, actionMenuId, onToggleMenu, onC
               whiteSpace: "nowrap",
             }}
           >
-            {rd.neighborhood(request.summary) || "Untitled Request"}
+            {isShowcase
+              ? (rd.neighborhood(request.place_name) || "Request")
+              : (request.summary || "Untitled Request")}
           </div>
 
           {/* Location */}
@@ -1008,6 +1011,7 @@ const FILTER_DEFAULTS = {
 
 function RequestsPageContent() {
   const rd = useRedact();
+  const { isShowcase } = useShowcase();
   const { addToast } = useToast();
   const { filters, setFilter, setFilters, clearFilters, isDefault } = useUrlFilters(FILTER_DEFAULTS);
   const isMobile = useIsMobile();
@@ -1125,7 +1129,7 @@ function RequestsPageContent() {
         r.request_id,
         r.status,
         r.priority,
-        rd.neighborhood(r.summary) || "",
+        isShowcase ? (rd.neighborhood(r.place_name) || "") : (r.summary || ""),
         rd.neighborhood(r.place_name) || "",
         r.place_city || "",
         rd.name(r.requester_name) || "",
@@ -1204,7 +1208,9 @@ function RequestsPageContent() {
       isDetailOpen={!!filters.selected && !isKanban}
       detailPanel={panelContent}
       onDetailClose={() => setFilter("selected", "")}
-      panelTitle={rd.neighborhood(selectedRequest?.summary || selectedRequest?.place_name) || "Request"}
+      panelTitle={isShowcase
+        ? (rd.neighborhood(selectedRequest?.place_name) || "Request")
+        : (selectedRequest?.summary || selectedRequest?.place_name || "Request")}
       panelDetailHref={filters.selected ? `/requests/${filters.selected}?from=requests` : undefined}
     >
       <PageHeader
@@ -1616,7 +1622,9 @@ function RequestsPageContent() {
                   </td>
                   <td>
                     <a href={`/requests/${req.request_id}`}>
-                      {rd.neighborhood(req.summary) || <span className="text-muted">No summary</span>}
+                      {isShowcase
+                        ? (rd.neighborhood(req.place_name) || "Request")
+                        : (req.summary || <span className="text-muted">No summary</span>)}
                     </a>
                   </td>
                   <td className="text-sm">

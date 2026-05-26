@@ -502,7 +502,7 @@ export function RequestPreviewContent({ request: r, onClose, onRequestUpdated }:
   return (
     <>
       <EntityPreviewPanel
-        title={rd.neighborhood(r.summary || r.place_name) || "Request"}
+        title={rd.neighborhood(r.place_name) || "Request"}
         detailHref={`/requests/${r.request_id}`}
         onClose={onClose}
         badges={badges}

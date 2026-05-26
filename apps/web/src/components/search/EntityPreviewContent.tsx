@@ -369,7 +369,7 @@ function RequestPreview({ request }: { request: RequestDetail }) {
         borderBottom: "1px solid var(--border)",
       }}>
         <span style={{ fontSize: "1rem" }}>📋</span>
-        <strong style={{ flex: 1 }}>{r.neighborhood(request.summary || request.place_name) || "Request"}</strong>
+        <strong style={{ flex: 1 }}>{r.neighborhood(request.place_name) || "Request"}</strong>
         <span style={{
           padding: "0.125rem 0.5rem",
           borderRadius: "4px",
