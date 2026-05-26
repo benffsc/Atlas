@@ -1349,7 +1349,7 @@
   background: var(--map-control-bg);
   border-left: 1px solid var(--map-control-border);
   box-shadow: var(--map-shadow-xl);
-  z-index: 1100;
+  z-index: 1300;
   display: flex;
   flex-direction: column;
   animation: drawer-slide-in 0.3s ease-out;
@@ -1372,7 +1372,7 @@
   background: var(--map-control-bg);
   border-left: 1px solid var(--map-control-border);
   box-shadow: var(--map-shadow-xl);
-  z-index: 1100;
+  z-index: 1300;
   display: flex;
   flex-direction: column;
   animation: drawer-slide-in 0.3s ease-out;
@@ -2592,7 +2592,7 @@
   background: var(--map-control-bg);
   border-left: 1px solid var(--map-control-border);
   box-shadow: var(--map-shadow-xl);
-  z-index: 1200;
+  z-index: 1300;
   display: flex;
   flex-direction: column;
   animation: drawer-slide-in 0.3s ease-out;
@@ -2877,7 +2877,7 @@
   background: var(--map-control-bg);
   border-left: 1px solid var(--map-control-border);
   box-shadow: var(--map-shadow-xl);
-  z-index: 1200;
+  z-index: 1300;
   display: flex;
   flex-direction: column;
   animation: drawer-slide-in 0.3s ease-out;
@@ -3125,7 +3125,7 @@
   left: 0;
   right: 0;
   top: auto;
-  z-index: 1200;
+  z-index: 1300;
   background: var(--background, white);
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
