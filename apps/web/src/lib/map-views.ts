@@ -44,6 +44,12 @@ export const SYSTEM_VIEWS: MapView[] = [
     layers: ["atlas_needs_trapper", "trapper_territories"],
   },
   {
+    id: "sys_hexbin",
+    name: "Hexbin Density",
+    isSystem: true,
+    layers: ["hexbin_density", "hexbin_insights"],
+  },
+  {
     id: "sys_cat_density",
     name: "Cat Density Heatmap",
     isSystem: true,

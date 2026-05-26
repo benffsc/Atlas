@@ -22,8 +22,8 @@ const PILL_VIEWS: Array<{ viewId: string; label: string; icon: React.ReactNode }
     ),
   },
   {
-    viewId: "sys_cat_density",
-    label: "Density",
+    viewId: "sys_hexbin",
+    label: "Hexbin",
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2l9 5v10l-9 5-9-5V7z" />
