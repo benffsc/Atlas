@@ -224,16 +224,21 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [tourState, stopTour]);
 
-  // Cleanup on unmount or disable
+  // Stop tour when showcase mode is disabled
   useEffect(() => {
-    if (!enabled && tourState !== "idle") {
+    if (!enabled && tourStateRef.current !== "idle") {
       stopTour();
     }
+  }, [enabled, stopTour]);
+
+  // Cleanup on unmount only — NOT on state changes
+  useEffect(() => {
     return () => {
-      clearTimers();
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       document.body.classList.remove("tv-tour-active");
     };
-  }, [enabled, tourState, stopTour, clearTimers]);
+  }, []);
 
   // Listen for manual trigger from toolbar
   useEffect(() => {
