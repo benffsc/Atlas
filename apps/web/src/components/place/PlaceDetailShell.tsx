@@ -20,6 +20,7 @@ import { TabBar, TabPanel } from "@/components/ui";
 import { AssociatedPeopleCard } from "@/components/verification";
 import { Breadcrumbs } from "@/components/shared/Breadcrumbs";
 import { useNavigationContext } from "@/hooks/useNavigationContext";
+import { useRedact } from "@/components/ShowcaseContext";
 import { formatDateLocal, formatPhone, formatRelativeTime } from "@/lib/formatters";
 import { fetchApi, postApi, ApiError } from "@/lib/api-client";
 import { formatPlaceKind } from "@/lib/display-labels";
@@ -36,6 +37,7 @@ interface PlaceDetailShellProps {
 
 export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: PlaceDetailShellProps) {
   const { addToast } = useToast();
+  const rd = useRedact();
   const data = usePlaceDetail(id);
   const preview = useEntityPreviewModal();
   const navContext = useNavigationContext(data.place?.display_name);
@@ -144,7 +146,7 @@ export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: 
   const place = data.place;
 
   const peopleForSection = place.people?.map(p => ({
-    person_id: p.person_id, display_name: p.person_name, relationship_type: p.role, confidence: p.confidence,
+    person_id: p.person_id, display_name: rd.name(p.person_name) || "Unknown", relationship_type: p.role, confidence: p.confidence,
   })) || [];
 
   /* Place detail — single column layout */
@@ -173,7 +175,7 @@ export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem" }}>
               <div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>Address</div>
-                <div style={{ fontWeight: 500 }}>{place.formatted_address || "Not set"}</div>
+                <div style={{ fontWeight: 500 }}>{rd.address(place.formatted_address) || "Not set"}</div>
               </div>
               <div>
                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.1rem" }}>City</div>
@@ -201,7 +203,7 @@ export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: 
           <Section title="Context">
             <PlaceContextEditor placeId={place.place_id} address={place.formatted_address || undefined} onContextChange={() => data.fetchPlace()} />
             <div style={{ marginTop: "0.75rem" }}>
-              <PlaceLinksSection placeId={place.place_id} placeName={place.display_name || place.formatted_address || "This place"} />
+              <PlaceLinksSection placeId={place.place_id} placeName={rd.neighborhood(place.display_name) || rd.address(place.formatted_address) || "This place"} />
             </div>
           </Section>
         </div>
@@ -229,7 +231,7 @@ export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: 
               {place.partner_org.contact_name && (
                 <div>
                   <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Contact</div>
-                  <div style={{ fontWeight: 500 }}>{place.partner_org.contact_name}</div>
+                  <div style={{ fontWeight: 500 }}>{rd.name(place.partner_org.contact_name)}</div>
                 </div>
               )}
             </div>
@@ -252,7 +254,7 @@ export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: 
         <LinkedPeopleSection people={peopleForSection} context="place" title="People" emptyMessage="No people linked to this place."
           onEntityClick={(t, entityId) => preview.open(t as "person", entityId)} compact />
         <Section title="People Verification" collapsible defaultCollapsed>
-          <AssociatedPeopleCard placeId={place.place_id} placeName={place.display_name || place.formatted_address || undefined} />
+          <AssociatedPeopleCard placeId={place.place_id} placeName={rd.neighborhood(place.display_name) || rd.address(place.formatted_address) || undefined} />
         </Section>
       </TabPanel>
 
@@ -296,7 +298,7 @@ export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: 
         <Section title="Population Estimate"><PopulationEstimateCard placeId={id} /></Section>
         <Section title="TNR Readiness"><PlaceReadinessCard placeId={id} /></Section>
         <Section title="Lifecycle Events"><PopulationTimeline placeId={id} /></Section>
-        <Section title="Site Observations"><ObservationsSection placeId={id} placeName={place.display_name || place.formatted_address || "This location"} /></Section>
+        <Section title="Site Observations"><ObservationsSection placeId={id} placeName={rd.neighborhood(place.display_name) || rd.address(place.formatted_address) || "This location"} /></Section>
         <HistoricalContextCard placeId={id} className="mt-4" />
         <Section title="FFR Activity" collapsible defaultCollapsed><PlaceAlterationHistory placeId={id} /></Section>
         <Section title="Activity Trend" collapsible defaultCollapsed><PopulationTrendChart placeId={id} /></Section>
@@ -327,7 +329,7 @@ export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: 
         {/* Breadcrumbs + Actions (page mode only) */}
         {!isPanel && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-            <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Places", href: "/places" }, { label: place.display_name }]} />
+            <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: "Places", href: "/places" }, { label: rd.neighborhood(place.display_name) || "Place" }]} />
             {placeActionButtons}
           </div>
         )}
@@ -337,17 +339,34 @@ export function PlaceDetailShell({ id, mode = "page", onClose, onDataUpdated }: 
           {/* Panel-mode action buttons */}
           {isPanel && <div style={{ marginBottom: "0.75rem" }}>{placeActionButtons}</div>}
           <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
-            <h1 style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", fontWeight: 700 }}>{place.display_name}</h1>
+            <h1 style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", fontWeight: 700 }}>{rd.neighborhood(place.display_name)}</h1>
             <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
               <PlaceKindBadge kind={place.place_kind} />
               {place.contexts?.map((ctx) => <ContextBadge key={ctx.context_id} context={ctx} />)}
               {place.has_cat_activity && (
                 <span className="badge" style={{ background: "#dcfce7", color: "#166534", fontSize: "0.7rem" }}>Cat Activity</span>
               )}
+              {place.colony_tnr_status && place.colony_tnr_status !== "no_cats" && (
+                <span className="badge" style={{
+                  background: place.colony_tnr_status === "complete" ? "var(--success-bg, #dcfce7)" : place.colony_tnr_status === "near_complete" ? "var(--info-bg, #dbeafe)" : place.colony_tnr_status === "good_progress" ? "var(--warning-bg, #fef3c7)" : "var(--surface-secondary, #f3f4f6)",
+                  color: place.colony_tnr_status === "complete" ? "var(--success-text, #166534)" : place.colony_tnr_status === "near_complete" ? "var(--info-text, #1d4ed8)" : place.colony_tnr_status === "good_progress" ? "var(--warning-text, #b45309)" : "var(--muted, #6b7280)",
+                  fontSize: "0.7rem",
+                }}>
+                  TNR {place.colony_tnr_status === "complete" ? "Complete" : place.colony_tnr_status === "near_complete" ? "Near Complete" : place.colony_tnr_status === "good_progress" ? "Good Progress" : "Active"}
+                  {place.total_altered != null && place.cat_count > 0 && ` (${Math.round((place.total_altered / place.cat_count) * 100)}%)`}
+                </span>
+              )}
             </div>
           </div>
+          {/* Watch list banner */}
+          {place.watch_list && (
+            <div style={{ background: "var(--warning-bg, #fef3c7)", color: "var(--warning-text, #b45309)", padding: "0.5rem 0.75rem", borderRadius: 6, fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.75rem", border: "1px solid var(--warning-border, #fcd34d)" }}>
+              On Watch List
+              {place.watch_list_reason && <span style={{ fontWeight: 400, marginLeft: "0.5rem" }}>— {place.watch_list_reason}</span>}
+            </div>
+          )}
           {place.formatted_address && place.formatted_address !== place.display_name && (
-            <p style={{ margin: "0 0 1rem 0", color: "var(--text-muted)", fontSize: "0.9rem" }}>{place.formatted_address}</p>
+            <p style={{ margin: "0 0 1rem 0", color: "var(--text-muted)", fontSize: "0.9rem" }}>{rd.address(place.formatted_address)}</p>
           )}
 
           {/* Attribute grid */}

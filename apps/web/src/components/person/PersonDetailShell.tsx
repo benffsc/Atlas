@@ -18,6 +18,7 @@ import { useNavigationContext } from "@/hooks/useNavigationContext";
 import { EntityHeader } from "./EntityHeader";
 import { SectionRenderer } from "./SectionRenderer";
 import { formatDateLocal } from "@/lib/formatters";
+import { useRedact } from "@/components/ShowcaseContext";
 import { ContactInfoCard } from "./ContactInfoCard";
 import { PlaceResolver } from "@/components/forms";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
@@ -145,7 +146,8 @@ export function PersonDetailShell({
   const preview = useEntityPreviewModal();
   const { ref: containerRef, isNarrow } = useContainerWidth();
   const isPanel = mode === "panel";
-  const navContext = useNavigationContext(data.person?.display_name);
+  const rd = useRedact();
+  const navContext = useNavigationContext(rd.name(data.person?.display_name) ?? data.person?.display_name);
 
   // Determine active tab - trapper tab first if accessed via /trappers
   const roles = detectRoles(data);
@@ -338,7 +340,7 @@ export function PersonDetailShell({
         {/* Breadcrumbs + Actions (page mode only) */}
         {!isPanel && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-            <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: initialRole === "trapper" ? "Trappers" : "People", href: initialRole === "trapper" ? "/trappers" : "/people" }, { label: person.display_name }]} />
+            <Breadcrumbs items={navContext.breadcrumbs.length > 0 ? navContext.breadcrumbs : [{ label: initialRole === "trapper" ? "Trappers" : "People", href: initialRole === "trapper" ? "/trappers" : "/people" }, { label: rd.name(person.display_name) ?? person.display_name }]} />
             <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0, flexWrap: "wrap" }}>
               {actionButtons}
             </div>
@@ -355,12 +357,12 @@ export function PersonDetailShell({
           )}
           <EntityHeader
             personId={person.person_id}
-            displayName={person.display_name}
-            email={data.primaryEmail}
-            phone={data.primaryPhone}
+            displayName={rd.name(person.display_name) ?? person.display_name}
+            email={rd.email(data.primaryEmail)}
+            phone={rd.phone(data.primaryPhone)}
             badges={<>{badgeElements}</>}
             availabilityStatus={data.trapperStats?.availability_status}
-            aliases={person.aliases?.map(a => a.name_raw)}
+            aliases={person.aliases?.map(a => rd.name(a.name_raw) ?? a.name_raw)}
             doNotContact={person.do_not_contact}
             doNotContactReason={person.do_not_contact_reason}
             entityType={person.entity_type}
@@ -368,23 +370,31 @@ export function PersonDetailShell({
             onDataChange={() => data.refetchPerson()}
           />
 
+          {/* Watch list banner */}
+          {person.watch_list && (
+            <div style={{ background: "var(--warning-bg, #fef3c7)", color: "var(--warning-text, #b45309)", padding: "0.5rem 0.75rem", borderRadius: 6, fontSize: "0.85rem", fontWeight: 600, marginTop: "0.75rem", border: "1px solid var(--warning-border, #fcd34d)" }}>
+              On Watch List
+              {person.watch_list_reason && <span style={{ fontWeight: 400, marginLeft: "0.5rem" }}>— {person.watch_list_reason}</span>}
+            </div>
+          )}
+
           {/* Contact info inline */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
             <div>
               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Phone</div>
-              <div style={{ fontWeight: 600 }}>{data.primaryPhone ? formatPhone(data.primaryPhone) : "\u2014"}</div>
+              <div style={{ fontWeight: 600 }}>{data.primaryPhone ? formatPhone(rd.phone(data.primaryPhone) ?? data.primaryPhone) : "\u2014"}</div>
             </div>
             <div>
               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Email</div>
-              <div style={{ fontWeight: 600, wordBreak: "break-all" }}>{data.primaryEmail || "\u2014"}</div>
+              <div style={{ fontWeight: 600, wordBreak: "break-all" }}>{rd.email(data.primaryEmail) || "\u2014"}</div>
             </div>
             <div>
               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.15rem" }}>Address</div>
               <div style={{ fontWeight: 600 }}>
                 {person.primary_address ? (
                   person.primary_place_id ? (
-                    <a href={`/places/${person.primary_place_id}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{person.primary_address}</a>
-                  ) : person.primary_address
+                    <a href={`/places/${person.primary_place_id}`} style={{ color: "var(--primary)", textDecoration: "none" }}>{rd.address(person.primary_address)}</a>
+                  ) : rd.address(person.primary_address)
                 ) : "\u2014"}
               </div>
             </div>
@@ -524,10 +534,10 @@ export function PersonDetailShell({
       <SendEmailModal
         isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        defaultTo={data.primaryEmail ?? ""}
-        defaultToName={person.display_name}
+        defaultTo={rd.email(data.primaryEmail) ?? ""}
+        defaultToName={rd.name(person.display_name) ?? person.display_name}
         personId={person.person_id}
-        placeholders={{ first_name: person.display_name?.split(" ")[0] || "" }}
+        placeholders={{ first_name: rd.name(person.display_name)?.split(" ")[0] || person.display_name?.split(" ")[0] || "" }}
       />
 
       {/* Entity Preview Modal */}

@@ -17,6 +17,7 @@ import { MediaGallery } from "@/components/media";
 import { SmartField, TabBar, TabPanel } from "@/components/ui";
 import { Icon } from "@/components/ui/Icon";
 import { formatPhone, formatAddress } from "@/lib/formatters";
+import { useRedact, useShowcase } from "@/components/ShowcaseContext";
 import { fetchApi, postApi, patchRequest } from "@/lib/api-client";
 import type { ApiError } from "@/lib/api-client";
 import { LANGUAGE_OPTIONS, getLabel, getShortLabel } from "@/lib/form-options";
@@ -56,6 +57,8 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   const data = useRequestDetail(requestId);
   const { request, loading, error, previousStatus, journalEntries, tripReports, relatedPeople, tippyTickets, mapUrl, refreshRequest, fetchJournalEntries, fetchTripReports, fetchRelatedPeople, setPreviousStatus, setError } = data;
 
+  const rd = useRedact();
+  const { isShowcase } = useShowcase();
   const { ref: containerRef, isNarrow } = useContainerWidth();
   const isPanel = mode === "panel";
 
@@ -67,7 +70,9 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
   const modals = useRequestModals({ requestId, request, refreshRequest: refreshAndNotify, fetchJournalEntries, fetchTripReports });
 
-  const requestTitle = request?.summary || request?.place_name || "FFR Request";
+  const requestTitle = isShowcase
+    ? (rd.neighborhood(request?.place_name) || "FFR Request")
+    : (request?.summary || request?.place_name || "FFR Request");
   const { breadcrumbs } = useNavigationContext(requestTitle);
 
   // Rename state
@@ -95,6 +100,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
   const copyForText = useCallback(() => {
     if (!request) return;
+    if (isShowcase) return; // Don't copy PII in showcase mode
     const lines: string[] = [];
 
     // Title + address
@@ -172,7 +178,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [request, relatedPeople]);
+  }, [request, relatedPeople, isShowcase]);
 
   const handleQuickStatusChange = async (newStatus: string) => {
     if (!request) return;
@@ -304,13 +310,13 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   const isResolved = request.status === "completed" || request.status === "cancelled" || request.status === "partial";
 
   // ─── Hero attribute grid data ───
-  const locationDisplay = request.place_name || (request.place_address ? formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true }) : null);
+  const locationDisplay = rd.neighborhood(request.place_name || (request.place_address ? formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true }) : null));
   const PII_LABELS = new Set(["Location", "Requester", "Contact"]);
   const heroAttributes = [
     { label: "Location", value: locationDisplay, href: request.place_id ? `/places/${request.place_id}` : undefined, editable: true },
     { label: "Zone", value: request.place_service_zone },
-    { label: "Requester", value: request.requester_name, href: request.requester_person_id ? `/people/${request.requester_person_id}` : undefined },
-    { label: "Contact", value: request.requester_phone ? formatPhone(request.requester_phone) : request.requester_email },
+    { label: "Requester", value: rd.name(request.requester_name), href: request.requester_person_id ? `/people/${request.requester_person_id}` : undefined },
+    { label: "Contact", value: request.requester_phone ? rd.phone(formatPhone(request.requester_phone)) : rd.email(request.requester_email) },
     { label: "Est. Colony", value: request.colony_size_estimate != null ? String(request.colony_size_estimate) : null },
     { label: "Coverage", value: request.colony_alteration_rate != null ? `${Math.round(request.colony_alteration_rate)}%` : null },
     { label: "Created", value: new Date(request.created_at).toLocaleDateString() },
@@ -359,7 +365,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             </div>
           ) : (
             <>
-              <h1 data-pii="name" style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", lineHeight: 1.2 }}>{request.summary || request.place_name || "FFR Request"}</h1>
+              <h1 data-pii="name" style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", lineHeight: 1.2 }}>{isShowcase ? (rd.neighborhood(request.place_name) || "FFR Request") : (request.summary || request.place_name || "FFR Request")}</h1>
               <button onClick={startRename} title="Rename" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem", color: "var(--muted)", opacity: 0.7 }}><Icon name="pencil" size={14} /></button>
             </>
           )}
@@ -508,17 +514,17 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
           <ContactCard
             requester={request.requester_person_id ? {
               personId: request.requester_person_id,
-              name: request.requester_name,
-              email: request.requester_email,
-              phone: request.requester_phone,
+              name: rd.name(request.requester_name) ?? undefined,
+              email: rd.email(request.requester_email) ?? undefined,
+              phone: rd.phone(request.requester_phone) ?? undefined,
               role: request.requester_role_at_submission,
               isSiteContact: request.requester_is_site_contact,
             } : undefined}
             siteContact={request.site_contact_person_id && !request.requester_is_site_contact ? {
               personId: request.site_contact_person_id,
-              name: request.site_contact_name,
-              email: request.site_contact_email,
-              phone: request.site_contact_phone,
+              name: rd.name(request.site_contact_name) ?? undefined,
+              email: rd.email(request.site_contact_email) ?? undefined,
+              phone: rd.phone(request.site_contact_phone) ?? undefined,
             } : undefined}
             onEmailClick={() => modals.open("email")}
             onSiteContactChange={handleSiteContactChange}
@@ -652,17 +658,17 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             <ContactCard
               requester={request.requester_person_id ? {
                 personId: request.requester_person_id,
-                name: request.requester_name,
-                email: request.requester_email,
-                phone: request.requester_phone,
+                name: rd.name(request.requester_name) ?? undefined,
+                email: rd.email(request.requester_email) ?? undefined,
+                phone: rd.phone(request.requester_phone) ?? undefined,
                 role: request.requester_role_at_submission,
                 isSiteContact: request.requester_is_site_contact,
               } : undefined}
               siteContact={request.site_contact_person_id && !request.requester_is_site_contact ? {
                 personId: request.site_contact_person_id,
-                name: request.site_contact_name,
-                email: request.site_contact_email,
-                phone: request.site_contact_phone,
+                name: rd.name(request.site_contact_name) ?? undefined,
+                email: rd.email(request.site_contact_email) ?? undefined,
+                phone: rd.phone(request.site_contact_phone) ?? undefined,
               } : undefined}
               onEmailClick={() => modals.open("email")}
               onSiteContactChange={handleSiteContactChange}
@@ -696,10 +702,10 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
                 {request.place_id ? (
                   <div>
                     <a href={`/places/${request.place_id}`} onClick={modals.preview.handleClick("place", request.place_id)} style={{ fontWeight: 600, fontSize: "1.1rem", color: "var(--foreground)", textDecoration: "none" }}>
-                      {request.place_name || formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true })}
+                      {rd.neighborhood(request.place_name || formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true }))}
                     </a>
                     <div style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: "0.25rem" }}>
-                      {formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code })}
+                      {rd.address(formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }))}
                     </div>
                     <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
                       {request.place_service_zone && <span className="badge" style={{ background: COLORS.primaryDark, color: "#fff", fontSize: "0.7rem" }}>Zone: {request.place_service_zone}</span>}
@@ -711,7 +717,7 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
                     )}
                     {request.requester_home_place_id && request.requester_home_place_id !== request.place_id && request.requester_home_address && (
                       <div style={{ marginTop: "0.5rem", padding: "0.4rem 0.6rem", background: "#eef2ff", borderRadius: "6px", fontSize: "0.8rem", color: "#4338ca" }}>
-                        <span style={{ fontWeight: 600 }}>Requester lives at:</span> {request.requester_home_address}
+                        <span style={{ fontWeight: 600 }}>Requester lives at:</span> {rd.address(request.requester_home_address)}
                       </div>
                     )}
                     {request.place_coordinates && (

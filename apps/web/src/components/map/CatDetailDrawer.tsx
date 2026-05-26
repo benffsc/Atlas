@@ -6,6 +6,7 @@ import { formatRelativeTime } from "@/lib/formatters";
 import { formatRole } from "@/lib/display-labels";
 import { CatHealthBadges, buildHealthFlags } from "@/components/badges";
 import { Skeleton } from "@/components/feedback/Skeleton";
+import { useRedact } from "@/components/ShowcaseContext";
 
 /* ------------------------------------------------------------------ */
 /*  Type definitions matching the GET /api/cats/:id response shape     */
@@ -134,6 +135,7 @@ export function CatDetailDrawer({ catId, onClose, onNavigatePerson, onNavigatePl
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAllAppts, setShowAllAppts] = useState(false);
+  const rd = useRedact();
 
   // Fetch cat details when catId changes
   useEffect(() => {
@@ -348,7 +350,7 @@ export function CatDetailDrawer({ catId, onClose, onNavigatePerson, onNavigatePl
                       className="cat-drawer-stakeholder-row"
                       onClick={onNavigatePerson ? (e) => { e.preventDefault(); onNavigatePerson(s.person_id); } : undefined}
                     >
-                      <span className="cat-drawer-stakeholder-name">{s.person_name}</span>
+                      <span className="cat-drawer-stakeholder-name">{rd.name(s.person_name)}</span>
                       <span className={`cat-drawer-relationship-badge cat-drawer-rel-${s.relationship_type}`}>
                         {formatRelationshipType(s.relationship_type)}
                       </span>
@@ -378,7 +380,7 @@ export function CatDetailDrawer({ catId, onClose, onNavigatePerson, onNavigatePl
                       onClick={onNavigatePlace ? (e) => { e.preventDefault(); onNavigatePlace(cat.primary_origin_place!.place_id); } : undefined}
                     >
                       <span className="cat-drawer-place-address">
-                        {cat.primary_origin_place.display_name || cat.primary_origin_place.formatted_address}
+                        {rd.neighborhood(cat.primary_origin_place.display_name || cat.primary_origin_place.formatted_address)}
                       </span>
                       <span className="cat-drawer-place-type">Origin</span>
                     </a>
@@ -396,7 +398,7 @@ export function CatDetailDrawer({ catId, onClose, onNavigatePerson, onNavigatePl
                         onClick={onNavigatePlace ? (e) => { e.preventDefault(); onNavigatePlace(p.place_id); } : undefined}
                       >
                         <span className="cat-drawer-place-address">
-                          {p.display_name || p.formatted_address}
+                          {rd.neighborhood(p.display_name || p.formatted_address)}
                         </span>
                         {p.relationship_type && (
                           <span className="cat-drawer-place-type">
@@ -416,7 +418,7 @@ export function CatDetailDrawer({ catId, onClose, onNavigatePerson, onNavigatePl
                       onClick={onNavigatePlace ? (e) => { e.preventDefault(); onNavigatePlace(p.place_id); } : undefined}
                     >
                       <span className="cat-drawer-place-address">
-                        {p.display_name || p.formatted_address}
+                        {rd.neighborhood(p.display_name || p.formatted_address)}
                       </span>
                       <span className="cat-drawer-place-type">{p.relationship_type}</span>
                     </a>

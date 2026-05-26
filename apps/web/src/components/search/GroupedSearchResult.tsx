@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatMatchReason } from "@/lib/display-labels";
 import { formatRelativeTime } from "@/lib/formatters";
+import { useRedact } from "@/components/ShowcaseContext";
 
 interface SearchResult {
   entity_type: string;
@@ -62,13 +63,13 @@ function getEntityLink(result: SearchResult): string {
   }
 }
 
-function getRecordSubtitle(result: SearchResult): string {
+function getRecordSubtitle(result: SearchResult, rd: ReturnType<typeof useRedact>): string {
   const meta = result.metadata;
   const parts: string[] = [];
 
   if (result.entity_type === "person") {
-    if (meta.email) parts.push(String(meta.email));
-    if (meta.phone) parts.push(String(meta.phone));
+    if (meta.email) parts.push(rd.email(String(meta.email)) ?? "");
+    if (meta.phone) parts.push(rd.phone(String(meta.phone)) ?? "");
     if (meta.cat_count) parts.push(`${meta.cat_count} cats`);
     if (meta.place_count) parts.push(`${meta.place_count} places`);
   } else if (result.entity_type === "cat") {
@@ -87,16 +88,24 @@ function getRecordSubtitle(result: SearchResult): string {
   if (rel) parts.push(`Last: ${rel}`);
 
   if (parts.length === 0 && result.subtitle) return result.subtitle;
-  return parts.join(" \u00B7 ") || "No additional details";
+  return parts.filter(Boolean).join(" \u00B7 ") || "No additional details";
 }
 
 // formatMatchReason imported from @/lib/display-labels
 
 export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
   const [expanded, setExpanded] = useState(false);
+  const rd = useRedact();
   const hasMultiple = group.record_count > 1;
   const primaryRecord = group.records[0];
   const additionalRecords = group.records.slice(1);
+
+  /** Redact display name based on entity type */
+  const redactDisplayName = (name: string, entityType: string) => {
+    if (entityType === "person") return rd.name(name);
+    if (entityType === "place") return rd.neighborhood(name);
+    return name; // cats pass through
+  };
 
   const entityStyle = entityColors[group.entity_type] || { bg: "#f3f4f6", text: "#374151" };
   const matchStyle = matchBadgeStyles[group.best_match_strength] || matchBadgeStyles.weak;
@@ -158,7 +167,7 @@ export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
                   fontSize: "0.95rem",
                 }}
               >
-                {group.display_name}
+                {redactDisplayName(group.display_name, group.entity_type)}
               </span>
             ) : (
               <Link
@@ -171,7 +180,7 @@ export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {group.display_name}
+                {redactDisplayName(group.display_name, group.entity_type)}
               </Link>
             )}
 
@@ -187,7 +196,7 @@ export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
             >
               {hasMultiple
                 ? `${group.subtitles.slice(0, 2).join(" · ")}${group.subtitles.length > 2 ? " ..." : ""}`
-                : getRecordSubtitle(primaryRecord)}
+                : getRecordSubtitle(primaryRecord, rd)}
             </div>
           </div>
         </div>
@@ -300,7 +309,7 @@ export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
                     fontWeight: 500,
                   }}
                 >
-                  {record.display_name}
+                  {redactDisplayName(record.display_name, record.entity_type)}
                 </div>
                 <div
                   style={{
@@ -312,7 +321,7 @@ export function GroupedSearchResult({ group }: GroupedSearchResultProps) {
                     marginTop: "2px",
                   }}
                 >
-                  {getRecordSubtitle(record)}
+                  {getRecordSubtitle(record, rd)}
                 </div>
               </div>
 
