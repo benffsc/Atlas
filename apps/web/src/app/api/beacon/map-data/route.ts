@@ -302,43 +302,44 @@ export async function GET(req: NextRequest) {
             WHERE r.place_id IS NOT NULL AND COALESCE(r.source_created_at, r.created_at)::date ${op.includes('>=') ? '>=' : '<='} '${dateVal}'::date
         `;
 
+        // Helper: builds the UNION of all date sources for a given operator.
+        // For intakes without place_id, matches to nearest existing place by
+        // geocoded coordinates (within ~111m / 0.001 degrees).
+        const buildDateUnion = (op: ">=" | "<=", dateVal: string, dateCol: "latest_request_date" | "first_seen_at" = "latest_request_date") => `
+            SELECT ah.place_id FROM sot.v_place_alteration_history ah
+              WHERE ah.${dateCol} ${op} '${dateVal}'::date
+            UNION
+            SELECT COALESCE(i.place_id, nearest.place_id) FROM ops.intake_submissions i
+              LEFT JOIN LATERAL (
+                SELECT p2.place_id FROM sot.places p2
+                  JOIN sot.addresses a2 ON a2.address_id = COALESCE(p2.sot_address_id, p2.address_id)
+                  WHERE i.place_id IS NULL AND i.geo_latitude IS NOT NULL
+                    AND ABS(a2.latitude - i.geo_latitude) < 0.001
+                    AND ABS(a2.longitude - i.geo_longitude) < 0.001
+                  LIMIT 1
+              ) nearest ON TRUE
+              WHERE i.submitted_at::date ${op} '${dateVal}'::date
+                AND COALESCE(i.place_id, nearest.place_id) IS NOT NULL
+            UNION
+            SELECT r.place_id FROM ops.requests r
+              WHERE r.place_id IS NOT NULL
+                AND COALESCE(r.source_created_at, r.created_at)::date ${op} '${dateVal}'::date
+        `;
+
         let dateCondition = "";
         if (dateFrom && dateTo) {
           // Window mode: places with first activity in this range
           dateCondition += ` AND id IN (
-            SELECT ah.place_id FROM sot.v_place_alteration_history ah
-              WHERE ah.first_seen_at >= '${dateFrom}'::date AND ah.first_seen_at <= '${dateTo}'::date
-            UNION
-            SELECT i.place_id FROM ops.intake_submissions i
-              WHERE i.place_id IS NOT NULL AND i.submitted_at::date >= '${dateFrom}'::date AND i.submitted_at::date <= '${dateTo}'::date
-            UNION
-            SELECT r.place_id FROM ops.requests r
-              WHERE r.place_id IS NOT NULL AND COALESCE(r.source_created_at, r.created_at)::date >= '${dateFrom}'::date AND COALESCE(r.source_created_at, r.created_at)::date <= '${dateTo}'::date
+            SELECT place_id FROM (${buildDateUnion(">=", dateFrom, "first_seen_at")}) d1
+            INTERSECT
+            SELECT place_id FROM (${buildDateUnion("<=", dateTo, "first_seen_at")}) d2
           )`;
         } else if (dateTo) {
           // Cumulative "as-of" mode: everything known up to this date
-          dateCondition += ` AND id IN (
-            SELECT ah.place_id FROM sot.v_place_alteration_history ah
-              WHERE ah.first_seen_at <= '${dateTo}'::date
-            UNION
-            SELECT i.place_id FROM ops.intake_submissions i
-              WHERE i.place_id IS NOT NULL AND i.submitted_at::date <= '${dateTo}'::date
-            UNION
-            SELECT r.place_id FROM ops.requests r
-              WHERE r.place_id IS NOT NULL AND COALESCE(r.source_created_at, r.created_at)::date <= '${dateTo}'::date
-          )`;
+          dateCondition += ` AND id IN (${buildDateUnion("<=", dateTo, "first_seen_at")})`;
         } else if (dateFrom) {
           // "Since" mode: places with any activity since this date
-          dateCondition += ` AND id IN (
-            SELECT ah.place_id FROM sot.v_place_alteration_history ah
-              WHERE ah.latest_request_date >= '${dateFrom}'::date
-            UNION
-            SELECT i.place_id FROM ops.intake_submissions i
-              WHERE i.place_id IS NOT NULL AND i.submitted_at::date >= '${dateFrom}'::date
-            UNION
-            SELECT r.place_id FROM ops.requests r
-              WHERE r.place_id IS NOT NULL AND COALESCE(r.source_created_at, r.created_at)::date >= '${dateFrom}'::date
-          )`;
+          dateCondition += ` AND id IN (${buildDateUnion(">=", dateFrom)})`;
         }
 
         const atlasPins = await queryRows<{
