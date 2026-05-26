@@ -281,15 +281,13 @@ export async function GET(req: NextRequest) {
           )`;
         }
 
-        // Date filter: cumulative "as-of" mode.
-        // Shows all places with first TNR activity on or before the end date.
-        // This makes the timeline work like "what would the map have looked like
-        // at this point in time?" — sliding from 2013→present lights up pins
-        // progressively as colonies are discovered.
+        // Date filter: all modes use first_seen_at from alteration history.
+        // Places with NO alteration history are excluded when any date filter
+        // is active (they have no appointment_date to filter on).
         //
-        // When dateFrom is set without dateTo, it acts as "first seen after" filter.
-        // When dateTo is set, it acts as "as-of this date" (cumulative).
-        // When both are set, shows places first seen in the window.
+        // Presets (Today, This Week, etc.) set dateFrom only → "since" mode.
+        // Custom range sets both → "window" mode.
+        // Timeline slider sets dateTo only → "as-of" cumulative mode.
         let dateCondition = "";
         if (dateFrom && dateTo) {
           // Window mode: places first seen in this range
@@ -305,8 +303,12 @@ export async function GET(req: NextRequest) {
             WHERE ah.first_seen_at <= '${dateTo}'::date
           )`;
         } else if (dateFrom) {
-          // "Since" mode: places with any activity since this date
-          dateCondition += ` AND (last_alteration_at IS NULL OR last_alteration_at >= '${dateFrom}'::date)`;
+          // "Since" mode: places with alteration activity since this date
+          // Excludes places with no alteration history (no IS NULL fallback)
+          dateCondition += ` AND id IN (
+            SELECT ah.place_id FROM sot.v_place_alteration_history ah
+            WHERE ah.latest_request_date >= '${dateFrom}'::date
+          )`;
         }
 
         const atlasPins = await queryRows<{
