@@ -1360,13 +1360,29 @@
   right: 380px;
 }
 
-/* ── Shift right-side controls left when a detail drawer is open ── */
+/* ── Shift right-side controls left when detail drawer(s) are open ── */
 
+/* Single drawer (400px) */
 .map-shell__viewport:has(.place-detail-drawer) .map-controls-strip,
 .map-shell__viewport:has(.person-detail-drawer) .map-controls-strip,
 .map-shell__viewport:has(.cat-detail-drawer) .map-controls-strip,
 .map-shell__viewport:has(.hex-detail-panel) .map-controls-strip {
   right: 416px;
+}
+
+/* Double drawer — place shifted + person/cat beside it (780px total) */
+.map-shell__viewport:has(.place-detail-drawer.shifted) .map-controls-strip {
+  right: 796px;
+}
+
+/* Double drawer — person + cat without place (760px total) */
+.map-shell__viewport:has(.person-detail-drawer):has(.cat-detail-drawer) .map-controls-strip {
+  right: 796px;
+}
+
+/* Triple drawer — place shifted + person + cat */
+.map-shell__viewport:has(.place-detail-drawer.shifted):has(.person-detail-drawer):has(.cat-detail-drawer) .map-controls-strip {
+  right: 1196px;
 }
 
 /* ── Hex Detail Panel ── */
