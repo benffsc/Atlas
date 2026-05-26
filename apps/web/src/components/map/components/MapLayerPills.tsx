@@ -1,86 +1,90 @@
 "use client";
 
 /**
- * MapLayerPills — Horizontal floating pill row for quick layer toggles.
- * Positioned below the top bar, centered above the map.
- * Uses existing toggleLayer() from useMapLayers — no new state.
+ * MapLayerPills — Primary view switcher for the map.
+ *
+ * Each pill is a complete, self-contained view preset from SYSTEM_VIEWS.
+ * One click applies a full layer configuration via handleApplyView —
+ * no sidebar needed. This is the main way staff switch between map views.
  */
 
-interface LayerPill {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-}
+import { SYSTEM_VIEWS, type MapView } from "@/lib/map-views";
 
-const PILLS: LayerPill[] = [
+/** Curated subset of system views for the pill bar — the daily-driver views */
+const PILL_VIEWS: Array<{ viewId: string; label: string; icon: React.ReactNode }> = [
   {
-    id: "atlas_all",
+    viewId: "sys_full_picture",
     label: "All Places",
     icon: (
-      <svg className="map-layer-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
       </svg>
     ),
   },
   {
-    id: "hexbin_density",
+    viewId: "sys_cat_density",
     label: "Density",
     icon: (
-      <svg className="map-layer-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2l9 5v10l-9 5-9-5V7z" />
       </svg>
     ),
   },
   {
-    id: "atlas_disease",
+    viewId: "sys_disease_overview",
     label: "Disease",
     icon: (
-      <svg className="map-layer-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
         <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
     ),
   },
   {
-    id: "atlas_needs_tnr",
+    viewId: "sys_tnr_priority",
     label: "Needs TNR",
     icon: (
-      <svg className="map-layer-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" /><line x1="22" y1="12" x2="18" y2="12" /><line x1="6" y1="12" x2="2" y2="12" /><line x1="12" y1="6" x2="12" y2="2" /><line x1="12" y1="22" x2="12" y2="18" />
       </svg>
     ),
   },
   {
-    id: "hexbin_insights",
-    label: "Risk Labels",
+    viewId: "sys_trapper_assignments",
+    label: "Trappers",
     icon: (
-      <svg className="map-layer-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
   },
 ];
 
 interface MapLayerPillsProps {
-  enabledLayers: Record<string, boolean>;
-  toggleLayer: (id: string) => void;
+  activeViewId: string | null;
+  onApplyView: (view: MapView) => void;
 }
 
-export function MapLayerPills({ enabledLayers, toggleLayer }: MapLayerPillsProps) {
+export function MapLayerPills({ activeViewId, onApplyView }: MapLayerPillsProps) {
   return (
-    <div className="map-layer-pills" role="toolbar" aria-label="Quick layer toggles">
-      {PILLS.map((pill) => (
-        <button
-          key={pill.id}
-          onClick={() => toggleLayer(pill.id)}
-          className={`map-layer-pill ${enabledLayers[pill.id] ? "map-layer-pill--active" : ""}`}
-          title={`Toggle ${pill.label}`}
-          aria-pressed={!!enabledLayers[pill.id]}
-        >
-          {pill.icon}
-          {pill.label}
-        </button>
-      ))}
+    <div className="map-view-pills" role="toolbar" aria-label="Map views">
+      {PILL_VIEWS.map((pill) => {
+        const view = SYSTEM_VIEWS.find((v) => v.id === pill.viewId);
+        if (!view) return null;
+        const isActive = activeViewId === pill.viewId;
+        return (
+          <button
+            key={pill.viewId}
+            onClick={() => onApplyView(view)}
+            className={`map-view-pill ${isActive ? "map-view-pill--active" : ""}`}
+            title={view.name}
+            aria-pressed={isActive}
+          >
+            {pill.icon}
+            {pill.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -11,14 +11,7 @@ interface MapLayoutContextValue {
 const MapLayoutContext = createContext<MapLayoutContextValue | null>(null);
 
 export function MapLayoutProvider({ children }: { children: ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem("map-sidebar-open") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => {

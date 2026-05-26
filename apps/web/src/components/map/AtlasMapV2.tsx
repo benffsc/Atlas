@@ -1882,131 +1882,17 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         </div>
       </PortalOrInline>
 
-      {/* ── Action buttons — portalled into top bar ── */}
-      <PortalOrInline
-        portalId="map-actions-portal"
-        fallback={
-          <MapControls
-            isMobile={isMobile}
-            showLayerPanel={showLayerPanel}
-            onToggleLayerPanel={() => setShowLayerPanel(!showLayerPanel)}
-            addPointMode={addPointMode}
-            onAddPointModeChange={(mode) => {
-              setAddPointMode(mode);
-              if (mode) setMeasureActive(false);
-            }}
-            showAddPointMenu={showAddPointMenu}
-            onShowAddPointMenuChange={setShowAddPointMenu}
-            locatingUser={locatingUser}
-            onMyLocation={handleMyLocation}
-            basemap={basemap}
-            onBasemapChange={setBasemap}
-            measureActive={measureActive}
-            onMeasureToggle={handleMeasureToggle}
-            onExportCsv={handleExportCsv}
-            onExportGeoJson={handleExportGeoJson}
-            exportPinCount={atlasPins.length}
-            onCopyLink={async () => {
-              try {
-                await navigator.clipboard.writeText(window.location.href);
-                addToast({ type: "success", message: "Link copied to clipboard" });
-              } catch {
-                addToast({ type: "error", message: "Couldn't copy link — check clipboard permissions" });
-                throw new Error("clipboard unavailable");
-              }
-            }}
-            compareMode={compareMode}
-            onCompareToggle={() => {
-              if (compareMode) {
-                // Exiting compare mode
-                setCompareMode(false);
-                if (comparedHexes.length >= 2) {
-                  setShowComparePanel(true);
-                }
-              } else {
-                // Entering compare mode
-                setCompareMode(true);
-                setComparedHexes([]);
-                setShowComparePanel(false);
-                setSelectedHex(null);
-              }
-            }}
-            compareCount={comparedHexes.length}
-            onZoomIn={() => map?.setZoom((map.getZoom() || 11) + 1)}
-            onZoomOut={() => map?.setZoom((map.getZoom() || 11) - 1)}
-            isFullscreen={isFullscreen}
-            onFullscreenToggle={handleFullscreenToggle}
-          />
-        }
-      >
-        {/* Portalled action buttons — compact style for top bar */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => {
-              if (addPointMode) {
-                setAddPointMode(null);
-                setShowAddPointMenu(false);
-              } else {
-                setShowAddPointMenu(!showAddPointMenu);
-              }
-            }}
-            title="Add point (A)"
-            className={`map-control-btn ${addPointMode ? "map-control-btn--active" : ""}`}
-          >
-            {addPointMode ? "\u2715" : "+"}
-          </button>
-          {showAddPointMenu && !addPointMode && (
-            <div className="map-add-point-menu">
-              <button onClick={() => { setAddPointMode("place"); setShowAddPointMenu(false); }} className="map-add-point-menu__item">
-                Add Place
-              </button>
-              <button onClick={() => { setAddPointMode("annotation"); setShowAddPointMenu(false); }} className="map-add-point-menu__item">
-                Add Note
-              </button>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={handleMeasureToggle}
-          title="Measure (D)"
-          className={`map-control-btn ${measureActive ? "map-control-btn--active" : ""}`}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0z" />
-            <path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" />
-          </svg>
-        </button>
-        <button
-          onClick={() => {
-            handleExportCsv?.();
-          }}
-          title="Export (E)"
-          className="map-control-btn"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-        </button>
-        <button
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(window.location.href);
-              addToast({ type: "success", message: "Link copied to clipboard" });
-            } catch {
-              addToast({ type: "error", message: "Couldn't copy link — check clipboard permissions" });
-            }
-          }}
-          title="Copy link"
-          className="map-control-btn"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          </svg>
-        </button>
-      </PortalOrInline>
+      {/* ── Map controls — right-side strip (viewport tools only) ── */}
+      <MapControls
+        locatingUser={locatingUser}
+        onMyLocation={handleMyLocation}
+        basemap={basemap}
+        onBasemapChange={setBasemap}
+        isFullscreen={isFullscreen}
+        onFullscreenToggle={handleFullscreenToggle}
+        onZoomIn={() => map?.setZoom((map.getZoom() || 11) + 1)}
+        onZoomOut={() => map?.setZoom((map.getZoom() || 11) - 1)}
+      />
 
       {/* ── "Return to search" chip ── */}
       {search.navigatedLocation && (selectedPin || selectedPlaceId || selectedPersonId || selectedCatId) && (
@@ -2113,8 +1999,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           </div>
       </PortalOrInline>
 
-      {/* ── Layer pills — quick toggles below top bar ── */}
-      <MapLayerPills enabledLayers={enabledLayers} toggleLayer={toggleLayer} />
+      {/* ── View pills — portalled into top bar ── */}
+      <PortalOrInline portalId="map-views-portal" fallback={null}>
+        <MapLayerPills activeViewId={activeViewId} onApplyView={handleApplyView} />
+      </PortalOrInline>
 
       {/* ── Date range filter — bottom center of map ── */}
       <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />

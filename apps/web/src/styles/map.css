@@ -3567,31 +3567,40 @@
 /* ── Sidebar ── */
 
 .map-sidebar {
-  flex-shrink: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: 100;
   overflow: hidden;
-  transition: width var(--map-transition-normal);
+  transition: transform var(--map-transition-normal), opacity var(--map-transition-normal);
   border-right: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: var(--map-glass-blur);
   -webkit-backdrop-filter: var(--map-glass-blur);
   display: flex;
   flex-direction: column;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+  width: var(--map-sidebar-width);
 }
 
 @media (prefers-color-scheme: dark) {
   .map-sidebar {
-    background: rgba(15, 15, 20, 0.6);
+    background: rgba(15, 15, 20, 0.85);
     border-right-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
   }
 }
 
 .map-sidebar--open {
-  width: var(--map-sidebar-width);
+  transform: translateX(0);
+  opacity: 1;
 }
 
 .map-sidebar--closed {
-  width: 0;
-  border-right: none;
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .map-sidebar__header {
@@ -4025,33 +4034,39 @@ body.presentation-mode .map-controls-group--data {
    Horizontal pill row for quick layer toggles.
    ============================================================ */
 
-.map-layer-pills {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
+/* ============================================================
+   View Pills — primary map view switcher in top bar
+   ============================================================ */
+
+.map-top-bar__views {
   display: flex;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 24px;
-  background: var(--map-glass-bg);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid var(--map-glass-border);
-  box-shadow: var(--map-glass-shadow);
-  z-index: 10;
-  max-width: calc(100% - 32px);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.map-view-pills {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.04);
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.map-layer-pills::-webkit-scrollbar {
+.map-view-pills::-webkit-scrollbar {
   display: none;
 }
 
-.map-layer-pill {
-  padding: 6px 14px;
-  border-radius: 20px;
+@media (prefers-color-scheme: dark) {
+  .map-view-pills {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+
+.map-view-pill {
+  padding: 5px 12px;
+  border-radius: 16px;
   border: none;
   font-size: 12px;
   font-weight: 500;
@@ -4063,37 +4078,32 @@ body.presentation-mode .map-controls-group--data {
   display: flex;
   align-items: center;
   gap: 5px;
+  font-family: inherit;
 }
 
-.map-layer-pill:hover {
-  background: rgba(0, 0, 0, 0.05);
+.map-view-pill:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
-  .map-layer-pill:hover {
-    background: rgba(255, 255, 255, 0.08);
+  .map-view-pill:hover {
+    background: rgba(255, 255, 255, 0.1);
   }
 }
 
-.map-layer-pill--active {
+.map-view-pill--active {
   background: var(--primary, #3b82f6);
   color: white;
-  box-shadow: 0 0 12px rgba(66, 145, 223, 0.3);
+  box-shadow: 0 1px 4px rgba(66, 145, 223, 0.3);
 }
 
-.map-layer-pill--active:hover {
+.map-view-pill--active:hover {
   background: var(--primary, #3b82f6);
   color: white;
   filter: brightness(1.1);
 }
 
-.map-layer-pill__icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
 /* Hide pills during TV tour */
-body.tv-tour-active .map-layer-pills {
+body.tv-tour-active .map-view-pills {
   display: none;
 }
