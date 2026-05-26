@@ -55,12 +55,12 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     pauseMs: 8000,
     stat: { value: "2,800+", label: "colony sites" },
   },
-  // 3. "What is TNR?" explainer
+  // 3. "What is FFR?" explainer
   {
     type: "slide",
     variant: "explainer",
-    heading: "What is TNR?",
-    body: "Trap-Neuter-Return is the humane, evidence-based method for managing community cat populations. Cats are humanely trapped, spayed or neutered at our clinic, then returned to their outdoor home. Over time, the colony stabilizes and naturally decreases.",
+    heading: "What is FFR?",
+    body: "Find-Fix-Return is the humane, evidence-based method for managing community cat populations. Cats are found and humanely trapped, fixed (spayed or neutered) at our clinic, then returned to their outdoor home. Over time, the colony stabilizes and naturally decreases.",
     pauseMs: 8000,
   },
   // 4. Santa Rosa — neighborhood corridor story
