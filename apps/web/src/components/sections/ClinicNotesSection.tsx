@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { fetchApi } from '@/lib/api-client';
+import { useRedact } from '@/components/ShowcaseContext';
 
 interface ClinicNote {
   account_id: string;
@@ -27,6 +28,7 @@ function formatDate(dateStr: string | null): string {
 const INITIAL_DISPLAY = 3;
 
 export default function ClinicNotesSection({ personId, placeId }: ClinicNotesSectionProps) {
+  const rd = useRedact();
   const [notes, setNotes] = useState<ClinicNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -131,7 +133,7 @@ export default function ClinicNotesSection({ personId, placeId }: ClinicNotesSec
                   fontSize: '0.85rem',
                   color: 'var(--text, #212529)'
                 }}>
-                  {note.client_name}
+                  {rd.name(note.client_name) || "Client"}
                 </span>
                 {note.notes_updated_at && (
                   <span style={{

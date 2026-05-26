@@ -8,6 +8,7 @@ import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/components/forms/PlaceResolver";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
+import { useRedact } from "@/components/ShowcaseContext";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useToast } from "@/components/feedback/Toast";
@@ -453,6 +454,7 @@ function NearbyActivityBanner({ data, currentRequestId, onDismiss, onCreateColon
   onCreateColony?: () => void;
   onPlaceClick?: (placeId: string) => void;
 }) {
+  const rd = useRedact();
   const nearbyPlaces = data.places.filter(p => p.relationship === "nearby");
   const nearbyWithRequests = nearbyPlaces.filter(p => p.request_status);
   const nearbyWithCats = nearbyPlaces.filter(p => p.cat_count > 0);
@@ -498,10 +500,10 @@ function NearbyActivityBanner({ data, currentRequestId, onDismiss, onCreateColon
               onClick={(e) => { if (onPlaceClick && !e.metaKey && !e.ctrlKey) { e.preventDefault(); onPlaceClick(place.place_id); } }}
               style={{ color: "#1e40af", textDecoration: "none", fontWeight: 500 }}
             >
-              {place.display_name || place.formatted_address}
+              {rd.neighborhood(place.display_name || place.formatted_address) || "Nearby"}
             </a>
             {place.cat_count > 0 && <span style={{ color: "#6b7280" }}>{place.cat_count} cats</span>}
-            {place.primary_contact && <span data-pii="name" style={{ color: "#9ca3af" }}>{place.primary_contact}</span>}
+            {place.primary_contact && <span data-pii="name" style={{ color: "#9ca3af" }}>{rd.name(place.primary_contact)}</span>}
             {place.request_status && place.request_id !== currentRequestId && (
               <a href={`/requests/${place.request_id}?from=requests`} style={{ textDecoration: "none" }}>
                 <StatusBadge status={place.request_status} size="sm" />
