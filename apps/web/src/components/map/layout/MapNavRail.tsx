@@ -21,21 +21,22 @@ export function MapNavRail() {
 
   return (
     <nav className="map-nav-rail" aria-label="App navigation">
-      {/* Sidebar expand — only visible when sidebar is collapsed */}
-      {!sidebarOpen && (
-        <button
-          className="map-nav-rail__item"
-          onClick={toggleSidebar}
-          title="Open sidebar (L)"
-          aria-label="Open sidebar"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
-      )}
+      {/* Sidebar toggle — always visible, stable position */}
+      <button
+        className="map-nav-rail__item"
+        onClick={toggleSidebar}
+        title={sidebarOpen ? "Close layers (L)" : "Open layers (L)"}
+        aria-label={sidebarOpen ? "Close layers panel" : "Open layers panel"}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          {sidebarOpen
+            ? <polyline points="15 18 9 12 15 6" />
+            : <polyline points="9 18 15 12 9 6" />
+          }
+        </svg>
+      </button>
 
-      {!sidebarOpen && <div className="map-nav-rail__divider" />}
+      <div className="map-nav-rail__divider" />
 
       {/* Nav items */}
       {NAV_ITEMS.map((item) => {
