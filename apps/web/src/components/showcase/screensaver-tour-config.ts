@@ -27,6 +27,7 @@ export type ScreensaverStep =
       pauseMs: number;
       stat?: { value: string; label: string };
       layers?: string[];
+      basemap?: "street" | "satellite" | "dark";
     }
   | {
       type: "slide";
@@ -93,7 +94,8 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     zoom: 12,
     pauseMs: 10000,
     stat: { value: "Density", label: "analysis" },
-    layers: ["cat-density-heatmap"],
+    layers: ["hexbin_density"],
+    basemap: "dark" as const,
   },
   // 6. Map — Corridor Detection (Montecito)
   {
@@ -107,7 +109,19 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     pauseMs: 11000,
     stat: { value: "5", label: "linked properties" },
   },
-  // 7. Map — Disease Surveillance
+  // 7. Map — Distance Compare tool
+  {
+    type: "map",
+    label: "Distance & Route Planning",
+    description:
+      "Beacon's compare tool measures real driving distances between locations. When dispatching trappers, staff can instantly see which volunteer is closest to a colony — saving time and fuel for every service call.",
+    lat: 38.44,
+    lng: -122.72,
+    zoom: 12,
+    pauseMs: 10000,
+    stat: { value: "Route", label: "planning" },
+  },
+  // 8. Map — Disease Surveillance
   {
     type: "map",
     label: "Disease Surveillance",
@@ -118,7 +132,8 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     zoom: 11,
     pauseMs: 10000,
     stat: { value: "Active", label: "disease monitoring" },
-    layers: ["disease-heatmap"],
+    layers: ["atlas_disease"],
+    basemap: "dark" as const,
   },
   // 8. Two levers — from diagram
   {

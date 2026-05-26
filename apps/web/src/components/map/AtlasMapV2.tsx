@@ -51,7 +51,6 @@ import { HexComparePanel } from "@/components/map/components/HexComparePanel";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
 import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
 import { ShowcaseMapTour } from "@/components/ShowcaseMapTour";
-import { ScreensaverTour } from "@/components/showcase/ScreensaverTour";
 import { MapVisualizationMode } from "@/components/map/components/MapVisualizationMode";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import type {
@@ -1385,7 +1384,18 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       }
     };
     window.addEventListener("screensaver:fly-to", handler);
-    return () => window.removeEventListener("screensaver:fly-to", handler);
+
+    // Basemap changes from screensaver tour
+    const basemapHandler = (e: Event) => {
+      const bm = (e as CustomEvent).detail as "street" | "satellite" | "dark";
+      setBasemap(bm);
+    };
+    window.addEventListener("screensaver:basemap", basemapHandler);
+
+    return () => {
+      window.removeEventListener("screensaver:fly-to", handler);
+      window.removeEventListener("screensaver:basemap", basemapHandler);
+    };
   }, [map]);
 
   // ── Street View from search ──
@@ -2211,33 +2221,10 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       {/* Showcase map tour — listens for "showcase:maptour" event */}
       <ShowcaseMapTour map={map} />
 
-      {/* TV screensaver tour — idle-triggered, auto-looping (only in showcase mode) */}
-      <ScreensaverTourGate />
+      {/* TV screensaver tour — now mounted at app layout level (ScreensaverTourGate in layout.tsx) */}
 
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Screensaver tour — only active in showcase/presentation mode
-// ---------------------------------------------------------------------------
-function ScreensaverTourGate() {
-  const [active, setActive] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("beacon.presentation_mode") === "true";
-  });
-
-  useEffect(() => {
-    // Check on mount and when localStorage changes (cross-tab)
-    const check = () =>
-      setActive(localStorage.getItem("beacon.presentation_mode") === "true");
-    check();
-    window.addEventListener("storage", check);
-    return () => window.removeEventListener("storage", check);
-  }, []);
-
-  if (!active) return null;
-  return <ScreensaverTour enabled />;
 }
 
 // ---------------------------------------------------------------------------

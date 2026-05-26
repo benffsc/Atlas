@@ -3,6 +3,7 @@ import "./globals.css";
 import "@/styles/map.css";
 import { AppShell } from "@/components/AppShell";
 import { TippyChatSwitch } from "@/components/TippyChatSwitch";
+import { ScreensaverTourGate } from "@/components/showcase/ScreensaverTourGate";
 
 export const metadata: Metadata = {
   title: {
@@ -45,6 +46,7 @@ export default function RootLayout({
         {/* Auth is now handled by middleware + /login page */}
         <AppShell>{children}</AppShell>
         <TippyChatSwitch />
+        <ScreensaverTourGate />
       </body>
     </html>
   );

@@ -95,6 +95,14 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
             detail: s.layers ?? [],
           })
         );
+        // Dispatch basemap change if specified
+        if (s.basemap) {
+          window.dispatchEvent(
+            new CustomEvent("screensaver:basemap", {
+              detail: s.basemap,
+            })
+          );
+        }
       }
 
       // Progress animation
