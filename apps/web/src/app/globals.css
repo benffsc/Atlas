@@ -6038,9 +6038,9 @@ a:focus-visible {
 .meeting-print-slide[data-bg="accent"] { background: #555555; color: #fff; }
 .meeting-print-slide[data-bg="photo_bg"] { background: #333333; color: #fff; }
 
+/* Meeting slides print — scoped to pages that have .meeting-print */
 @media print {
-  /* Hide the app shell entirely */
-  body > *:not(.meeting-print) { display: none !important; }
+  body:has(.meeting-print) > *:not(.meeting-print) { display: none !important; }
   .meeting-print {
     position: static;
     overflow: visible;
