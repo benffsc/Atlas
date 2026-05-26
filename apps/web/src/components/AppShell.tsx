@@ -33,24 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Presentation mode — config-driven (ops.app_config → presentation.*)
-  const { enabled: presentationEnabled, toggle: togglePresentation, exit: exitPresentation } = usePresentationMode();
-  const [presentationConfig, setPresentationConfig] = useState<{
-    enabled: boolean;
-    font_scale: number;
-    indicator_text: string;
-  }>({ enabled: true, font_scale: 1.2, indicator_text: "Presentation Mode — press ESC to exit" });
-
-  useEffect(() => {
-    fetchApi<{ enabled: boolean; font_scale: number; indicator_text: string }>("/api/presentation-config")
-      .then((result) => {
-        if (result && typeof result === "object" && "enabled" in result) {
-          setPresentationConfig(result as { enabled: boolean; font_scale: number; indicator_text: string });
-        }
-      })
-      .catch(() => { /* Silent fail — use defaults */ });
-  }, []);
-
+  // Route classification — must be computed before any effects that use fetchApi
   const isPrintRoute = pathname?.includes("/print") || pathname?.includes("/trapper-sheet");
   const isLoginPage = pathname === "/login";
   const isMapPage = pathname === "/map";
@@ -60,9 +43,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isShareRoute = pathname?.startsWith("/share");
   const isChromeless = isPrintRoute || isLoginPage || isMapPage || isKioskRoute || isStoryPage || isPublicRoute || isShareRoute;
 
+  // Presentation mode — config-driven (ops.app_config → presentation.*)
+  const { enabled: presentationEnabled, toggle: togglePresentation, exit: exitPresentation } = usePresentationMode();
+  const [presentationConfig, setPresentationConfig] = useState<{
+    enabled: boolean;
+    font_scale: number;
+    indicator_text: string;
+  }>({ enabled: true, font_scale: 1.2, indicator_text: "Presentation Mode — press ESC to exit" });
+
+  useEffect(() => {
+    if (isChromeless) return; // Skip for public/share routes — fetchApi would redirect to login
+    fetchApi<{ enabled: boolean; font_scale: number; indicator_text: string }>("/api/presentation-config")
+      .then((result) => {
+        if (result && typeof result === "object" && "enabled" in result) {
+          setPresentationConfig(result as { enabled: boolean; font_scale: number; indicator_text: string });
+        }
+      })
+      .catch(() => { /* Silent fail — use defaults */ });
+  }, [isChromeless]);
+
   // Fetch current user on mount
   useEffect(() => {
-    if (isLoginPage) return;
+    if (isLoginPage || isChromeless) return;
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((raw) => {
