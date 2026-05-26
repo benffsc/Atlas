@@ -1360,6 +1360,19 @@
   right: 380px;
 }
 
+/* ── Right-side controls strip (basemap, fullscreen, compare, location, zoom) ── */
+
+.map-controls-strip {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: right 0.3s ease;
+}
+
 /* ── Shift right-side controls left when detail drawer(s) are open ── */
 
 /* Single drawer (400px) */

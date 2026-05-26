@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { MAP_Z_INDEX } from "@/lib/design-tokens";
 
 /**
  * MapControls — Minimal right-side control strip.
@@ -88,16 +87,6 @@ export function MapControls({
       className="map-controls-strip"
       role="region"
       aria-label="Map controls"
-      style={{
-        position: "absolute",
-        top: 16,
-        right: 16,
-        zIndex: MAP_Z_INDEX.controls,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        transition: "right 0.3s ease",
-      }}
     >
       {/* Basemap */}
       <div style={{ position: "relative" }}>
