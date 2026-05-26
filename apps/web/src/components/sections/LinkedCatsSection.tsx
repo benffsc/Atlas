@@ -32,6 +32,7 @@ interface LinkedCat {
   // Presence (FFS-1399)
   presence_status?: string | null;
   departure_reason?: string | null;
+  departure_detail?: string | null;
 }
 
 interface LinkedCatsSectionProps {
@@ -216,6 +217,7 @@ export function LinkedCatsSection({
                     <CatPresenceBadge
                       status={cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown"}
                       departureReason={cat.departure_reason}
+                      departureDetail={cat.departure_detail}
                       compact
                     />
                   )}
@@ -318,6 +320,7 @@ export function LinkedCatsSection({
                       <CatPresenceBadge
                         status={cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown"}
                         departureReason={cat.departure_reason}
+                        departureDetail={cat.departure_detail}
                       />
                     </div>
                   )}

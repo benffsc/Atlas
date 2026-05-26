@@ -589,6 +589,19 @@ export async function GET(request: NextRequest) {
         );
         processing.intake = intakeResult;
       }
+
+      // Resolve places for new lifecycle events (origin/destination from person addresses)
+      try {
+        const placeResult = await queryOne<{ events_updated: number; origins_resolved: number; destinations_resolved: number }>(
+          `SELECT * FROM ops.resolve_lifecycle_event_places(500)`
+        );
+        if (placeResult && placeResult.events_updated > 0) {
+          processing.place_resolution = placeResult;
+          console.error(`[SL-SYNC] Resolved places for ${placeResult.events_updated} lifecycle events`);
+        }
+      } catch (err) {
+        console.error("[SL-SYNC] Place resolution error (non-blocking):", err);
+      }
     }
 
     // Get current sync status

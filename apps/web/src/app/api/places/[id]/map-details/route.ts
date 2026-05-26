@@ -26,6 +26,7 @@ interface PlaceDetails {
   disease_risk_notes: string | null;
   watch_list: boolean;
   watch_list_reason: string | null;
+  colony_tnr_status: string | null;
   cat_count: number;
   person_count: number;
   request_count: number;
@@ -99,6 +100,7 @@ interface CatLink {
   is_deceased: boolean;
   presence_status: string;
   departure_reason: string | null;
+  departure_detail: string | null;
   departed_at: string | null;
   relationship_type: string;
   appointment_count: number;
@@ -138,6 +140,7 @@ export async function GET(
         p.disease_risk_notes,
         COALESCE(p.watch_list, FALSE) AS watch_list,
         p.watch_list_reason,
+        p.colony_tnr_status,
         COALESCE(cc.cat_count, 0) AS cat_count,
         COALESCE(ppl.person_count, 0) AS person_count,
         COALESCE(req.request_count, 0) AS request_count,
@@ -413,6 +416,7 @@ export async function GET(
         COALESCE(c.is_deceased, FALSE) AS is_deceased,
         COALESCE(cpr.presence_status, 'unknown') AS presence_status,
         cpr.departure_reason,
+        cpr.departure_detail,
         cpr.departed_at::TEXT AS departed_at,
         cpr.relationship_type,
         COALESCE(apt.appointment_count, 0) AS appointment_count,

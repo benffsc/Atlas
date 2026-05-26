@@ -17,6 +17,7 @@ import { useMapSearchV2 } from "@/components/map/hooks/useMapSearchV2";
 import { useMapClustering, isCluster } from "@/components/map/hooks/useMapClustering";
 import { useImperativeMarkers } from "@/components/map/hooks/useImperativeMarkers";
 import { MapControls } from "@/components/map/components/MapControls";
+import { MapLayerPills } from "@/components/map/components/MapLayerPills";
 import { MeasurementPanel } from "@/components/map/components/MeasurementPanel";
 import { SavedViewsPanel } from "@/components/map/components/SavedViewsPanel";
 import { SearchResultsPanel } from "@/components/map/components/SearchResultsPanel";
@@ -463,6 +464,15 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   useEffect(() => {
     if (!map) return;
     map.setMapTypeId(basemap === "satellite" ? "hybrid" : "roadmap");
+    // Google Maps JS API supports colorScheme for dark mode
+    try {
+      const gMap = map as any;
+      if (typeof gMap.setOptions === "function") {
+        gMap.setOptions({ colorScheme: basemap === "dark" ? "DARK" : "LIGHT" });
+      }
+    } catch {
+      // Older API versions may not support colorScheme
+    }
   }, [map, basemap]);
 
   // ── Clustering (Step 11) — debounced + deduped to prevent rapid re-clustering ──
@@ -1365,8 +1375,14 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
   useEffect(() => {
     const handler = (e: Event) => {
       const { lat, lng, zoom } = (e as CustomEvent).detail;
-      map?.panTo({ lat, lng });
-      map?.setZoom(zoom);
+      // Prefer smooth moveCamera when available (newer Maps JS API)
+      const gMap = map as any;
+      if (gMap && typeof gMap.moveCamera === "function") {
+        gMap.moveCamera({ center: { lat, lng }, zoom });
+      } else {
+        map?.panTo({ lat, lng });
+        map?.setZoom(zoom);
+      }
     };
     window.addEventListener("screensaver:fly-to", handler);
     return () => window.removeEventListener("screensaver:fly-to", handler);
@@ -1820,7 +1836,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       <PortalOrInline portalId="map-basemap-portal" fallback={null}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <div style={{ display: "flex", gap: 2, background: "var(--card-bg, #fff)", borderRadius: 6, border: "1px solid var(--border, #e5e5e5)", padding: 2 }}>
-            {(["street", "satellite"] as const).map((type) => (
+            {(["street", "satellite", "dark"] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => setBasemap(type)}
@@ -1836,7 +1852,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                   textTransform: "capitalize",
                 }}
               >
-                {type === "street" ? "Map" : "Satellite"}
+                {type === "street" ? "Map" : type === "satellite" ? "Satellite" : "Dark"}
               </button>
             ))}
           </div>
@@ -2096,6 +2112,9 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             />
           </div>
       </PortalOrInline>
+
+      {/* ── Layer pills — quick toggles below top bar ── */}
+      <MapLayerPills enabledLayers={enabledLayers} toggleLayer={toggleLayer} />
 
       {/* ── Date range filter — bottom center of map ── */}
       <DateRangeFilter fromDate={dateFrom} toDate={dateTo} onDateRangeChange={handleDateRangeChange} />

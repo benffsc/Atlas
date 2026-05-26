@@ -5,6 +5,7 @@ type PresenceStatus = "current" | "departed" | "presumed_departed" | "unknown";
 interface CatPresenceBadgeProps {
   status: PresenceStatus;
   departureReason?: string | null;
+  departureDetail?: string | null;
   departedAt?: string | null;
   /** Dot only (no label) */
   compact?: boolean;
@@ -18,8 +19,22 @@ const DEPARTURE_LABELS: Record<string, string> = {
   in_foster: "In Foster",
 };
 
-function formatDepartureLabel(reason?: string | null, departedAt?: string | null): string {
-  const label = reason ? DEPARTURE_LABELS[reason] || reason : "Departed";
+const DEPARTURE_DETAIL_LABELS: Record<string, string> = {
+  barn_cat_placement: "Barn Cat Placement",
+  ffsc_relocation: "FFSC Relocation",
+  owner_moved: "Owner Moved",
+  return_to_field: "Returned to Field",
+  standard_adoption: "Adopted",
+  natural: "Deceased (Natural)",
+  euthanasia: "Euthanasia",
+  to_rescue: "To Rescue",
+  to_shelter: "To Shelter",
+};
+
+function formatDepartureLabel(reason?: string | null, departedAt?: string | null, detail?: string | null): string {
+  const label = detail
+    ? DEPARTURE_DETAIL_LABELS[detail] || detail
+    : reason ? DEPARTURE_LABELS[reason] || reason : "Departed";
   if (departedAt) {
     try {
       const d = new Date(departedAt);
@@ -31,12 +46,12 @@ function formatDepartureLabel(reason?: string | null, departedAt?: string | null
   return label;
 }
 
-function getPresenceLabel(status: PresenceStatus, departureReason?: string | null, departedAt?: string | null): string {
+function getPresenceLabel(status: PresenceStatus, departureReason?: string | null, departedAt?: string | null, departureDetail?: string | null): string {
   switch (status) {
     case "current":
       return "Present";
     case "departed":
-      return formatDepartureLabel(departureReason, departedAt);
+      return formatDepartureLabel(departureReason, departedAt, departureDetail);
     case "presumed_departed":
       if (departedAt) {
         try {
@@ -92,8 +107,8 @@ const LABEL_STYLES: Record<PresenceStatus, React.CSSProperties> = {
   presumed_departed: { color: "var(--muted, #737373)", fontSize: "0.7rem", fontWeight: 500, opacity: 0.7 },
 };
 
-export function CatPresenceBadge({ status, departureReason, departedAt, compact }: CatPresenceBadgeProps) {
-  const label = getPresenceLabel(status, departureReason, departedAt);
+export function CatPresenceBadge({ status, departureReason, departureDetail, departedAt, compact }: CatPresenceBadgeProps) {
+  const label = getPresenceLabel(status, departureReason, departedAt, departureDetail);
 
   return (
     <span

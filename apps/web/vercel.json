@@ -1,8 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/cron/shelterluv-sync",
+      "path": "/api/cron/shelterluv-sync?type=animals",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/shelterluv-sync?type=events&incremental=false",
+      "schedule": "15 */6 * * *"
+    },
+    {
+      "path": "/api/cron/shelterluv-sync?type=people&incremental=false",
+      "schedule": "30 */6 * * *"
     },
     {
       "path": "/api/cron/geocode",

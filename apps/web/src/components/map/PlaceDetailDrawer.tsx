@@ -66,6 +66,7 @@ interface CatLink {
   is_deceased: boolean;
   presence_status: string;
   departure_reason: string | null;
+  departure_detail: string | null;
   departed_at: string | null;
   relationship_type: string;
   appointment_count: number;
@@ -85,6 +86,7 @@ interface PlaceDetails {
   disease_risk_notes: string | null;
   watch_list: boolean;
   watch_list_reason: string | null;
+  colony_tnr_status: string | null;
 
   // Disease tracking
   disease_badges: DiseaseBadge[];
@@ -696,51 +698,83 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
             )}
 
             {/* Stats Grid */}
-            <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-value" style={{ color: "var(--success-text, #059669)" }}>
-                  {place.cats?.filter(c => c.presence_status === "current").length ?? place.cat_count}
-                </div>
-                <div className="stat-label">Present</div>
-              </div>
-              {(place.cats?.filter(c => c.presence_status === "departed" || c.presence_status === "presumed_departed").length ?? 0) > 0 && (
-                <div className="stat-card">
-                  <div className="stat-value" style={{ color: "var(--muted, #737373)" }}>
-                    {place.cats?.filter(c => c.presence_status === "departed" || c.presence_status === "presumed_departed").length}
+            {(() => {
+              const presentCount = place.cats?.filter(c => c.presence_status === "current").length ?? place.cat_count;
+              const departedCats = place.cats?.filter(c => c.presence_status === "departed" || c.presence_status === "presumed_departed") ?? [];
+              const totalPresent = place.cats?.filter(c => c.presence_status !== "departed" && c.presence_status !== "presumed_departed").length ?? place.cat_count;
+              const alteredPct = totalPresent > 0 ? Math.round((place.total_altered / totalPresent) * 100) : 0;
+              const lastDate = place.cats?.map(c => c.latest_appointment_date).filter(Boolean).sort().reverse()[0] || null;
+
+              // Departure breakdown for stat tooltip
+              const departureSummary = departedCats.length > 0 ? (() => {
+                const counts = new Map<string, number>();
+                for (const cat of departedCats) {
+                  const label = cat.departure_detail
+                    ? (cat.departure_detail === "barn_cat_placement" ? "Barn Cat" : cat.departure_detail === "ffsc_relocation" ? "Relocated" : cat.departure_detail === "owner_moved" ? "Owner Moved" : cat.departure_detail === "standard_adoption" ? "Adopted" : cat.departure_detail === "natural" ? "Natural" : cat.departure_detail === "euthanasia" ? "Euthanasia" : cat.departure_detail === "to_rescue" ? "To Rescue" : cat.departure_detail.replace(/_/g, " "))
+                    : (cat.departure_reason || "unknown");
+                  counts.set(label, (counts.get(label) || 0) + 1);
+                }
+                return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).map(([r, c]) => `${c} ${r}`).join(" · ");
+              })() : "";
+
+              const tnrStatusColors: Record<string, { bg: string; text: string; label: string }> = {
+                complete: { bg: "var(--success-bg, #dcfce7)", text: "var(--success-text, #166534)", label: "Complete" },
+                near_complete: { bg: "var(--info-bg, #dbeafe)", text: "var(--info-text, #1d4ed8)", label: "Near Complete" },
+                good_progress: { bg: "var(--warning-bg, #fef3c7)", text: "var(--warning-text, #b45309)", label: "Good Progress" },
+                active: { bg: "var(--surface-secondary, #f3f4f6)", text: "var(--muted, #6b7280)", label: "Active" },
+              };
+              const tnr = place.colony_tnr_status && tnrStatusColors[place.colony_tnr_status];
+
+              return (
+                <>
+                  {/* Colony TNR Status — first thing staff sees */}
+                  {tnr && place.colony_tnr_status !== "no_cats" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", margin: "0 0 8px", borderRadius: 6, background: tnr.bg, color: tnr.text, fontSize: "0.8rem", fontWeight: 600 }}>
+                      <span>TNR {tnr.label}</span>
+                      <span style={{ fontWeight: 400, fontSize: "0.75rem" }}>
+                        {alteredPct}% altered ({place.total_altered}/{totalPresent} present cats)
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="stats-grid">
+                    <div className="stat-card">
+                      <div className="stat-value" style={{ color: "var(--success-text, #059669)" }}>{presentCount}</div>
+                      <div className="stat-label">Present</div>
+                    </div>
+                    {departedCats.length > 0 && (
+                      <div className="stat-card" title={departureSummary}>
+                        <div className="stat-value" style={{ color: "var(--muted, #737373)" }}>{departedCats.length}</div>
+                        <div className="stat-label" style={{ fontSize: "0.6rem" }}>
+                          Departed
+                          {departureSummary && <><br /><span style={{ fontWeight: 400, color: "var(--text-tertiary, #9ca3af)" }}>{departureSummary.split(" · ").slice(0, 2).join(" · ")}</span></>}
+                        </div>
+                      </div>
+                    )}
+                    <div className="stat-card">
+                      <div className="stat-value">{place.person_count}</div>
+                      <div className="stat-label">People</div>
+                    </div>
+                    <div className="stat-card">
+                      <div className="stat-value" style={{ color: place.active_request_count > 0 ? "#dc2626" : undefined }}>{place.request_count}</div>
+                      <div className="stat-label">Requests</div>
+                    </div>
+                    <div className="stat-card">
+                      <div className="stat-value" style={{ color: "#059669" }}>
+                        {totalPresent > 0 ? `${alteredPct}%` : place.total_altered}
+                      </div>
+                      <div className="stat-label">{totalPresent > 0 ? `Altered (${place.total_altered})` : "Altered"}</div>
+                    </div>
+                    {lastDate && (
+                      <div className="stat-card">
+                        <div className="stat-value" style={{ fontSize: "0.9rem" }}>{formatRelativeTime(lastDate)}</div>
+                        <div className="stat-label">Last Active</div>
+                      </div>
+                    )}
                   </div>
-                  <div className="stat-label">Departed</div>
-                </div>
-              )}
-              <div className="stat-card">
-                <div className="stat-value">{place.person_count}</div>
-                <div className="stat-label">People</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-value" style={{ color: place.active_request_count > 0 ? "#dc2626" : undefined }}>
-                  {place.request_count}
-                </div>
-                <div className="stat-label">Requests</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-value" style={{ color: "#059669" }}>
-                  {place.total_altered}
-                </div>
-                <div className="stat-label">Altered</div>
-              </div>
-              {(() => {
-                const lastDate = place.cats
-                  ?.map(c => c.latest_appointment_date)
-                  .filter(Boolean)
-                  .sort()
-                  .reverse()[0] || null;
-                return lastDate ? (
-                  <div className="stat-card">
-                    <div className="stat-value" style={{ fontSize: "0.9rem" }}>{formatRelativeTime(lastDate)}</div>
-                    <div className="stat-label">Last Active</div>
-                  </div>
-                ) : null;
-              })()}
-            </div>
+                </>
+              );
+            })()}
 
             {/* People Section */}
             <div className="section">
@@ -962,6 +996,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                       <CatPresenceBadge
                         status={cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown"}
                         departureReason={cat.departure_reason}
+                        departureDetail={cat.departure_detail}
                         departedAt={cat.departed_at}
                         compact={cat.presence_status === "current"}
                       />
@@ -1028,6 +1063,15 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                         </div>
                       ));
                     })()}
+                    <div className="cat-legend-item" style={{ borderLeft: "1px solid var(--border, #e5e7eb)", paddingLeft: 8, marginLeft: 4 }}>
+                      <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--success-text, #059669)", verticalAlign: "middle" }} /> Present
+                    </div>
+                    <div className="cat-legend-item">
+                      <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--warning-text, #d97706)", verticalAlign: "middle" }} /> Uncertain
+                    </div>
+                    <div className="cat-legend-item">
+                      <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--muted, #737373)", verticalAlign: "middle" }} /> Departed
+                    </div>
                   </div>
 
                   {/* Present + Uncertain cats — full cards */}

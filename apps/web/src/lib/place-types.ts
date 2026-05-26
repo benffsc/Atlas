@@ -79,6 +79,10 @@ export interface PlaceDetail {
   verified_by_name: string | null;
   last_appointment_date: string | null;
   active_request_count: number;
+  watch_list?: boolean;
+  watch_list_reason?: string | null;
+  colony_tnr_status?: string | null;
+  total_altered?: number;
   contexts?: PlaceContext[];
   partner_org?: PartnerOrgInfo | null;
 }

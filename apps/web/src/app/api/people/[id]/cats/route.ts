@@ -56,12 +56,13 @@ export async function GET(
         vac.is_barn_cat,
         vac.adoption_date::TEXT AS adoption_date,
         COALESCE(bp.presence_status, 'unknown') AS presence_status,
-        bp.departure_reason
+        bp.departure_reason,
+        bp.departure_detail
       FROM sot.person_cat pc
       JOIN sot.cats c ON c.cat_id = pc.cat_id AND c.merged_into_cat_id IS NULL
       LEFT JOIN sot.cat_identifiers ci ON ci.cat_id = c.cat_id AND ci.id_type = 'microchip'
       LEFT JOIN LATERAL (
-        SELECT cp.presence_status, cp.departure_reason
+        SELECT cp.presence_status, cp.departure_reason, cp.departure_detail
         FROM sot.cat_place cp
         JOIN sot.person_place pp ON pp.place_id = cp.place_id AND pp.person_id = pc.person_id
         WHERE cp.cat_id = pc.cat_id

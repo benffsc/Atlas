@@ -49,6 +49,8 @@ import {
   CALL_SHEET_STATUS_OPTIONS as _CALL_SHEET_STATUS_OPTIONS,
   CALL_SHEET_ITEM_STATUS_OPTIONS as _CALL_SHEET_ITEM_STATUS_OPTIONS,
   CALL_DISPOSITION_OPTIONS as _CALL_DISPOSITION_OPTIONS,
+  DEPARTURE_DETAIL_OPTIONS as _DEPARTURE_DETAIL_OPTIONS,
+  COLONY_TNR_STATUS_OPTIONS as _COLONY_TNR_STATUS_OPTIONS,
   getValues,
 } from "./form-options";
 
@@ -299,6 +301,13 @@ export const CALL_SHEET_ITEM_STATUS = getValues(_CALL_SHEET_ITEM_STATUS_OPTIONS)
 export const CALL_DISPOSITION = getValues(_CALL_DISPOSITION_OPTIONS) as unknown as readonly ["reached", "left_voicemail", "left_message_person", "no_answer", "busy", "wrong_number", "disconnected", "not_interested", "already_resolved", "do_not_contact", "scheduled_trapping", "scheduled_callback", "needs_more_info", "referred_elsewhere", "appointment_booked"];
 
 // =============================================================================
+// BARN CAT / COLONY ENUMS
+// =============================================================================
+
+export const DEPARTURE_DETAIL = getValues(_DEPARTURE_DETAIL_OPTIONS) as unknown as readonly ["barn_cat_placement", "ffsc_relocation", "owner_moved", "return_to_field", "standard_adoption", "natural", "euthanasia", "to_rescue", "to_shelter"];
+export const COLONY_TNR_STATUS = getValues(_COLONY_TNR_STATUS_OPTIONS) as unknown as readonly ["complete", "near_complete", "good_progress", "active", "no_cats"];
+
+// =============================================================================
 // GENERAL ENUMS
 // =============================================================================
 
@@ -373,6 +382,10 @@ export const ENTITY_ENUMS = {
   CALL_SHEET_ITEM_STATUS,
   CALL_DISPOSITION,
 
+  // Barn Cat / Colony
+  DEPARTURE_DETAIL,
+  COLONY_TNR_STATUS,
+
   // General
   ENTITY_TYPE,
 } as const;
@@ -433,5 +446,8 @@ export type EquipmentResolutionStatus = (typeof EQUIPMENT_RESOLUTION_STATUS)[num
 export type CallSheetStatusEnum = (typeof CALL_SHEET_STATUS)[number];
 export type CallSheetItemStatusEnum = (typeof CALL_SHEET_ITEM_STATUS)[number];
 export type CallDispositionEnum = (typeof CALL_DISPOSITION)[number];
+
+export type DepartureDetail = (typeof DEPARTURE_DETAIL)[number];
+export type ColonyTnrStatus = (typeof COLONY_TNR_STATUS)[number];
 
 export type EntityType = (typeof ENTITY_TYPE)[number];

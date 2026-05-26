@@ -76,6 +76,12 @@ const GoogleIcon = () => (
   </svg>
 );
 
+const DarkModeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+  </svg>
+);
+
 const DownloadIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -97,7 +103,7 @@ const NoteIcon = () => (
   </svg>
 );
 
-export type BasemapType = "street" | "satellite";
+export type BasemapType = "street" | "satellite" | "dark";
 
 interface MapControlsProps {
   isMobile: boolean;
@@ -186,6 +192,7 @@ export function MapControls({
   const basemapOptions: Array<{ type: BasemapType; label: string; icon: React.ReactNode }> = [
     { type: "street", label: "Street", icon: <MapIcon /> },
     { type: "satellite", label: "Satellite", icon: <SatelliteIcon /> },
+    { type: "dark", label: "Dark", icon: <DarkModeIcon /> },
   ];
 
   return (
@@ -202,6 +209,8 @@ export function MapControls({
         gap: 8,
       }}
     >
+      {/* ── View group ── */}
+      <div className="map-controls-group map-controls-group--view">
       {/* Layer control button */}
       <button
         onClick={onToggleLayerPanel}
@@ -209,9 +218,64 @@ export function MapControls({
         className="map-control-btn"
       >
         <LayersIcon />
-        {!isMobile && "Layers"}
+        <span className="map-control-label">Layers</span>
       </button>
 
+      {/* Basemap selector — hidden in compact mode */}
+      {!compact && (
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowBasemapMenu(!showBasemapMenu)}
+            title="Change basemap"
+            className={`map-control-btn ${basemap !== "street" ? "map-control-btn--active" : ""}`}
+          >
+            {basemap === "dark" ? <DarkModeIcon /> : basemap === "satellite" ? <SatelliteIcon /> : <MapIcon />}
+          </button>
+          {showBasemapMenu && (
+            <div className="map-basemap-menu">
+              {basemapOptions.map(({ type, label, icon }) => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    onBasemapChange(type);
+                    setShowBasemapMenu(false);
+                  }}
+                  className={`map-basemap-menu__item ${basemap === type ? "map-basemap-menu__item--active" : ""}`}
+                >
+                  {icon} {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fullscreen */}
+      {onFullscreenToggle && (
+        <button
+          onClick={onFullscreenToggle}
+          title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+          className={`map-control-btn map-control-btn--icon ${isFullscreen ? "map-control-btn--active" : ""}`}
+        >
+          {isFullscreen ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" />
+              <line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
+              <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          )}
+        </button>
+      )}
+      </div>{/* end View group */}
+
+      <div className="map-controls-divider" />
+
+      {/* ── Tools group ── */}
+      <div className="map-controls-group map-controls-group--tools">
       {/* Add Point button */}
       <div style={{ position: "relative" }}>
         <button
@@ -222,7 +286,6 @@ export function MapControls({
           }`}
         >
           {addPointMode ? <CloseIcon /> : <PlusIcon />}
-          {!isMobile && (addPointMode ? "Cancel" : "Add Point")}
         </button>
         {showAddPointMenu && !addPointMode && (
           <div className="map-add-point-menu">
@@ -248,6 +311,52 @@ export function MapControls({
         )}
       </div>
 
+      {/* Measure button — hidden in compact mode */}
+      {!compact && (
+        <button
+          onClick={onMeasureToggle}
+          title="Measure distance (D)"
+          className={`map-control-btn ${measureActive ? "map-control-btn--active" : ""}`}
+        >
+          <RulerIcon />
+        </button>
+      )}
+
+      {/* Compare mode toggle */}
+      {onCompareToggle && !compact && (
+        <button
+          onClick={onCompareToggle}
+          title="Compare hex areas (C)"
+          className={`map-control-btn ${compareMode ? "map-control-btn--active" : ""}`}
+          style={{ position: "relative" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="8" height="18" rx="1" />
+            <rect x="14" y="3" width="8" height="18" rx="1" />
+          </svg>
+          {compareMode && compareCount > 0 && (
+            <span style={{
+              position: "absolute",
+              top: -4,
+              right: -4,
+              width: 18,
+              height: 18,
+              borderRadius: "50%",
+              background: "var(--primary, #3b82f6)",
+              color: "white",
+              fontSize: 10,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid var(--background, #fff)",
+            }}>
+              {compareCount}
+            </span>
+          )}
+        </button>
+      )}
+
       {/* My Location button */}
       <button
         onClick={onMyLocation}
@@ -260,21 +369,13 @@ export function MapControls({
         }}
       >
         {locatingUser ? <LoadingIcon /> : <LocationIcon />}
-        {!isMobile && (locatingUser ? "Locating..." : "My Location")}
       </button>
+      </div>{/* end Tools group */}
 
-      {/* Measure button — hidden in compact mode */}
-      {!compact && (
-        <button
-          onClick={onMeasureToggle}
-          title="Measure distance (D)"
-          className={`map-control-btn ${measureActive ? "map-control-btn--active" : ""}`}
-        >
-          <RulerIcon />
-          {!isMobile && (measureActive ? "Stop" : "Measure")}
-        </button>
-      )}
+      <div className="map-controls-divider" />
 
+      {/* ── Data group ── */}
+      <div className="map-controls-group map-controls-group--data">
       {/* Export button — hidden in compact mode */}
       {!compact && onExportCsv && (
         <div style={{ position: "relative" }}>
@@ -284,7 +385,6 @@ export function MapControls({
             className="map-control-btn"
           >
             <DownloadIcon />
-            {!isMobile && "Export"}
           </button>
           {showExportMenu && (
             <div className="map-basemap-menu">
@@ -313,36 +413,6 @@ export function MapControls({
         </div>
       )}
 
-      {/* Basemap selector — hidden in compact mode */}
-      {!compact && (
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setShowBasemapMenu(!showBasemapMenu)}
-            title="Change basemap"
-            className={`map-control-btn ${basemap !== "street" ? "map-control-btn--active" : ""}`}
-          >
-            {basemap === "satellite" ? <SatelliteIcon /> : <MapIcon />}
-            {!isMobile && (basemap === "satellite" ? "Satellite" : "Basemap")}
-          </button>
-          {showBasemapMenu && (
-            <div className="map-basemap-menu">
-              {basemapOptions.map(({ type, label, icon }) => (
-                <button
-                  key={type}
-                  onClick={() => {
-                    onBasemapChange(type);
-                    setShowBasemapMenu(false);
-                  }}
-                  className={`map-basemap-menu__item ${basemap === type ? "map-basemap-menu__item--active" : ""}`}
-                >
-                  {icon} {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Copy Link — shares the current map view URL with layers/dates/center/zoom (FFS-1178) */}
       {onCopyLink && !compact && (
         <button
@@ -361,66 +431,11 @@ export function MapControls({
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
             </svg>
           )}
-          {!isMobile && (copyLinkJustCopied ? "Copied" : "Share")}
         </button>
       )}
+      </div>{/* end Data group */}
 
-      {/* Compare mode toggle */}
-      {onCompareToggle && !compact && (
-        <button
-          onClick={onCompareToggle}
-          title="Compare hex areas (C)"
-          className={`map-control-btn ${compareMode ? "map-control-btn--active" : ""}`}
-          style={{ position: "relative" }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3" width="8" height="18" rx="1" />
-            <rect x="14" y="3" width="8" height="18" rx="1" />
-          </svg>
-          {!isMobile && "Compare"}
-          {compareMode && compareCount > 0 && (
-            <span style={{
-              position: "absolute",
-              top: -4,
-              right: -4,
-              width: 18,
-              height: 18,
-              borderRadius: "50%",
-              background: "var(--primary, #3b82f6)",
-              color: "white",
-              fontSize: 10,
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "2px solid var(--background, #fff)",
-            }}>
-              {compareCount}
-            </span>
-          )}
-        </button>
-      )}
-
-      {/* Zoom + Fullscreen — moved here from bottom-right to avoid Tippy overlap */}
-      {onFullscreenToggle && (
-        <button
-          onClick={onFullscreenToggle}
-          title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
-          className={`map-control-btn map-control-btn--icon ${isFullscreen ? "map-control-btn--active" : ""}`}
-        >
-          {isFullscreen ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" />
-              <line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" />
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
-              <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
-            </svg>
-          )}
-        </button>
-      )}
+      {/* Zoom controls */}
       {onZoomIn && onZoomOut && (
         <div className="map-zoom-controls" role="group" aria-label="Zoom controls">
           <button onClick={onZoomIn} title="Zoom in (+)" aria-label="Zoom in">+</button>

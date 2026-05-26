@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
     } else if (placeId) {
       // Path 1: accounts linked via appointments at this place
       // Path 2: accounts resolved to people linked to this place
+      // Path 3: accounts whose cats are at this place (via cat_place → appointments)
       sql = `
         SELECT ${NOTE_COLUMNS}
         FROM (
@@ -81,6 +82,18 @@ export async function GET(request: NextRequest) {
           WHERE pp.place_id = $1
             AND ca.merged_into_account_id IS NULL
             AND ca.resolved_person_id IS NOT NULL
+            AND ${HAS_NOTES}
+
+          UNION
+
+          -- Via cats at this place → their appointments → account
+          -- Note: appointments.cat_id is a direct FK (no junction table)
+          SELECT DISTINCT ca.account_id
+          FROM sot.cat_place cp
+          JOIN ops.appointments apt ON apt.cat_id = cp.cat_id
+          JOIN ops.clinic_accounts ca ON ca.account_id = apt.owner_account_id
+          WHERE cp.place_id = $1
+            AND ca.merged_into_account_id IS NULL
             AND ${HAS_NOTES}
         ) matched
         JOIN ops.clinic_accounts ca USING (account_id)

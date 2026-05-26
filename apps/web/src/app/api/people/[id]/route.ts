@@ -86,6 +86,8 @@ export const GET = withErrorHandling(async (
         pd.entity_type,
         p.do_not_contact,
         p.do_not_contact_reason,
+        COALESCE(p.watch_list, FALSE) AS watch_list,
+        p.watch_list_reason,
         pd.data_quality,
         pd.primary_place_id,
         -- Role fields for status badges (FFS-436)

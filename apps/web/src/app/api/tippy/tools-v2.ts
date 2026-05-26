@@ -831,7 +831,10 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
 - "save_lookup": Save current research to staff member's personal lookups.
 - "add_note": Add a note to a place, person, cat, or request.
 - "add_field_contact": Create a new person record from field contact info (name + phone/address + relationship to a place/request). Creates person, place, links, and journal entry.
-- "link_corridor_place": Connect a nearby address to a request's scope. Creates shared_colony edge + adds to request_scope_places.`,
+- "link_corridor_place": Connect a nearby address to a request's scope. Creates shared_colony edge + adds to request_scope_places.
+- "toggle_person_watchlist": Add or remove a person from the watch list. Use when staff says "flag [person] for monitoring" or "put [person] on the watch list". Requires person_id + reason (when adding).
+- "end_person_address": Mark a person's address as no longer current. Use when staff says "[person] moved from [address]" or "Bonnie doesn't live at Pepper Ln anymore". Sets effective_to = NOW().
+- "move_person_address": Move a person from one address to another. Use when staff says "[person] moved to [new address]". Ends old + creates new relationship.`,
     input_schema: {
       type: "object" as const,
       properties: {
@@ -849,6 +852,9 @@ IMPORTANT: Staff are paid FFSC employees. Trappers are volunteers. Use the staff
             "add_note",
             "add_field_contact",
             "link_corridor_place",
+            "toggle_person_watchlist",
+            "end_person_address",
+            "move_person_address",
           ],
           description: "Type of write operation to perform",
         },
@@ -1758,15 +1764,57 @@ async function analyzePlaceSituation(address: string): Promise<ToolResult> {
       });
     }
 
-    // Seasonal context
-    const seasonal = await queryOne<{
-      breeding_phase: string;
-      breeding_intensity: number;
-    }>(
-      `SELECT breeding_phase, breeding_intensity
-       FROM ops.v_breeding_season_indicators
-       WHERE month_num = EXTRACT(MONTH FROM CURRENT_DATE) LIMIT 1`
-    ).catch(() => null);
+    // Colony TNR status + departure breakdown
+    const [colonyStatus, departureBreakdown, seasonal] = await Promise.all([
+      queryOne<{ colony_tnr_status: string | null }>(
+        `SELECT colony_tnr_status FROM sot.places WHERE place_id = $1`,
+        [placeId]
+      ).catch(() => null),
+      queryRows<{ departure_reason: string; departure_detail: string | null; cnt: number }>(
+        `SELECT COALESCE(departure_reason, 'unknown') as departure_reason,
+           departure_detail, COUNT(*)::int as cnt
+         FROM sot.cat_place
+         WHERE place_id = $1
+           AND presence_status IN ('departed', 'presumed_departed')
+         GROUP BY departure_reason, departure_detail
+         ORDER BY cnt DESC`,
+        [placeId]
+      ).catch(() => []),
+      queryOne<{
+        breeding_phase: string;
+        breeding_intensity: number;
+      }>(
+        `SELECT breeding_phase, breeding_intensity
+         FROM ops.v_breeding_season_indicators
+         WHERE month_num = EXTRACT(MONTH FROM CURRENT_DATE) LIMIT 1`
+      ).catch(() => null),
+    ]);
+
+    if (colonyStatus?.colony_tnr_status) {
+      const statusLabels: Record<string, string> = {
+        complete: "Complete (100% altered)",
+        near_complete: "Near Complete (90%+)",
+        good_progress: "Good Progress (70%+)",
+        active: "Active (needs more TNR)",
+        no_cats: "No present cats",
+      };
+      interpretationHints.push(
+        `COLONY TNR STATUS: ${statusLabels[colonyStatus.colony_tnr_status] || colonyStatus.colony_tnr_status}`
+      );
+    }
+
+    if (departureBreakdown.length > 0) {
+      const total = departureBreakdown.reduce((sum, d) => sum + d.cnt, 0);
+      const details = departureBreakdown
+        .map((d) => {
+          const detail = d.departure_detail ? ` (${d.departure_detail.replace(/_/g, " ")})` : "";
+          return `${d.cnt} ${d.departure_reason}${detail}`;
+        })
+        .join(", ");
+      interpretationHints.push(
+        `DEPARTURE BREAKDOWN: ${total} departed cats: ${details}`
+      );
+    }
 
     if (seasonal) {
       interpretationHints.push(
@@ -2293,7 +2341,7 @@ async function personLookup(
   identifier: string,
   _identifierType?: string
 ): Promise<ToolResult> {
-  const [personResult, catRelationships, vhData, fosterAdoptHistory, personNotes] = await Promise.all([
+  const [personResult, catRelationships, vhData, fosterAdoptHistory, personNotes, watchlistInfo, addressInfo] = await Promise.all([
     queryOne<{ result: unknown }>(
       `SELECT ops.comprehensive_person_lookup($1) as result`,
       [identifier]
@@ -2352,6 +2400,36 @@ async function personLookup(
        ORDER BY created_at DESC LIMIT 10`,
       [`%${identifier}%`]
     ).catch(() => []),
+    // Watch list status
+    queryOne<{ watch_list: boolean; watch_list_reason: string | null }>(
+      `SELECT watch_list, watch_list_reason FROM sot.people
+       WHERE display_name ILIKE $1 AND merged_into_person_id IS NULL
+       LIMIT 1`,
+      [`%${identifier}%`]
+    ).catch(() => null),
+    // Address history with currency (effective_to IS NULL = current)
+    queryRows<{
+      place_id: string;
+      address: string | null;
+      relationship_type: string;
+      is_current: boolean;
+      effective_to: string | null;
+    }>(
+      `SELECT pp.place_id::text, p.formatted_address as address,
+        pp.relationship_type,
+        (pp.effective_to IS NULL) as is_current,
+        pp.effective_to::text
+       FROM sot.person_place pp
+       JOIN sot.places p ON p.place_id = pp.place_id AND p.merged_into_place_id IS NULL
+       WHERE pp.person_id = (
+         SELECT person_id FROM sot.people
+         WHERE display_name ILIKE $1 AND merged_into_person_id IS NULL
+         LIMIT 1
+       )
+       ORDER BY pp.effective_to NULLS FIRST, pp.created_at DESC
+       LIMIT 10`,
+      [`%${identifier}%`]
+    ).catch(() => []),
   ]);
 
   if (!personResult) {
@@ -2380,6 +2458,11 @@ async function personLookup(
       volunteerhub_data: vhData.length > 0 ? vhData : undefined,
       foster_adoption_history: fosterAdoptHistory.length > 0 ? fosterAdoptHistory : undefined,
       recent_notes: personNotes.length > 0 ? personNotes : undefined,
+      watch_list: watchlistInfo?.watch_list ? {
+        flagged: true,
+        reason: watchlistInfo.watch_list_reason,
+      } : undefined,
+      addresses: addressInfo.length > 0 ? addressInfo : undefined,
       summary: Array.isArray(parsed)
         ? `Found ${parsed.length} person(s) matching "${identifier}"`
         : undefined,
@@ -3895,6 +3978,12 @@ async function logEvent(
       return addFieldContactImpl(input, context);
     case "link_corridor_place":
       return linkCorridorPlaceImpl(input, context);
+    case "toggle_person_watchlist":
+      return togglePersonWatchlistImpl(input, context);
+    case "end_person_address":
+      return endPersonAddressImpl(input, context);
+    case "move_person_address":
+      return movePersonAddressImpl(input, context);
     default:
       return { success: false, error: `Unknown action_type: ${actionType}` };
   }
@@ -5023,6 +5112,269 @@ async function linkCorridorPlaceImpl(
   } catch (error) {
     console.error("linkCorridorPlace error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Failed to link corridor place" };
+  }
+}
+
+// --- Person watchlist / address management ---
+
+async function togglePersonWatchlistImpl(
+  input: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
+  const entityId = input.entity_id as string;
+  const reason = (input.notes as string) || (input.reasoning as string) || "";
+  const watchList = input.fields
+    ? (input.fields as Record<string, unknown>).watch_list !== false
+    : true;
+
+  if (!entityId || !UUID_REGEX.test(entityId)) {
+    return { success: false, error: "entity_id (person UUID) is required" };
+  }
+  if (watchList && !reason.trim()) {
+    return { success: false, error: "Reason is required when adding to watch list" };
+  }
+
+  // Look up person name for the card
+  const personInfo = await queryOne<{ display_name: string }>(
+    `SELECT display_name FROM sot.people WHERE person_id = $1 AND merged_into_person_id IS NULL`,
+    [entityId]
+  ).catch(() => null);
+  const personName = personInfo?.display_name || "Unknown";
+
+  // Emit confirmation card if available
+  if (context?.emitActionCard) {
+    context.emitActionCard({
+      card_id: `watchlist_${Date.now()}`,
+      action_type: "toggle_person_watchlist",
+      entity_type: "person",
+      entity_id: entityId,
+      entity_name: personName,
+      proposed_changes: { watch_list: watchList, reason: reason.trim() },
+      confidence: "high",
+      reasoning: watchList
+        ? `Add ${personName} to watch list: ${reason.trim()}`
+        : `Remove ${personName} from watch list`,
+    });
+    return {
+      success: true,
+      data: {
+        action: "confirmation_requested",
+        message: `Ready to ${watchList ? "add" : "remove"} ${personName} ${watchList ? "to" : "from"} watch list. Waiting for your confirmation.`,
+      },
+    };
+  }
+
+  // Direct execution (fallback)
+  try {
+    const result = await queryOne<{ success: boolean; message: string }>(
+      `SELECT * FROM ops.toggle_person_watchlist($1, $2, $3, $4)`,
+      [entityId, watchList, reason.trim() || null, "tippy"]
+    );
+    if (!result?.success) {
+      return { success: false, error: result?.message || "Failed to update watch list" };
+    }
+    return {
+      success: true,
+      data: {
+        action: watchList ? "added_to_watchlist" : "removed_from_watchlist",
+        person_id: entityId,
+        reason: watchList ? reason.trim() : undefined,
+        message: result.message,
+      },
+    };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed" };
+  }
+}
+
+async function endPersonAddressImpl(
+  input: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
+  const personId = input.entity_id as string;
+  const location = (input.location as string) || (input.address as string);
+
+  if (!personId || !UUID_REGEX.test(personId)) {
+    return { success: false, error: "entity_id (person UUID) is required" };
+  }
+
+  // Resolve place
+  let placeId = input.place_id as string | undefined;
+  let placeAddress = location;
+  if (!placeId && location) {
+    const place = await resolvePlace(location);
+    placeId = place?.place_id;
+    placeAddress = place?.formatted_address || location;
+  }
+  if (!placeId) {
+    return { success: false, error: "Could not resolve the address. Provide place_id or a specific address." };
+  }
+
+  // Look up person name
+  const personInfo = await queryOne<{ display_name: string }>(
+    `SELECT display_name FROM sot.people WHERE person_id = $1 AND merged_into_person_id IS NULL`,
+    [personId]
+  ).catch(() => null);
+  const personName = personInfo?.display_name || "Unknown";
+
+  // Emit confirmation card if available
+  if (context?.emitActionCard) {
+    context.emitActionCard({
+      card_id: `end_addr_${Date.now()}`,
+      action_type: "end_person_address",
+      entity_type: "person",
+      entity_id: personId,
+      entity_name: personName,
+      proposed_changes: {
+        place_id: placeId,
+        address: placeAddress,
+        effect: "Mark as former address (cats at this address are NOT affected)",
+      },
+      confidence: "high",
+      reasoning: `Mark ${personName}'s address at ${placeAddress} as no longer current`,
+    });
+    return {
+      success: true,
+      data: {
+        action: "confirmation_requested",
+        message: `Ready to mark ${placeAddress} as a former address for ${personName}. Cats at that address will remain — they don't move just because a person does. Waiting for your confirmation.`,
+      },
+    };
+  }
+
+  // Direct execution
+  try {
+    const result = await queryOne<{ end_person_place_relationship: boolean }>(
+      `SELECT sot.end_person_place_relationship($1, $2, $3) AS end_person_place_relationship`,
+      [personId, placeId, "tippy"]
+    );
+
+    if (!result?.end_person_place_relationship) {
+      return { success: false, error: "No active relationship found at that address" };
+    }
+
+    return {
+      success: true,
+      data: {
+        action: "ended_address",
+        person_id: personId,
+        place_id: placeId,
+        message: `Marked address as no longer current. Person's cats remain at the location (cats don't move just because a person does).`,
+      },
+    };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed" };
+  }
+}
+
+async function movePersonAddressImpl(
+  input: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
+  const personId = input.entity_id as string;
+  const oldAddress = (input.location as string) || (input.address as string);
+  const newAddress = (input.notes as string) || (input.summary as string);
+  const relationshipType = (input.fields as Record<string, unknown>)?.relationship_type as string || "resident";
+
+  if (!personId || !UUID_REGEX.test(personId)) {
+    return { success: false, error: "entity_id (person UUID) is required" };
+  }
+  if (!oldAddress && !input.place_id) {
+    return { success: false, error: "Old address (location) or place_id is required" };
+  }
+  if (!newAddress && !((input.fields as Record<string, unknown>)?.new_place_id)) {
+    return { success: false, error: "New address (notes field) or fields.new_place_id is required" };
+  }
+
+  // Resolve old place
+  let oldPlaceId = input.place_id as string | undefined;
+  let resolvedOldAddress = oldAddress;
+  if (!oldPlaceId && oldAddress) {
+    const place = await resolvePlace(oldAddress);
+    oldPlaceId = place?.place_id;
+    resolvedOldAddress = place?.formatted_address || oldAddress;
+  }
+  if (!oldPlaceId) {
+    return { success: false, error: `Could not resolve old address: ${oldAddress}` };
+  }
+
+  // Resolve new place
+  let newPlaceId = (input.fields as Record<string, unknown>)?.new_place_id as string | undefined;
+  let resolvedNewAddress = newAddress;
+  if (!newPlaceId && newAddress) {
+    const place = await resolvePlace(newAddress);
+    if (place) {
+      newPlaceId = place.place_id;
+      resolvedNewAddress = place.formatted_address || newAddress;
+    }
+  }
+
+  // Look up person name
+  const personInfo = await queryOne<{ display_name: string }>(
+    `SELECT display_name FROM sot.people WHERE person_id = $1 AND merged_into_person_id IS NULL`,
+    [personId]
+  ).catch(() => null);
+  const personName = personInfo?.display_name || "Unknown";
+
+  // Emit confirmation card if available
+  if (context?.emitActionCard) {
+    context.emitActionCard({
+      card_id: `move_addr_${Date.now()}`,
+      action_type: "move_person_address",
+      entity_type: "person",
+      entity_id: personId,
+      entity_name: personName,
+      proposed_changes: {
+        old_place_id: oldPlaceId,
+        old_address: resolvedOldAddress,
+        new_address: resolvedNewAddress,
+        new_place_id: newPlaceId || "(will be created)",
+        relationship_type: relationshipType,
+        effect: "Old address marked as former. New address created. Cats at old address are NOT moved.",
+      },
+      confidence: newPlaceId ? "high" : "medium",
+      reasoning: `Move ${personName} from ${resolvedOldAddress} to ${resolvedNewAddress}`,
+    });
+    return {
+      success: true,
+      data: {
+        action: "confirmation_requested",
+        message: `Ready to move ${personName} from ${resolvedOldAddress} to ${resolvedNewAddress}. Old address will be marked as former. Cats at ${resolvedOldAddress} will remain there. Waiting for your confirmation.`,
+      },
+    };
+  }
+
+  // Direct execution
+  try {
+    if (!newPlaceId) {
+      const created = await queryOne<{ place_id: string }>(
+        `SELECT sot.find_or_create_place_deduped($1, NULL, NULL, NULL, 'atlas_ui')::text AS place_id`,
+        [newAddress]
+      );
+      newPlaceId = created?.place_id;
+    }
+    if (!newPlaceId) {
+      return { success: false, error: `Could not resolve new address: ${newAddress}` };
+    }
+
+    const result = await queryOne<{ move_person_to_place: string }>(
+      `SELECT sot.move_person_to_place($1, $2, $3, $4, $5) AS move_person_to_place`,
+      [personId, oldPlaceId, newPlaceId, relationshipType, "tippy"]
+    );
+
+    return {
+      success: true,
+      data: {
+        action: "moved_address",
+        person_id: personId,
+        old_place_id: oldPlaceId,
+        new_place_id: newPlaceId,
+        new_person_place_id: result?.move_person_to_place,
+        message: `Person moved from old address to new address. Old address marked as former. Cats at old address are NOT moved — cats stay where they live.`,
+      },
+    };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Failed" };
   }
 }
 

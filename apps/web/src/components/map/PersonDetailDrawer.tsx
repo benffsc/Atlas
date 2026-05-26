@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatPhone, formatRelativeTime } from "@/lib/formatters";
-import { unwrapApiResponse } from "@/lib/api-client";
+import { unwrapApiResponse, postApi } from "@/lib/api-client";
 import { getPersonRoleColor } from "@/lib/map-colors";
 import { formatPlaceKind, formatEnum } from "@/lib/display-labels";
 import { Skeleton } from "@/components/feedback/Skeleton";
@@ -34,6 +34,7 @@ interface PersonCat {
   microchip: string | null;
   presence_status?: string | null;
   departure_reason?: string | null;
+  departure_detail?: string | null;
 }
 
 interface PersonRole {
@@ -56,6 +57,8 @@ interface PersonDetails {
   last_appointment_date: string | null;
   do_not_contact?: boolean;
   do_not_contact_reason?: string | null;
+  watch_list?: boolean;
+  watch_list_reason?: string | null;
 }
 
 interface PersonDetailDrawerProps {
@@ -98,6 +101,9 @@ export function PersonDetailDrawer({ personId, onClose, onNavigateCat }: PersonD
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAllCats, setShowAllCats] = useState(false);
+  const [showWatchlistForm, setShowWatchlistForm] = useState(false);
+  const [watchlistReason, setWatchlistReason] = useState("");
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
 
   // Fetch person details when personId changes
   useEffect(() => {
@@ -234,6 +240,27 @@ export function PersonDetailDrawer({ personId, onClose, onNavigateCat }: PersonD
               </div>
             )}
 
+            {/* Watch List Banner */}
+            {person.watch_list && (
+              <div style={{
+                background: "var(--warning-bg, #fef3c7)",
+                color: "var(--warning-text, #b45309)",
+                padding: "0.5rem 0.75rem",
+                borderRadius: "6px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                marginBottom: "0.75rem",
+                border: "1px solid var(--warning-border, #fcd34d)",
+              }}>
+                On Watch List
+                {person.watch_list_reason && (
+                  <span style={{ fontWeight: 400, marginLeft: "0.5rem" }}>
+                    — {person.watch_list_reason}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Stats Grid */}
             <div className="person-stats-grid">
               <div className="stat-card">
@@ -327,6 +354,7 @@ export function PersonDetailDrawer({ personId, onClose, onNavigateCat }: PersonD
                           <CatPresenceBadge
                             status={(cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown") || "unknown"}
                             departureReason={cat.departure_reason}
+                            departureDetail={cat.departure_detail}
                             compact={cat.presence_status === "current"}
                           />
                           {cat.relationship_type && (
@@ -360,6 +388,67 @@ export function PersonDetailDrawer({ personId, onClose, onNavigateCat }: PersonD
                 )}
               </div>
             )}
+
+            {/* Watch List Toggle */}
+            <div className="section">
+              <h3>Watch List</h3>
+              {person.watch_list && person.watch_list_reason && (
+                <div style={{ fontSize: "0.8rem", color: "var(--warning-text, #b45309)", background: "var(--warning-bg, #fef3c7)", padding: "6px 10px", borderRadius: 6, marginBottom: 8 }}>
+                  {person.watch_list_reason}
+                </div>
+              )}
+              {showWatchlistForm && !person.watch_list ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <textarea
+                    placeholder="Why should this person be on the watch list?"
+                    value={watchlistReason}
+                    onChange={(e) => setWatchlistReason(e.target.value)}
+                    rows={2}
+                    style={{ width: "100%", fontSize: "0.8rem", padding: "6px 8px", border: "1px solid var(--border, #d1d5db)", borderRadius: 6, resize: "vertical" }}
+                  />
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button className="btn btn-secondary" style={{ fontSize: "0.75rem", padding: "4px 10px" }} onClick={() => { setShowWatchlistForm(false); setWatchlistReason(""); }}>Cancel</button>
+                    <button
+                      className="btn btn-primary"
+                      style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                      disabled={watchlistLoading || !watchlistReason.trim()}
+                      onClick={async () => {
+                        setWatchlistLoading(true);
+                        try {
+                          await postApi(`/api/people/${person.person_id}/watchlist`, { watch_list: true, reason: watchlistReason.trim() }, { method: "PUT" });
+                          setPerson({ ...person, watch_list: true, watch_list_reason: watchlistReason.trim() });
+                          setShowWatchlistForm(false);
+                          setWatchlistReason("");
+                        } catch { /* ignore */ }
+                        setWatchlistLoading(false);
+                      }}
+                    >
+                      {watchlistLoading ? "Adding..." : "Add to Watch List"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className={`watchlist-toggle ${person.watch_list ? "active" : ""}`}
+                  onClick={async () => {
+                    if (person.watch_list) {
+                      setWatchlistLoading(true);
+                      try {
+                        await postApi(`/api/people/${person.person_id}/watchlist`, { watch_list: false, reason: "" }, { method: "PUT" });
+                        setPerson({ ...person, watch_list: false, watch_list_reason: null });
+                      } catch { /* ignore */ }
+                      setWatchlistLoading(false);
+                    } else {
+                      setShowWatchlistForm(true);
+                    }
+                  }}
+                  disabled={watchlistLoading}
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid var(--border, #d1d5db)", borderRadius: 6, cursor: "pointer", fontSize: "0.8rem", background: person.watch_list ? "var(--warning-bg, #fef3c7)" : "var(--surface, #fff)", color: person.watch_list ? "var(--warning-text, #b45309)" : "var(--text-secondary, #6b7280)" }}
+                >
+                  {watchlistLoading ? "Updating..." : person.watch_list ? "Remove from Watch List" : "Add to Watch List"}
+                </button>
+              )}
+            </div>
 
             {/* Footer Link */}
             <div className="drawer-footer">

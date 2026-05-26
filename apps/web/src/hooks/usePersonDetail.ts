@@ -80,6 +80,8 @@ export interface PersonDetail {
   data_source: string | null;
   do_not_contact: boolean;
   do_not_contact_reason: string | null;
+  watch_list?: boolean;
+  watch_list_reason?: string | null;
   data_quality: string | null;
   primary_place_id: string | null;
   identifiers: PersonIdentifier[] | null;

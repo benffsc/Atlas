@@ -27,6 +27,10 @@ interface PlaceDetailRow {
   person_count: number;
   last_appointment_date: string | null;
   active_request_count: number;
+  watch_list: boolean;
+  watch_list_reason: string | null;
+  colony_tnr_status: string | null;
+  total_altered: number;
 }
 
 interface PlaceContext {
@@ -98,7 +102,11 @@ export const GET = withErrorHandling(async (
       v.people,
       v.place_relationships,
       v.cat_count,
-      v.person_count
+      v.person_count,
+      COALESCE(p.watch_list, FALSE) AS watch_list,
+      p.watch_list_reason,
+      p.colony_tnr_status,
+      COALESCE((SELECT COUNT(*)::INT FROM sot.cat_place cp2 JOIN sot.cats c2 ON c2.cat_id = cp2.cat_id AND c2.merged_into_cat_id IS NULL WHERE cp2.place_id = v.place_id AND COALESCE(cp2.presence_status, 'unknown') NOT IN ('departed','presumed_departed') AND c2.altered_status IN ('altered','spayed','neutered')), 0) AS total_altered
     FROM sot.v_place_detail_v2 v
     LEFT JOIN sot.places p ON p.place_id = v.place_id
     LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
@@ -154,7 +162,11 @@ export const GET = withErrorHandling(async (
         ), '[]'::json) AS people,
         '[]'::json AS place_relationships,
         COALESCE((SELECT COUNT(DISTINCT cp.cat_id) FROM sot.cat_place cp WHERE cp.place_id = p.place_id AND COALESCE(cp.presence_status, 'unknown') NOT IN ('departed', 'presumed_departed')), 0) AS cat_count,
-        COALESCE((SELECT COUNT(DISTINCT pp.person_id) FROM sot.person_place pp JOIN sot.people per ON per.person_id = pp.person_id WHERE pp.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL AND (per.is_organization = FALSE OR per.is_organization IS NULL)), 0) AS person_count
+        COALESCE((SELECT COUNT(DISTINCT pp.person_id) FROM sot.person_place pp JOIN sot.people per ON per.person_id = pp.person_id WHERE pp.place_id = p.place_id AND per.merged_into_person_id IS NULL AND per.display_name IS NOT NULL AND (per.is_organization = FALSE OR per.is_organization IS NULL)), 0) AS person_count,
+        COALESCE(p.watch_list, FALSE) AS watch_list,
+        p.watch_list_reason,
+        p.colony_tnr_status,
+        COALESCE((SELECT COUNT(*)::INT FROM sot.cat_place cp2 JOIN sot.cats c2 ON c2.cat_id = cp2.cat_id AND c2.merged_into_cat_id IS NULL WHERE cp2.place_id = p.place_id AND COALESCE(cp2.presence_status, 'unknown') NOT IN ('departed','presumed_departed') AND c2.altered_status IN ('altered','spayed','neutered')), 0) AS total_altered
       FROM sot.places p
       LEFT JOIN sot.addresses sa ON sa.address_id = p.sot_address_id AND sa.merged_into_address_id IS NULL
       WHERE p.place_id = $1

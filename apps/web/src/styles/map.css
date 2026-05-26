@@ -42,6 +42,12 @@
   --map-control-text: #374151;
   --map-control-hover: #f3f4f6;
   --map-control-border: #e5e7eb;
+
+  /* Glassmorphism */
+  --map-glass-bg: rgba(255, 255, 255, 0.72);
+  --map-glass-border: rgba(255, 255, 255, 0.5);
+  --map-glass-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), inset 0 0.5px 0 rgba(255, 255, 255, 0.5);
+  --map-glass-blur: blur(20px) saturate(180%);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,6 +67,12 @@
     --map-control-text: #f3f4f6;
     --map-control-hover: #374151;
     --map-control-border: #4b5563;
+
+    /* Glassmorphism — dark */
+    --map-glass-bg: rgba(15, 15, 20, 0.55);
+    --map-glass-border: rgba(255, 255, 255, 0.1);
+    --map-glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+    --map-glass-blur: blur(20px) saturate(180%);
   }
 }
 
@@ -155,13 +167,15 @@
 
 /* ── V2 Pin Hover (CSS-only — zero React cost) ── */
 .atlas-pin-active:hover {
-  transform: scale(1.08) !important;
-  filter: brightness(1.1) drop-shadow(0 2px 1.5px rgba(0,0,0,0.35)) !important;
+  transform: scale(1.12) !important;
+  filter: brightness(1.15) drop-shadow(0 0 6px rgba(66, 145, 223, 0.4)) !important;
+  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
 .atlas-pin-ref:hover {
-  transform: scale(1.15) !important;
-  filter: brightness(1.15);
+  transform: scale(1.18) !important;
+  filter: brightness(1.15) drop-shadow(0 0 4px rgba(148, 163, 184, 0.4));
+  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
 /* Historical dot markers */
@@ -514,15 +528,17 @@
   justify-content: center;
   gap: 8px;
   padding: 10px 14px;
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
   color: var(--map-control-text);
   cursor: pointer;
   transition: all var(--map-transition-fast);
-  box-shadow: var(--map-shadow-sm);
+  box-shadow: var(--map-glass-shadow);
 }
 
 .map-control-btn:hover {
@@ -565,9 +581,11 @@
   flex-direction: column;
   border-radius: 10px;
   overflow: hidden;
-  box-shadow: var(--map-shadow-sm);
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  box-shadow: var(--map-glass-shadow);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
 }
 
 .map-zoom-controls button {
@@ -600,10 +618,12 @@
   top: 100%;
   right: 0;
   margin-top: 4px;
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 8px;
-  box-shadow: var(--map-shadow-md);
+  box-shadow: var(--map-glass-shadow);
   overflow: hidden;
   min-width: 160px;
   z-index: 1001;
@@ -646,10 +666,12 @@
   top: 100%;
   right: 0;
   margin-top: 4px;
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 8px;
-  box-shadow: var(--map-shadow-md);
+  box-shadow: var(--map-glass-shadow);
   overflow: hidden;
   min-width: 160px;
   z-index: 1001;
@@ -700,10 +722,12 @@
   top: 72px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 10px;
-  box-shadow: var(--map-shadow-md);
+  box-shadow: var(--map-glass-shadow);
   padding: 10px 16px;
   display: flex;
   align-items: center;
@@ -775,10 +799,12 @@
   right: 16px;
   width: 280px;
   max-height: calc(100vh - 120px);
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 12px;
-  box-shadow: var(--map-shadow-lg);
+  box-shadow: var(--map-glass-shadow);
   overflow: hidden;
   z-index: 1001;
   transition: transform var(--map-transition-normal),
@@ -794,8 +820,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: var(--map-control-bg);
-  border-bottom: 1px solid var(--map-control-border);
+  background: transparent;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .map-layer-panel__title {
@@ -961,17 +987,26 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 24px;
-  box-shadow: var(--map-shadow-md);
+  box-shadow: var(--map-glass-shadow);
   transition: box-shadow var(--map-transition-fast),
               border-color var(--map-transition-fast);
 }
 
 .map-search__input-wrapper:focus-within {
+  background: rgba(255, 255, 255, 0.92);
   border-color: var(--primary);
-  box-shadow: var(--map-shadow-lg), 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-search__input-wrapper:focus-within {
+    background: rgba(15, 15, 20, 0.75);
+  }
 }
 
 .map-search__icon {
@@ -1029,10 +1064,12 @@
   left: 0;
   right: 0;
   margin-top: 8px;
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 12px;
-  box-shadow: var(--map-shadow-lg);
+  box-shadow: var(--map-glass-shadow);
   overflow: hidden;
   animation: map-fade-in var(--map-transition-fast);
 }
@@ -1121,9 +1158,12 @@
   align-items: center;
   gap: 16px;
   padding: 20px 32px;
-  background: var(--map-control-bg);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 16px;
-  box-shadow: var(--map-shadow-lg);
+  box-shadow: var(--map-glass-shadow);
   z-index: 1001;
 }
 
@@ -3415,11 +3455,20 @@
   align-items: center;
   padding: 8px 0;
   gap: 2px;
-  background: var(--map-control-bg);
-  border-right: 1px solid var(--map-control-border);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 2;
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-nav-rail {
+    background: rgba(15, 15, 20, 0.6);
+    border-right-color: rgba(255, 255, 255, 0.08);
+  }
 }
 
 .map-nav-rail__item {
@@ -3474,11 +3523,20 @@
   align-items: center;
   padding: 0 12px;
   gap: 8px;
-  background: var(--map-control-bg);
-  border-bottom: 1px solid var(--map-control-border);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   z-index: 1200;
   position: relative;
   overflow: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-top-bar {
+    background: rgba(15, 15, 20, 0.55);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
 }
 
 .map-top-bar__search {
@@ -3512,10 +3570,19 @@
   flex-shrink: 0;
   overflow: hidden;
   transition: width var(--map-transition-normal);
-  border-right: 1px solid var(--map-control-border);
-  background: var(--map-control-bg);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
   display: flex;
   flex-direction: column;
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-sidebar {
+    background: rgba(15, 15, 20, 0.6);
+    border-right-color: rgba(255, 255, 255, 0.08);
+  }
 }
 
 .map-sidebar--open {
@@ -3596,13 +3663,16 @@
   padding: 4px 12px;
 }
 
-/* Action buttons in top bar: icon-only compact style */
+/* Action buttons in top bar: icon-only compact style — no double glass */
 .map-top-bar__actions .map-control-btn {
   padding: 6px 10px;
   font-size: 13px;
   border-radius: 8px;
   box-shadow: none;
   border: 1px solid var(--map-control-border);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: transparent;
 }
 
 .map-top-bar__actions .map-control-btn:hover {
@@ -3675,10 +3745,12 @@
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: var(--map-control-bg);
-  border: 1px solid var(--map-control-border);
+  background: var(--map-glass-bg);
+  backdrop-filter: var(--map-glass-blur);
+  -webkit-backdrop-filter: var(--map-glass-blur);
+  border: 1px solid var(--map-glass-border);
   border-radius: 8px;
-  box-shadow: var(--map-shadow-md);
+  box-shadow: var(--map-glass-shadow);
   padding: 8px 12px;
   white-space: nowrap;
   z-index: 10;
@@ -3909,4 +3981,119 @@ body.tv-tour-active .map-shell__viewport {
   letter-spacing: 0.05em;
   margin-bottom: 4px;
   padding: 0 8px;
+}
+
+/* ============================================================
+   Control Button — Icon-only Mode (Phase 3B)
+   Labels hidden by default; shown as tooltip via title attr.
+   ============================================================ */
+
+.map-control-btn .map-control-label {
+  display: none;
+}
+
+/* ── Control Groups (Phase 3A) ── */
+
+.map-controls-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-controls-divider {
+  width: 28px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 2px auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-controls-divider {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ── Presentation/Showcase Mode: hide tools + data groups ── */
+
+body.presentation-mode .map-controls-group--tools,
+body.presentation-mode .map-controls-group--data {
+  display: none;
+}
+
+/* ============================================================
+   Map Layer Pills (Phase 2)
+   Horizontal pill row for quick layer toggles.
+   ============================================================ */
+
+.map-layer-pills {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 24px;
+  background: var(--map-glass-bg);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--map-glass-border);
+  box-shadow: var(--map-glass-shadow);
+  z-index: 10;
+  max-width: calc(100% - 32px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.map-layer-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.map-layer-pill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+  background: transparent;
+  color: var(--map-control-text);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.map-layer-pill:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .map-layer-pill:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.map-layer-pill--active {
+  background: var(--primary, #3b82f6);
+  color: white;
+  box-shadow: 0 0 12px rgba(66, 145, 223, 0.3);
+}
+
+.map-layer-pill--active:hover {
+  background: var(--primary, #3b82f6);
+  color: white;
+  filter: brightness(1.1);
+}
+
+.map-layer-pill__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Hide pills during TV tour */
+body.tv-tour-active .map-layer-pills {
+  display: none;
 }

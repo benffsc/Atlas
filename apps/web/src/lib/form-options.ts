@@ -626,6 +626,38 @@ export const AGE_CATEGORY_MONTHS: Record<string, number | null> = {
 };
 
 // =============================================================================
+// DEPARTURE DETAIL (sub-reasons within departure_reason)
+// =============================================================================
+
+export const DEPARTURE_DETAIL_OPTIONS = [
+  // Relocated sub-reasons
+  { value: "barn_cat_placement", label: "Barn Cat Placement", group: "relocated", description: "Placed through FFSC barn cat program" },
+  { value: "ffsc_relocation", label: "FFSC Relocation", group: "relocated", description: "FFSC-managed relocation (not barn cat)" },
+  { value: "owner_moved", label: "Owner Moved", group: "relocated", description: "Owner moved and took cats with them" },
+  { value: "return_to_field", label: "Returned to Field", group: "relocated", description: "TNR'd and returned to original location" },
+  // Adopted sub-reasons
+  { value: "standard_adoption", label: "Standard Adoption", group: "adopted" },
+  // Deceased sub-reasons
+  { value: "natural", label: "Natural Causes", group: "deceased" },
+  { value: "euthanasia", label: "Euthanasia", group: "deceased" },
+  // Transferred sub-reasons
+  { value: "to_rescue", label: "To Rescue", group: "transferred", description: "Transferred to a rescue organization" },
+  { value: "to_shelter", label: "To Shelter", group: "transferred", description: "Transferred to a shelter" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
+// COLONY TNR STATUS
+// =============================================================================
+
+export const COLONY_TNR_STATUS_OPTIONS = [
+  { value: "complete", label: "Complete", description: "100% of present cats altered, 0 intact" },
+  { value: "near_complete", label: "Near Complete", description: "90%+ of present cats altered" },
+  { value: "good_progress", label: "Good Progress", description: "70%+ of present cats altered" },
+  { value: "active", label: "Active", description: "Under 70% altered, ongoing TNR needed" },
+  { value: "no_cats", label: "No Cats", description: "No present cats at this location" },
+] as const satisfies readonly FormOption[];
+
+// =============================================================================
 // REQUEST PURPOSE (staff call-sheet)
 // =============================================================================
 

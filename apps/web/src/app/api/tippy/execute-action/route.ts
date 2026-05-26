@@ -7,6 +7,10 @@ const ALLOWED_ACTION_TYPES = new Set([
   "add_note",
   "field_event",
   "site_observation",
+  "toggle_person_watchlist",
+  "end_person_address",
+  "move_person_address",
+  "add_field_contact",
 ]);
 
 const UUID_REGEX =
@@ -116,6 +120,95 @@ export async function POST(request: NextRequest) {
       return apiSuccess({
         executed: true,
         message: `Event logged for ${entity_name}`,
+      });
+    }
+
+    if (action_type === "toggle_person_watchlist") {
+      const watchList = proposed_changes?.watch_list !== false;
+      const reason = (proposed_changes?.reason as string) || "";
+
+      const result = await queryOne<{ success: boolean; message: string }>(
+        `SELECT * FROM ops.toggle_person_watchlist($1, $2, $3, $4)`,
+        [entity_id, watchList, reason || null, session.display_name || "tippy"]
+      );
+
+      return apiSuccess({
+        executed: true,
+        message: result?.message || `Watch list updated for ${entity_name}`,
+        entity_url: entity_id ? `/people/${entity_id}` : null,
+      });
+    }
+
+    if (action_type === "end_person_address") {
+      const placeId = proposed_changes?.place_id as string;
+      if (!placeId || !UUID_REGEX.test(placeId)) {
+        return apiBadRequest("place_id is required");
+      }
+
+      await queryOne(
+        `SELECT sot.end_person_place_relationship($1, $2, $3)`,
+        [entity_id, placeId, session.display_name || "tippy"]
+      );
+
+      return apiSuccess({
+        executed: true,
+        message: `Address marked as former for ${entity_name}`,
+        entity_url: entity_id ? `/people/${entity_id}` : null,
+      });
+    }
+
+    if (action_type === "move_person_address") {
+      const oldPlaceId = proposed_changes?.old_place_id as string;
+      let newPlaceId = proposed_changes?.new_place_id as string;
+      const newAddress = proposed_changes?.new_address as string;
+      const relationshipType = (proposed_changes?.relationship_type as string) || "resident";
+
+      if (!oldPlaceId || !UUID_REGEX.test(oldPlaceId)) {
+        return apiBadRequest("old_place_id is required");
+      }
+
+      // Create new place if needed
+      if (!newPlaceId || newPlaceId === "(will be created)") {
+        if (!newAddress) return apiBadRequest("new_address is required when new_place_id is not set");
+        const created = await queryOne<{ place_id: string }>(
+          `SELECT sot.find_or_create_place_deduped($1, NULL, NULL, NULL, 'atlas_ui')::text AS place_id`,
+          [newAddress]
+        );
+        if (!created) return apiBadRequest("Could not create new place");
+        newPlaceId = created.place_id;
+      }
+
+      await queryOne(
+        `SELECT sot.move_person_to_place($1, $2, $3, $4, $5)`,
+        [entity_id, oldPlaceId, newPlaceId, relationshipType, session.display_name || "tippy"]
+      );
+
+      return apiSuccess({
+        executed: true,
+        message: `${entity_name} moved to new address`,
+        entity_url: entity_id ? `/people/${entity_id}` : null,
+      });
+    }
+
+    if (action_type === "add_field_contact") {
+      // Re-dispatch to the Tippy tools for field contact creation
+      // This is a more complex action — delegate to the tool implementation
+      const { executeToolCallV2 } = await import("../tools-v2");
+      const result = await executeToolCallV2("log_event", {
+        action_type: "add_field_contact",
+        ...proposed_changes,
+      }, {
+        staffId: session.staff_id || "",
+        staffName: session.display_name || "staff",
+        aiAccessLevel: "full",
+      });
+
+      return apiSuccess({
+        executed: result.success,
+        message: result.success
+          ? `Field contact created for ${entity_name}`
+          : (result.error || "Failed to create field contact"),
+        entity_url: (result.data as Record<string, unknown>)?.person_id ? `/people/${(result.data as Record<string, unknown>).person_id}` : null,
       });
     }
 
