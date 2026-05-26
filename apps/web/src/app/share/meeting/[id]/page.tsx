@@ -7,7 +7,8 @@
  */
 
 import { useEffect, useState, useRef, useCallback, use } from "react";
-import { fetchApi } from "@/lib/api-client";
+// NOTE: Do NOT use fetchApi here - it auto-redirects to /login on 401.
+// This page is public and must work without auth.
 
 interface Slide {
   slide_id: string;
@@ -145,8 +146,10 @@ export default function ShareMeetingPage({ params }: { params: Promise<{ id: str
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchApi<MeetingData>(`/api/meetings/${id}`)
-      .then((data) => {
+    fetch(`/api/meetings/${id}`)
+      .then((res) => { if (!res.ok) throw new Error(); return res.json(); })
+      .then((json) => {
+        const data = json.success ? json.data : json;
         setSlides(data.slides || []);
         setMeetingTitle(data.meeting?.title || "");
         setLoaded(true);
