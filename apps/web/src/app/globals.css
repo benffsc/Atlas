@@ -1767,6 +1767,22 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   color: #fff;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: 400;
+  /* Fade out during shrink so text doesn't reflow visibly */
+  transition: opacity 0.4s ease, max-height 0.8s ease;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+/* Hide description + dots when card is in corner mode */
+.tv-tour-card:not(.tv-tour-card--wide) .tv-tour-card__desc {
+  opacity: 0;
+  max-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.tv-tour-card:not(.tv-tour-card--wide) .tv-tour-card__dots {
+  display: none;
 }
 
 .tv-tour-card__dots {
