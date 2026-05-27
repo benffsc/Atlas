@@ -34,6 +34,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [progress, setProgress] = useState(0);
   const [showControls, setShowControls] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const stepStartRef = useRef(0);
   const remainingRef = useRef(0);
@@ -270,6 +271,18 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     };
   }, []);
 
+  // Track drawer open/close for card compact mode
+  useEffect(() => {
+    const onOpen = () => setDrawerOpen(true);
+    const onClose = () => setDrawerOpen(false);
+    window.addEventListener("screensaver:drawer-open", onOpen);
+    window.addEventListener("screensaver:drawer-close", onClose);
+    return () => {
+      window.removeEventListener("screensaver:drawer-open", onOpen);
+      window.removeEventListener("screensaver:drawer-close", onClose);
+    };
+  }, []);
+
   // T key: start if idle, pause/resume if playing
   useEffect(() => {
     const handler = () => {
@@ -304,6 +317,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
           progress={progress}
           currentStep={currentStep}
           totalSteps={steps.length}
+          compact={drawerOpen}
         />
       )}
 

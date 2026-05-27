@@ -15,6 +15,7 @@ interface TvTourCardProps {
   progress: number;
   currentStep: number;
   totalSteps: number;
+  compact?: boolean;
 }
 
 export function TvTourCard({
@@ -24,9 +25,10 @@ export function TvTourCard({
   progress,
   currentStep,
   totalSteps,
+  compact = false,
 }: TvTourCardProps) {
   return (
-    <div className="tv-tour-card">
+    <div className={`tv-tour-card ${compact ? "tv-tour-card--compact" : ""}`}>
       {/* Progress bar */}
       <div className="tv-tour-card__progress">
         <div

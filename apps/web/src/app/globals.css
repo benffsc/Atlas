@@ -1980,7 +1980,64 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   }
 }
 
-/* paused-fade removed — replaced by screensaver-controls */
+/* ── Tour pulse ring (highlights selected pin) ── */
+.tour-pulse-ring {
+  position: absolute;
+  z-index: 1100;
+  width: 60px;
+  height: 60px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  border-radius: 50%;
+  border: 3px solid var(--primary, #3b82f6);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), 0 0 40px rgba(59, 130, 246, 0.3);
+  animation: tour-pulse 1.5s ease-out infinite;
+}
+
+@keyframes tour-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 1;
+    border-width: 3px;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0.3;
+    border-width: 1px;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+/* ── Card compact mode (shrinks when drawer opens) ── */
+.tv-tour-card--compact {
+  width: 480px !important;
+  transition: width 0.4s ease, padding 0.4s ease;
+}
+
+.tv-tour-card--compact .tv-tour-card__body {
+  padding: 20px 28px 16px;
+}
+
+.tv-tour-card--compact .tv-tour-card__desc {
+  display: none;
+}
+
+.tv-tour-card--compact .tv-tour-card__dots {
+  display: none;
+}
+
+.tv-tour-card--compact .tv-tour-card__stat-value {
+  font-size: 2.5rem;
+}
+
+.tv-tour-card--compact .tv-tour-card__label {
+  font-size: 1.5rem;
+  margin-bottom: 4px;
+}
 
 /* ── Responsive: laptop fallback ── */
 @media (max-width: 1200px) {

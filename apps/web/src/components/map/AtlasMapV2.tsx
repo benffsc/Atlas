@@ -1399,6 +1399,27 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     };
   }, [map]);
 
+  // ── Tour pulse ring (highlights selected pin on map) ──
+  const [tourPulse, setTourPulse] = useState<{ lat: number; lng: number } | null>(null);
+  const tourPulseScreen = useMemo(() => {
+    if (!tourPulse || !map) return null;
+    // Convert lat/lng to pixel using map projection
+    const proj = (map as any).getProjection?.();
+    const bounds = map.getBounds();
+    if (!proj || !bounds) return null;
+    const ne = bounds.getNorthEast();
+    const sw = bounds.getSouthWest();
+    const topRight = proj.fromLatLngToPoint(ne);
+    const bottomLeft = proj.fromLatLngToPoint(sw);
+    const point = proj.fromLatLngToPoint(new google.maps.LatLng(tourPulse.lat, tourPulse.lng));
+    const mapDiv = (map as any).getDiv?.();
+    if (!topRight || !bottomLeft || !point || !mapDiv) return null;
+    const scale = Math.pow(2, map.getZoom() ?? 10);
+    const x = ((point.x - bottomLeft.x) * scale) / ((topRight.x - bottomLeft.x) * scale) * mapDiv.offsetWidth;
+    const y = ((point.y - topRight.y) * scale) / ((bottomLeft.y - topRight.y) * scale) * mapDiv.offsetHeight;
+    return { x, y };
+  }, [tourPulse, map]);
+
   // ── Screensaver scripted actions (select pin, hex compare, dismiss) ──
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1406,7 +1427,14 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       if (!action?.type) return;
       switch (action.type) {
         case "select-pin":
-          setSelectedPlaceId(action.placeId);
+          {
+            // Find the pin to get its coordinates for the pulse ring
+            const pin = atlasPins.find(p => p.id === action.placeId);
+            if (pin) setTourPulse({ lat: pin.lat, lng: pin.lng });
+            setSelectedPlaceId(action.placeId);
+            // Notify card to shrink
+            window.dispatchEvent(new CustomEvent("screensaver:drawer-open"));
+          }
           break;
         case "select-hex":
           // Use fabricated demo data for compelling hex detail panel
@@ -1450,6 +1478,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setShowComparePanel(false);
           setComparedHexes([]);
           setCompareMode(false);
+          setTourPulse(null);
+          window.dispatchEvent(new CustomEvent("screensaver:drawer-close"));
           break;
       }
     };
@@ -2282,6 +2312,17 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       <ShowcaseMapTour map={map} />
 
       {/* TV screensaver tour — now mounted at app layout level (ScreensaverTourGate in layout.tsx) */}
+
+      {/* Tour pulse ring — highlights selected pin during screensaver */}
+      {tourPulse && tourPulseScreen && (
+        <div
+          className="tour-pulse-ring"
+          style={{
+            left: tourPulseScreen.x,
+            top: tourPulseScreen.y,
+          }}
+        />
+      )}
 
     </div>
   );
