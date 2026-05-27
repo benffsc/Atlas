@@ -702,7 +702,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
               const presentCount = place.cats?.filter(c => c.presence_status === "current").length ?? place.cat_count;
               const departedCats = place.cats?.filter(c => c.presence_status === "departed" || c.presence_status === "presumed_departed") ?? [];
               const totalPresent = place.cats?.filter(c => c.presence_status !== "departed" && c.presence_status !== "presumed_departed").length ?? place.cat_count;
-              const alteredPct = totalPresent > 0 ? Math.round((place.total_altered / totalPresent) * 100) : 0;
+              const alteredPct = totalPresent > 0 ? Math.min(Math.round((place.total_altered / totalPresent) * 100), 100) : 0;
               const lastDate = place.cats?.map(c => c.latest_appointment_date).filter(Boolean).sort().reverse()[0] || null;
 
               // Departure breakdown for stat tooltip
@@ -725,12 +725,32 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
               };
               const tnr = place.colony_tnr_status && tnrStatusColors[place.colony_tnr_status];
 
+              const altColor = alteredPct >= 75 ? "var(--success-text, #16a34a)" : alteredPct >= 50 ? "var(--warning-text, #d97706)" : "var(--danger-text, #dc2626)";
+
               return (
                 <>
-                  {/* Colony TNR Status — first thing staff sees */}
+                  {/* FFR Progress hero — big alteration % */}
+                  {totalPresent > 0 && (
+                    <div style={{ textAlign: "center", padding: "12px 0 8px" }}>
+                      <div style={{ fontSize: "2.5rem", fontWeight: 800, lineHeight: 1, color: altColor }}>
+                        {alteredPct}%
+                      </div>
+                      <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--foreground-muted, #6b7280)", textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 4 }}>
+                        FFR Progress
+                      </div>
+                      <div style={{ height: 6, borderRadius: 3, background: "var(--border, #e5e7eb)", overflow: "hidden", marginTop: 8, maxWidth: 180, marginLeft: "auto", marginRight: "auto" }}>
+                        <div style={{ height: "100%", width: `${Math.min(alteredPct, 100)}%`, borderRadius: 3, background: altColor }} />
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--foreground-muted, #9ca3af)", marginTop: 4 }}>
+                        {place.total_altered} of {totalPresent} present cats altered
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Colony status badge */}
                   {tnr && place.colony_tnr_status !== "no_cats" && (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", margin: "0 0 8px", borderRadius: 6, background: tnr.bg, color: tnr.text, fontSize: "0.8rem", fontWeight: 600 }}>
-                      <span>TNR {tnr.label}</span>
+                      <span>FFR {tnr.label}</span>
                       <span style={{ fontWeight: 400, fontSize: "0.75rem" }}>
                         {alteredPct}% altered ({place.total_altered}/{totalPresent} present cats)
                       </span>

@@ -2,14 +2,14 @@
  * Screensaver Tour Configuration
  *
  * Uses FFR (Find Fix Return) not TNR. Demo place IDs are real production
- * UUIDs. Scripted actions demo the product live on each map step.
+ * UUIDs with verified sensible data. Scripted actions demo the product
+ * live on each map step.
  */
 
 export type SlideVariant = "hero" | "stat-grid" | "explainer" | "cta";
 
 export type TourAction =
   | { type: "select-pin"; placeId: string; delay: number }
-  | { type: "show-demo-card"; cardKey: string; lat: number; lng: number; delay: number }
   | { type: "select-hex"; lat: number; lng: number; delay: number }
   | { type: "compare-start"; delay: number }
   | { type: "compare-add-hex"; lat: number; lng: number; delay: number }
@@ -40,12 +40,14 @@ export type ScreensaverStep =
       showLogo?: boolean;
     };
 
-// Real production UUIDs chosen for visual impact
+// Real production UUIDs — verified to have sensible alteration rates
 const DEMO = {
-  countyOverview: "b2f18eff-3ee5-4f72-b49d-1cea4805d356",
+  // 790 Los Olivos Rd — 60 cats, 68% altered, good visual density
+  countyOverview: "0776d327-f84c-46c7-b098-edafaa9dcded",
+  // 5123 Montecito Ave — 35 cats, 97% altered, corridor hub
   montecitoCorridor: "97ba25bd-d76f-4c0d-a133-105a70786839",
+  // 2922 Fulton Rd — has FIV/FeLV positive cats
   diseaseFlag: "057529ef-80c8-4ce3-a5d1-6961a98c0aa6",
-  needsFFR: "bbd28653-5ed9-46ad-9599-b73240314f82",
 };
 
 export const SCREENSAVER_STEPS: ScreensaverStep[] = [
@@ -72,15 +74,15 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     label: "The Full Picture",
     description:
       "Every pin is a real location with verified data. Select any site to see its cats, alteration rates, and history.",
-    lat: 38.45,
-    lng: -122.72,
-    zoom: 10,
-    pauseMs: 14000,
+    lat: 38.46,
+    lng: -122.69,
+    zoom: 13,
+    pauseMs: 16000,
     stat: { value: "2,800+", label: "sites tracked" },
     layers: [],
     actions: [
-      { type: "show-demo-card", cardKey: "countyOverview", lat: 38.462, lng: -122.814, delay: 3500 },
-      { type: "dismiss", delay: 11000 },
+      { type: "select-pin", placeId: DEMO.countyOverview, delay: 4000 },
+      { type: "dismiss", delay: 13000 },
     ],
   },
   // 4. What Beacon does
@@ -114,7 +116,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { type: "dismiss", delay: 11000 },
     ],
   },
-  // 6. Map: Corridor Detection (Montecito)
+  // 6. Map: Corridor Detection (Montecito) — real drawer shows corridor links
   {
     type: "map",
     label: "Corridor Detection",
@@ -123,16 +125,16 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.4714,
     lng: -122.688,
     zoom: 17,
-    pauseMs: 14000,
+    pauseMs: 16000,
     stat: { value: "5", label: "linked properties" },
     layers: [],
     basemap: "satellite" as const,
     actions: [
-      { type: "show-demo-card", cardKey: "corridor", lat: 38.4714, lng: -122.688, delay: 3500 },
-      { type: "dismiss", delay: 11000 },
+      { type: "select-pin", placeId: DEMO.montecitoCorridor, delay: 4000 },
+      { type: "dismiss", delay: 13000 },
     ],
   },
-  // 7. Two levers (sets up the compare demo)
+  // 7. Two levers
   {
     type: "slide",
     variant: "explainer",
@@ -140,8 +142,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     body: "Increase clinic capacity so more cats can be altered each year. Use Beacon to target cats strategically so every surgery has the greatest possible impact. Together, these create faster, more humane population reduction.",
     pauseMs: 12000,
   },
-  // 8. Map: Strategic Comparison — compare two areas side by side
-  // This is the "strategic prioritization" + "compare" combined
+  // 8. Map: Strategic Comparison — 3 areas
   {
     type: "map",
     label: "Strategic Prioritization",
@@ -156,14 +157,11 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     basemap: "dark" as const,
     actions: [
       { type: "compare-start", delay: 2500 },
-      // Area A: Sebastopol (good FFR coverage, ~71%)
       { type: "compare-add-hex", lat: 38.46, lng: -122.81, delay: 4500 },
-      // Area C: Petaluma corridor (in progress, ~45%)
       { type: "compare-add-hex", lat: 38.35, lng: -122.74, delay: 7000 },
-      // Area B: South SR (urgent, ~16%)
       { type: "compare-add-hex", lat: 38.40, lng: -122.73, delay: 9500 },
       { type: "compare-finish", delay: 12000 },
-      { type: "dismiss", delay: 20000 },
+      { type: "dismiss", delay: 21000 },
     ],
   },
   // 9. Map: Disease Surveillance
@@ -175,13 +173,13 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.44,
     lng: -122.72,
     zoom: 11,
-    pauseMs: 14000,
+    pauseMs: 16000,
     stat: { value: "Active", label: "disease monitoring" },
     layers: ["atlas_disease"],
     basemap: "dark" as const,
     actions: [
-      { type: "show-demo-card", cardKey: "disease", lat: 38.488, lng: -122.769, delay: 3500 },
-      { type: "dismiss", delay: 11000 },
+      { type: "select-pin", placeId: DEMO.diseaseFlag, delay: 4000 },
+      { type: "dismiss", delay: 13000 },
     ],
   },
   // 10. Impact stats

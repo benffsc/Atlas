@@ -1433,10 +1433,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             setSelectedPlaceId(action.placeId);
           }
           break;
-        case "show-demo-card":
-          // Pulse ring at given coords — card itself rendered by ScreensaverTour
-          setTourPulse({ lat: action.lat, lng: action.lng });
-          break;
         case "select-hex":
           // Use fabricated demo data for compelling hex detail panel
           setSelectedHex({
