@@ -22,9 +22,12 @@ export function ScreensaverTourGate() {
     };
     window.addEventListener("storage", handler);
     window.addEventListener("showcase:toggle", handler);
+    // T-key dispatches screensaver:toggle — also re-check
+    window.addEventListener("screensaver:toggle", handler);
     return () => {
       window.removeEventListener("storage", handler);
       window.removeEventListener("showcase:toggle", handler);
+      window.removeEventListener("screensaver:toggle", handler);
     };
   }, []);
 

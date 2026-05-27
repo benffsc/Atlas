@@ -35,7 +35,7 @@ export function usePresentationMode() {
     }
   }, []);
 
-  // Apply/remove body class on state change
+  // Apply/remove body class on state change + notify screensaver gate
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (enabled) {
@@ -45,6 +45,8 @@ export function usePresentationMode() {
       document.body.classList.remove(BODY_CLASS);
       window.localStorage.setItem(STORAGE_KEY, "false");
     }
+    // Notify ScreensaverTourGate that showcase mode changed
+    window.dispatchEvent(new CustomEvent("showcase:toggle"));
   }, [enabled]);
 
   const toggle = useCallback(() => setEnabled((v) => !v), []);
