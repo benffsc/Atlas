@@ -42,12 +42,17 @@ export type ScreensaverStep =
 
 // Real production UUIDs — verified to have sensible alteration rates
 const DEMO = {
-  // 790 Los Olivos Rd — 60 cats, 68% altered, good visual density
-  countyOverview: "0776d327-f84c-46c7-b098-edafaa9dcded",
-  // 5123 Montecito Ave — 35 cats, 97% altered, corridor hub
-  montecitoCorridor: "97ba25bd-d76f-4c0d-a133-105a70786839",
-  // 2922 Fulton Rd — has FIV/FeLV positive cats
-  diseaseFlag: "057529ef-80c8-4ce3-a5d1-6961a98c0aa6",
+  // Full Picture cascade (3 places near Los Olivos area)
+  losOlivos: "0776d327-f84c-46c7-b098-edafaa9dcded",     // 60 cats, 68%
+  dartmouth: "a00b94dd-5e31-4d17-8acb-79e0e9905858",     // 31 cats, 65%
+  carrAve: "b6e731eb-e6ce-461a-b20c-8a35f63f0680",       // 30 cats, 83%
+  // Corridor cascade (Montecito Ave + neighbors)
+  montecito5123: "97ba25bd-d76f-4c0d-a133-105a70786839",  // 35 cats, 97%
+  montecito5055: "931a6b35-c98c-46d5-abc1-85d65f08ab9d",  // 6 cats
+  montecito5245: "40412b12-e425-4f7a-be84-39640a4392af",  // 4 cats
+  // Disease cascade
+  diseaseFulton: "057529ef-80c8-4ce3-a5d1-6961a98c0aa6",
+  diseaseRose: "1b4dec9e-7396-4c7d-b8fd-ee390860a22f",
 };
 
 export const SCREENSAVER_STEPS: ScreensaverStep[] = [
@@ -77,12 +82,17 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.46,
     lng: -122.69,
     zoom: 13,
-    pauseMs: 16000,
+    pauseMs: 26000,
     stat: { value: "2,800+", label: "sites tracked" },
     layers: [],
     actions: [
-      { type: "select-pin", placeId: DEMO.countyOverview, delay: 4000 },
-      { type: "dismiss", delay: 13000 },
+      // Cascade: open 3 places one after another
+      { type: "select-pin", placeId: DEMO.losOlivos, delay: 4000 },
+      { type: "dismiss", delay: 10000 },
+      { type: "select-pin", placeId: DEMO.dartmouth, delay: 11500 },
+      { type: "dismiss", delay: 17500 },
+      { type: "select-pin", placeId: DEMO.carrAve, delay: 19000 },
+      { type: "dismiss", delay: 24000 },
     ],
   },
   // 4. What Beacon does
@@ -125,13 +135,18 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.4714,
     lng: -122.688,
     zoom: 17,
-    pauseMs: 16000,
+    pauseMs: 28000,
     stat: { value: "5", label: "linked properties" },
     layers: [],
     basemap: "satellite" as const,
     actions: [
-      { type: "select-pin", placeId: DEMO.montecitoCorridor, delay: 4000 },
-      { type: "dismiss", delay: 13000 },
+      // Cascade through corridor properties
+      { type: "select-pin", placeId: DEMO.montecito5123, delay: 4000 },
+      { type: "dismiss", delay: 11000 },
+      { type: "select-pin", placeId: DEMO.montecito5055, delay: 12500 },
+      { type: "dismiss", delay: 19500 },
+      { type: "select-pin", placeId: DEMO.montecito5245, delay: 21000 },
+      { type: "dismiss", delay: 26000 },
     ],
   },
   // 7. Two levers
@@ -173,13 +188,15 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.44,
     lng: -122.72,
     zoom: 11,
-    pauseMs: 16000,
+    pauseMs: 22000,
     stat: { value: "Active", label: "disease monitoring" },
     layers: ["atlas_disease"],
     basemap: "dark" as const,
     actions: [
-      { type: "select-pin", placeId: DEMO.diseaseFlag, delay: 4000 },
-      { type: "dismiss", delay: 13000 },
+      { type: "select-pin", placeId: DEMO.diseaseFulton, delay: 4000 },
+      { type: "dismiss", delay: 11000 },
+      { type: "select-pin", placeId: DEMO.diseaseRose, delay: 12500 },
+      { type: "dismiss", delay: 19500 },
     ],
   },
   // 10. Impact stats
