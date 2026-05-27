@@ -18,7 +18,7 @@ import { usePathname } from "next/navigation";
 import { useIdleDetection } from "@/hooks/useIdleDetection";
 import { InfoSlide } from "./InfoSlide";
 import { TvTourCard } from "./TvTourCard";
-import { SCREENSAVER_STEPS, type ScreensaverStep } from "./screensaver-tour-config";
+import { SCREENSAVER_STEPS, type ScreensaverStep, type TourAction } from "./screensaver-tour-config";
 
 type TourState = "idle" | "playing" | "paused";
 
@@ -40,6 +40,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
   const stepStartRef = useRef(0);
   const remainingRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionTimerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
   const rafRef = useRef<number>(0);
   const tourStateRef = useRef<TourState>("idle");
 
@@ -60,6 +61,9 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     }
+    // Clear any scheduled scripted actions
+    for (const t of actionTimerRefs.current) clearTimeout(t);
+    actionTimerRefs.current = [];
   }, []);
 
   // Start playing a step
@@ -68,7 +72,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
       const s = steps[stepIndex];
       if (!s) return;
 
-      // Cancel any lingering RAF/timer from previous step
+      // Cancel any lingering RAF/timer/actions from previous step
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = 0;
@@ -77,12 +81,18 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
+      for (const t of actionTimerRefs.current) clearTimeout(t);
+      actionTimerRefs.current = [];
 
       const duration = durationOverride ?? s.pauseMs;
       stepStartRef.current = Date.now();
       remainingRef.current = duration;
 
       if (s.type === "map") {
+        // Dismiss any open drawers/panels from previous step
+        window.dispatchEvent(
+          new CustomEvent("screensaver:action", { detail: { type: "dismiss" } })
+        );
         // Dispatch fly-to event for the map
         window.dispatchEvent(
           new CustomEvent("screensaver:fly-to", {
@@ -102,6 +112,17 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
               detail: s.basemap,
             })
           );
+        }
+        // Schedule scripted UI actions (select pin, open hex, etc.)
+        if (s.actions) {
+          for (const action of s.actions) {
+            const tid = setTimeout(() => {
+              window.dispatchEvent(
+                new CustomEvent("screensaver:action", { detail: action })
+              );
+            }, action.delay);
+            actionTimerRefs.current.push(tid);
+          }
         }
       }
 
@@ -161,6 +182,10 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     setCurrentStep(0);
     setProgress(0);
     setShowPausedPill(false);
+    // Dismiss any open drawers/panels from scripted actions
+    window.dispatchEvent(
+      new CustomEvent("screensaver:action", { detail: { type: "dismiss", delay: 0 } })
+    );
     // Reset map layers and basemap
     window.dispatchEvent(new CustomEvent("showcase:layers", { detail: [] }));
     window.dispatchEvent(new CustomEvent("screensaver:basemap", { detail: "street" }));
@@ -245,6 +270,8 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      for (const t of actionTimerRefs.current) clearTimeout(t);
+      actionTimerRefs.current = [];
       document.body.classList.remove("tv-tour-active");
     };
   }, []);

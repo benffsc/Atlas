@@ -37,13 +37,13 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress }:
       <div className="info-slide__content">
         {showLogo && (
           <img
-            src="/beacon-logo.jpeg"
+            src="/beacon-logo-transparent.png"
             alt="Beacon"
             className="info-slide__logo"
           />
         )}
 
-        <h1 className="info-slide__heading">{heading}</h1>
+        {heading && <h1 className="info-slide__heading">{heading}</h1>}
 
         {body && <p className="info-slide__body">{body}</p>}
 

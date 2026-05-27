@@ -1398,6 +1398,85 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     };
   }, [map]);
 
+  // ── Screensaver scripted actions (select pin, hex compare, dismiss) ──
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const action = (e as CustomEvent).detail;
+      if (!action?.type) return;
+      switch (action.type) {
+        case "select-pin":
+          setSelectedPlaceId(action.placeId);
+          break;
+        case "select-hex":
+          // Simulate clicking a hex near the given coords
+          // Create a synthetic selection from nearby pins
+          {
+            const nearby = atlasPins.filter(
+              (p) =>
+                p.lat &&
+                p.lng &&
+                Math.abs(p.lat - action.lat) < 0.01 &&
+                Math.abs(p.lng - action.lng) < 0.01
+            );
+            if (nearby.length > 0) {
+              setSelectedHex({
+                pins: nearby.slice(0, 20),
+                center: { lat: action.lat, lng: action.lng },
+              });
+            }
+          }
+          break;
+        case "compare-start":
+          setCompareMode(true);
+          setComparedHexes([]);
+          setShowComparePanel(false);
+          setSelectedHex(null);
+          break;
+        case "compare-add-hex":
+          {
+            const nearby = atlasPins.filter(
+              (p) =>
+                p.lat &&
+                p.lng &&
+                Math.abs(p.lat - action.lat) < 0.015 &&
+                Math.abs(p.lng - action.lng) < 0.015
+            );
+            if (nearby.length > 0) {
+              setComparedHexes((prev) => {
+                if (prev.length >= 4) return prev;
+                return [
+                  ...prev,
+                  {
+                    pins: nearby.slice(0, 20),
+                    center: { lat: action.lat, lng: action.lng },
+                  },
+                ];
+              });
+            }
+          }
+          break;
+        case "compare-finish":
+          setCompareMode(false);
+          setShowComparePanel(true);
+          break;
+        case "dismiss":
+          setSelectedPlaceId(null);
+          setSelectedPersonId(null);
+          setSelectedCatId(null);
+          setSelectedAnnotationId(null);
+          setSelectedPin(null);
+          setSelectedHex(null);
+          setShowComparePanel(false);
+          setComparedHexes([]);
+          setCompareMode(false);
+          break;
+      }
+    };
+    window.addEventListener("screensaver:action", handler);
+    return () => window.removeEventListener("screensaver:action", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atlasPins, setSelectedPlaceId, setSelectedPersonId, setSelectedCatId, setSelectedAnnotationId]);
+
   // ── Street View from search ──
   const handleStreetViewFromSearch = useCallback((lat: number, lng: number, address?: string) => {
     setStreetViewCoords({ lat, lng, address });
