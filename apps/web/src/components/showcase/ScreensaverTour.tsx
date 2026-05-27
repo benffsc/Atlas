@@ -194,12 +194,16 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
 
   // Direct mouse/key listener for pause/resume while tour is active.
   // This works regardless of how the tour was started (T key, idle, toolbar).
+  // Clicks on the screensaver controls are ignored (they handle their own logic).
   useEffect(() => {
     if (!enabled) return;
     let resumeTimer: ReturnType<typeof setTimeout> | null = null;
     let throttle = 0;
 
-    const handleActivity = () => {
+    const handleActivity = (e: Event) => {
+      // Don't pause when clicking on the tour controls themselves
+      if (e.target instanceof HTMLElement && e.target.closest(".screensaver-controls")) return;
+
       const now = Date.now();
       if (now - throttle < 200) return;
       throttle = now;
