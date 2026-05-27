@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { AtlasPin } from "@/components/map";
 import type { HexBinSelection } from "./CatHexbinLayer";
 import { HexForecastSection } from "./HexForecastSection";
+import { maskStreetIfPresenting } from "@/lib/dataMasking";
 
 interface HexDetailPanelProps {
   selection: HexBinSelection;
@@ -310,7 +311,7 @@ export function HexDetailPanel({ selection, onClose, onPlaceClick }: HexDetailPa
                   onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                 >
                   <span style={{ color: "var(--foreground, #111)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginRight: 8 }}>
-                    {act.address.split(",")[0]}
+                    {(maskStreetIfPresenting(act.address) || act.address).split(",")[0]}
                   </span>
                   <span style={{ color: "var(--foreground-muted, #6b7280)", flexShrink: 0, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}>
                     {act.type} {relativeTime(act.date)}
@@ -375,7 +376,7 @@ function PlacesList({ places, onPlaceClick, styleLookup }: {
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: styleInfo.color, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground, #111)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {pin.display_name || pin.address.split(",")[0]}
+                  {pin.display_name || (maskStreetIfPresenting(pin.address) || pin.address).split(",")[0]}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--foreground-muted, #6b7280)" }}>
                   {pin.cat_count} cat{pin.cat_count !== 1 ? "s" : ""}
@@ -487,7 +488,7 @@ function DiseaseRow({ disease, onPlaceClick }: { disease: DiseaseInfo; onPlaceCl
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
             >
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--foreground, #111)" }}>
-                {place.address.split(",")[0]}
+                {(maskStreetIfPresenting(place.address) || place.address).split(",")[0]}
               </span>
               <span style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 4, color: "var(--foreground-muted, #6b7280)", fontSize: 11 }}>
                 {place.positive_cats} cat{place.positive_cats !== 1 ? "s" : ""}

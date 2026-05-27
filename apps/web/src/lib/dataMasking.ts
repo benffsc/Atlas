@@ -122,6 +122,21 @@ export function maskAddressToNeighborhood(
 }
 
 /**
+ * Mask street number in an address for presentation mode.
+ * "175 Scenic Avenue" → "*** Scenic Avenue"
+ * "7810 Davis Ln, Penngrove" → "*** Davis Ln, Penngrove"
+ * Checks document.body for presentation-mode class; passthrough if not active.
+ */
+export function maskStreetIfPresenting(address: string | null | undefined): string | null {
+  if (!address) return null;
+  if (typeof document === "undefined" || !document.body.classList.contains("presentation-mode")) {
+    return address;
+  }
+  // "175 Scenic Avenue" → "*** Scenic Avenue"
+  return address.replace(/^\d+(-\d+)?\s*/, "*** ");
+}
+
+/**
  * Entity types that can be masked
  */
 export type MaskableEntityType =

@@ -189,7 +189,8 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
   }, [isPresentationMode]);
   const maskAddr = useCallback((v: string | null) => {
     if (!v || !isPresentationMode) return v;
-    return maskAddressToNeighborhood(v) || v;
+    // Replace street number with ***: "5245 Montecito Ave" → "*** Montecito Ave"
+    return v.replace(/^\d+(-\d+)?(\s)/, "***$2");
   }, [isPresentationMode]);
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);

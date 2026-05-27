@@ -1906,14 +1906,16 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   margin-right: auto;
 }
 
-/* ── Stat stage: grid + spotlight overlay ── */
-.info-slide__stat-stage {
-  position: relative;
-  margin-top: 3rem;
+/* ── Stat animation states ── */
+
+/* Hidden: not yet shown */
+.info-slide__stat--hidden {
+  opacity: 0;
+  transform: scale(0.5);
 }
 
-/* Spotlight: currently featured stat, centered over the grid */
-.info-slide__stat-spotlight {
+/* Featured: centered and huge, overlaid on top of grid */
+.info-slide__stat--featured {
   position: absolute;
   inset: 0;
   display: flex;
@@ -1921,36 +1923,42 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   align-items: center;
   justify-content: center;
   z-index: 1;
-  animation: stat-spotlight-in 500ms ease-out;
-  pointer-events: none;
+  animation: stat-pop-in 500ms ease-out;
 }
 
-.info-slide__stat-spotlight-value {
-  font-size: clamp(5rem, 10vw, 10rem);
-  font-weight: 800;
-  color: var(--primary, #60a5fa);
-  line-height: 1;
-  font-family: "Raleway", "Helvetica Neue", sans-serif;
+.info-slide__stat--featured .info-slide__stat-value {
+  font-size: clamp(5rem, 10vw, 10rem) !important;
 }
 
-.info-slide__stat-spotlight-label {
-  font-size: clamp(1.4rem, 2.5vw, 2.2rem);
-  color: rgba(255, 255, 255, 0.85);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.info-slide__stat--featured .info-slide__stat-label {
+  font-size: clamp(1.4rem, 2.5vw, 2.2rem) !important;
   margin-top: 0.75rem;
-  font-weight: 500;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  animation: stat-spotlight-in 500ms ease-out 150ms both;
 }
 
-@keyframes stat-spotlight-in {
-  from { opacity: 0; transform: scale(0.7); }
+@keyframes stat-pop-in {
+  from { opacity: 0; transform: scale(0.6); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* Settling: shrinking from center to grid position */
+.info-slide__stat--settling {
+  animation: stat-settle 800ms ease-in-out forwards;
+}
+
+@keyframes stat-settle {
+  from { opacity: 0.7; transform: scale(1.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Settled: in grid at final size */
+.info-slide__stat--settled {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .info-slide__stat {
   text-align: center;
+  transition: opacity 400ms ease, transform 400ms ease;
 }
 
 .info-slide__stat-value {
