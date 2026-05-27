@@ -231,7 +231,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.5,
     lng: -122.78,
     zoom: 10,
-    pauseMs: 10000,
+    pauseMs: 18000,
     stat: { value: "Beacon", label: "by Forgotten Felines" },
     layers: [],
     basemap: "satellite" as const,
