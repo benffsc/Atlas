@@ -2,8 +2,7 @@
  * Screensaver Tour Configuration
  *
  * Uses FFR (Find Fix Return) not TNR. Demo place IDs are real production
- * UUIDs with verified sensible data. Scripted actions demo the product
- * live on each map step.
+ * UUIDs. Scripted actions demo the product live on each map step.
  */
 
 export type SlideVariant = "hero" | "stat-grid" | "explainer" | "cta";
@@ -43,20 +42,20 @@ export type ScreensaverStep =
 // Real production UUIDs — verified to have sensible alteration rates
 const DEMO = {
   // Full Picture cascade (3 places near Los Olivos area)
-  losOlivos: "0776d327-f84c-46c7-b098-edafaa9dcded",     // 60 cats, 68%
-  dartmouth: "a00b94dd-5e31-4d17-8acb-79e0e9905858",     // 31 cats, 65%
-  carrAve: "b6e731eb-e6ce-461a-b20c-8a35f63f0680",       // 30 cats, 83%
+  losOlivos: "0776d327-f84c-46c7-b098-edafaa9dcded",
+  dartmouth: "a00b94dd-5e31-4d17-8acb-79e0e9905858",
+  carrAve: "b6e731eb-e6ce-461a-b20c-8a35f63f0680",
   // Corridor cascade (Montecito Ave + neighbors)
-  montecito5123: "97ba25bd-d76f-4c0d-a133-105a70786839",  // 35 cats, 97%
-  montecito5055: "931a6b35-c98c-46d5-abc1-85d65f08ab9d",  // 6 cats
-  montecito5245: "40412b12-e425-4f7a-be84-39640a4392af",  // 4 cats
+  montecito5123: "97ba25bd-d76f-4c0d-a133-105a70786839",
+  montecito5055: "931a6b35-c98c-46d5-abc1-85d65f08ab9d",
+  montecito5245: "40412b12-e425-4f7a-be84-39640a4392af",
   // Disease cascade
   diseaseFulton: "057529ef-80c8-4ce3-a5d1-6961a98c0aa6",
   diseaseRose: "1b4dec9e-7396-4c7d-b8fd-ee390860a22f",
 };
 
 export const SCREENSAVER_STEPS: ScreensaverStep[] = [
-  // 1. Hero
+  // 1. Hero — logo centers, raises, tagline appears
   {
     type: "slide",
     variant: "hero",
@@ -65,35 +64,21 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     pauseMs: 8000,
     showLogo: true,
   },
-  // 2. The problem
+  // 2. Two levers — WHY Beacon exists (moved up front per feedback)
+  {
+    type: "slide",
+    variant: "explainer",
+    heading: "Two Levers for Faster Impact",
+    body: "Increase clinic capacity so more cats can be altered each year. Use Beacon to target cats strategically so every surgery has the greatest possible impact. Together, these create faster, more humane population reduction.",
+    pauseMs: 13000,
+  },
+  // 3. The problem Beacon solves
   {
     type: "slide",
     variant: "explainer",
     heading: "The Problem",
     body: "Find, Fix, Return works. But population reduction depends on timing, location, and strategy. Altering the right 50 cats, in the right area, at the right time, can change the future of an entire colony. Without better data, organizations respond to the loudest need, not the greatest impact.",
     pauseMs: 14000,
-  },
-  // 3. Map: Full picture + open a real place drawer
-  {
-    type: "map",
-    label: "The Full Picture",
-    description:
-      "Every pin is a real location with verified data. Select any site to see its cats, alteration rates, and history.",
-    lat: 38.46,
-    lng: -122.69,
-    zoom: 13,
-    pauseMs: 42000,
-    stat: { value: "2,800+", label: "sites tracked" },
-    layers: [],
-    actions: [
-      // Cascade: open 3 places — starts after card shrinks (8s)
-      { type: "select-pin", placeId: DEMO.losOlivos, delay: 10000 },
-      { type: "dismiss", delay: 18000 },
-      { type: "select-pin", placeId: DEMO.dartmouth, delay: 20000 },
-      { type: "dismiss", delay: 28000 },
-      { type: "select-pin", placeId: DEMO.carrAve, delay: 30000 },
-      { type: "dismiss", delay: 38000 },
-    ],
   },
   // 4. What Beacon does
   {
@@ -108,7 +93,28 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     ],
     pauseMs: 12000,
   },
-  // 5. Map: Density hexbin + click a hex
+  // 5. Map: Full picture + cascade 3 places
+  {
+    type: "map",
+    label: "The Full Picture",
+    description:
+      "Every pin is a real location with verified data. Select any site to see its cats, alteration rates, and history.",
+    lat: 38.46,
+    lng: -122.69,
+    zoom: 13,
+    pauseMs: 42000,
+    stat: { value: "2,800+", label: "sites tracked" },
+    layers: [],
+    actions: [
+      { type: "select-pin", placeId: DEMO.losOlivos, delay: 10000 },
+      { type: "dismiss", delay: 18000 },
+      { type: "select-pin", placeId: DEMO.dartmouth, delay: 20000 },
+      { type: "dismiss", delay: 28000 },
+      { type: "select-pin", placeId: DEMO.carrAve, delay: 30000 },
+      { type: "dismiss", delay: 38000 },
+    ],
+  },
+  // 6. Map: Density hexbin + click a hex
   {
     type: "map",
     label: "Geographic Intelligence",
@@ -126,7 +132,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { type: "dismiss", delay: 18000 },
     ],
   },
-  // 6. Map: Corridor Detection (Montecito) — real drawer shows corridor links
+  // 7. Map: Corridor Detection — cascade 3 corridor properties
   {
     type: "map",
     label: "Corridor Detection",
@@ -140,7 +146,6 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     layers: [],
     basemap: "satellite" as const,
     actions: [
-      // Cascade through corridor properties — starts after card shrinks
       { type: "select-pin", placeId: DEMO.montecito5123, delay: 10000 },
       { type: "dismiss", delay: 18000 },
       { type: "select-pin", placeId: DEMO.montecito5055, delay: 20000 },
@@ -149,15 +154,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { type: "dismiss", delay: 38000 },
     ],
   },
-  // 7. Two levers
-  {
-    type: "slide",
-    variant: "explainer",
-    heading: "Two Levers for Faster Impact",
-    body: "Increase clinic capacity so more cats can be altered each year. Use Beacon to target cats strategically so every surgery has the greatest possible impact. Together, these create faster, more humane population reduction.",
-    pauseMs: 12000,
-  },
-  // 8. Map: Strategic Comparison — 3 areas
+  // 8. Map: Strategic Comparison — 3 areas compared
   {
     type: "map",
     label: "Strategic Prioritization",
@@ -171,7 +168,6 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     layers: ["hexbin_density"],
     basemap: "dark" as const,
     actions: [
-      // Start compare well after card description reappears (9.4s)
       { type: "compare-start", delay: 14000 },
       { type: "compare-add-hex", lat: 38.46, lng: -122.81, delay: 16000 },
       { type: "compare-add-hex", lat: 38.35, lng: -122.74, delay: 19000 },
@@ -180,7 +176,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { type: "dismiss", delay: 42000 },
     ],
   },
-  // 9. Map: Disease Surveillance
+  // 9. Map: Disease Surveillance — cascade 2 sites
   {
     type: "map",
     label: "Disease Surveillance",
@@ -227,7 +223,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     layers: [],
     basemap: "satellite" as const,
   },
-  // 12. CTA — last slide, then loops back to hero with logo centering
+  // 12. CTA — last slide, loops back to hero
   {
     type: "slide",
     variant: "cta",
