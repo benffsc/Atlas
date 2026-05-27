@@ -4,12 +4,25 @@
  * InfoSlide — full-viewport info slide for the screensaver tour.
  *
  * Four variants: hero, stat-grid, explainer, cta.
- * All dark navy gradients, white text, clamp() for responsive sizing.
- * TV-optimized: 4rem+ headings, 1.5rem body text.
+ * Pure black background, white text, TV-optimized sizing.
+ * Logo is preloaded on mount so it never pops in late.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { SlideVariant } from "./screensaver-tour-config";
+
+const LOGO_SRC = "/beacon-logo-transparent.png";
+
+// Preload the logo image globally so it's cached for all slides
+if (typeof window !== "undefined") {
+  const link = document.createElement("link");
+  link.rel = "preload";
+  link.as = "image";
+  link.href = LOGO_SRC;
+  if (!document.head.querySelector(`link[href="${LOGO_SRC}"]`)) {
+    document.head.appendChild(link);
+  }
+}
 
 interface InfoSlideProps {
   variant: SlideVariant;
@@ -21,14 +34,32 @@ interface InfoSlideProps {
 }
 
 export function InfoSlide({ variant, heading, body, stats, showLogo, progress }: InfoSlideProps) {
-  const [mounted, setMounted] = useState(false);
+  const [ready, setReady] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
   useEffect(() => {
-    requestAnimationFrame(() => setMounted(true));
-    return () => setMounted(false);
-  }, []);
+    if (!showLogo) {
+      // No logo needed — fade in immediately
+      requestAnimationFrame(() => setReady(true));
+      return () => setReady(false);
+    }
+    // Wait for logo to be loaded before fading in
+    const img = new Image();
+    img.src = LOGO_SRC;
+    imgRef.current = img;
+    if (img.complete) {
+      requestAnimationFrame(() => setReady(true));
+    } else {
+      img.onload = () => requestAnimationFrame(() => setReady(true));
+      // Fallback: show after 300ms even if image hasn't loaded
+      const fallback = setTimeout(() => setReady(true), 300);
+      return () => { clearTimeout(fallback); setReady(false); };
+    }
+    return () => setReady(false);
+  }, [showLogo]);
 
   return (
-    <div className={`info-slide info-slide--${variant} ${mounted ? "info-slide--visible" : ""}`}>
+    <div className={`info-slide info-slide--${variant} ${ready ? "info-slide--visible" : ""}`}>
       {/* Progress bar */}
       <div className="info-slide__progress">
         <div className="info-slide__progress-fill" style={{ width: `${progress * 100}%` }} />
@@ -37,7 +68,7 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress }:
       <div className="info-slide__content">
         {showLogo && (
           <img
-            src="/beacon-logo-transparent.png"
+            src={LOGO_SRC}
             alt="Beacon"
             className="info-slide__logo"
           />
