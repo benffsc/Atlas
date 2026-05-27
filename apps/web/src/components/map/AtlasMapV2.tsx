@@ -53,6 +53,7 @@ import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
 import { ShowcaseMapTour } from "@/components/ShowcaseMapTour";
 import { MapVisualizationMode } from "@/components/map/components/MapVisualizationMode";
 import type { BasemapType } from "@/components/map/components/MapControls";
+import { DEMO_AREA_A, DEMO_AREA_B, DEMO_HEX_DETAIL } from "@/components/showcase/screensaver-demo-data";
 import type {
   AtlasPin,
   Place,
@@ -1408,23 +1409,11 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setSelectedPlaceId(action.placeId);
           break;
         case "select-hex":
-          // Simulate clicking a hex near the given coords
-          // Wide radius (0.03 ~3km) to always capture pins for the demo
-          {
-            const nearby = atlasPins.filter(
-              (p) =>
-                p.lat &&
-                p.lng &&
-                Math.abs(p.lat - action.lat) < 0.03 &&
-                Math.abs(p.lng - action.lng) < 0.03
-            );
-            if (nearby.length > 0) {
-              setSelectedHex({
-                pins: nearby.slice(0, 40),
-                center: { lat: action.lat, lng: action.lng },
-              });
-            }
-          }
+          // Use fabricated demo data for compelling hex detail panel
+          setSelectedHex({
+            pins: DEMO_HEX_DETAIL,
+            center: { lat: action.lat, lng: action.lng },
+          });
           break;
         case "compare-start":
           setCompareMode(true);
@@ -1433,28 +1422,19 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setSelectedHex(null);
           break;
         case "compare-add-hex":
-          // Wide radius to guarantee pins in each compare column
-          {
-            const nearby = atlasPins.filter(
-              (p) =>
-                p.lat &&
-                p.lng &&
-                Math.abs(p.lat - action.lat) < 0.04 &&
-                Math.abs(p.lng - action.lng) < 0.04
-            );
-            if (nearby.length > 0) {
-              setComparedHexes((prev) => {
-                if (prev.length >= 4) return prev;
-                return [
-                  ...prev,
-                  {
-                    pins: nearby.slice(0, 40),
-                    center: { lat: action.lat, lng: action.lng },
-                  },
-                ];
-              });
-            }
-          }
+          // Use fabricated demo areas for compelling compare columns
+          setComparedHexes((prev) => {
+            if (prev.length >= 4) return prev;
+            // First hex = Area A (good TNR coverage), second = Area B (needs work)
+            const demoPins = prev.length === 0 ? DEMO_AREA_A : DEMO_AREA_B;
+            return [
+              ...prev,
+              {
+                pins: demoPins,
+                center: { lat: action.lat, lng: action.lng },
+              },
+            ];
+          });
           break;
         case "compare-finish":
           setCompareMode(false);
