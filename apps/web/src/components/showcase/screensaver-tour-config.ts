@@ -97,7 +97,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     layers: ["hexbin_density"],
     basemap: "dark" as const,
   },
-  // 6. Map — Corridor Detection (Montecito)
+  // 6. Map — Corridor Detection (Montecito) — satellite shows actual houses
   {
     type: "map",
     label: "Corridor Detection",
@@ -108,6 +108,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     zoom: 17,
     pauseMs: 11000,
     stat: { value: "5", label: "linked properties" },
+    basemap: "satellite" as const,
   },
   // 7. Map — Distance Compare tool
   {
@@ -188,5 +189,6 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     zoom: 10,
     pauseMs: 10000,
     stat: { value: "Beacon", label: "by Forgotten Felines" },
+    basemap: "satellite" as const,
   },
 ];

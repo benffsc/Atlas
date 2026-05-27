@@ -161,8 +161,9 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     setCurrentStep(0);
     setProgress(0);
     setShowPausedPill(false);
-    // Reset map layers
+    // Reset map layers and basemap
     window.dispatchEvent(new CustomEvent("showcase:layers", { detail: [] }));
+    window.dispatchEvent(new CustomEvent("screensaver:basemap", { detail: "street" }));
     // Notify toolbar
     window.dispatchEvent(new CustomEvent("screensaver:stopped"));
   }, [clearTimers]);
