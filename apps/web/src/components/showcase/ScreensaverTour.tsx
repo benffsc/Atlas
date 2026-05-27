@@ -38,6 +38,8 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [logoPhase, setLogoPhase] = useState<"center" | "raised" | "corner">("center");
   const logoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Increments on every tour start so the logo effect re-fires even if currentStep is already 0
+  const [tourGeneration, setTourGeneration] = useState(0);
   // activeDemoCard removed — using real drawers
 
   const stepStartRef = useRef(0);
@@ -178,6 +180,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     setCurrentStep(0);
     setProgress(0);
     setLogoPhase("center");
+    setTourGeneration(g => g + 1);
     setShowControls(false);
     playStep(0);
   }, [playStep]);
@@ -323,7 +326,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
       setLogoPhase("corner");
     }
     return () => { if (logoTimerRef.current) clearTimeout(logoTimerRef.current); };
-  }, [currentStep, step]);
+  }, [currentStep, step, tourGeneration]);
 
   // Track drawer open/close for card compact mode
   useEffect(() => {
