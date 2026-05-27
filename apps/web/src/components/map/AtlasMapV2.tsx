@@ -1431,10 +1431,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
             const pin = atlasPins.find(p => p.id === action.placeId);
             if (pin) setTourPulse({ lat: pin.lat, lng: pin.lng });
             setSelectedPlaceId(action.placeId);
-            // Delay card shrink 3s so narration is readable first
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent("screensaver:drawer-open"));
-            }, 3000);
           }
           break;
         case "select-hex":
@@ -1480,7 +1476,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setComparedHexes([]);
           setCompareMode(false);
           setTourPulse(null);
-          window.dispatchEvent(new CustomEvent("screensaver:drawer-close"));
           break;
       }
     };
