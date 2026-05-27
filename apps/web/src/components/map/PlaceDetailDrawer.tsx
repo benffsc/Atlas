@@ -742,7 +742,10 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                         <div style={{ height: "100%", width: `${Math.min(alteredPct, 100)}%`, borderRadius: 3, background: altColor }} />
                       </div>
                       <div style={{ fontSize: "0.7rem", color: "var(--foreground-muted, #9ca3af)", marginTop: 4 }}>
-                        {place.total_altered} of {totalPresent} present cats altered
+                        {place.total_altered} of {totalPresent} known cats altered
+                      </div>
+                      <div style={{ fontSize: "0.65rem", color: "var(--foreground-muted, #b0b0b0)", marginTop: 6, fontStyle: "italic", maxWidth: 220, marginLeft: "auto", marginRight: "auto", lineHeight: 1.4 }}>
+                        Estimated from verified clinic records. Accuracy improvements ongoing.
                       </div>
                     </div>
                   )}
