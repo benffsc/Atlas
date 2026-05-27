@@ -434,7 +434,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       {/* Header */}
       <div className="drawer-header">
         <div className="drawer-title">
-          <h2>{place?.address || <Skeleton width="200px" height={20} />}</h2>
+          <h2>{place ? (r.neighborhood(place.address) || place.address) : <Skeleton width="200px" height={20} />}</h2>
           {place?.display_name && (
             <span className="drawer-subtitle">{place.display_name}</span>
           )}
