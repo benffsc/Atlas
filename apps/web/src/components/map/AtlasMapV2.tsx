@@ -53,7 +53,7 @@ import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
 import { ShowcaseMapTour } from "@/components/ShowcaseMapTour";
 import { MapVisualizationMode } from "@/components/map/components/MapVisualizationMode";
 import type { BasemapType } from "@/components/map/components/MapControls";
-import { DEMO_AREA_A, DEMO_AREA_B, DEMO_HEX_DETAIL } from "@/components/showcase/screensaver-demo-data";
+import { DEMO_AREA_A, DEMO_AREA_B, DEMO_AREA_C, DEMO_HEX_DETAIL } from "@/components/showcase/screensaver-demo-data";
 import type {
   AtlasPin,
   Place,
@@ -1447,11 +1447,11 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setSelectedHex(null);
           break;
         case "compare-add-hex":
-          // Use fabricated demo areas for compelling compare columns
+          // Cycle through fabricated demo areas: A (good), C (middle), B (urgent)
           setComparedHexes((prev) => {
             if (prev.length >= 4) return prev;
-            // First hex = Area A (good FFR coverage), second = Area B (needs work)
-            const demoPins = prev.length === 0 ? DEMO_AREA_A : DEMO_AREA_B;
+            const demoAreas = [DEMO_AREA_A, DEMO_AREA_C, DEMO_AREA_B];
+            const demoPins = demoAreas[prev.length] ?? DEMO_AREA_B;
             return [
               ...prev,
               {
@@ -1464,6 +1464,8 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         case "compare-finish":
           setCompareMode(false);
           setShowComparePanel(true);
+          // Collapse narration card — compare panel overlaps it
+          window.dispatchEvent(new CustomEvent("screensaver:drawer-open"));
           break;
         case "dismiss":
           setSelectedPlaceId(null);
@@ -1476,6 +1478,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setComparedHexes([]);
           setCompareMode(false);
           setTourPulse(null);
+          window.dispatchEvent(new CustomEvent("screensaver:drawer-close"));
           break;
       }
     };

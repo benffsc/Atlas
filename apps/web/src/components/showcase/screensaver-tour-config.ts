@@ -149,16 +149,20 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.43,
     lng: -122.73,
     zoom: 11,
-    pauseMs: 22000,
+    pauseMs: 24000,
     stat: { value: "Compare", label: "FFR progress" },
     layers: ["hexbin_density"],
     basemap: "dark" as const,
     actions: [
       { type: "compare-start", delay: 2500 },
-      { type: "compare-add-hex", lat: 38.46, lng: -122.81, delay: 5000 },
-      { type: "compare-add-hex", lat: 38.40, lng: -122.73, delay: 8000 },
-      { type: "compare-finish", delay: 10500 },
-      { type: "dismiss", delay: 19000 },
+      // Area A: Sebastopol (good FFR coverage, ~71%)
+      { type: "compare-add-hex", lat: 38.46, lng: -122.81, delay: 4500 },
+      // Area C: Petaluma corridor (in progress, ~45%)
+      { type: "compare-add-hex", lat: 38.35, lng: -122.74, delay: 7000 },
+      // Area B: South SR (urgent, ~16%)
+      { type: "compare-add-hex", lat: 38.40, lng: -122.73, delay: 9500 },
+      { type: "compare-finish", delay: 12000 },
+      { type: "dismiss", delay: 20000 },
     ],
   },
   // 9. Map: Disease Surveillance

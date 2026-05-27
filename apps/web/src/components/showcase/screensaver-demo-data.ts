@@ -145,6 +145,40 @@ export const DEMO_AREA_B: AtlasPin[] = [
   }),
 ];
 
+// ── Area C: Middle ground (Petaluma / south county) ──
+// ~45% alteration rate — in progress but stalled
+export const DEMO_AREA_C: AtlasPin[] = [
+  demoPin({
+    id: "demo-c1", address: "4045 Middle Two Rock Road, Petaluma, CA 94952", lat: 38.253, lng: -122.738,
+    cat_count: 40, total_altered: 18, last_alteration_at: monthsAgo(6),
+    pin_style: "active", active_request_count: 1,
+    people: [{ name: "Sandra W.", roles: ["colony_caretaker"], is_staff: false }],
+    person_count: 1,
+  }),
+  demoPin({
+    id: "demo-c2", address: "1821 Airport Blvd, Santa Rosa, CA 95403", lat: 38.513, lng: -122.797,
+    cat_count: 25, total_altered: 12, last_alteration_at: monthsAgo(4),
+    pin_style: "active",
+  }),
+  demoPin({
+    id: "demo-c3", address: "4488 Blank Rd, Sebastopol, CA 95472", lat: 38.339, lng: -122.762,
+    cat_count: 18, total_altered: 8, last_alteration_at: monthsAgo(10),
+    pin_style: "active_requests", active_request_count: 1, needs_trapper_count: 1,
+  }),
+  demoPin({
+    id: "demo-c4", address: "2955 Sunny Wood Cir, Santa Rosa, CA 95407", lat: 38.414, lng: -122.751,
+    cat_count: 15, total_altered: 7, last_alteration_at: monthsAgo(8),
+    pin_style: "active", watch_list: true,
+    disease_risk: true, disease_count: 1,
+    disease_badges: [{ disease_key: "fiv", short_code: "FIV", color: "#d97706", status: "confirmed", last_positive: monthsAgo(9), positive_cats: 1 }],
+  }),
+  demoPin({
+    id: "demo-c5", address: "1647 Rose Avenue, Santa Rosa, CA 95407", lat: 38.426, lng: -122.738,
+    cat_count: 12, total_altered: 5, last_alteration_at: monthsAgo(14),
+    pin_style: "active",
+  }),
+];
+
 // ── Single hex demo for HexDetailPanel ──
 export const DEMO_HEX_DETAIL: AtlasPin[] = [
   demoPin({

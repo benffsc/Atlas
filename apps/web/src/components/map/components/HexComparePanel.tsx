@@ -164,10 +164,23 @@ function CompareColumn({ selection, index, onRemove }: { selection: HexBinSelect
 
       {/* Scrollable body — hidden scrollbar */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 14, scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}>
+        {/* Hero: Big alteration % — the main story */}
+        <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
+          <div style={{ fontSize: 56, fontWeight: 800, lineHeight: 1, color: altPct >= 75 ? "#16a34a" : altPct >= 50 ? "#d97706" : "#dc2626" }}>
+            {altPct}%
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground-muted, #6b7280)", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 4 }}>
+            Altered
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: "var(--border, #e5e7eb)", overflow: "hidden", marginTop: 8, maxWidth: 160, marginLeft: "auto", marginRight: "auto" }}>
+            <div style={{ height: "100%", width: `${altPct}%`, borderRadius: 4, background: altPct >= 75 ? "#16a34a" : altPct >= 50 ? "#d97706" : "#dc2626" }} />
+          </div>
+        </div>
+
         {/* Risk Score */}
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: riskColor }}>{forecast.riskScore}<span style={{ fontSize: 14, fontWeight: 400 }}>/10</span></div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: riskColor }}>{forecast.riskLabel} Risk</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: riskColor }}>{forecast.riskScore}<span style={{ fontSize: 12, fontWeight: 400 }}>/10</span></div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: riskColor }}>{forecast.riskLabel} Risk</div>
         </div>
 
         {/* Key stats */}
@@ -176,14 +189,6 @@ function CompareColumn({ selection, index, onRemove }: { selection: HexBinSelect
           <MiniStat label="Altered" value={stats.totalAltered} />
           <MiniStat label="Intact" value={stats.intactEstimate} accent={stats.intactEstimate > 10 ? "#dc2626" : undefined} />
           <MiniStat label="Requests" value={stats.activeRequests} accent={stats.activeRequests > 0 ? "#2563eb" : undefined} />
-        </div>
-
-        {/* Alteration Rate */}
-        <div>
-          <Row label="FFR Progress" value={`${altPct}%`} />
-          <div style={{ height: 6, borderRadius: 3, background: "var(--border, #e5e7eb)", overflow: "hidden", marginTop: 4 }}>
-            <div style={{ height: "100%", width: `${altPct}%`, borderRadius: 3, background: altPct >= 75 ? "#16a34a" : altPct >= 50 ? "#d97706" : "#dc2626" }} />
-          </div>
         </div>
 
         {/* FFR Velocity + Confidence */}
