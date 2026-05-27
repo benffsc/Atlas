@@ -1906,52 +1906,46 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   margin-right: auto;
 }
 
-/* Featured stat — one at a time, centered and huge */
-.info-slide__stat-featured {
-  text-align: center;
+/* ── Stat stage: grid + spotlight overlay ── */
+.info-slide__stat-stage {
+  position: relative;
   margin-top: 3rem;
 }
 
-.info-slide__stat-featured-value {
-  display: block;
+/* Spotlight: currently featured stat, centered over the grid */
+.info-slide__stat-spotlight {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  animation: stat-spotlight-in 500ms ease-out;
+  pointer-events: none;
+}
+
+.info-slide__stat-spotlight-value {
   font-size: clamp(5rem, 10vw, 10rem);
   font-weight: 800;
   color: var(--primary, #60a5fa);
   line-height: 1;
   font-family: "Raleway", "Helvetica Neue", sans-serif;
-  animation: stat-featured-in 500ms ease-out;
 }
 
-.info-slide__stat-featured-label {
-  display: block;
-  font-size: clamp(1.5rem, 3vw, 2.5rem);
+.info-slide__stat-spotlight-label {
+  font-size: clamp(1.4rem, 2.5vw, 2.2rem);
   color: rgba(255, 255, 255, 0.85);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-top: 1rem;
+  margin-top: 0.75rem;
   font-weight: 500;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  animation: stat-featured-in 500ms ease-out 200ms both;
+  animation: stat-spotlight-in 500ms ease-out 150ms both;
 }
 
-@keyframes stat-featured-in {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Settled grid — all 4 stats in quadrants */
-.info-slide__stats--settled {
-  animation: stat-grid-settle 800ms ease-out;
-}
-
-@keyframes stat-grid-settle {
-  from { opacity: 0; transform: scale(0.9); }
+@keyframes stat-spotlight-in {
+  from { opacity: 0; transform: scale(0.7); }
   to { opacity: 1; transform: scale(1); }
 }
 
