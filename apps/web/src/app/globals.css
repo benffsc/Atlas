@@ -1116,8 +1116,7 @@ body.presentation-mode [data-pii] {
   pointer-events: none;
 }
 
-/* Map — place detail drawer: person names and address only (cat data is NOT PII) */
-body.presentation-mode .place-detail-drawer h2,
+/* Map — place detail drawer: person names only (address masked in code, cat data is NOT PII) */
 body.presentation-mode .place-detail-drawer [href*="/people/"] {
   filter: blur(5px);
   user-select: none;
@@ -1907,9 +1906,57 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   margin-right: auto;
 }
 
+/* Featured stat — one at a time, centered and huge */
+.info-slide__stat-featured {
+  text-align: center;
+  margin-top: 3rem;
+}
+
+.info-slide__stat-featured-value {
+  display: block;
+  font-size: clamp(5rem, 10vw, 10rem);
+  font-weight: 800;
+  color: var(--primary, #60a5fa);
+  line-height: 1;
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
+  animation: stat-featured-in 500ms ease-out;
+}
+
+.info-slide__stat-featured-label {
+  display: block;
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 1rem;
+  font-weight: 500;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  animation: stat-featured-in 500ms ease-out 200ms both;
+}
+
+@keyframes stat-featured-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Settled grid — all 4 stats in quadrants */
+.info-slide__stats--settled {
+  animation: stat-grid-settle 800ms ease-out;
+}
+
+@keyframes stat-grid-settle {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .info-slide__stat {
   text-align: center;
-  animation: stat-stagger-in 600ms ease-out both;
 }
 
 .info-slide__stat-value {

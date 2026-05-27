@@ -3,9 +3,8 @@
 /**
  * InfoSlide — full-viewport info slide for the screensaver tour.
  *
- * Four variants: hero, stat-grid, explainer, cta.
- * Pure black background, white text, TV-optimized sizing.
- * Logo is preloaded on mount so it never pops in late.
+ * stat-grid variant: each stat appears centered/huge one at a time,
+ * then all settle into their quadrant positions.
  */
 
 import { useEffect, useState, useRef } from "react";
@@ -13,7 +12,6 @@ import type { SlideVariant } from "./screensaver-tour-config";
 
 const LOGO_SRC = "/beacon-logo-transparent.png";
 
-// Preload the logo image globally so it's cached for all slides
 if (typeof window !== "undefined") {
   const link = document.createElement("link");
   link.rel = "preload";
@@ -37,13 +35,15 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress }:
   const [ready, setReady] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
+  // For stat-grid: which stat is currently "featured" (centered/large)
+  // -1 = all settled in grid, 0-3 = that stat is featured
+  const [featuredStat, setFeaturedStat] = useState(0);
+
   useEffect(() => {
     if (!showLogo) {
-      // No logo needed — fade in immediately
       requestAnimationFrame(() => setReady(true));
       return () => setReady(false);
     }
-    // Wait for logo to be loaded before fading in
     const img = new Image();
     img.src = LOGO_SRC;
     imgRef.current = img;
@@ -51,27 +51,35 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress }:
       requestAnimationFrame(() => setReady(true));
     } else {
       img.onload = () => requestAnimationFrame(() => setReady(true));
-      // Fallback: show after 300ms even if image hasn't loaded
       const fallback = setTimeout(() => setReady(true), 300);
       return () => { clearTimeout(fallback); setReady(false); };
     }
     return () => setReady(false);
   }, [showLogo]);
 
+  // Stat-grid: cycle through stats then settle
+  useEffect(() => {
+    if (variant !== "stat-grid" || !stats?.length) return;
+    setFeaturedStat(0);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const perStat = 2200; // ms each stat is featured
+    for (let i = 1; i < stats.length; i++) {
+      timers.push(setTimeout(() => setFeaturedStat(i), i * perStat));
+    }
+    // After all stats shown, settle into grid
+    timers.push(setTimeout(() => setFeaturedStat(-1), stats.length * perStat));
+    return () => timers.forEach(clearTimeout);
+  }, [variant, stats?.length]);
+
   return (
     <div className={`info-slide info-slide--${variant} ${ready ? "info-slide--visible" : ""}`}>
-      {/* Progress bar */}
       <div className="info-slide__progress">
         <div className="info-slide__progress-fill" style={{ width: `${progress * 100}%` }} />
       </div>
 
       <div className="info-slide__content">
         {showLogo && (
-          <img
-            src={LOGO_SRC}
-            alt="Beacon"
-            className="info-slide__logo"
-          />
+          <img src={LOGO_SRC} alt="Beacon" className="info-slide__logo" />
         )}
 
         {heading && <h1 className="info-slide__heading">{heading}</h1>}
@@ -79,14 +87,27 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress }:
         {body && <p className="info-slide__body">{body}</p>}
 
         {variant === "stat-grid" && stats && stats.length > 0 && (
-          <div className="info-slide__stats">
-            {stats.map((s, i) => (
-              <div key={i} className="info-slide__stat" style={{ animationDelay: `${i * 200}ms` }}>
-                <span className="info-slide__stat-value">{s.value}</span>
-                <span className="info-slide__stat-label">{s.label}</span>
-              </div>
-            ))}
-          </div>
+          featuredStat >= 0 ? (
+            // Featured mode: one stat centered and huge
+            <div className="info-slide__stat-featured">
+              <span className="info-slide__stat-featured-value" key={featuredStat}>
+                {stats[featuredStat].value}
+              </span>
+              <span className="info-slide__stat-featured-label" key={`l-${featuredStat}`}>
+                {stats[featuredStat].label}
+              </span>
+            </div>
+          ) : (
+            // Settled mode: all stats in grid
+            <div className="info-slide__stats info-slide__stats--settled">
+              {stats.map((s, i) => (
+                <div key={i} className="info-slide__stat">
+                  <span className="info-slide__stat-value">{s.value}</span>
+                  <span className="info-slide__stat-label">{s.label}</span>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

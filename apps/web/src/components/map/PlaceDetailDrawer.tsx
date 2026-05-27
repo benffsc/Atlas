@@ -174,16 +174,23 @@ function DepartedCatsSection({ cats, renderCatCard, placeId }: {
 
 export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, shifted, onAddToComparison, comparisonCount, embedded, onNavigateCat, onNavigatePerson }: PlaceDetailDrawerProps) {
   const { addToast } = useToast();
-  // Map page doesn't have ShowcaseProvider — check body class directly
-  const isPresentationMode = typeof document !== "undefined" && document.body.classList.contains("presentation-mode");
-  const maskChip = (v: string | null) => {
+  // Map page doesn't have ShowcaseProvider — observe body class reactively
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  useEffect(() => {
+    const check = () => setIsPresentationMode(document.body.classList.contains("presentation-mode"));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  const maskChip = useCallback((v: string | null) => {
     if (!v || !isPresentationMode || v.length < 4) return v;
     return v.slice(0, -3) + "***";
-  };
-  const maskAddr = (v: string | null) => {
+  }, [isPresentationMode]);
+  const maskAddr = useCallback((v: string | null) => {
     if (!v || !isPresentationMode) return v;
     return maskAddressToNeighborhood(v) || v;
-  };
+  }, [isPresentationMode]);
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
