@@ -1434,7 +1434,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           }
           break;
         case "select-hex":
-          // Use fabricated demo data for compelling hex detail panel
+          setTourPulse({ lat: action.lat, lng: action.lng });
           setSelectedHex({
             pins: DEMO_HEX_DETAIL,
             center: { lat: action.lat, lng: action.lng },
@@ -1447,7 +1447,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setSelectedHex(null);
           break;
         case "compare-add-hex":
-          // Cycle through fabricated demo areas: A (good), C (middle), B (urgent)
+          setTourPulse({ lat: action.lat, lng: action.lng });
           setComparedHexes((prev) => {
             if (prev.length >= 4) return prev;
             const demoAreas = [DEMO_AREA_A, DEMO_AREA_C, DEMO_AREA_B];
