@@ -1688,30 +1688,20 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
 /* ── TV Tour Card (map narration) ── */
 .tv-tour-card {
   position: fixed;
+  bottom: 64px;
+  left: 64px;
   z-index: 2000;
+  width: 880px;
+  max-width: calc(100vw - 128px);
   color: #fff;
   font-family: "Raleway", "Helvetica Neue", sans-serif;
   overflow: hidden;
-  /* Start expanded (near full-screen), shrink after data-shrunk added */
-  inset: 32px;
-  border-radius: 24px;
-  background: rgba(10, 10, 20, 0.96);
+  background: rgba(10, 10, 20, 0.94);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  border-radius: 24px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
   animation: tv-card-in 500ms ease-out;
-  transition: inset 1s ease, border-radius 1s ease, width 1s ease, max-width 1s ease;
-}
-
-/* Shrunk state — standard bottom-left card */
-.tv-tour-card--shrunk {
-  inset: auto auto 64px 64px;
-  width: 880px;
-  max-width: calc(100vw - 128px);
-  justify-content: flex-start;
 }
 
 .tv-tour-card__progress {
@@ -1989,6 +1979,69 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   }
 }
 
+/* ── TV Tour Title (fullscreen title card before map reveals) ── */
+.tv-tour-title {
+  position: fixed;
+  inset: 0;
+  z-index: 2050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  transition: opacity 1s ease;
+}
+
+.tv-tour-title__content {
+  text-align: center;
+  width: 90vw;
+  padding: 2rem;
+  color: #fff;
+}
+
+.tv-tour-title__stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 1rem;
+}
+
+.tv-tour-title__stat-value {
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
+  font-size: clamp(3.5rem, 7vw, 6rem);
+  font-weight: 800;
+  color: var(--primary, #60a5fa);
+  line-height: 1;
+}
+
+.tv-tour-title__stat-label {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: clamp(1.2rem, 2.2vw, 2rem);
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+.tv-tour-title__heading {
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
+  font-size: clamp(3rem, 6vw, 6rem);
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0 0 1.5rem;
+  color: #fff;
+}
+
+.tv-tour-title__body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: clamp(1.3rem, 2.5vw, 2.2rem);
+  line-height: 1.65;
+  color: #fff;
+  margin: 0 auto;
+  max-width: 80vw;
+  font-weight: 400;
+}
+
 /* ── Demo Place Card (screensaver tour) ── */
 .demo-place-card {
   position: fixed;
@@ -2224,9 +2277,10 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
 
 /* ── Responsive: laptop fallback ── */
 @media (max-width: 1200px) {
-  .tv-tour-card--shrunk {
+  .tv-tour-card {
     width: 640px;
-    inset: auto auto 32px 32px;
+    bottom: 32px;
+    left: 32px;
     border-radius: 16px;
   }
 
