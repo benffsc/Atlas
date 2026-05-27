@@ -1922,11 +1922,15 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
 }
 
 /* Featured: translate from grid position to center + scale up.
-   Uses CSS custom props --q-tx, --q-ty set per quadrant. */
+   Uses CSS custom props --q-tx, --q-ty set per quadrant.
+   Dark scrim behind to ensure readability over settled stats. */
 .info-slide__stat--featured {
   opacity: 1;
   z-index: 2;
   transform: translate(var(--q-tx), var(--q-ty)) scale(2.2);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.6) 60%, transparent 80%);
+  border-radius: 50%;
+  padding: 2rem 4rem;
 }
 
 /* Settled: back in grid position, normal size */
@@ -2047,32 +2051,27 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
 }
 
 /* ── Persistent tour logo: transitions between hero (centered) and corner ── */
+/* Uses top+left+transform only (never bottom/right) so CSS can animate smoothly */
 .tour-logo {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 2150;
   pointer-events: none;
-  transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1), width 1.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 1s ease;
 }
 
-/* Hero/CTA state: centered horizontally, upper third vertically */
+/* Hero/CTA state: centered horizontally, upper third */
 .tour-logo--hero {
-  top: 18vh;
-  left: 50%;
-  right: auto;
-  bottom: auto;
-  transform: translateX(-50%);
   width: clamp(280px, 35vw, 600px);
+  transform: translate(calc(50vw - 50%), 18vh);
   opacity: 1;
 }
 
 /* Corner state: bottom-right, small */
 .tour-logo--corner {
-  top: auto;
-  left: auto;
-  bottom: 24px;
-  right: 24px;
-  transform: none;
   width: 120px;
+  transform: translate(calc(100vw - 100% - 24px), calc(100vh - 100% - 24px));
   opacity: 0.5;
 }
 
