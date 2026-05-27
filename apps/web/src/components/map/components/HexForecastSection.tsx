@@ -100,7 +100,7 @@ export function HexForecastSection({ pins }: HexForecastSectionProps) {
         <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 16 }}>
           {/* ── Key Metrics Row ── */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-            {/* TNR Velocity */}
+            {/* FFR Velocity */}
             <div style={{ padding: "8px", borderRadius: 6, background: "var(--background-secondary, #f3f4f6)", textAlign: "center" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground, #111)" }}>
                 {forecast.tnrVelocity}
@@ -265,7 +265,7 @@ export function HexForecastSection({ pins }: HexForecastSectionProps) {
 
           {/* ── Disclaimer ── */}
           <div style={{ fontSize: 10, color: "var(--foreground-muted, #9ca3af)", lineHeight: 1.4, fontStyle: "italic" }}>
-            Estimates based on standard TNR population models with seasonal breeding adjustments. Actual results vary by environment, resources, and cat behavior.
+            Estimates based on standard FFR population models with seasonal breeding adjustments. Actual results vary by environment, resources, and cat behavior.
             {forecast.confidence === "low" && " Low confidence — limited activity data available."}
           </div>
         </div>

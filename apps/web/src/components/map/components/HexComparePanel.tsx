@@ -180,15 +180,15 @@ function CompareColumn({ selection, index, onRemove }: { selection: HexBinSelect
 
         {/* Alteration Rate */}
         <div>
-          <Row label="TNR Progress" value={`${altPct}%`} />
+          <Row label="FFR Progress" value={`${altPct}%`} />
           <div style={{ height: 6, borderRadius: 3, background: "var(--border, #e5e7eb)", overflow: "hidden", marginTop: 4 }}>
             <div style={{ height: "100%", width: `${altPct}%`, borderRadius: 3, background: altPct >= 75 ? "#16a34a" : altPct >= 50 ? "#d97706" : "#dc2626" }} />
           </div>
         </div>
 
-        {/* TNR Velocity + Confidence */}
+        {/* FFR Velocity + Confidence */}
         <div>
-          <Row label="TNR Velocity" value={`${forecast.tnrVelocity} cats/mo`} />
+          <Row label="FFR Velocity" value={`${forecast.tnrVelocity} cats/mo`} />
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
             <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 3, background: `${confInfo.color}18`, color: confInfo.color }}>
               {confInfo.label} confidence

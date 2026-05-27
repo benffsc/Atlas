@@ -1425,7 +1425,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           // Use fabricated demo areas for compelling compare columns
           setComparedHexes((prev) => {
             if (prev.length >= 4) return prev;
-            // First hex = Area A (good TNR coverage), second = Area B (needs work)
+            // First hex = Area A (good FFR coverage), second = Area B (needs work)
             const demoPins = prev.length === 0 ? DEMO_AREA_A : DEMO_AREA_B;
             return [
               ...prev,

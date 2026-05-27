@@ -40,19 +40,18 @@ function demoPin(overrides: Partial<AtlasPin> & { id: string; address: string; l
   };
 }
 
-// Months ago helper
 function monthsAgo(n: number): string {
   const d = new Date();
   d.setMonth(d.getMonth() - n);
   return d.toISOString();
 }
 
-// ── Area A: High-density, moderate TNR progress (west SR / Sebastopol) ──
-// Represents a colony cluster where FFSC has been working but needs more
+// ── Area A: Good FFR progress (west SR / Sebastopol) ──
+// 71% alteration rate across 8 sites
 export const DEMO_AREA_A: AtlasPin[] = [
   demoPin({
     id: "demo-a1", address: "3820 Selvage Road, Santa Rosa, CA 95401", lat: 38.462, lng: -122.814,
-    cat_count: 42, total_altered: 28, last_alteration_at: monthsAgo(1),
+    cat_count: 42, total_altered: 32, last_alteration_at: monthsAgo(1),
     pin_style: "active", active_request_count: 1, needs_trapper_count: 1,
     people: [{ name: "Maria G.", roles: ["caretaker"], is_staff: false }],
     person_count: 1,
@@ -73,7 +72,7 @@ export const DEMO_AREA_A: AtlasPin[] = [
   }),
   demoPin({
     id: "demo-a4", address: "10500 Bodega Hwy, Sebastopol, CA 95472", lat: 38.392, lng: -122.882,
-    cat_count: 55, total_altered: 41, last_alteration_at: monthsAgo(1),
+    cat_count: 55, total_altered: 42, last_alteration_at: monthsAgo(1),
     pin_style: "active",
     people: [{ name: "Linda T.", roles: ["colony_caretaker"], is_staff: false }],
     person_count: 1,
@@ -85,7 +84,7 @@ export const DEMO_AREA_A: AtlasPin[] = [
   }),
   demoPin({
     id: "demo-a6", address: "5366 Highway 12, Santa Rosa, CA 95407", lat: 38.429, lng: -122.759,
-    cat_count: 24, total_altered: 20, last_alteration_at: monthsAgo(3),
+    cat_count: 24, total_altered: 18, last_alteration_at: monthsAgo(3),
     pin_style: "active",
   }),
   demoPin({
@@ -100,8 +99,8 @@ export const DEMO_AREA_A: AtlasPin[] = [
   }),
 ];
 
-// ── Area B: Lower density, less TNR coverage, more urgent (south SR) ──
-// Represents an area that needs intervention — the "compare" contrast
+// ── Area B: Low FFR coverage, urgent (south SR) ──
+// 16% alteration rate across 7 sites
 export const DEMO_AREA_B: AtlasPin[] = [
   demoPin({
     id: "demo-b1", address: "2742 Morgan Creek St, Santa Rosa, CA 95407", lat: 38.409, lng: -122.730,
@@ -146,9 +145,8 @@ export const DEMO_AREA_B: AtlasPin[] = [
   }),
 ];
 
-// ── Single hex demo: a dense area for HexDetailPanel ──
+// ── Single hex demo for HexDetailPanel ──
 export const DEMO_HEX_DETAIL: AtlasPin[] = [
-  ...DEMO_AREA_A.slice(0, 5),
   demoPin({
     id: "demo-h1", address: "7810 Davis Ln, Penngrove, CA 94951", lat: 38.44, lng: -122.72,
     cat_count: 27, total_altered: 22, last_alteration_at: monthsAgo(2),
@@ -162,5 +160,20 @@ export const DEMO_HEX_DETAIL: AtlasPin[] = [
     pin_style: "active", active_request_count: 1,
     people: [{ name: "Crystal M.", roles: ["trapper"], is_staff: true }],
     person_count: 1,
+  }),
+  demoPin({
+    id: "demo-h3", address: "2922 Fulton Rd, Fulton, CA 95439", lat: 38.44, lng: -122.73,
+    cat_count: 18, total_altered: 14, last_alteration_at: monthsAgo(3),
+    pin_style: "active",
+  }),
+  demoPin({
+    id: "demo-h4", address: "1012 Rubicon Way, Santa Rosa, CA 95401", lat: 38.44, lng: -122.71,
+    cat_count: 22, total_altered: 15, last_alteration_at: monthsAgo(6),
+    pin_style: "active", watch_list: true,
+  }),
+  demoPin({
+    id: "demo-h5", address: "4488 Blank Rd, Sebastopol, CA 95472", lat: 38.44, lng: -122.72,
+    cat_count: 15, total_altered: 10, last_alteration_at: monthsAgo(10),
+    pin_style: "active_requests", active_request_count: 1,
   }),
 ];

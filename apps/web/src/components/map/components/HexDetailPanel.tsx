@@ -114,7 +114,7 @@ export function HexDetailPanel({ selection, onClose, onPlaceClick }: HexDetailPa
           date: pin.last_alteration_at,
           address: pin.address,
           placeId: pin.id,
-          type: "TNR",
+          type: "FFR",
         });
       }
 
@@ -196,7 +196,7 @@ export function HexDetailPanel({ selection, onClose, onPlaceClick }: HexDetailPa
         {/* ── Alteration Rate Bar ── */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4, color: "var(--foreground-muted, #6b7280)" }}>
-            <span>TNR Progress</span>
+            <span>FFR Progress</span>
             <span style={{ fontWeight: 600, color: "var(--foreground, #111)" }}>{stats.alterationRate}%</span>
           </div>
           <div style={{ height: 8, borderRadius: 4, background: "var(--border, #e5e7eb)", overflow: "hidden" }}>

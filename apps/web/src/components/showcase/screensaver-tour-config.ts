@@ -1,20 +1,8 @@
 /**
  * Screensaver Tour Configuration
  *
- * The tour sells BEACON as a product. Map stops demonstrate Beacon
- * capabilities by dispatching scripted UI actions (selecting pins,
- * opening hex compare, etc.) so viewers SEE the product, not read
- * about it.
- *
- * Structure: Beacon intro -> problem -> capability demos -> impact -> CTA
- *
- * Stats verified 2026-05-26:
- * - 60,000+ cats: 37K verified digital (2013+) + 22K pre-digital (1990-2012)
- * - 2,800+ sites: atlas pin count from map data
- * - 35+ years: FFSC founded 1990
- * - ~20 cats/clinic day: conservative estimate from clinic_day_entries
- *
- * Demo place IDs are real production UUIDs chosen for visual impact.
+ * Uses FFR (Find Fix Return) not TNR. Demo place IDs are real production
+ * UUIDs. Scripted actions demo the product live on each map step.
  */
 
 export type SlideVariant = "hero" | "stat-grid" | "explainer" | "cta";
@@ -49,23 +37,18 @@ export type ScreensaverStep =
       stats?: { value: string; label: string }[];
       pauseMs: number;
       showLogo?: boolean;
-      background?: string;
     };
 
-// ── Demo place IDs (real production UUIDs, chosen for visual impact) ──
+// Real production UUIDs chosen for visual impact
 const DEMO = {
-  // 3820 Selvage Road — 127 present cats, central county
   countyOverview: "b2f18eff-3ee5-4f72-b49d-1cea4805d356",
-  // 5123 Montecito Ave — 35 cats, the corridor hub
   montecitoCorridor: "97ba25bd-d76f-4c0d-a133-105a70786839",
-  // 2922 Fulton Rd — has FIV/FeLV positive cats
   diseaseFlag: "057529ef-80c8-4ce3-a5d1-6961a98c0aa6",
-  // 2742 Morgan Creek St — 88 cats, south SR area
-  needsTnr: "bbd28653-5ed9-46ad-9599-b73240314f82",
+  needsFFR: "bbd28653-5ed9-46ad-9599-b73240314f82",
 };
 
 export const SCREENSAVER_STEPS: ScreensaverStep[] = [
-  // 1. Hero — logo IS the heading (no text "Beacon")
+  // 1. Hero
   {
     type: "slide",
     variant: "hero",
@@ -74,15 +57,15 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     pauseMs: 8000,
     showLogo: true,
   },
-  // 2. The problem Beacon solves
+  // 2. The problem
   {
     type: "slide",
     variant: "explainer",
     heading: "The Problem",
-    body: "Spay/neuter works, but population reduction depends on timing, location, and strategy. Altering the right 50 cats, in the right area, at the right time, can change the future of an entire colony. Without better data, organizations respond to the loudest need, not the greatest impact.",
+    body: "Find, Fix, Return works. But population reduction depends on timing, location, and strategy. Altering the right 50 cats, in the right area, at the right time, can change the future of an entire colony. Without better data, organizations respond to the loudest need, not the greatest impact.",
     pauseMs: 14000,
   },
-  // 3. Map: Full picture — fly to county, then open a real place drawer
+  // 3. Map: Full picture + open a real place drawer
   {
     type: "map",
     label: "The Full Picture",
@@ -112,12 +95,12 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     ],
     pauseMs: 12000,
   },
-  // 5. Map: Geographic Intelligence — hexbin density + click a hex
+  // 5. Map: Density hexbin + click a hex
   {
     type: "map",
     label: "Geographic Intelligence",
     description:
-      "Where are unowned cats concentrated? Click any hex to see density, alteration rates, and which cats need service.",
+      "Where are unowned cats concentrated? Click any hex to see density, FFR progress, and which cats need service.",
     lat: 38.44,
     lng: -122.72,
     zoom: 11,
@@ -130,7 +113,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { type: "dismiss", delay: 11000 },
     ],
   },
-  // 6. Map: Corridor Detection — Montecito Ave, satellite view
+  // 6. Map: Corridor Detection (Montecito)
   {
     type: "map",
     label: "Corridor Detection",
@@ -148,30 +131,37 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { type: "dismiss", delay: 11000 },
     ],
   },
-  // 7. Map: Site Comparison — hex compare with two real areas
+  // 7. Two levers (sets up the compare demo)
+  {
+    type: "slide",
+    variant: "explainer",
+    heading: "Two Levers for Faster Impact",
+    body: "Increase clinic capacity so more cats can be altered each year. Use Beacon to target cats strategically so every surgery has the greatest possible impact. Together, these create faster, more humane population reduction.",
+    pauseMs: 12000,
+  },
+  // 8. Map: Strategic Comparison — compare two areas side by side
+  // This is the "strategic prioritization" + "compare" combined
   {
     type: "map",
-    label: "Site Comparison",
+    label: "Strategic Prioritization",
     description:
-      "Compare sites side by side to see alteration rates, intact estimates, and forecasts. Reveals which areas need help most.",
+      "Where should the next clinic day focus? Beacon compares areas side by side, showing FFR progress, disease signals, and forecasts to direct resources where they prevent the most future births.",
     lat: 38.43,
     lng: -122.73,
     zoom: 11,
-    pauseMs: 20000,
-    stat: { value: "Compare", label: "sites" },
+    pauseMs: 22000,
+    stat: { value: "Compare", label: "FFR progress" },
     layers: ["hexbin_density"],
     basemap: "dark" as const,
     actions: [
       { type: "compare-start", delay: 2500 },
-      // Selvage Road area (heavy colony area, west)
-      { type: "compare-add-hex", lat: 38.46, lng: -122.81, delay: 4500 },
-      // South SR area (Morgan Creek / Stony Point)
-      { type: "compare-add-hex", lat: 38.40, lng: -122.73, delay: 7000 },
-      { type: "compare-finish", delay: 9000 },
-      { type: "dismiss", delay: 17000 },
+      { type: "compare-add-hex", lat: 38.46, lng: -122.81, delay: 5000 },
+      { type: "compare-add-hex", lat: 38.40, lng: -122.73, delay: 8000 },
+      { type: "compare-finish", delay: 10500 },
+      { type: "dismiss", delay: 19000 },
     ],
   },
-  // 8. Map: Disease Surveillance — disease layer + select flagged place
+  // 9. Map: Disease Surveillance
   {
     type: "map",
     label: "Disease Surveillance",
@@ -189,32 +179,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { type: "dismiss", delay: 11000 },
     ],
   },
-  // 9. Two levers
-  {
-    type: "slide",
-    variant: "explainer",
-    heading: "Two Levers for Faster Impact",
-    body: "Increase clinic capacity so more cats can be altered each year. Use Beacon to target cats strategically so every surgery has the greatest possible impact. Together, these create faster, more humane population reduction.",
-    pauseMs: 13000,
-  },
-  // 10. Map: Strategic Prioritization — all pins + select high-need site
-  {
-    type: "map",
-    label: "Strategic Prioritization",
-    description:
-      "Where can the next surgery make the biggest difference? Focus resources where they prevent the most future births.",
-    lat: 38.41,
-    lng: -122.73,
-    zoom: 13,
-    pauseMs: 14000,
-    stat: { value: "~20", label: "cats per clinic day" },
-    layers: [],
-    actions: [
-      { type: "select-pin", placeId: DEMO.needsTnr, delay: 3500 },
-      { type: "dismiss", delay: 11000 },
-    ],
-  },
-  // 11. Impact stats
+  // 10. Impact stats
   {
     type: "slide",
     variant: "stat-grid",
@@ -227,7 +192,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     ],
     pauseMs: 12000,
   },
-  // 12. CTA
+  // 11. CTA
   {
     type: "slide",
     variant: "cta",
@@ -236,7 +201,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     pauseMs: 12000,
     showLogo: true,
   },
-  // 13. County-wide closing (satellite)
+  // 12. County-wide closing (satellite)
   {
     type: "map",
     label: "Better Data, Better Outcomes",
