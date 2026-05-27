@@ -211,7 +211,9 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     if (tourStateRef.current !== "paused") return;
     setShowControls(false);
     setTourState("playing");
-    playStep(currentStep, remainingRef.current);
+    // Restart the current step from scratch so fly-to, layers, and
+    // action timing are all correct after user may have panned the map
+    playStep(currentStep);
   }, [currentStep, playStep]);
 
   // Navigate to a specific step (for prev/next controls)
