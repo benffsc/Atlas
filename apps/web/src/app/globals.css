@@ -1980,6 +1980,180 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   }
 }
 
+/* ── Demo Place Card (screensaver tour) ── */
+.demo-place-card {
+  position: fixed;
+  top: 32px;
+  right: 32px;
+  z-index: 2000;
+  width: 420px;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  background: var(--background, #fff);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  animation: tv-card-in 400ms ease-out;
+  scrollbar-width: none;
+}
+
+.demo-place-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.demo-place-card__name {
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--foreground, #111);
+}
+
+.demo-place-card__neighborhood {
+  font-size: 0.85rem;
+  color: var(--foreground-muted, #6b7280);
+  margin-top: 2px;
+}
+
+.demo-place-card__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--foreground-muted, #9ca3af);
+  padding: 4px;
+}
+
+.demo-place-card__ffr {
+  padding: 16px 20px;
+  text-align: center;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.demo-place-card__ffr-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--foreground-muted, #6b7280);
+}
+
+.demo-place-card__ffr-pct {
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.demo-place-card__ffr-detail {
+  font-size: 0.85rem;
+  color: var(--foreground-muted, #6b7280);
+  margin-top: 2px;
+}
+
+.demo-place-card__ffr-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border, #e5e7eb);
+  overflow: hidden;
+  margin-top: 10px;
+  max-width: 200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.demo-place-card__ffr-bar > div {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.demo-place-card__stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.demo-place-card__stat { text-align: center; }
+
+.demo-place-card__stat-value {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--foreground, #111);
+}
+
+.demo-place-card__stat-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--foreground-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.demo-place-card__cats { padding: 14px 20px 20px; }
+
+.demo-place-card__cats-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--foreground-muted, #6b7280);
+  margin-bottom: 10px;
+}
+
+.demo-place-card__cat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, #f3f4f6);
+}
+
+.demo-place-card__cat:last-child { border-bottom: none; }
+
+.demo-place-card__cat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.demo-place-card__cat-info { flex: 1; min-width: 0; }
+
+.demo-place-card__cat-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--foreground, #111);
+  display: block;
+}
+
+.demo-place-card__cat-detail {
+  font-size: 0.78rem;
+  color: var(--foreground-muted, #6b7280);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-place-card__cat-badges { display: flex; gap: 4px; flex-shrink: 0; }
+
+.demo-place-card__badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.demo-place-card__badge--altered { background: rgba(22, 163, 74, 0.1); color: #16a34a; }
+.demo-place-card__badge--intact { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
+.demo-place-card__badge--disease { background: rgba(217, 119, 6, 0.1); color: #d97706; }
+
 /* ── Tour pulse ring (highlights selected pin) ── */
 .tour-pulse-ring {
   position: absolute;

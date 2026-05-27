@@ -9,6 +9,7 @@ export type SlideVariant = "hero" | "stat-grid" | "explainer" | "cta";
 
 export type TourAction =
   | { type: "select-pin"; placeId: string; delay: number }
+  | { type: "show-demo-card"; cardKey: string; lat: number; lng: number; delay: number }
   | { type: "select-hex"; lat: number; lng: number; delay: number }
   | { type: "compare-start"; delay: number }
   | { type: "compare-add-hex"; lat: number; lng: number; delay: number }
@@ -78,7 +79,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     stat: { value: "2,800+", label: "sites tracked" },
     layers: [],
     actions: [
-      { type: "select-pin", placeId: DEMO.countyOverview, delay: 3500 },
+      { type: "show-demo-card", cardKey: "countyOverview", lat: 38.462, lng: -122.814, delay: 3500 },
       { type: "dismiss", delay: 11000 },
     ],
   },
@@ -127,7 +128,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     layers: [],
     basemap: "satellite" as const,
     actions: [
-      { type: "select-pin", placeId: DEMO.montecitoCorridor, delay: 3500 },
+      { type: "show-demo-card", cardKey: "corridor", lat: 38.4714, lng: -122.688, delay: 3500 },
       { type: "dismiss", delay: 11000 },
     ],
   },
@@ -179,7 +180,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     layers: ["atlas_disease"],
     basemap: "dark" as const,
     actions: [
-      { type: "select-pin", placeId: DEMO.diseaseFlag, delay: 3500 },
+      { type: "show-demo-card", cardKey: "disease", lat: 38.488, lng: -122.769, delay: 3500 },
       { type: "dismiss", delay: 11000 },
     ],
   },

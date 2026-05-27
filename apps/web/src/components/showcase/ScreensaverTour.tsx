@@ -18,6 +18,7 @@ import { usePathname } from "next/navigation";
 import { useIdleDetection } from "@/hooks/useIdleDetection";
 import { InfoSlide } from "./InfoSlide";
 import { TvTourCard } from "./TvTourCard";
+import { DemoPlaceCard, DEMO_PLACES } from "./DemoPlaceCard";
 import { SCREENSAVER_STEPS, type ScreensaverStep, type TourAction } from "./screensaver-tour-config";
 
 type TourState = "idle" | "playing" | "paused";
@@ -35,6 +36,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
   const [progress, setProgress] = useState(0);
   const [showControls, setShowControls] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeDemoCard, setActiveDemoCard] = useState<string | null>(null);
 
   const stepStartRef = useRef(0);
   const remainingRef = useRef(0);
@@ -275,15 +277,22 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     };
   }, []);
 
-  // Track drawer open/close for card compact mode
+  // Track drawer open/close for card compact mode + demo card
   useEffect(() => {
     const onOpen = () => setDrawerOpen(true);
-    const onClose = () => setDrawerOpen(false);
+    const onClose = () => { setDrawerOpen(false); setActiveDemoCard(null); };
+    const onAction = (e: Event) => {
+      const action = (e as CustomEvent).detail;
+      if (action?.type === "show-demo-card") setActiveDemoCard(action.cardKey);
+      else if (action?.type === "dismiss") setActiveDemoCard(null);
+    };
     window.addEventListener("screensaver:drawer-open", onOpen);
     window.addEventListener("screensaver:drawer-close", onClose);
+    window.addEventListener("screensaver:action", onAction);
     return () => {
       window.removeEventListener("screensaver:drawer-open", onOpen);
       window.removeEventListener("screensaver:drawer-close", onClose);
+      window.removeEventListener("screensaver:action", onAction);
     };
   }, []);
 
@@ -322,6 +331,14 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
           currentStep={currentStep}
           totalSteps={steps.length}
           compact={drawerOpen}
+        />
+      )}
+
+      {/* Demo place card (replaces real drawer — instant, no PII) */}
+      {activeDemoCard && DEMO_PLACES[activeDemoCard] && (
+        <DemoPlaceCard
+          place={DEMO_PLACES[activeDemoCard]}
+          onClose={() => setActiveDemoCard(null)}
         />
       )}
 
