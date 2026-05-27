@@ -3,9 +3,7 @@
 /**
  * TvTourCard — TV lower-third narration bar for the screensaver tour.
  *
- * Starts as a full-width black bar across the bottom (~25% height),
- * then smoothly shrinks to a corner card after shrinkDelay.
- * One element, one CSS transition. No layers, no glitching.
+ * Wide (8s) → shrinking (1.2s, text hidden) → corner (text fades back).
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -18,7 +16,6 @@ interface TvTourCardProps {
   currentStep: number;
   totalSteps: number;
   compact?: boolean;
-  /** Ms before bar shrinks from full-width to corner card. Default 5000. */
   shrinkDelay?: number;
 }
 
@@ -30,20 +27,30 @@ export function TvTourCard({
   currentStep,
   totalSteps,
   compact = false,
-  shrinkDelay = 5000,
+  shrinkDelay = 8000,
 }: TvTourCardProps) {
-  const [wide, setWide] = useState(true);
+  const [phase, setPhase] = useState<"wide" | "shrinking" | "corner">("wide");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timer2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setWide(true);
-    timerRef.current = setTimeout(() => setWide(false), shrinkDelay);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    setPhase("wide");
+    // After shrinkDelay, start shrinking (text hides)
+    timerRef.current = setTimeout(() => {
+      setPhase("shrinking");
+      // After the CSS width transition (1.2s), text can reappear
+      timer2Ref.current = setTimeout(() => setPhase("corner"), 1400);
+    }, shrinkDelay);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (timer2Ref.current) clearTimeout(timer2Ref.current);
+    };
   }, [currentStep, shrinkDelay]);
 
   const classes = [
     "tv-tour-card",
-    wide ? "tv-tour-card--wide" : "",
+    phase === "wide" ? "tv-tour-card--wide" : "",
+    phase === "shrinking" ? "tv-tour-card--shrinking" : "",
     compact ? "tv-tour-card--compact" : "",
   ].filter(Boolean).join(" ");
 
