@@ -69,6 +69,7 @@ export function useRedact() {
         phone: (v: string | null | undefined) => v ?? null,
         address: (v: string | null | undefined) => v ?? null,
         neighborhood: (v: string | null | undefined) => v ?? null,
+        microchip: (v: string | null | undefined) => v ?? null,
         /** Returns true if a value exists (for showing "Verified" badges) */
         hasValue: (v: string | null | undefined) => !!v,
       };
@@ -80,6 +81,11 @@ export function useRedact() {
       phone: maskPhone,
       address: maskAddress,
       neighborhood: maskAddressToNeighborhood,
+      /** Mask last 3 digits of microchip: 985112012345678 → 985112012345*** */
+      microchip: (v: string | null | undefined) => {
+        if (!v || v.length < 4) return v ?? null;
+        return v.slice(0, -3) + "***";
+      },
       hasValue: (v: string | null | undefined) => !!v,
     };
   }, [isShowcase]);

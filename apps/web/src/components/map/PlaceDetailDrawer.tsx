@@ -8,6 +8,7 @@ import { formatRole, formatEnum } from "@/lib/display-labels";
 import { formatRelativeTime } from "@/lib/formatters";
 import { Skeleton } from "@/components/feedback/Skeleton";
 import { CatPresenceBadge, groupCatsByPresence, summarizeDepartures } from "@/components/ui/CatPresenceBadge";
+import { useRedact } from "@/components/ShowcaseContext";
 
 interface GoogleNote {
   entry_id: string;
@@ -172,6 +173,7 @@ function DepartedCatsSection({ cats, renderCatCard, placeId }: {
 
 export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, shifted, onAddToComparison, comparisonCount, embedded, onNavigateCat, onNavigatePerson }: PlaceDetailDrawerProps) {
   const { addToast } = useToast();
+  const r = useRedact();
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1045,7 +1047,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                   <div className="cat-card-details">
                     {cat.breed && <span>{cat.breed}</span>}
                     {cat.primary_color && <span>{cat.primary_color}</span>}
-                    {cat.microchip && <span className="cat-microchip">{cat.microchip}</span>}
+                    {cat.microchip && <span className="cat-microchip">{r.microchip(cat.microchip)}</span>}
                   </div>
                   {cat.appointment_count > 0 && (
                     <div className="cat-card-appointments">
