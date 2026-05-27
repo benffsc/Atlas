@@ -1674,7 +1674,12 @@ body.tv-tour-active .map-nav-rail,
 body.tv-tour-active .map-sidebar,
 body.tv-tour-active .map-pin-key,
 body.tv-tour-active .map-stats-bar,
-body.tv-tour-active .map-viz-toggle {
+body.tv-tour-active .map-viz-toggle,
+body.tv-tour-active .intercom-launcher,
+body.tv-tour-active .intercom-container,
+body.tv-tour-active [class*="intercom"],
+body.tv-tour-active .crisp-client,
+body.tv-tour-active .map-layer-pills {
   display: none !important;
 }
 
@@ -1798,49 +1803,53 @@ body.tv-tour-active .map-viz-toggle {
   right: 0;
   height: 4px;
   background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
 }
 
 .info-slide__progress-fill {
   height: 100%;
   background: var(--primary, #3b82f6);
   transition: width 100ms linear;
+  border-radius: 0;
 }
 
 .info-slide__content {
   text-align: center;
-  max-width: 85vw;
-  padding: 3rem 4rem;
+  width: 90vw;
+  max-width: none;
+  padding: 2rem;
 }
 
 .info-slide__logo {
-  width: clamp(280px, 35vw, 600px);
+  width: clamp(300px, 40vw, 700px);
   height: auto;
-  margin-bottom: 2.5rem;
+  margin-bottom: 2rem;
 }
 
 .info-slide__heading {
-  font-size: clamp(3rem, 6vw, 5.5rem);
+  font-size: clamp(3.5rem, 7vw, 7rem);
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.05;
   margin: 0 0 1.5rem;
   letter-spacing: -0.02em;
 }
 
 .info-slide__body {
-  font-size: clamp(1.25rem, 2.2vw, 1.8rem);
-  line-height: 1.65;
+  font-size: clamp(1.4rem, 2.5vw, 2.2rem);
+  line-height: 1.6;
   color: #fff;
   margin: 0 auto;
-  max-width: 1100px;
+  max-width: 80vw;
 }
 
 /* Stat grid variant */
 .info-slide__stats {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: clamp(2rem, 4vw, 4rem);
-  margin-top: 3rem;
-  max-width: 1200px;
+  gap: clamp(3rem, 6vw, 6rem);
+  margin-top: 4rem;
+  width: 80vw;
+  max-width: none;
   margin-left: auto;
   margin-right: auto;
 }
@@ -1852,19 +1861,19 @@ body.tv-tour-active .map-viz-toggle {
 
 .info-slide__stat-value {
   display: block;
-  font-size: clamp(3rem, 6vw, 5rem);
+  font-size: clamp(4rem, 8vw, 7rem);
   font-weight: 800;
   color: var(--primary, #60a5fa);
-  line-height: 1.15;
+  line-height: 1.1;
 }
 
 .info-slide__stat-label {
   display: block;
-  font-size: clamp(1rem, 1.8vw, 1.5rem);
-  color: rgba(255, 255, 255, 0.8);
+  font-size: clamp(1.1rem, 2vw, 1.8rem);
+  color: rgba(255, 255, 255, 0.85);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-top: 0.75rem;
+  margin-top: 1rem;
   font-weight: 500;
 }
 

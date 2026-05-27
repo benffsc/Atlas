@@ -182,17 +182,47 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     playStep(clamped);
   }, [steps.length, playStep]);
 
+  // Idle detection for auto-start only (when tour hasn't started yet)
   useIdleDetection({
     timeoutMs: IDLE_TIMEOUT_MS,
     enabled: enabled,
     onIdle: () => {
       if (tourStateRef.current === "idle") startTour();
-      else if (tourStateRef.current === "paused") resumeTour();
-    },
-    onActive: () => {
-      if (tourStateRef.current === "playing") pauseTour();
     },
   });
+
+  // Direct mouse/key listener for pause/resume while tour is active.
+  // This works regardless of how the tour was started (T key, idle, toolbar).
+  useEffect(() => {
+    if (!enabled) return;
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let throttle = 0;
+
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - throttle < 200) return;
+      throttle = now;
+
+      if (tourStateRef.current === "playing") {
+        pauseTour();
+      }
+      // Reset the resume-after-idle timer
+      if (resumeTimer) clearTimeout(resumeTimer);
+      resumeTimer = setTimeout(() => {
+        if (tourStateRef.current === "paused") resumeTour();
+      }, IDLE_TIMEOUT_MS);
+    };
+
+    window.addEventListener("mousemove", handleActivity);
+    window.addEventListener("mousedown", handleActivity);
+    window.addEventListener("touchstart", handleActivity);
+    return () => {
+      window.removeEventListener("mousemove", handleActivity);
+      window.removeEventListener("mousedown", handleActivity);
+      window.removeEventListener("touchstart", handleActivity);
+      if (resumeTimer) clearTimeout(resumeTimer);
+    };
+  }, [enabled, pauseTour, resumeTour]);
 
   // Pending screensaver on map load
   useEffect(() => {
