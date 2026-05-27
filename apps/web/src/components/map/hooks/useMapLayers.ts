@@ -98,17 +98,22 @@ export function useMapLayers({ atlasPins }: { atlasPins: AtlasPin[] }) {
       const layers = (e as CustomEvent).detail as string[];
       setEnabledLayers(prev => {
         const next = { ...prev };
-        // Turn off all hexbin/heatmap layers first
+        // Turn off all visualization layers first (hexbin, heatmap, atlas sub-filters)
         for (const id of [...HEXBIN_LAYER_IDS, ...HEATMAP_LAYER_IDS]) next[id] = false;
+        for (const id of ATLAS_SUB_LAYER_IDS) next[id] = false;
+        for (const id of DISEASE_FILTER_IDS) next[id] = false;
         // Activate requested layers
-        const hasAnalytics = layers.length > 0;
         for (const l of layers) {
           const mapped = LAYER_MAP[l] || l;
           if (mapped in next) next[mapped] = true;
         }
-        // Hide atlas pins when analytics layers are active (cleaner view)
-        if ("atlas_all" in next) {
-          next["atlas_all"] = !hasAnalytics;
+        // If no layers specified or only atlas_all, show default pin view
+        const hasAnalytics = layers.some(l => {
+          const mapped = LAYER_MAP[l] || l;
+          return mapped !== "atlas_all" && [...HEXBIN_LAYER_IDS, ...HEATMAP_LAYER_IDS, ...ATLAS_SUB_LAYER_IDS].includes(mapped as any);
+        });
+        if (!hasAnalytics) {
+          next["atlas_all"] = true;
         }
         return next;
       });

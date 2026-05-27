@@ -13,6 +13,8 @@
  * - 2,800+ sites: atlas pin count from map data
  * - 35+ years: FFSC founded 1990
  * - ~20 cats/clinic day: conservative estimate from clinic_day_entries
+ *
+ * Demo place IDs are real production UUIDs chosen for visual impact.
  */
 
 export type SlideVariant = "hero" | "stat-grid" | "explainer" | "cta";
@@ -50,18 +52,16 @@ export type ScreensaverStep =
       background?: string;
     };
 
-// ── Demo place IDs ──
-// Hardcoded UUIDs for places with good demo data.
-// These are showcase-specific and only used during the screensaver tour.
-const DEMO_PLACES = {
-  // A well-populated colony site for the "Full Picture" step
-  countyOverview: "5ab7a4f5-ae3e-4ed3-985b-f5e25f24f3ca",
-  // Montecito corridor for corridor detection
-  montecitoCorridor: "a24d86b8-1b4f-4ab4-8e1e-3f9c07d72e91",
-  // Disease-flagged place for disease surveillance
-  diseaseFlag: "c8e2f517-6b4a-4c03-8a0d-2d12bd0e8a3f",
-  // Needs-TNR place for strategic prioritization
-  needsTnr: "3d4e7a92-f1c5-4b28-9e6a-8c5d12f3b7e0",
+// ── Demo place IDs (real production UUIDs, chosen for visual impact) ──
+const DEMO = {
+  // 3820 Selvage Road — 127 present cats, central county
+  countyOverview: "b2f18eff-3ee5-4f72-b49d-1cea4805d356",
+  // 5123 Montecito Ave — 35 cats, the corridor hub
+  montecitoCorridor: "97ba25bd-d76f-4c0d-a133-105a70786839",
+  // 2922 Fulton Rd — has FIV/FeLV positive cats
+  diseaseFlag: "057529ef-80c8-4ce3-a5d1-6961a98c0aa6",
+  // 2742 Morgan Creek St — 88 cats, south SR area
+  needsTnr: "bbd28653-5ed9-46ad-9599-b73240314f82",
 };
 
 export const SCREENSAVER_STEPS: ScreensaverStep[] = [
@@ -82,20 +82,21 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     body: "Spay/neuter works, but population reduction depends on timing, location, and strategy. Altering the right 50 cats, in the right area, at the right time, can change the future of an entire colony. Without better data, organizations respond to the loudest need, not the greatest impact.",
     pauseMs: 14000,
   },
-  // 3. Map: Beacon sees the full picture (county overview + select a pin)
+  // 3. Map: Full picture — fly to county, then open a real place drawer
   {
     type: "map",
-    label: "Beacon Sees the Full Picture",
+    label: "The Full Picture",
     description:
-      "Every pin is a real location with verified data. Select any site to see its cats, alteration rates, people, and history.",
+      "Every pin is a real location with verified data. Select any site to see its cats, alteration rates, and history.",
     lat: 38.45,
     lng: -122.72,
     zoom: 10,
     pauseMs: 14000,
     stat: { value: "2,800+", label: "sites tracked" },
+    layers: [],
     actions: [
-      { type: "select-pin", placeId: DEMO_PLACES.countyOverview, delay: 3500 },
-      { type: "dismiss", delay: 10500 },
+      { type: "select-pin", placeId: DEMO.countyOverview, delay: 3500 },
+      { type: "dismiss", delay: 11000 },
     ],
   },
   // 4. What Beacon does
@@ -111,68 +112,71 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     ],
     pauseMs: 12000,
   },
-  // 5. Map: Geographic Intelligence (density hexbin + click a hex)
+  // 5. Map: Geographic Intelligence — hexbin density + click a hex
   {
     type: "map",
     label: "Geographic Intelligence",
     description:
-      "Beacon shows where unowned cats are concentrated. Click any hex to see density, alteration rates, and which cats need service.",
+      "Where are unowned cats concentrated? Click any hex to see density, alteration rates, and which cats need service.",
     lat: 38.44,
-    lng: -122.714,
-    zoom: 12,
+    lng: -122.72,
+    zoom: 11,
     pauseMs: 14000,
     stat: { value: "Density", label: "analysis" },
     layers: ["hexbin_density"],
     basemap: "dark" as const,
     actions: [
-      { type: "select-hex", lat: 38.44, lng: -122.714, delay: 3500 },
-      { type: "dismiss", delay: 10500 },
+      { type: "select-hex", lat: 38.44, lng: -122.72, delay: 3500 },
+      { type: "dismiss", delay: 11000 },
     ],
   },
-  // 6. Map: Corridor Detection (Montecito satellite + select corridor place)
+  // 6. Map: Corridor Detection — Montecito Ave, satellite view
   {
     type: "map",
     label: "Corridor Detection",
     description:
       "Beacon detects when neighboring properties share a cat population. Instead of five separate calls, our team coordinates a single sweep.",
-    lat: 38.4485,
-    lng: -122.6945,
+    lat: 38.4714,
+    lng: -122.688,
     zoom: 17,
     pauseMs: 14000,
     stat: { value: "5", label: "linked properties" },
+    layers: [],
     basemap: "satellite" as const,
     actions: [
-      { type: "select-pin", placeId: DEMO_PLACES.montecitoCorridor, delay: 3500 },
-      { type: "dismiss", delay: 10500 },
+      { type: "select-pin", placeId: DEMO.montecitoCorridor, delay: 3500 },
+      { type: "dismiss", delay: 11000 },
     ],
   },
-  // 7. Map: Site Comparison (hex compare view)
+  // 7. Map: Site Comparison — hex compare with two real areas
   {
     type: "map",
     label: "Site Comparison",
     description:
-      "Beacon compares sites side by side, showing alteration rates, intact estimates, and forecasts to reveal which areas need help most.",
-    lat: 38.44,
-    lng: -122.72,
-    zoom: 12,
-    pauseMs: 16000,
+      "Compare sites side by side to see alteration rates, intact estimates, and forecasts. Reveals which areas need help most.",
+    lat: 38.43,
+    lng: -122.73,
+    zoom: 11,
+    pauseMs: 20000,
     stat: { value: "Compare", label: "sites" },
     layers: ["hexbin_density"],
     basemap: "dark" as const,
     actions: [
-      { type: "compare-start", delay: 2000 },
-      { type: "compare-add-hex", lat: 38.45, lng: -122.73, delay: 3500 },
-      { type: "compare-add-hex", lat: 38.43, lng: -122.70, delay: 5000 },
-      { type: "compare-finish", delay: 6500 },
-      { type: "dismiss", delay: 13000 },
+      { type: "compare-start", delay: 2500 },
+      // Selvage Road area (heavy colony area, west)
+      { type: "compare-add-hex", lat: 38.46, lng: -122.81, delay: 4500 },
+      // South SR area (Morgan Creek / Stony Point)
+      { type: "compare-add-hex", lat: 38.40, lng: -122.73, delay: 7000 },
+      { type: "compare-finish", delay: 9000 },
+      { type: "dismiss", delay: 17000 },
     ],
   },
-  // 8. Map: Disease Surveillance
+  // 8. Map: Disease Surveillance — disease layer + select flagged place
   {
     type: "map",
     label: "Disease Surveillance",
     description:
-      "When a cat tests positive for FIV or FeLV, Beacon maps the result against every colony in the area to identify risk corridors.",
+      "When a cat tests positive for FIV or FeLV, Beacon maps the result to identify risk corridors and prioritize response.",
     lat: 38.44,
     lng: -122.72,
     zoom: 11,
@@ -181,8 +185,8 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     layers: ["atlas_disease"],
     basemap: "dark" as const,
     actions: [
-      { type: "select-pin", placeId: DEMO_PLACES.diseaseFlag, delay: 3500 },
-      { type: "dismiss", delay: 10500 },
+      { type: "select-pin", placeId: DEMO.diseaseFlag, delay: 3500 },
+      { type: "dismiss", delay: 11000 },
     ],
   },
   // 9. Two levers
@@ -193,20 +197,21 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     body: "Increase clinic capacity so more cats can be altered each year. Use Beacon to target cats strategically so every surgery has the greatest possible impact. Together, these create faster, more humane population reduction.",
     pauseMs: 13000,
   },
-  // 10. Map: Strategic Prioritization (select a needs-TNR place)
+  // 10. Map: Strategic Prioritization — all pins + select high-need site
   {
     type: "map",
     label: "Strategic Prioritization",
     description:
-      "Where can the next surgery make the biggest difference? Beacon focuses resources where they prevent the most future births.",
-    lat: 38.408,
-    lng: -122.735,
-    zoom: 14,
+      "Where can the next surgery make the biggest difference? Focus resources where they prevent the most future births.",
+    lat: 38.41,
+    lng: -122.73,
+    zoom: 13,
     pauseMs: 14000,
     stat: { value: "~20", label: "cats per clinic day" },
+    layers: [],
     actions: [
-      { type: "select-pin", placeId: DEMO_PLACES.needsTnr, delay: 3500 },
-      { type: "dismiss", delay: 10500 },
+      { type: "select-pin", placeId: DEMO.needsTnr, delay: 3500 },
+      { type: "dismiss", delay: 11000 },
     ],
   },
   // 11. Impact stats
@@ -242,6 +247,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     zoom: 10,
     pauseMs: 10000,
     stat: { value: "Beacon", label: "by Forgotten Felines" },
+    layers: [],
     basemap: "satellite" as const,
   },
 ];

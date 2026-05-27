@@ -1409,18 +1409,18 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           break;
         case "select-hex":
           // Simulate clicking a hex near the given coords
-          // Create a synthetic selection from nearby pins
+          // Wide radius (0.03 ~3km) to always capture pins for the demo
           {
             const nearby = atlasPins.filter(
               (p) =>
                 p.lat &&
                 p.lng &&
-                Math.abs(p.lat - action.lat) < 0.01 &&
-                Math.abs(p.lng - action.lng) < 0.01
+                Math.abs(p.lat - action.lat) < 0.03 &&
+                Math.abs(p.lng - action.lng) < 0.03
             );
             if (nearby.length > 0) {
               setSelectedHex({
-                pins: nearby.slice(0, 20),
+                pins: nearby.slice(0, 40),
                 center: { lat: action.lat, lng: action.lng },
               });
             }
@@ -1433,13 +1433,14 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setSelectedHex(null);
           break;
         case "compare-add-hex":
+          // Wide radius to guarantee pins in each compare column
           {
             const nearby = atlasPins.filter(
               (p) =>
                 p.lat &&
                 p.lng &&
-                Math.abs(p.lat - action.lat) < 0.015 &&
-                Math.abs(p.lng - action.lng) < 0.015
+                Math.abs(p.lat - action.lat) < 0.04 &&
+                Math.abs(p.lng - action.lng) < 0.04
             );
             if (nearby.length > 0) {
               setComparedHexes((prev) => {
@@ -1447,7 +1448,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
                 return [
                   ...prev,
                   {
-                    pins: nearby.slice(0, 20),
+                    pins: nearby.slice(0, 40),
                     center: { lat: action.lat, lng: action.lng },
                   },
                 ];
