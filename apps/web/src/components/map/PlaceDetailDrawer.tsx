@@ -453,7 +453,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
         <div className="drawer-title">
           <h2>{place ? maskAddr(place.address) : <Skeleton width="200px" height={20} />}</h2>
           {place?.display_name && (
-            <span className="drawer-subtitle">{place.display_name}</span>
+            <span className="drawer-subtitle">{maskAddr(place.display_name)}</span>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
