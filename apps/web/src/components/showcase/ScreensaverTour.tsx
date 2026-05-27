@@ -249,18 +249,20 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     };
   }, []);
 
-  // Listen for manual trigger from toolbar
+  // Listen for manual trigger (T key dispatches screensaver:toggle)
+  // Only starts the tour — ESC stops it. This avoids the race condition
+  // where T keydown triggers idle-detection onActive (pausing the tour)
+  // before the toggle handler runs (which would then see "paused" and stop).
   useEffect(() => {
     const handler = () => {
       if (tourStateRef.current === "idle") {
         startTour();
-      } else {
-        stopTour();
       }
+      // If already playing/paused, ignore — use ESC to stop
     };
     window.addEventListener("screensaver:toggle", handler);
     return () => window.removeEventListener("screensaver:toggle", handler);
-  }, [startTour, stopTour]);
+  }, [startTour]);
 
   // Nothing to render when idle
   if (tourState === "idle" || !step) return null;

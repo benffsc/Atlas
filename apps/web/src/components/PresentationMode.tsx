@@ -19,7 +19,7 @@
  * Epic: FFS-1196 (Tier 3: Gala Mode)
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 const STORAGE_KEY = "beacon.presentation_mode";
 const BODY_CLASS = "presentation-mode";
@@ -36,6 +36,7 @@ export function usePresentationMode() {
   }, []);
 
   // Apply/remove body class on state change + notify screensaver gate
+  const hasHydrated = useRef(false);
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (enabled) {
@@ -43,10 +44,16 @@ export function usePresentationMode() {
       window.localStorage.setItem(STORAGE_KEY, "true");
     } else {
       document.body.classList.remove(BODY_CLASS);
-      window.localStorage.setItem(STORAGE_KEY, "false");
+      // Don't overwrite localStorage on initial render (before hydration)
+      if (hasHydrated.current) {
+        window.localStorage.setItem(STORAGE_KEY, "false");
+      }
     }
-    // Notify ScreensaverTourGate that showcase mode changed
-    window.dispatchEvent(new CustomEvent("showcase:toggle"));
+    // Notify ScreensaverTourGate that showcase mode changed (skip first render)
+    if (hasHydrated.current) {
+      window.dispatchEvent(new CustomEvent("showcase:toggle"));
+    }
+    hasHydrated.current = true;
   }, [enabled]);
 
   const toggle = useCallback(() => setEnabled((v) => !v), []);
