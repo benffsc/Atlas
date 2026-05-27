@@ -151,7 +151,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     lat: 38.43,
     lng: -122.73,
     zoom: 11,
-    pauseMs: 24000,
+    pauseMs: 32000,
     stat: { value: "Compare", label: "FFR progress" },
     layers: ["hexbin_density"],
     basemap: "dark" as const,
@@ -161,7 +161,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
       { type: "compare-add-hex", lat: 38.35, lng: -122.74, delay: 7000 },
       { type: "compare-add-hex", lat: 38.40, lng: -122.73, delay: 9500 },
       { type: "compare-finish", delay: 12000 },
-      { type: "dismiss", delay: 21000 },
+      { type: "dismiss", delay: 28000 },
     ],
   },
   // 9. Map: Disease Surveillance
