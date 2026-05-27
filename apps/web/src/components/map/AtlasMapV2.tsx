@@ -1428,12 +1428,13 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
       switch (action.type) {
         case "select-pin":
           {
-            // Find the pin to get its coordinates for the pulse ring
             const pin = atlasPins.find(p => p.id === action.placeId);
             if (pin) setTourPulse({ lat: pin.lat, lng: pin.lng });
             setSelectedPlaceId(action.placeId);
-            // Notify card to shrink
-            window.dispatchEvent(new CustomEvent("screensaver:drawer-open"));
+            // Delay card shrink 3s so narration is readable first
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("screensaver:drawer-open"));
+            }, 3000);
           }
           break;
         case "select-hex":

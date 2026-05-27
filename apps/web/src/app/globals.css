@@ -1835,20 +1835,20 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
 }
 
 .info-slide__heading {
-  font-size: clamp(3.5rem, 7vw, 7rem);
+  font-size: clamp(4rem, 8vw, 8rem);
   font-weight: 800;
   line-height: 1.05;
-  margin: 0 0 1.5rem;
+  margin: 0 0 2.5rem;
   letter-spacing: -0.02em;
   font-family: "Raleway", "Helvetica Neue", sans-serif;
 }
 
 .info-slide__body {
-  font-size: clamp(1.4rem, 2.5vw, 2.2rem);
-  line-height: 1.6;
+  font-size: clamp(1.6rem, 3vw, 2.8rem);
+  line-height: 1.7;
   color: #fff;
   margin: 0 auto;
-  max-width: 80vw;
+  max-width: 85vw;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: 400;
 }
