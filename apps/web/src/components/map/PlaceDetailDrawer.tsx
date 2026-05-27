@@ -742,7 +742,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                         <div style={{ height: "100%", width: `${Math.min(alteredPct, 100)}%`, borderRadius: 3, background: altColor }} />
                       </div>
                       <div style={{ fontSize: "0.7rem", color: "var(--foreground-muted, #9ca3af)", marginTop: 4 }}>
-                        {place.total_altered} of {totalPresent} known cats altered
+                        {Math.min(place.total_altered, totalPresent)} of {totalPresent} known cats altered
                       </div>
                       <div style={{ fontSize: "0.65rem", color: "var(--foreground-muted, #b0b0b0)", marginTop: 6, fontStyle: "italic", maxWidth: 220, marginLeft: "auto", marginRight: "auto", lineHeight: 1.4 }}>
                         Estimated from verified clinic records. Accuracy improvements ongoing.
@@ -755,7 +755,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", margin: "0 0 8px", borderRadius: 6, background: tnr.bg, color: tnr.text, fontSize: "0.8rem", fontWeight: 600 }}>
                       <span>FFR {tnr.label}</span>
                       <span style={{ fontWeight: 400, fontSize: "0.75rem" }}>
-                        {alteredPct}% altered ({place.total_altered}/{totalPresent} present cats)
+                        {alteredPct}% altered ({Math.min(place.total_altered, totalPresent)}/{totalPresent} present cats)
                       </span>
                     </div>
                   )}

@@ -3,10 +3,11 @@
 /**
  * TvTourCard — TV-sized map narration card for the screensaver tour.
  *
- * 660px wide, bottom-left positioned, large text.
- * Fully automated — no manual Next/End buttons.
- * Dot-based step indicator instead of "3/10" counter.
+ * Starts near-fullscreen (title card), then shrinks to bottom-left
+ * after `shrinkDelay` ms to reveal the map underneath.
  */
+
+import { useState, useEffect, useRef } from "react";
 
 interface TvTourCardProps {
   label: string;
@@ -16,6 +17,8 @@ interface TvTourCardProps {
   currentStep: number;
   totalSteps: number;
   compact?: boolean;
+  /** Ms before card shrinks from fullscreen to corner. Default 6000. */
+  shrinkDelay?: number;
 }
 
 export function TvTourCard({
@@ -26,9 +29,26 @@ export function TvTourCard({
   currentStep,
   totalSteps,
   compact = false,
+  shrinkDelay = 6000,
 }: TvTourCardProps) {
+  const [shrunk, setShrunk] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset to expanded on step change, then auto-shrink after delay
+  useEffect(() => {
+    setShrunk(false);
+    timerRef.current = setTimeout(() => setShrunk(true), shrinkDelay);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [currentStep, shrinkDelay]);
+
+  const classes = [
+    "tv-tour-card",
+    shrunk ? "tv-tour-card--shrunk" : "",
+    compact ? "tv-tour-card--compact" : "",
+  ].filter(Boolean).join(" ");
+
   return (
-    <div className={`tv-tour-card ${compact ? "tv-tour-card--compact" : ""}`}>
+    <div className={classes}>
       {/* Progress bar */}
       <div className="tv-tour-card__progress">
         <div
@@ -38,7 +58,6 @@ export function TvTourCard({
       </div>
 
       <div className="tv-tour-card__body">
-        {/* Stat highlight */}
         {stat && (
           <div className="tv-tour-card__stat">
             <span className="tv-tour-card__stat-value">{stat.value}</span>
@@ -49,7 +68,6 @@ export function TvTourCard({
         <div className="tv-tour-card__label">{label}</div>
         <div className="tv-tour-card__desc">{description}</div>
 
-        {/* Dot step indicator */}
         <div className="tv-tour-card__dots">
           {Array.from({ length: totalSteps }, (_, i) => (
             <span

@@ -1116,10 +1116,9 @@ body.presentation-mode [data-pii] {
   pointer-events: none;
 }
 
-/* Map — place detail drawer: person names, cat details, addresses */
+/* Map — place detail drawer: person names and address only (cat data is NOT PII) */
 body.presentation-mode .place-detail-drawer h2,
-body.presentation-mode .place-detail-drawer [href*="/people/"],
-body.presentation-mode .place-detail-drawer [href*="/cats/"] {
+body.presentation-mode .place-detail-drawer [href*="/people/"] {
   filter: blur(5px);
   user-select: none;
 }
@@ -1689,20 +1688,30 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
 /* ── TV Tour Card (map narration) ── */
 .tv-tour-card {
   position: fixed;
-  bottom: 64px;
-  left: 64px;
   z-index: 2000;
-  width: 880px;
-  max-width: calc(100vw - 128px);
-  background: rgba(10, 10, 20, 0.94);
+  color: #fff;
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
+  overflow: hidden;
+  /* Start expanded (near full-screen), shrink after data-shrunk added */
+  inset: 32px;
+  border-radius: 24px;
+  background: rgba(10, 10, 20, 0.96);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-radius: 24px;
-  color: #fff;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-  font-family: "Raleway", "Helvetica Neue", sans-serif;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   animation: tv-card-in 500ms ease-out;
-  overflow: hidden;
+  transition: inset 1s ease, border-radius 1s ease, width 1s ease, max-width 1s ease;
+}
+
+/* Shrunk state — standard bottom-left card */
+.tv-tour-card--shrunk {
+  inset: auto auto 64px 64px;
+  width: 880px;
+  max-width: calc(100vw - 128px);
+  justify-content: flex-start;
 }
 
 .tv-tour-card__progress {
@@ -2215,10 +2224,9 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
 
 /* ── Responsive: laptop fallback ── */
 @media (max-width: 1200px) {
-  .tv-tour-card {
+  .tv-tour-card--shrunk {
     width: 640px;
-    bottom: 32px;
-    left: 32px;
+    inset: auto auto 32px 32px;
     border-radius: 16px;
   }
 
