@@ -1679,7 +1679,10 @@ body.tv-tour-active .intercom-launcher,
 body.tv-tour-active .intercom-container,
 body.tv-tour-active [class*="intercom"],
 body.tv-tour-active .crisp-client,
-body.tv-tour-active .map-layer-pills {
+body.tv-tour-active .map-layer-pills,
+body.tv-tour-active .map-controls,
+body.tv-tour-active .gm-style-cc,
+body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   display: none !important;
 }
 
@@ -1689,7 +1692,7 @@ body.tv-tour-active .map-layer-pills {
   bottom: 64px;
   left: 64px;
   z-index: 2000;
-  width: 800px;
+  width: 880px;
   max-width: calc(100vw - 128px);
   background: rgba(10, 10, 20, 0.94);
   backdrop-filter: blur(20px);
@@ -1715,42 +1718,47 @@ body.tv-tour-active .map-layer-pills {
 }
 
 .tv-tour-card__body {
-  padding: 36px 40px 32px;
+  padding: 40px 48px 36px;
 }
 
 .tv-tour-card__stat {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 14px;
+  margin-bottom: 12px;
 }
 
 .tv-tour-card__stat-value {
-  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-size: clamp(3rem, 6vw, 5rem);
   font-weight: 800;
   color: var(--primary, #60a5fa);
   line-height: 1.1;
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
 }
 
 .tv-tour-card__stat-label {
-  font-size: clamp(1.1rem, 1.8vw, 1.75rem);
+  font-size: clamp(1.25rem, 2vw, 2rem);
   color: rgba(255, 255, 255, 0.8);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 500;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 .tv-tour-card__label {
-  font-size: clamp(1.5rem, 2.5vw, 2.25rem);
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
   font-weight: 700;
-  line-height: 1.3;
-  margin-bottom: 10px;
+  line-height: 1.2;
+  margin-bottom: 12px;
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
 }
 
 .tv-tour-card__desc {
-  font-size: clamp(1.1rem, 1.6vw, 1.4rem);
-  line-height: 1.6;
+  font-size: clamp(1.25rem, 1.8vw, 1.65rem);
+  line-height: 1.55;
   color: #fff;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 400;
 }
 
 .tv-tour-card__dots {
@@ -1832,6 +1840,7 @@ body.tv-tour-active .map-layer-pills {
   line-height: 1.05;
   margin: 0 0 1.5rem;
   letter-spacing: -0.02em;
+  font-family: "Raleway", "Helvetica Neue", sans-serif;
 }
 
 .info-slide__body {
@@ -1840,6 +1849,8 @@ body.tv-tour-active .map-layer-pills {
   color: #fff;
   margin: 0 auto;
   max-width: 80vw;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 400;
 }
 
 /* Stat grid variant */
@@ -1974,26 +1985,26 @@ body.tv-tour-active .map-layer-pills {
 /* ── Responsive: laptop fallback ── */
 @media (max-width: 1200px) {
   .tv-tour-card {
-    width: 560px;
+    width: 640px;
     bottom: 32px;
     left: 32px;
     border-radius: 16px;
   }
 
   .tv-tour-card__body {
-    padding: 24px 28px 20px;
+    padding: 28px 32px 24px;
   }
 
   .tv-tour-card__stat-value {
-    font-size: 2.5rem;
+    font-size: 3rem;
   }
 
   .tv-tour-card__label {
-    font-size: 1.4rem;
+    font-size: 1.75rem;
   }
 
   .tv-tour-card__desc {
-    font-size: 1.05rem;
+    font-size: 1.2rem;
   }
 
   .tv-tour-card__dot {
