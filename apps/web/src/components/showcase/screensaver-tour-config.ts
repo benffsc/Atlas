@@ -220,7 +220,6 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     heading: "Be Part of What Comes Next",
     body: "Beacon is still growing. With your support, we can expand clinic capacity, improve our data, and guide smarter, faster, more humane population reduction across Sonoma County.",
     pauseMs: 12000,
-    showLogo: true,
   },
   // 12. County-wide closing (satellite)
   {
