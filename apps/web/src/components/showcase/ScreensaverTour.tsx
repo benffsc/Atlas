@@ -177,6 +177,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     setTourState("playing");
     setCurrentStep(0);
     setProgress(0);
+    setLogoPhase("center");
     setShowControls(false);
     playStep(0);
   }, [playStep]);

@@ -2076,9 +2076,9 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   opacity: 1;
 }
 
-/* Corner: bottom-right, scaled down to ~100px */
+/* Corner: bottom-right, scaled down to ~100px visual size. */
 .tour-logo--corner {
-  transform: translate(calc(100vw - 124px), calc(100vh - 40px)) scale(0.2);
+  transform: translate(calc(100vw - 124px), calc(100vh - 80px)) scale(0.2);
   opacity: 0.5;
 }
 
