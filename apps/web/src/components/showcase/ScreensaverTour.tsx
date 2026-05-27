@@ -103,6 +103,25 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
         // Slide step: dismiss map drawers and clear layers so nothing bleeds through
         window.dispatchEvent(new CustomEvent("screensaver:action", { detail: { type: "dismiss" } }));
         window.dispatchEvent(new CustomEvent("showcase:layers", { detail: [] }));
+
+        // Prep the NEXT step's basemap/layers 2s before this slide ends
+        // so the map is ready when the slide fades out (no flash of wrong basemap)
+        const nextStep = steps[(stepIndex + 1) % steps.length];
+        if (nextStep?.type === "map") {
+          const prepDelay = Math.max(duration - 2000, 1000);
+          const prepTid = setTimeout(() => {
+            if (nextStep.basemap) {
+              window.dispatchEvent(new CustomEvent("screensaver:basemap", { detail: nextStep.basemap }));
+            } else {
+              window.dispatchEvent(new CustomEvent("screensaver:basemap", { detail: "street" }));
+            }
+            window.dispatchEvent(new CustomEvent("showcase:layers", { detail: nextStep.layers ?? [] }));
+            window.dispatchEvent(new CustomEvent("screensaver:fly-to", {
+              detail: { lat: nextStep.lat, lng: nextStep.lng, zoom: nextStep.zoom },
+            }));
+          }, prepDelay);
+          actionTimerRefs.current.push(prepTid);
+        }
       }
 
       // Progress animation

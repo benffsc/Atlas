@@ -1399,26 +1399,40 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     };
   }, [map]);
 
-  // ── Tour pulse ring (highlights selected pin on map) ──
-  const [tourPulse, setTourPulse] = useState<{ lat: number; lng: number } | null>(null);
-  const tourPulseScreen = useMemo(() => {
-    if (!tourPulse || !map) return null;
-    // Convert lat/lng to pixel using map projection
+  // ── Tour pulse rings (highlight multiple points on map) ──
+  const [tourPulses, setTourPulses] = useState<Array<{ lat: number; lng: number; id: number }>>([]);
+  const pulseIdRef = useRef(0);
+
+  const addTourPulse = useCallback((lat: number, lng: number) => {
+    const id = ++pulseIdRef.current;
+    setTourPulses(prev => [...prev, { lat, lng, id }]);
+  }, []);
+
+  const clearTourPulses = useCallback(() => {
+    setTourPulses([]);
+  }, []);
+
+  // Convert all pulse lat/lngs to screen coordinates
+  const tourPulseScreens = useMemo(() => {
+    if (tourPulses.length === 0 || !map) return [];
     const proj = (map as any).getProjection?.();
     const bounds = map.getBounds();
-    if (!proj || !bounds) return null;
+    if (!proj || !bounds) return [];
     const ne = bounds.getNorthEast();
     const sw = bounds.getSouthWest();
     const topRight = proj.fromLatLngToPoint(ne);
     const bottomLeft = proj.fromLatLngToPoint(sw);
-    const point = proj.fromLatLngToPoint(new google.maps.LatLng(tourPulse.lat, tourPulse.lng));
     const mapDiv = (map as any).getDiv?.();
-    if (!topRight || !bottomLeft || !point || !mapDiv) return null;
+    if (!topRight || !bottomLeft || !mapDiv) return [];
     const scale = Math.pow(2, map.getZoom() ?? 10);
-    const x = ((point.x - bottomLeft.x) * scale) / ((topRight.x - bottomLeft.x) * scale) * mapDiv.offsetWidth;
-    const y = ((point.y - topRight.y) * scale) / ((bottomLeft.y - topRight.y) * scale) * mapDiv.offsetHeight;
-    return { x, y };
-  }, [tourPulse, map]);
+    return tourPulses.map(p => {
+      const point = proj.fromLatLngToPoint(new google.maps.LatLng(p.lat, p.lng));
+      if (!point) return null;
+      const x = ((point.x - bottomLeft.x) * scale) / ((topRight.x - bottomLeft.x) * scale) * mapDiv.offsetWidth;
+      const y = ((point.y - topRight.y) * scale) / ((bottomLeft.y - topRight.y) * scale) * mapDiv.offsetHeight;
+      return { x, y, id: p.id };
+    }).filter(Boolean) as Array<{ x: number; y: number; id: number }>;
+  }, [tourPulses, map]);
 
   // ── Screensaver scripted actions (select pin, hex compare, dismiss) ──
   useEffect(() => {
@@ -1429,12 +1443,12 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
         case "select-pin":
           {
             const pin = atlasPins.find(p => p.id === action.placeId);
-            if (pin) setTourPulse({ lat: pin.lat, lng: pin.lng });
+            if (pin) addTourPulse(pin.lat, pin.lng);
             setSelectedPlaceId(action.placeId);
           }
           break;
         case "select-hex":
-          setTourPulse({ lat: action.lat, lng: action.lng });
+          addTourPulse(action.lat, action.lng);
           setSelectedHex({
             pins: DEMO_HEX_DETAIL,
             center: { lat: action.lat, lng: action.lng },
@@ -1447,7 +1461,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setSelectedHex(null);
           break;
         case "compare-add-hex":
-          setTourPulse({ lat: action.lat, lng: action.lng });
+          addTourPulse(action.lat, action.lng);
           setComparedHexes((prev) => {
             if (prev.length >= 4) return prev;
             const demoAreas = [DEMO_AREA_A, DEMO_AREA_C, DEMO_AREA_B];
@@ -1477,7 +1491,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           setShowComparePanel(false);
           setComparedHexes([]);
           setCompareMode(false);
-          setTourPulse(null);
+          clearTourPulses();
           window.dispatchEvent(new CustomEvent("screensaver:drawer-close"));
           break;
       }
@@ -1485,7 +1499,7 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
     window.addEventListener("screensaver:action", handler);
     return () => window.removeEventListener("screensaver:action", handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atlasPins, setSelectedPlaceId, setSelectedPersonId, setSelectedCatId, setSelectedAnnotationId]);
+  }, [atlasPins, setSelectedPlaceId, setSelectedPersonId, setSelectedCatId, setSelectedAnnotationId, addTourPulse, clearTourPulses]);
 
   // ── Street View from search ──
   const handleStreetViewFromSearch = useCallback((lat: number, lng: number, address?: string) => {
@@ -2312,16 +2326,14 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
 
       {/* TV screensaver tour — now mounted at app layout level (ScreensaverTourGate in layout.tsx) */}
 
-      {/* Tour pulse ring — highlights selected pin during screensaver */}
-      {tourPulse && tourPulseScreen && (
+      {/* Tour pulse rings — highlight points during screensaver */}
+      {tourPulseScreens.map(p => (
         <div
+          key={p.id}
           className="tour-pulse-ring"
-          style={{
-            left: tourPulseScreen.x,
-            top: tourPulseScreen.y,
-          }}
+          style={{ left: p.x, top: p.y }}
         />
-      )}
+      ))}
 
     </div>
   );
