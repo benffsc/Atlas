@@ -3,8 +3,9 @@
 /**
  * InfoSlide — full-viewport info slide for the screensaver tour.
  *
- * stat-grid variant: each stat starts centered/huge, then physically
- * shrinks and moves into its grid quadrant position.
+ * stat-grid: all 4 stats live in the grid from the start. The "featured"
+ * one is transformed to center+large via CSS, then the transform transitions
+ * back to none. Same DOM element the whole time = smooth animation.
  */
 
 import { useEffect, useState, useRef } from "react";
@@ -32,14 +33,15 @@ interface InfoSlideProps {
 }
 
 const FEATURE_MS = 2200;
+const SETTLE_MS = 900;
 
 export function InfoSlide({ variant, heading, body, stats, showLogo, progress }: InfoSlideProps) {
   const [ready, setReady] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
-  // For stat-grid: tracks the state of each stat
-  // "hidden" → "featured" (centered/big) → "settling" (animating to grid) → "settled" (in grid)
-  const [statStates, setStatStates] = useState<Array<"hidden" | "featured" | "settling" | "settled">>([]);
+  // Each stat: "hidden" | "featured" | "settled"
+  // featured = transformed to center+large; settled = back in grid position
+  const [statPhases, setStatPhases] = useState<string[]>([]);
 
   useEffect(() => {
     if (!showLogo) {
@@ -59,32 +61,35 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress }:
     return () => setReady(false);
   }, [showLogo]);
 
-  // Stat animation sequencing
+  // Stat sequencing: feature one at a time, then settle
   useEffect(() => {
     if (variant !== "stat-grid" || !stats?.length) return;
     const n = stats.length;
-    setStatStates(new Array(n).fill("hidden"));
-
+    setStatPhases(new Array(n).fill("hidden"));
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const settleMs = 800;
+    const cycle = FEATURE_MS + SETTLE_MS;
 
     for (let i = 0; i < n; i++) {
-      const base = i * (FEATURE_MS + settleMs);
-      // Feature this stat
+      // Show + feature stat i (transformed to center)
       timers.push(setTimeout(() => {
-        setStatStates(prev => prev.map((s, j) => j === i ? "featured" : s));
-      }, base));
-      // Start settling (shrink to grid)
+        setStatPhases(prev => prev.map((p, j) => j === i ? "featured" : p));
+      }, i * cycle));
+      // Settle stat i (remove transform, transition back to grid)
       timers.push(setTimeout(() => {
-        setStatStates(prev => prev.map((s, j) => j === i ? "settling" : s));
-      }, base + FEATURE_MS));
-      // Settled
-      timers.push(setTimeout(() => {
-        setStatStates(prev => prev.map((s, j) => j === i ? "settled" : s));
-      }, base + FEATURE_MS + settleMs));
+        setStatPhases(prev => prev.map((p, j) => j === i ? "settled" : p));
+      }, i * cycle + FEATURE_MS));
     }
     return () => timers.forEach(clearTimeout);
   }, [variant, stats?.length]);
+
+  // CSS custom property offsets for each grid quadrant
+  // Grid is 2x2: stat 0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right
+  const quadrantStyles: React.CSSProperties[] = [
+    { "--q-tx": "50%", "--q-ty": "50%" } as React.CSSProperties,
+    { "--q-tx": "-50%", "--q-ty": "50%" } as React.CSSProperties,
+    { "--q-tx": "50%", "--q-ty": "-50%" } as React.CSSProperties,
+    { "--q-tx": "-50%", "--q-ty": "-50%" } as React.CSSProperties,
+  ];
 
   return (
     <div className={`info-slide info-slide--${variant} ${ready ? "info-slide--visible" : ""}`}>
@@ -103,12 +108,12 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress }:
         {variant === "stat-grid" && stats && stats.length > 0 && (
           <div className="info-slide__stats">
             {stats.map((s, i) => {
-              const state = statStates[i] || "hidden";
+              const phase = statPhases[i] || "hidden";
               return (
                 <div
                   key={i}
-                  className={`info-slide__stat info-slide__stat--${state}`}
-                  data-quadrant={i}
+                  className={`info-slide__stat info-slide__stat--${phase}`}
+                  style={quadrantStyles[i]}
                 >
                   <span className="info-slide__stat-value">{s.value}</span>
                   <span className="info-slide__stat-label">{s.label}</span>

@@ -1906,59 +1906,33 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   margin-right: auto;
 }
 
-/* ── Stat animation states ── */
+/* ── Stat animation: same element, transform transition ── */
+.info-slide__stat {
+  text-align: center;
+  /* Smooth transition for ALL transform changes */
+  transition: transform 0.9s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+  will-change: transform, opacity;
+}
 
-/* Hidden: not yet shown */
+/* Hidden: invisible, slightly small */
 .info-slide__stat--hidden {
   opacity: 0;
   transform: scale(0.5);
 }
 
-/* Featured: centered and huge, overlaid on top of grid */
+/* Featured: translate from grid position to center + scale up.
+   Uses CSS custom props --q-tx, --q-ty set per quadrant. */
 .info-slide__stat--featured {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 1;
-  animation: stat-pop-in 500ms ease-out;
+  opacity: 1;
+  z-index: 2;
+  transform: translate(var(--q-tx), var(--q-ty)) scale(2.2);
 }
 
-.info-slide__stat--featured .info-slide__stat-value {
-  font-size: clamp(5rem, 10vw, 10rem) !important;
-}
-
-.info-slide__stat--featured .info-slide__stat-label {
-  font-size: clamp(1.4rem, 2.5vw, 2.2rem) !important;
-  margin-top: 0.75rem;
-}
-
-@keyframes stat-pop-in {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* Settling: shrinking from center to grid position */
-.info-slide__stat--settling {
-  animation: stat-settle 800ms ease-in-out forwards;
-}
-
-@keyframes stat-settle {
-  from { opacity: 0.7; transform: scale(1.5); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-/* Settled: in grid at final size */
+/* Settled: back in grid position, normal size */
 .info-slide__stat--settled {
   opacity: 1;
-  transform: scale(1);
-}
-
-.info-slide__stat {
-  text-align: center;
-  transition: opacity 400ms ease, transform 400ms ease;
+  transform: translate(0, 0) scale(1);
+  z-index: 1;
 }
 
 .info-slide__stat-value {
@@ -2071,17 +2045,32 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   }
 }
 
-/* ── Tour logo watermark (bottom-right during map steps) ── */
-.tour-logo-watermark {
+/* ── Persistent tour logo: transitions between hero (centered) and corner ── */
+.tour-logo {
   position: fixed;
+  z-index: 2150;
+  pointer-events: none;
+  transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hero/CTA state: centered, large */
+.tour-logo--hero {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -70%);
+  width: clamp(280px, 35vw, 600px);
+  opacity: 1;
+}
+
+/* Corner state: bottom-right, small */
+.tour-logo--corner {
+  top: auto;
   bottom: 24px;
   right: 24px;
-  z-index: 1999;
+  left: auto;
+  transform: none;
   width: 120px;
-  height: auto;
-  opacity: 0.6;
-  pointer-events: none;
-  animation: tv-card-in 600ms ease-out;
+  opacity: 0.5;
 }
 
 /* ── Demo Place Card (screensaver tour) ── */

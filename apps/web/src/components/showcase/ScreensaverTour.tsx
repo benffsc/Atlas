@@ -342,7 +342,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
           heading={step.heading}
           body={step.body}
           stats={step.stats}
-          showLogo={step.showLogo}
+          showLogo={false}
           progress={progress}
         />
       )}
@@ -359,14 +359,12 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
         />
       )}
 
-      {/* Beacon logo watermark — bottom-right during map steps */}
-      {step.type === "map" && (
-        <img
-          src="/beacon-logo-transparent.png"
-          alt=""
-          className="tour-logo-watermark"
-        />
-      )}
+      {/* Persistent Beacon logo — centered+large on hero/CTA, shrinks to bottom-right on other steps */}
+      <img
+        src="/beacon-logo-transparent.png"
+        alt=""
+        className={`tour-logo ${step.type === "slide" && "showLogo" in step && step.showLogo ? "tour-logo--hero" : "tour-logo--corner"}`}
+      />
 
       {/* Pause controls — prev/next/resume */}
       {showControls && (
