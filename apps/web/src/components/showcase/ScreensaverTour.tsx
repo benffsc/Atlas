@@ -36,6 +36,8 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
   const [progress, setProgress] = useState(0);
   const [showControls, setShowControls] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [logoPhase, setLogoPhase] = useState<"center" | "raised" | "corner">("center");
+  const logoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // activeDemoCard removed — using real drawers
 
   const stepStartRef = useRef(0);
@@ -309,6 +311,19 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
     };
   }, []);
 
+  // Logo phase: center on hero start, raise after 2.5s, corner on other steps
+  useEffect(() => {
+    if (logoTimerRef.current) clearTimeout(logoTimerRef.current);
+    const isHero = step?.type === "slide" && "showLogo" in step && step.showLogo;
+    if (isHero) {
+      setLogoPhase("center");
+      logoTimerRef.current = setTimeout(() => setLogoPhase("raised"), 2500);
+    } else {
+      setLogoPhase("corner");
+    }
+    return () => { if (logoTimerRef.current) clearTimeout(logoTimerRef.current); };
+  }, [currentStep, step]);
+
   // Track drawer open/close for card compact mode
   useEffect(() => {
     const onOpen = () => setDrawerOpen(true);
@@ -344,6 +359,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
           stats={step.stats}
           showLogo={false}
           progress={progress}
+          heroRevealed={logoPhase === "raised" || logoPhase === "corner"}
         />
       )}
 
@@ -363,7 +379,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
       <img
         src="/beacon-logo-transparent.png"
         alt=""
-        className={`tour-logo ${step.type === "slide" && "showLogo" in step && step.showLogo ? "tour-logo--hero" : "tour-logo--corner"}`}
+        className={`tour-logo tour-logo--${logoPhase}`}
       />
 
       {/* Pause controls — prev/next/resume */}

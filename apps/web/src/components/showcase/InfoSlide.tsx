@@ -30,12 +30,14 @@ interface InfoSlideProps {
   stats?: { value: string; label: string }[];
   showLogo?: boolean;
   progress: number;
+  /** When true, hero body text is visible (logo has raised) */
+  heroRevealed?: boolean;
 }
 
 const FEATURE_MS = 2200;
 const SETTLE_MS = 900;
 
-export function InfoSlide({ variant, heading, body, stats, showLogo, progress }: InfoSlideProps) {
+export function InfoSlide({ variant, heading, body, stats, showLogo, progress, heroRevealed = true }: InfoSlideProps) {
   const [ready, setReady] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -103,7 +105,18 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress }:
         )}
 
         {heading && <h1 className="info-slide__heading">{heading}</h1>}
-        {body && <p className="info-slide__body">{body}</p>}
+        {body && (
+          <p
+            className="info-slide__body"
+            style={variant === "hero" ? {
+              opacity: heroRevealed ? 1 : 0,
+              transform: heroRevealed ? "translateY(0)" : "translateY(20px)",
+              transition: "opacity 1s ease, transform 1s ease",
+            } : undefined}
+          >
+            {body}
+          </p>
+        )}
 
         {variant === "stat-grid" && stats && stats.length > 0 && (
           <div className="info-slide__stats">

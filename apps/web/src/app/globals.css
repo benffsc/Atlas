@@ -2064,9 +2064,15 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   transition: transform 1.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 1s ease;
 }
 
-/* Hero: centered horizontally, upper portion of screen */
-.tour-logo--hero {
-  transform: translate(calc(50vw - 250px), 15vh) scale(1);
+/* Center: dead center of viewport (hero start before raising) */
+.tour-logo--center {
+  transform: translate(calc(50vw - 250px), calc(50vh - 12vw)) scale(1);
+  opacity: 1;
+}
+
+/* Raised: upper portion (hero after reveal, text visible below) */
+.tour-logo--raised {
+  transform: translate(calc(50vw - 250px), 12vh) scale(1);
   opacity: 1;
 }
 
