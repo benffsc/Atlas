@@ -9,6 +9,7 @@ import { formatRelativeTime } from "@/lib/formatters";
 import { Skeleton } from "@/components/feedback/Skeleton";
 import { CatPresenceBadge, groupCatsByPresence, summarizeDepartures } from "@/components/ui/CatPresenceBadge";
 import { useRedact } from "@/components/ShowcaseContext";
+import { maskAddressToNeighborhood } from "@/lib/dataMasking";
 
 interface GoogleNote {
   entry_id: string;
@@ -173,7 +174,16 @@ function DepartedCatsSection({ cats, renderCatCard, placeId }: {
 
 export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordinates, shifted, onAddToComparison, comparisonCount, embedded, onNavigateCat, onNavigatePerson }: PlaceDetailDrawerProps) {
   const { addToast } = useToast();
-  const r = useRedact();
+  // Map page doesn't have ShowcaseProvider — check body class directly
+  const isPresentationMode = typeof document !== "undefined" && document.body.classList.contains("presentation-mode");
+  const maskChip = (v: string | null) => {
+    if (!v || !isPresentationMode || v.length < 4) return v;
+    return v.slice(0, -3) + "***";
+  };
+  const maskAddr = (v: string | null) => {
+    if (!v || !isPresentationMode) return v;
+    return maskAddressToNeighborhood(v) || v;
+  };
   const [place, setPlace] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -434,7 +444,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
       {/* Header */}
       <div className="drawer-header">
         <div className="drawer-title">
-          <h2>{place ? (r.neighborhood(place.address) || place.address) : <Skeleton width="200px" height={20} />}</h2>
+          <h2>{place ? maskAddr(place.address) : <Skeleton width="200px" height={20} />}</h2>
           {place?.display_name && (
             <span className="drawer-subtitle">{place.display_name}</span>
           )}
@@ -1016,7 +1026,10 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                   onClick={onNavigateCat ? (e) => { e.preventDefault(); onNavigateCat(cat.cat_id); } : undefined}
                 >
                   <div className="cat-card-header">
-                    <span className="cat-name">{cat.display_name || "Unknown"}</span>
+                    <span className="cat-name">{isPresentationMode && cat.display_name && /^\d{3,}/.test(cat.display_name)
+                      ? cat.display_name.slice(0, -3) + "***"
+                      : (cat.display_name || "Unknown")
+                    }</span>
                     <div className="cat-badges">
                       <CatPresenceBadge
                         status={cat.presence_status as "current" | "departed" | "presumed_departed" | "unknown"}
@@ -1047,7 +1060,7 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                   <div className="cat-card-details">
                     {cat.breed && <span>{cat.breed}</span>}
                     {cat.primary_color && <span>{cat.primary_color}</span>}
-                    {cat.microchip && <span className="cat-microchip">{r.microchip(cat.microchip)}</span>}
+                    {cat.microchip && <span className="cat-microchip">{maskChip(cat.microchip)}</span>}
                   </div>
                   {cat.appointment_count > 0 && (
                     <div className="cat-card-appointments">
