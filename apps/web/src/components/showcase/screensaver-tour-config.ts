@@ -213,26 +213,12 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     ],
     pauseMs: 12000,
   },
-  // 11. CTA
+  // 11. CTA — last slide, then loops back to hero with logo centering
   {
     type: "slide",
     variant: "cta",
     heading: "Be Part of What Comes Next",
     body: "Beacon is still growing. With your support, we can expand clinic capacity, improve our data, and guide smarter, faster, more humane population reduction across Sonoma County.",
-    pauseMs: 12000,
-  },
-  // 12. County-wide closing (satellite)
-  {
-    type: "map",
-    label: "Better Data, Better Outcomes",
-    description:
-      "From Cloverdale to Petaluma, Bodega Bay to Sonoma Valley. Beacon turns 35 years of compassion into a planning tool so every dollar, every volunteer hour, and every surgery makes the greatest possible difference.",
-    lat: 38.5,
-    lng: -122.78,
-    zoom: 10,
-    pauseMs: 18000,
-    stat: { value: "Beacon", label: "by Forgotten Felines" },
-    layers: [],
-    basemap: "satellite" as const,
+    pauseMs: 14000,
   },
 ];
