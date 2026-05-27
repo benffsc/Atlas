@@ -2050,28 +2050,29 @@ body.tv-tour-active .gmnoprint:not(.gm-style-mtc) {
   }
 }
 
-/* ── Persistent tour logo: transitions between hero (centered) and corner ── */
-/* Uses top+left+transform only (never bottom/right) so CSS can animate smoothly */
+/* ── Persistent tour logo: one element, CSS transition between states ── */
+/* Fixed width, uses scale() for size change to avoid transform feedback loops */
 .tour-logo {
   position: fixed;
+  width: 500px;
   top: 0;
   left: 0;
   z-index: 2150;
   pointer-events: none;
-  transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1), width 1.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 1s ease;
+  transform-origin: top left;
+  will-change: transform, opacity;
+  transition: transform 1.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 1s ease;
 }
 
-/* Hero/CTA state: centered horizontally, upper third */
+/* Hero: centered horizontally, upper portion of screen */
 .tour-logo--hero {
-  width: clamp(280px, 35vw, 600px);
-  transform: translate(calc(50vw - 50%), 18vh);
+  transform: translate(calc(50vw - 250px), 15vh) scale(1);
   opacity: 1;
 }
 
-/* Corner state: bottom-right, small */
+/* Corner: bottom-right, scaled down to ~100px */
 .tour-logo--corner {
-  width: 120px;
-  transform: translate(calc(100vw - 100% - 24px), calc(100vh - 100% - 24px));
+  transform: translate(calc(100vw - 124px), calc(100vh - 40px)) scale(0.2);
   opacity: 0.5;
 }
 
