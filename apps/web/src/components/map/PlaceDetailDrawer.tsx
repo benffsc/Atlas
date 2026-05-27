@@ -1033,8 +1033,14 @@ export function PlaceDetailDrawer({ placeId, onClose, onWatchlistChange, coordin
                   onClick={onNavigateCat ? (e) => { e.preventDefault(); onNavigateCat(cat.cat_id); } : undefined}
                 >
                   <div className="cat-card-header">
-                    <span className="cat-name">{isPresentationMode && cat.display_name && /^\d{3,}/.test(cat.display_name)
-                      ? cat.display_name.slice(0, -3) + "***"
+                    <span className="cat-name">{isPresentationMode && cat.display_name
+                      ? cat.display_name
+                          // Mask digit-only chip fragments in names:
+                          // #6073/ Felix → #6***/ Felix
+                          // 6073 Black F → 6*** Black F
+                          // Cat 1 → Cat 1 (unchanged — "1" is < 3 digits)
+                          .replace(/#(\d)\d{3,}/g, "#$1***")
+                          .replace(/\b(\d)\d{3,}\b/g, "$1***")
                       : (cat.display_name || "Unknown")
                     }</span>
                     <div className="cat-badges">

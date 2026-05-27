@@ -359,6 +359,15 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
         />
       )}
 
+      {/* Beacon logo watermark — bottom-right during map steps */}
+      {step.type === "map" && (
+        <img
+          src="/beacon-logo-transparent.png"
+          alt=""
+          className="tour-logo-watermark"
+        />
+      )}
+
       {/* Pause controls — prev/next/resume */}
       {showControls && (
         <div className="screensaver-controls">
