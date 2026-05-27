@@ -99,6 +99,19 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
             actionTimerRefs.current.push(tid);
           }
         }
+
+        // Prep NEXT step's layers/basemap 3s before this map step ends
+        // so data is pre-fetched and ready (avoids flash of wrong filter)
+        const nextMapStep = steps[(stepIndex + 1) % steps.length];
+        if (nextMapStep?.type === "map") {
+          const prepTid = setTimeout(() => {
+            window.dispatchEvent(new CustomEvent("showcase:layers", { detail: nextMapStep.layers ?? [] }));
+            if (nextMapStep.basemap) {
+              window.dispatchEvent(new CustomEvent("screensaver:basemap", { detail: nextMapStep.basemap }));
+            }
+          }, Math.max(duration - 3000, 1000));
+          actionTimerRefs.current.push(prepTid);
+        }
       } else {
         // Slide step: dismiss map drawers and clear layers so nothing bleeds through
         window.dispatchEvent(new CustomEvent("screensaver:action", { detail: { type: "dismiss" } }));
