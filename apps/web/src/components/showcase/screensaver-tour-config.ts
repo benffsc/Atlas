@@ -37,6 +37,7 @@ export type ScreensaverStep =
       stats?: { value: string; label: string }[];
       pauseMs: number;
       showLogo?: boolean;
+      qrUrl?: string;
     };
 
 // Real production UUIDs — verified to have sensible alteration rates
@@ -229,6 +230,7 @@ export const SCREENSAVER_STEPS: ScreensaverStep[] = [
     variant: "cta",
     heading: "Be Part of What Comes Next",
     body: "Beacon is still growing. With your support, we can expand clinic capacity, improve our data, and guide smarter, faster, more humane population reduction across Sonoma County.",
+    qrUrl: "https://www.forgottenfelines.com",
     pauseMs: 14000,
   },
 ];

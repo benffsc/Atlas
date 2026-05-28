@@ -50,7 +50,6 @@ import { HexDetailPanel } from "@/components/map/components/HexDetailPanel";
 import { HexComparePanel } from "@/components/map/components/HexComparePanel";
 import { useMapUrlState, readMapInitialUrlState } from "@/components/map/hooks/useMapUrlState";
 import { useMapLayout } from "@/components/map/layout/MapLayoutContext";
-import { ShowcaseMapTour } from "@/components/ShowcaseMapTour";
 import { MapVisualizationMode } from "@/components/map/components/MapVisualizationMode";
 import type { BasemapType } from "@/components/map/components/MapControls";
 import { DEMO_AREA_A, DEMO_AREA_B, DEMO_AREA_C, DEMO_HEX_DETAIL } from "@/components/showcase/screensaver-demo-data";
@@ -2320,9 +2319,6 @@ function AtlasMapV2Inner({ analystMode = false }: AtlasMapV2Props) {
           <span className="map-loading-text">Loading map data...</span>
         </div>
       )}
-
-      {/* Showcase map tour — listens for "showcase:maptour" event */}
-      <ShowcaseMapTour map={map} />
 
       {/* TV screensaver tour — now mounted at app layout level (ScreensaverTourGate in layout.tsx) */}
 

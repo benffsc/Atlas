@@ -366,6 +366,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
           showLogo={false}
           progress={progress}
           heroRevealed={logoPhase === "raised" || logoPhase === "corner"}
+          qrUrl={"qrUrl" in step ? step.qrUrl : undefined}
         />
       )}
 

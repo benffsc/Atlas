@@ -6,6 +6,10 @@
  * stat-grid: all 4 stats live in the grid from the start. The "featured"
  * one is transformed to center+large via CSS, then the transform transitions
  * back to none. Same DOM element the whole time = smooth animation.
+ *
+ * While a stat is featured, all already-settled stats dim to opacity 0.15
+ * (via CSS :has() on the grid container) so the featured stat stands alone.
+ * When it settles, the others fade back to full opacity.
  */
 
 import { useEffect, useState, useRef } from "react";
@@ -32,12 +36,14 @@ interface InfoSlideProps {
   progress: number;
   /** When true, hero body text is visible (logo has raised) */
   heroRevealed?: boolean;
+  /** URL to render as a QR code (CTA variant) */
+  qrUrl?: string;
 }
 
 const FEATURE_MS = 2200;
 const SETTLE_MS = 900;
 
-export function InfoSlide({ variant, heading, body, stats, showLogo, progress, heroRevealed = true }: InfoSlideProps) {
+export function InfoSlide({ variant, heading, body, stats, showLogo, progress, heroRevealed = true, qrUrl }: InfoSlideProps) {
   const [ready, setReady] = useState(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -116,6 +122,18 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress, h
           >
             {body}
           </p>
+        )}
+
+        {variant === "cta" && qrUrl && (
+          <div className="info-slide__qr">
+            <img
+              src={`https://chart.googleapis.com/chart?cht=qr&chs=200x200&chl=${encodeURIComponent(qrUrl)}`}
+              alt="QR code to donate"
+              width={180}
+              height={180}
+            />
+            <span className="info-slide__qr-label">Scan to donate</span>
+          </div>
         )}
 
         {variant === "stat-grid" && stats && stats.length > 0 && (

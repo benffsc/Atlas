@@ -32,16 +32,6 @@ export function ShowcaseToolbar({ onExit }: ShowcaseToolbarProps) {
   const isOnDemo = pathname?.startsWith("/demo") || pathname?.startsWith("/walkthrough");
   const isOnMap = pathname === "/map";
 
-  const startMapTour = useCallback(() => {
-    if (isOnMap) {
-      window.dispatchEvent(new CustomEvent("showcase:maptour"));
-    } else {
-      window.location.href = "/map";
-      sessionStorage.setItem("showcase:maptour-pending", "1");
-    }
-    setExpanded(false);
-  }, [isOnMap]);
-
   const toggleTvTour = useCallback(() => {
     if (tvTourActive) {
       // Stop: dispatch toggle to the ScreensaverTour on the map page
@@ -82,21 +72,15 @@ export function ShowcaseToolbar({ onExit }: ShowcaseToolbarProps) {
 
       {expanded && (
         <div className="showcase-toolbar-panel">
-          <div className="showcase-toolbar-section">
-            <span className="showcase-toolbar-label">Demos</span>
-            <button
-              className="showcase-toolbar-btn"
-              onClick={startMapTour}
-            >
-              Map Tour
-            </button>
-            {!isOnDemo && (
+          {!isOnDemo && (
+            <div className="showcase-toolbar-section">
+              <span className="showcase-toolbar-label">Demos</span>
               <a href="/walkthrough/" className="showcase-toolbar-btn">
                 Informational Deck
               </a>
-            )}
-          </div>
-          <div className="showcase-toolbar-divider" />
+            </div>
+          )}
+          {!isOnDemo && <div className="showcase-toolbar-divider" />}
           <div className="showcase-toolbar-section">
             <span className="showcase-toolbar-label">Loop</span>
             <button
