@@ -1,6 +1,5 @@
 import { formatRelativeTime } from "@/lib/formatters";
-import { maskAddressToNeighborhood, maskName } from "@/lib/dataMasking";
-import { useShowcase } from "@/components/ShowcaseContext";
+import { maskAddressToNeighborhood, maskName, maskStreetIfPresenting } from "@/lib/dataMasking";
 import type { AtlasPin } from "@/components/map/types";
 
 interface MapInfoWindowContentProps {
@@ -14,7 +13,8 @@ interface MapInfoWindowContentProps {
  * Two variants: compact (reference pins) and rich (active pins).
  */
 export function MapInfoWindowContent({ pin, onOpenDetails, onStreetView }: MapInfoWindowContentProps) {
-  const { isShowcase } = useShowcase();
+  // Map page doesn't have ShowcaseProvider — check body class directly
+  const isShowcase = typeof document !== "undefined" && document.body.classList.contains("presentation-mode");
   const isReference = pin.pin_tier === "reference" || pin.pin_style === "reference";
 
   if (isReference) {
@@ -27,9 +27,7 @@ export function MapInfoWindowContent({ pin, onOpenDetails, onStreetView }: MapIn
 // ── Reference pin popup (compact but useful) ──────────────────────────────
 
 function ReferencePopup({ pin, onOpenDetails, isShowcase }: { pin: AtlasPin; onOpenDetails: (id: string) => void; isShowcase?: boolean }) {
-  const displayName = isShowcase
-    ? maskAddressToNeighborhood(pin.display_name || pin.address) || "Colony site"
-    : pin.display_name || pin.address;
+  const displayName = maskStreetIfPresenting(pin.display_name || pin.address) || pin.display_name || pin.address;
 
   return (
     <div style={{ minWidth: 220, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
@@ -69,7 +67,7 @@ function ReferencePopup({ pin, onOpenDetails, isShowcase }: { pin: AtlasPin; onO
 
       {pin.last_alteration_at && (
         <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>
-          Last TNR: {formatRelativeTime(pin.last_alteration_at)}
+          Last FFR: {formatRelativeTime(pin.last_alteration_at)}
         </div>
       )}
 
@@ -111,9 +109,7 @@ function ActivePopup({
   onStreetView?: (coords: { lat: number; lng: number; address: string }) => void;
   isShowcase?: boolean;
 }) {
-  const displayAddr = isShowcase
-    ? maskAddressToNeighborhood(pin.address) || "Colony site"
-    : pin.address;
+  const displayAddr = maskStreetIfPresenting(pin.address) || pin.address;
 
   return (
     <div style={{ minWidth: 280, maxWidth: 340, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
@@ -157,7 +153,7 @@ function ActivePopup({
       {/* Last TNR subtitle */}
       {pin.last_alteration_at && (
         <div style={{ fontSize: 11, color: "#6b7280", textAlign: "center", marginBottom: 8 }}>
-          Last TNR: {formatRelativeTime(pin.last_alteration_at)}
+          Last FFR: {formatRelativeTime(pin.last_alteration_at)}
         </div>
       )}
 
