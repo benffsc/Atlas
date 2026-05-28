@@ -190,7 +190,7 @@ export default function BeaconPage() {
             whiteSpace: "nowrap",
           }}
         >
-          Open Atlas Map
+          Open Map
         </a>
       </div>
 

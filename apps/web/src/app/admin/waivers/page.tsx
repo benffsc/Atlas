@@ -556,7 +556,7 @@ function WaiverDashboardContent() {
         <div>
           <h1 style={{ margin: 0 }}>Clinic Waivers</h1>
           <p className="text-muted" style={{ margin: "4px 0 0" }}>
-            Upload scanned waiver PDFs to enrich Atlas with medication, vitals, and surgery data
+            Upload scanned waiver PDFs to enrich Beacon with medication, vitals, and surgery data
           </p>
         </div>
       </div>

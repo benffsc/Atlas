@@ -246,7 +246,7 @@ export default function DemoPage() {
             </p>
             <div className="demo-callout">
               <span className="demo-callout-label">The only sustainable, humane solution</span>
-              <span className="demo-callout-value">Trap-Neuter-Return (TNR)</span>
+              <span className="demo-callout-value">Find, Fix, Return (FFR)</span>
             </div>
             <p className="demo-slide-body" style={{ marginTop: "1.5rem", fontSize: "0.85rem" }}>
               {clinicDistinction}

@@ -107,7 +107,7 @@ function MapColorsContent() {
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>Map Colors</h1>
         <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.875rem" }}>
-          Customize colors used on the Atlas map for priority levels, layers, disease types, and more.
+          Customize colors used on the Beacon map for priority levels, layers, disease types, and more.
         </p>
       </div>
 

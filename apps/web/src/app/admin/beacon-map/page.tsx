@@ -50,7 +50,7 @@ export default function AdminAtlasMapPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>
-              Atlas Map
+              Beacon Map
             </h1>
             <p style={{ margin: "0.25rem 0 0", color: "#6b7280", fontSize: "0.875rem" }}>
               Visualize cat activity, historical data, and TNR priorities

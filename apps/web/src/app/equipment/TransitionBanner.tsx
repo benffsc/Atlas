@@ -41,7 +41,7 @@ export function TransitionBanner() {
       }}
     >
       <span>
-        Equipment is transitioning to Atlas. Use the Kiosk for checkouts. Airtable syncs every 4h.
+        Equipment is transitioning to Beacon. Use the Kiosk for checkouts. Airtable syncs every 4h.
       </span>
       <button
         onClick={() => {
