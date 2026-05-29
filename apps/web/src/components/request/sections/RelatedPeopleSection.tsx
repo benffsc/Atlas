@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { Button } from "@/components/ui/Button";
 import { RowActionMenu } from "@/components/shared/RowActionMenu";
 import { ActionDrawer } from "@/components/shared/ActionDrawer";
 import { PersonReferencePicker } from "@/components/ui/PersonReferencePicker";
@@ -155,46 +156,24 @@ export function RelatedPeopleSection({
           )}
           <div style={{ marginLeft: "auto", display: "flex", gap: "4px" }}>
             {relatedPeople.length > 0 && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="clipboard"
                 onClick={() => {
                   navigator.clipboard.writeText(buildBriefingText(relatedPeople, briefingContext, briefingJournal));
                   toastSuccess("Contact briefing copied to clipboard");
                 }}
-                style={{
-                  padding: "2px 10px", fontSize: "0.75rem", fontWeight: 500,
-                  color: "var(--text-secondary)", background: "transparent",
-                  border: "1px solid var(--border)", borderRadius: "5px", cursor: "pointer",
-                  display: "inline-flex", alignItems: "center", gap: "4px",
-                }}
               >
-                <Icon name="clipboard" size={12} /> Copy Briefing
-              </button>
+                Copy Briefing
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={() => setShowFieldContactDrawer(true)}
-              style={{
-                padding: "2px 10px", fontSize: "0.75rem", fontWeight: 500,
-                color: "#166534", background: "transparent",
-                border: "1px solid #166534", borderRadius: "5px", cursor: "pointer",
-                display: "inline-flex", alignItems: "center", gap: "4px",
-              }}
-            >
-              <Icon name="phone" size={12} /> Field Contact
-            </button>
-            <button
-              type="button"
-              onClick={() => { resetAddPersonForm(); setShowAddPersonDrawer(true); }}
-              style={{
-                padding: "2px 10px", fontSize: "0.75rem", fontWeight: 500,
-                color: "var(--primary)", background: "transparent",
-                border: "1px solid var(--primary)", borderRadius: "5px", cursor: "pointer",
-                display: "inline-flex", alignItems: "center", gap: "4px",
-              }}
-            >
-              <Icon name="plus" size={12} /> Add
-            </button>
+            <Button variant="outline" size="sm" icon="phone" onClick={() => setShowFieldContactDrawer(true)}>
+              Field Contact
+            </Button>
+            <Button variant="outline" size="sm" icon="plus" onClick={() => { resetAddPersonForm(); setShowAddPersonDrawer(true); }}>
+              Add
+            </Button>
           </div>
         </div>
         {relatedPeople.length > 0 && (
@@ -323,26 +302,18 @@ export function RelatedPeopleSection({
         width="sm"
         footer={
           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={() => setShowAddPersonDrawer(false)}
-              style={{ padding: "6px 16px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px", background: "transparent", cursor: "pointer", color: "var(--text-secondary)" }}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setShowAddPersonDrawer(false)}>
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleAddPerson}
-              disabled={addPersonSaving || (!addPersonRef.is_resolved && !addPersonRef.display_name)}
-              style={{
-                padding: "6px 16px", fontSize: "0.85rem", fontWeight: 500,
-                border: "none", borderRadius: "6px", cursor: addPersonSaving ? "wait" : "pointer",
-                background: "var(--primary)", color: "#fff",
-                opacity: addPersonSaving || (!addPersonRef.is_resolved && !addPersonRef.display_name) ? 0.5 : 1,
-              }}
+              loading={addPersonSaving}
+              disabled={!addPersonRef.is_resolved && !addPersonRef.display_name}
             >
-              {addPersonSaving ? "Saving..." : "Add Person"}
-            </button>
+              Add Person
+            </Button>
           </div>
         }
       >
@@ -415,16 +386,14 @@ export function RelatedPeopleSection({
         width="sm"
         footer={
           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={() => setEnrichRowId(null)}
-              style={{ padding: "6px 16px", fontSize: "0.85rem", border: "1px solid var(--border)", borderRadius: "6px", background: "transparent", cursor: "pointer", color: "var(--text-secondary)" }}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setEnrichRowId(null)}>
               Cancel
-            </button>
-            <button
-              type="button"
-              disabled={enrichSaving || (!enrichPhone.trim() && !enrichEmail.trim())}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              loading={enrichSaving}
+              disabled={!enrichPhone.trim() && !enrichEmail.trim()}
               onClick={async () => {
                 if (!enrichRowId) return;
                 setEnrichSaving(true);
@@ -447,16 +416,9 @@ export function RelatedPeopleSection({
                   setEnrichSaving(false);
                 }
               }}
-              style={{
-                padding: "6px 16px", fontSize: "0.85rem", fontWeight: 500,
-                border: "none", borderRadius: "6px",
-                cursor: enrichSaving ? "wait" : "pointer",
-                background: "var(--primary)", color: "#fff",
-                opacity: enrichSaving || (!enrichPhone.trim() && !enrichEmail.trim()) ? 0.5 : 1,
-              }}
             >
-              {enrichSaving ? "Saving..." : "Save & Resolve"}
-            </button>
+              Save & Resolve
+            </Button>
           </div>
         }
       >

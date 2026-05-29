@@ -52,14 +52,14 @@ export function ResolutionBanner({
     bannerColor = outcomeColors.color;
     bannerIcon = resolutionOutcome === "successful" ? "✓" : "●";
   } else if (isLegacy) {
-    bannerBg = "#f3f4f6";
-    bannerBorder = "#d1d5db";
-    bannerColor = "#6b7280";
+    bannerBg = "var(--section-bg, #f3f4f6)";
+    bannerBorder = "var(--border-light, #d1d5db)";
+    bannerColor = "var(--text-muted, #6b7280)";
     bannerIcon = "📋";
   } else {
-    bannerBg = "#f9fafb";
-    bannerBorder = "#e5e7eb";
-    bannerColor = "#6b7280";
+    bannerBg = "var(--section-bg, #f9fafb)";
+    bannerBorder = "var(--border, #e5e7eb)";
+    bannerColor = "var(--text-muted, #6b7280)";
     bannerIcon = "●";
   }
 

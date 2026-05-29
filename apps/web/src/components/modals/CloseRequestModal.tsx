@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { useAsyncForm } from "@/hooks/useAsyncForm";
 import { Modal } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 import { COLORS, SPACING, BORDERS } from "@/lib/design-tokens";
 import {
   RESOLUTION_OUTCOMES,
@@ -34,8 +35,6 @@ interface CloseRequestModalProps {
   updatedAt?: string;
 }
 
-type Step = "outcome" | "reason" | "notes";
-
 const OUTCOME_DESCRIPTIONS: Record<ResolutionOutcome, string> = {
   successful: "All or most cats in the colony were fixed",
   partial: "Some cats fixed, but some remain (trap-shy, inaccessible, etc.)",
@@ -54,7 +53,6 @@ export function CloseRequestModal({
   onSuccess,
   updatedAt,
 }: CloseRequestModalProps) {
-  const [step, setStep] = useState<Step>("outcome");
   const [selectedOutcome, setSelectedOutcome] = useState<ResolutionOutcome | null>(null);
   const [reasons, setReasons] = useState<ResolutionReason[]>([]);
   const [selectedReason, setSelectedReason] = useState<string>("");
@@ -93,21 +91,7 @@ export function CloseRequestModal({
   // Show cat count fields for successful/partial outcomes with a place
   const showCatCounts = (selectedOutcome === "successful" || selectedOutcome === "partial") && placeId;
 
-  const steps: Step[] = ["outcome", "reason", "notes"];
-
-  function nextStep() {
-    const idx = steps.indexOf(step);
-    if (idx < steps.length - 1) {
-      setStep(steps[idx + 1]);
-    }
-  }
-
-  function prevStep() {
-    const idx = steps.indexOf(step);
-    if (idx > 0) {
-      setStep(steps[idx - 1]);
-    }
-  }
+  const canSubmit = selectedOutcome && (reasons.length === 0 || selectedReason) && (!requiresNotes || resolutionNotes.trim());
 
   const submitFn = useCallback(async () => {
     if (!selectedOutcome) throw new Error("Please select an outcome");
@@ -138,7 +122,6 @@ export function CloseRequestModal({
 
   function handleClose() {
     if (loading) return;
-    setStep("outcome");
     setSelectedOutcome(null);
     setSelectedReason("");
     setResolutionNotes("");
@@ -148,72 +131,24 @@ export function CloseRequestModal({
     onClose();
   }
 
-  const currentStepIdx = steps.indexOf(step);
-  const isLastStep = currentStepIdx === steps.length - 1;
-
   const footer = (
     <>
-      <button
-        type="button"
-        onClick={currentStepIdx === 0 ? handleClose : prevStep}
-        disabled={loading}
-        style={{
-          padding: `${SPACING.sm} ${SPACING.lg}`,
-          border: "1px solid var(--border)",
-          borderRadius: BORDERS.radius.lg,
-          background: "var(--card-bg, #fff)",
-          fontSize: "0.9rem",
-          cursor: loading ? "not-allowed" : "pointer",
-        }}
+      <Button variant="secondary" size="md" onClick={handleClose} disabled={loading}>
+        Cancel
+      </Button>
+      <Button
+        variant="primary"
+        size="md"
+        onClick={handleSubmit}
+        loading={loading}
+        disabled={!canSubmit}
+        style={selectedOutcome ? {
+          background: RESOLUTION_OUTCOME_COLORS[selectedOutcome].color,
+          borderColor: "transparent",
+        } : undefined}
       >
-        {currentStepIdx === 0 ? "Cancel" : "Back"}
-      </button>
-      {isLastStep ? (
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={loading || !selectedOutcome}
-          style={{
-            padding: `${SPACING.sm} ${SPACING.lg}`,
-            border: "none",
-            borderRadius: BORDERS.radius.lg,
-            background: selectedOutcome ? RESOLUTION_OUTCOME_COLORS[selectedOutcome].color : COLORS.success,
-            color: COLORS.white,
-            fontSize: "0.9rem",
-            fontWeight: 500,
-            cursor: loading || !selectedOutcome ? "not-allowed" : "pointer",
-            opacity: loading || !selectedOutcome ? 0.6 : 1,
-          }}
-        >
-          {loading ? "Closing..." : "Close Case"}
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={nextStep}
-          disabled={
-            (step === "outcome" && !selectedOutcome) ||
-            (step === "reason" && reasons.length > 0 && !selectedReason)
-          }
-          style={{
-            padding: `${SPACING.sm} ${SPACING.lg}`,
-            border: "none",
-            borderRadius: BORDERS.radius.lg,
-            background: COLORS.primary,
-            color: COLORS.white,
-            fontSize: "0.9rem",
-            fontWeight: 500,
-            cursor: "pointer",
-            opacity:
-              (step === "outcome" && !selectedOutcome) ||
-              (step === "reason" && reasons.length > 0 && !selectedReason)
-                ? 0.6
-                : 1,
-          }}
-        >
-          Next
-        </button>
-      )}
+        Close Case
+      </Button>
     </>
   );
 
@@ -225,78 +160,59 @@ export function CloseRequestModal({
       size="md"
       footer={footer}
     >
-      {/* Step indicator */}
-      <div style={{
-        display: "flex",
-        gap: SPACING.xs,
-        marginBottom: SPACING.lg,
-      }}>
-        {steps.map((s, i) => (
-          <div
-            key={s}
-            style={{
-              flex: 1,
-              height: "3px",
-              borderRadius: "2px",
-              background: i <= currentStepIdx ? COLORS.primary : "var(--border)",
-              transition: "background 0.2s",
-            }}
-          />
-        ))}
+      {/* Outcome selection — always visible */}
+      <div>
+        <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.9rem", fontWeight: 500 }}>
+          What was the outcome?
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: SPACING.sm }}>
+          {RESOLUTION_OUTCOMES.map((outcome) => {
+            const colors = RESOLUTION_OUTCOME_COLORS[outcome];
+            const isSelected = selectedOutcome === outcome;
+            return (
+              <button
+                key={outcome}
+                type="button"
+                onClick={() => {
+                  setSelectedOutcome(outcome);
+                  setSelectedReason("");
+                }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  padding: SPACING.md,
+                  border: `2px solid ${isSelected ? colors.color : "var(--border-light, #d1d5db)"}`,
+                  borderRadius: BORDERS.radius.lg,
+                  background: isSelected ? colors.bg : "var(--card-bg, #fff)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.15s",
+                }}
+              >
+                <span style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  color: isSelected ? colors.color : "var(--foreground)",
+                }}>
+                  {RESOLUTION_OUTCOME_LABELS[outcome]}
+                </span>
+                <span style={{
+                  fontSize: "0.8rem",
+                  color: "var(--muted)",
+                  marginTop: "2px",
+                }}>
+                  {OUTCOME_DESCRIPTIONS[outcome]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Step 1: Outcome selection */}
-      {step === "outcome" && (
-        <div>
-          <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.9rem", fontWeight: 500 }}>
-            What was the outcome?
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: SPACING.sm }}>
-            {RESOLUTION_OUTCOMES.map((outcome) => {
-              const colors = RESOLUTION_OUTCOME_COLORS[outcome];
-              const isSelected = selectedOutcome === outcome;
-              return (
-                <button
-                  key={outcome}
-                  type="button"
-                  onClick={() => setSelectedOutcome(outcome)}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-start",
-                    padding: SPACING.md,
-                    border: `2px solid ${isSelected ? colors.color : "var(--border)"}`,
-                    borderRadius: BORDERS.radius.lg,
-                    background: isSelected ? colors.bg : "var(--card-bg, #fff)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  <span style={{
-                    fontSize: "0.9rem",
-                    fontWeight: 600,
-                    color: isSelected ? colors.color : "var(--foreground)",
-                  }}>
-                    {RESOLUTION_OUTCOME_LABELS[outcome]}
-                  </span>
-                  <span style={{
-                    fontSize: "0.8rem",
-                    color: "var(--muted)",
-                    marginTop: "2px",
-                  }}>
-                    {OUTCOME_DESCRIPTIONS[outcome]}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: Reason selection */}
-      {step === "reason" && selectedOutcome && (
-        <div>
+      {/* Reason selection — appears when outcome selected */}
+      {selectedOutcome && (
+        <div style={{ marginTop: SPACING.lg }}>
           <div style={{
             display: "inline-flex",
             padding: `2px ${SPACING.sm}`,
@@ -309,84 +225,69 @@ export function CloseRequestModal({
           }}>
             {RESOLUTION_OUTCOME_LABELS[selectedOutcome]}
           </div>
-          <p style={{ margin: `0 0 ${SPACING.md}`, fontSize: "0.9rem", fontWeight: 500 }}>
-            Select a specific reason
-          </p>
+
           {loadingReasons ? (
             <div style={{ fontSize: "0.9rem", color: "var(--muted)", padding: SPACING.md }}>
               Loading reasons...
             </div>
-          ) : reasons.length === 0 ? (
-            <p style={{ fontSize: "0.85rem", color: "var(--muted)", fontStyle: "italic" }}>
-              No specific reasons available. You can add notes on the next step.
-            </p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: SPACING.xs }}>
-              {reasons.map((reason) => (
-                <button
-                  key={reason.reason_code}
-                  type="button"
-                  onClick={() => setSelectedReason(reason.reason_code)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: SPACING.sm,
-                    padding: `${SPACING.sm} ${SPACING.md}`,
-                    border: `1px solid ${selectedReason === reason.reason_code ? COLORS.primary : "var(--border)"}`,
-                    borderRadius: BORDERS.radius.lg,
-                    background: selectedReason === reason.reason_code
-                      ? `${COLORS.primary}10`
-                      : "var(--card-bg, #fff)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    fontSize: "0.9rem",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  <span style={{
-                    width: "16px",
-                    height: "16px",
-                    borderRadius: "50%",
-                    border: `2px solid ${selectedReason === reason.reason_code ? COLORS.primary : "var(--border)"}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}>
-                    {selectedReason === reason.reason_code && (
-                      <span style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        background: COLORS.primary,
-                      }} />
-                    )}
-                  </span>
-                  <span>{reason.reason_label}</span>
-                </button>
-              ))}
-            </div>
+          ) : reasons.length === 0 ? null : (
+            <>
+              <p style={{ margin: `0 0 ${SPACING.sm}`, fontSize: "0.9rem", fontWeight: 500 }}>
+                Select a specific reason
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: SPACING.xs }}>
+                {reasons.map((reason) => (
+                  <button
+                    key={reason.reason_code}
+                    type="button"
+                    onClick={() => setSelectedReason(reason.reason_code)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: SPACING.sm,
+                      padding: `${SPACING.sm} ${SPACING.md}`,
+                      border: `1px solid ${selectedReason === reason.reason_code ? COLORS.primary : "var(--border-light, #d1d5db)"}`,
+                      borderRadius: BORDERS.radius.lg,
+                      background: selectedReason === reason.reason_code
+                        ? `${COLORS.primary}15`
+                        : "var(--card-bg, #fff)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontSize: "0.9rem",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <span style={{
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "50%",
+                      border: `2px solid ${selectedReason === reason.reason_code ? COLORS.primary : "#9ca3af"}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}>
+                      {selectedReason === reason.reason_code && (
+                        <span style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          background: COLORS.primary,
+                        }} />
+                      )}
+                    </span>
+                    <span>{reason.reason_label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
 
-      {/* Step 3: Cat counts + notes */}
-      {step === "notes" && selectedOutcome && (
-        <div>
-          <div style={{
-            display: "inline-flex",
-            padding: `2px ${SPACING.sm}`,
-            borderRadius: BORDERS.radius.md,
-            background: RESOLUTION_OUTCOME_COLORS[selectedOutcome].bg,
-            color: RESOLUTION_OUTCOME_COLORS[selectedOutcome].color,
-            fontSize: "0.8rem",
-            fontWeight: 500,
-            marginBottom: SPACING.md,
-          }}>
-            {RESOLUTION_OUTCOME_LABELS[selectedOutcome]}
-            {selectedReasonObj && ` \u2014 ${selectedReasonObj.reason_label}`}
-          </div>
-
+      {/* Cat counts + notes — appears when outcome selected */}
+      {selectedOutcome && (
+        <div style={{ marginTop: SPACING.lg }}>
           {/* Simple cat counts for Beacon — only for successful/partial with a place */}
           <div className={`expandable-section${showCatCounts ? " expanded" : ""}`}>
             <div className="expandable-content">
@@ -476,11 +377,11 @@ export function CloseRequestModal({
         <div style={{
           marginTop: SPACING.lg,
           padding: SPACING.md,
-          background: COLORS.errorLight,
-          border: `1px solid ${COLORS.error}20`,
+          background: "var(--danger-bg)",
+          border: "1px solid var(--danger-border)",
           borderRadius: BORDERS.radius.lg,
         }}>
-          <p style={{ margin: 0, fontSize: "0.9rem", color: COLORS.errorDark }}>{error}</p>
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--danger-text)" }}>{error}</p>
         </div>
       )}
     </Modal>

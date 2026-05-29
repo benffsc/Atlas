@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { postApi } from "@/lib/api-client";
 import { PersonReferencePicker, type PersonReference } from "@/components/ui/PersonReferencePicker";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui";
 
 interface TripReportResult {
   report_id: string;
@@ -186,68 +188,13 @@ export function TripReportModal({
     resetForm();
   };
 
-  if (!isOpen) return null;
+  const modalTitle = isFinal ? "Final Trip Report" : "Session / Field Report";
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "16px",
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: "var(--card-bg, #fff)",
-          borderRadius: "12px",
-          width: "100%",
-          maxWidth: "500px",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid var(--card-border, #e5e7eb)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            position: "sticky",
-            top: 0,
-            background: "var(--card-bg, #fff)",
-            zIndex: 10,
-          }}
-        >
-          <div>
-            <div style={{ fontWeight: 600, fontSize: "1.1rem" }}>
-              {isFinal ? "Final Trip Report" : "Session / Field Report"}
-            </div>
-            <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-              {hasTrapper ? trapperName : placeName || "New report"}{hasTrapper && placeName ? ` — ${placeName}` : ""}
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.25rem",
-              cursor: "pointer",
-              color: "var(--text-muted)",
-            }}
-          >
-            x
-          </button>
+    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} size="md">
+        {/* Subtitle */}
+        <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "1rem" }}>
+          {hasTrapper ? trapperName : placeName || "New report"}{hasTrapper && placeName ? ` — ${placeName}` : ""}
         </div>
 
         {result ? (
@@ -319,22 +266,9 @@ export function TripReportModal({
               </div>
             )}
 
-            <button
-              onClick={handleDone}
-              style={{
-                width: "100%",
-                padding: "14px",
-                background: "var(--primary)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "1rem",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
+            <Button variant="primary" size="lg" onClick={handleDone} fullWidth>
               Done
-            </button>
+            </Button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ padding: "20px" }}>
@@ -696,35 +630,12 @@ export function TripReportModal({
             )}
 
             {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                width: "100%",
-                padding: "14px",
-                background: isSubmitting
-                  ? "#9ca3af"
-                  : isFinal
-                  ? "var(--success-text)"
-                  : "var(--primary)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "1rem",
-                fontWeight: 600,
-                cursor: isSubmitting ? "not-allowed" : "pointer",
-              }}
-            >
-              {isSubmitting
-                ? "Submitting..."
-                : isFinal
-                ? "Submit Final Report"
-                : "Submit Trip Report"}
-            </button>
+            <Button type="submit" variant="primary" size="lg" loading={isSubmitting} fullWidth>
+              {isFinal ? "Submit Final Report" : "Submit Trip Report"}
+            </Button>
           </form>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 

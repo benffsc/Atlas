@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { SkeletonList } from "@/components/feedback/Skeleton";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui";
 
 interface OutlookAccount {
   account_id: string;
@@ -153,61 +155,26 @@ export function SendEmailModal({
     }
   };
 
-  if (!isOpen) return null;
+  const footer = (
+    <>
+      <Button variant="secondary" size="md" onClick={onClose}>
+        Cancel
+      </Button>
+      <Button
+        variant="primary"
+        size="md"
+        onClick={handleSend}
+        loading={sending}
+        disabled={loading || (!hasOutlook && !hasResend)}
+      >
+        Send Email
+      </Button>
+    </>
+  );
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: "1rem",
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="card"
-        style={{
-          width: "100%",
-          maxWidth: "600px",
-          maxHeight: "90vh",
-          overflow: "auto",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "1rem 1.5rem",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 600, margin: 0 }}>Send Email</h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: "pointer",
-              color: "var(--text-muted)",
-              lineHeight: 1,
-            }}
-          >
-            &times;
-          </button>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: "1.5rem" }}>
+    <Modal isOpen={isOpen} onClose={onClose} title="Send Email" size="lg" footer={footer}>
+        <div>
           {loading ? (
             <div style={{ padding: "2rem" }}>
               <SkeletonList items={4} />
@@ -469,48 +436,6 @@ export function SendEmailModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            padding: "1rem 1.5rem",
-            borderTop: "1px solid var(--border)",
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: "0.75rem",
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              padding: "0.5rem 1rem",
-              background: "var(--background-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "0.875rem",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSend}
-            disabled={sending || loading || (!hasOutlook && !hasResend)}
-            style={{
-              padding: "0.5rem 1rem",
-              background: "#0d6efd",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: sending || loading ? "not-allowed" : "pointer",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              opacity: sending || loading ? 0.7 : 1,
-            }}
-          >
-            {sending ? "Sending..." : "Send Email"}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

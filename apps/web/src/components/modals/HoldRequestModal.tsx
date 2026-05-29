@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { postApi } from "@/lib/api-client";
 import { useAsyncForm } from "@/hooks/useAsyncForm";
+import { Modal } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 import { ReasonSelectionForm } from "@/components/forms/ReasonSelectionForm";
 
 interface HoldRequestModalProps {
@@ -69,11 +71,6 @@ export default function HoldRequestModal({
     },
   });
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    doSubmit();
-  }
-
   function handleClose() {
     if (!loading) {
       setSelectedReason("");
@@ -83,144 +80,56 @@ export default function HoldRequestModal({
     }
   }
 
-  if (!isOpen) return null;
+  const footer = (
+    <>
+      <Button variant="secondary" size="md" onClick={handleClose} disabled={loading}>
+        Cancel
+      </Button>
+      <Button variant="primary" size="md" onClick={doSubmit} loading={loading} disabled={!selectedReason}>
+        Pause Request
+      </Button>
+    </>
+  );
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "16px",
-      }}
-      onClick={handleClose}
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={staffName ? `Pause Request` : "Pause Request"}
+      size="sm"
+      footer={footer}
     >
-      <div
-        style={{
-          background: "var(--card-bg, #fff)",
-          borderRadius: "12px",
-          width: "100%",
-          maxWidth: "450px",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
+      {staffName && (
+        <p style={{ margin: "0 0 1rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+          Recording as: {staffName}
+        </p>
+      )}
+
+      <ReasonSelectionForm
+        reasons={HOLD_REASONS}
+        selectedReason={selectedReason}
+        onReasonChange={setSelectedReason}
+        notes={holdNotes}
+        onNotesChange={setHoldNotes}
+        notesRequired={requiresNotes}
+        notesPlaceholder="Additional details about why this is paused..."
+        variant="select"
+      />
+
+      {/* Error message */}
+      {error && (
         <div
           style={{
-            padding: "20px 24px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            marginTop: "16px",
+            padding: "12px",
+            background: "var(--danger-bg)",
+            border: "1px solid var(--danger-border)",
+            borderRadius: "8px",
           }}
         >
-          <div>
-            <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 600 }}>
-              Pause Request
-            </h2>
-            {staffName && (
-              <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
-                Recording as: {staffName}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleClose}
-            disabled={loading}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: loading ? "not-allowed" : "pointer",
-              color: "var(--muted)",
-              lineHeight: 1,
-            }}
-          >
-            &times;
-          </button>
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--danger-text)" }}>{error}</p>
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: "20px 24px" }}>
-          <ReasonSelectionForm
-            reasons={HOLD_REASONS}
-            selectedReason={selectedReason}
-            onReasonChange={setSelectedReason}
-            notes={holdNotes}
-            onNotesChange={setHoldNotes}
-            notesRequired={requiresNotes}
-            notesPlaceholder="Additional details about why this is paused..."
-            variant="select"
-          />
-
-          {/* Error message */}
-          {error && (
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "12px",
-                background: "#f8d7da",
-                border: "1px solid #f5c6cb",
-                borderRadius: "8px",
-              }}
-            >
-              <p style={{ margin: 0, fontSize: "0.9rem", color: "#721c24" }}>{error}</p>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "12px",
-              marginTop: "20px",
-              paddingTop: "16px",
-              borderTop: "1px solid var(--border)",
-            }}
-          >
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={loading}
-              style={{
-                padding: "10px 20px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                background: "var(--card-bg, #fff)",
-                fontSize: "0.9rem",
-                cursor: loading ? "not-allowed" : "pointer",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: "10px 20px",
-                border: "none",
-                borderRadius: "8px",
-                background: "#ec4899",  // MIG_2530: paused status color (pink)
-                color: "#fff",
-                fontSize: "0.9rem",
-                fontWeight: 500,
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.6 : 1,
-              }}
-            >
-              {loading ? "Processing..." : "Pause Request"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }

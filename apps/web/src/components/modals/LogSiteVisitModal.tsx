@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { postApi } from "@/lib/api-client";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui";
 
 interface LogSiteVisitModalProps {
   isOpen: boolean;
@@ -185,94 +187,38 @@ export function LogSiteVisitModal({
     onClose();
   };
 
-  if (!isOpen) return null;
+  const modalTitle = isCompletionFlow ? "Final Site Visit" : "Log Site Visit";
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "16px",
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) handleClose();
-      }}
-    >
-      <div
-        style={{
-          background: "var(--card-bg, #fff)",
-          borderRadius: "12px",
-          width: "100%",
-          maxWidth: mode === "full" ? "600px" : "480px",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid var(--card-border, #e5e7eb)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            position: "sticky",
-            top: 0,
-            background: "var(--card-bg, #fff)",
-            zIndex: 10,
-          }}
-        >
-          <div>
-            <div style={{ fontWeight: 600, fontSize: "1.1rem" }}>
-              {isCompletionFlow ? "Final Site Visit" : "Log Site Visit"}
-            </div>
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-              {placeName}
-            </div>
-            {staffName && (
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
-                Recording as: {staffName}
-              </div>
-            )}
+    <Modal isOpen={isOpen} onClose={handleClose} title={modalTitle} size={mode === "full" ? "lg" : "md"}>
+        {/* Subtitle */}
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            {placeName}
           </div>
-          <button
-            onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: "pointer",
-              color: "var(--text-muted)",
-              lineHeight: 1,
-            }}
-          >
-            &times;
-          </button>
+          {staffName && (
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "2px" }}>
+              Recording as: {staffName}
+            </div>
+          )}
         </div>
 
         {/* Success State */}
         {result ? (
-          <div style={{ padding: "20px" }}>
+          <div>
             <div
               style={{
-                background: "#d4edda",
-                border: "1px solid #c3e6cb",
+                background: "var(--success-bg)",
+                border: "1px solid var(--success-border)",
                 borderRadius: "8px",
                 padding: "1rem",
                 marginBottom: "1rem",
               }}
             >
-              <div style={{ fontWeight: 600, color: "#155724", marginBottom: "0.5rem" }}>
+              <div style={{ fontWeight: 600, color: "var(--success-text)", marginBottom: "0.5rem" }}>
                 Site Visit Logged
               </div>
-              <div style={{ color: "#155724", fontSize: "0.9rem" }}>
+              <div style={{ color: "var(--success-text)", fontSize: "0.9rem" }}>
                 Recorded {result.total_cats_observed} cats seen, {result.eartipped_observed} with ear tips
                 {result.is_final_visit && " (Final Visit)"}
               </div>
@@ -305,22 +251,9 @@ export function LogSiteVisitModal({
               </div>
             )}
 
-            <button
-              onClick={handleClose}
-              style={{
-                width: "100%",
-                padding: "14px",
-                background: isCompletionFlow ? "#198754" : "var(--primary, #0d6efd)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: 600,
-                fontSize: "1rem",
-              }}
-            >
+            <Button variant="primary" size="lg" onClick={handleClose} fullWidth>
               {isCompletionFlow ? "Continue to Complete Request" : "Done"}
-            </button>
+            </Button>
           </div>
         ) : (
           /* Form State */
@@ -375,9 +308,9 @@ export function LogSiteVisitModal({
             {error && (
               <div
                 style={{
-                  background: "#f8d7da",
-                  border: "1px solid #f5c6cb",
-                  color: "#721c24",
+                  background: "var(--danger-bg)",
+                  border: "1px solid var(--danger-border)",
+                  color: "var(--danger-text)",
                   padding: "12px",
                   borderRadius: "8px",
                   marginBottom: "16px",
@@ -391,9 +324,9 @@ export function LogSiteVisitModal({
             {isCompletionFlow && (
               <div
                 style={{
-                  background: "#d4edda",
-                  border: "1px solid #c3e6cb",
-                  color: "#155724",
+                  background: "var(--success-bg)",
+                  border: "1px solid var(--success-border)",
+                  color: "var(--success-text)",
                   padding: "12px",
                   borderRadius: "8px",
                   marginBottom: "16px",
@@ -688,23 +621,23 @@ export function LogSiteVisitModal({
             <div style={{ display: "flex", gap: "12px", flexDirection: isCompletionFlow ? "column" : "row" }}>
               {isCompletionFlow ? (
                 <>
-                  <button type="submit" disabled={submitting} style={primaryButtonStyle(submitting)}>
-                    {submitting ? "Saving..." : "Log Visit & Continue"}
-                  </button>
+                  <Button type="submit" variant="primary" size="lg" loading={submitting} fullWidth>
+                    Log Visit & Continue
+                  </Button>
                   {onSkip && (
-                    <button type="button" onClick={onSkip} disabled={submitting} style={secondaryButtonStyle}>
+                    <Button variant="secondary" size="lg" onClick={onSkip} disabled={submitting} fullWidth>
                       Skip Observation
-                    </button>
+                    </Button>
                   )}
                 </>
               ) : (
                 <>
-                  <button type="button" onClick={handleClose} disabled={submitting} style={secondaryButtonStyle}>
+                  <Button variant="secondary" size="lg" onClick={handleClose} disabled={submitting} style={{ flex: 1 }}>
                     Cancel
-                  </button>
-                  <button type="submit" disabled={submitting} style={primaryButtonStyle(submitting)}>
-                    {submitting ? "Saving..." : "Log Site Visit"}
-                  </button>
+                  </Button>
+                  <Button type="submit" variant="primary" size="lg" loading={submitting} style={{ flex: 1 }}>
+                    Log Site Visit
+                  </Button>
                 </>
               )}
             </div>
@@ -726,8 +659,7 @@ export function LogSiteVisitModal({
             </div>
           </form>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -746,30 +678,6 @@ const inputStyle: React.CSSProperties = {
   borderRadius: "8px",
   fontSize: "0.9rem",
   background: "var(--background, #fff)",
-};
-
-const primaryButtonStyle = (disabled: boolean): React.CSSProperties => ({
-  flex: 1,
-  padding: "14px",
-  background: disabled ? "#9ca3af" : "var(--primary, #198754)",
-  color: "#fff",
-  border: "none",
-  borderRadius: "8px",
-  cursor: disabled ? "not-allowed" : "pointer",
-  fontWeight: 600,
-  fontSize: "1rem",
-});
-
-const secondaryButtonStyle: React.CSSProperties = {
-  flex: 1,
-  padding: "14px",
-  background: "var(--bg-tertiary, #f5f5f5)",
-  color: "var(--text, #333)",
-  border: "1px solid var(--border, #ddd)",
-  borderRadius: "8px",
-  cursor: "pointer",
-  fontWeight: 500,
-  fontSize: "0.95rem",
 };
 
 export default LogSiteVisitModal;

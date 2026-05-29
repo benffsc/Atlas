@@ -6,6 +6,8 @@ import PlaceResolver from "@/components/forms/PlaceResolver";
 import type { ResolvedPlace } from "@/hooks/usePlaceResolver";
 import { PersonSection } from "@/components/request-sections";
 import type { PersonSectionValue } from "@/components/request-sections";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui";
 
 interface RedirectRequestModalProps {
   isOpen: boolean;
@@ -176,95 +178,61 @@ export function RedirectRequestModal({
     }
   };
 
-  if (!isOpen) return null;
+  const footer = (
+    <>
+      <Button variant="secondary" size="md" onClick={onClose} disabled={isSubmitting}>
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        loading={isSubmitting}
+        disabled={success || (linkToExisting && !targetRequestId)}
+        onClick={handleSubmit}
+      >
+        {linkToExisting
+          ? "Link to Request & Close Original"
+          : "Create New Request & Close Original"}
+      </Button>
+    </>
+  );
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "16px",
-      }}
-      onClick={onClose}
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="Redirect Request" size="lg" footer={footer}>
+      <p style={{ margin: "0 0 1rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+        Create a new request and close this one
+      </p>
+
+      {/* Original Request Info */}
       <div
         style={{
-          background: "var(--card-bg, #fff)",
-          borderRadius: "12px",
-          width: "100%",
-          maxWidth: "550px",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          padding: "0.75rem",
+          background: "var(--section-bg, #f8f9fa)",
+          borderRadius: "8px",
+          marginBottom: "1rem",
+          border: "1px solid var(--border)",
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div
-          style={{
-            padding: "20px 24px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 600 }}>
-              Redirect Request
-            </h2>
-            <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
-              Create a new request and close this one
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: "pointer",
-              color: "var(--muted)",
-              lineHeight: 1,
-            }}
-          >
-            &times;
-          </button>
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "4px", textTransform: "uppercase", fontWeight: 600 }}>
+          Original Request
         </div>
-
-        {/* Original Request Info */}
-        <div
-          style={{
-            padding: "12px 24px",
-            background: "var(--section-bg, #f8f9fa)",
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
-          <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "4px" }}>
-            Original Request
-          </div>
-          <div style={{ fontSize: "0.9rem" }}>
-            {originalSummary || "No summary"}
-          </div>
-          {originalAddress && (
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: "2px" }}>
-              {originalAddress}
-            </div>
-          )}
-          {originalRequesterName && (
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-              Contact: {originalRequesterName}
-            </div>
-          )}
+        <div style={{ fontSize: "0.9rem" }}>
+          {originalSummary || "No summary"}
         </div>
+        {originalAddress && (
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: "2px" }}>
+            {originalAddress}
+          </div>
+        )}
+        {originalRequesterName && (
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            Contact: {originalRequesterName}
+          </div>
+        )}
+      </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: "20px 24px" }}>
+        <form onSubmit={handleSubmit}>
           {/* Redirect Reason */}
           <div style={{ marginBottom: "16px" }}>
             <label
@@ -330,30 +298,22 @@ export function RedirectRequestModal({
 
           {/* Mode toggle: Create new vs Link to existing */}
           <div style={{ display: "flex", gap: "8px", margin: "16px 0" }}>
-            <button
-              type="button"
+            <Button
+              variant={!linkToExisting ? "primary" : "outline"}
+              size="sm"
               onClick={() => { setLinkToExisting(false); setTargetRequestId(null); setTargetRequest(null); setRequestSearchQuery(""); }}
-              style={{
-                flex: 1, padding: "8px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                background: !linkToExisting ? "#6f42c1" : "transparent",
-                color: !linkToExisting ? "#fff" : "#6f42c1",
-                border: `1px solid #6f42c1`,
-              }}
+              style={{ flex: 1 }}
             >
               Create New Request
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant={linkToExisting ? "primary" : "outline"}
+              size="sm"
               onClick={() => setLinkToExisting(true)}
-              style={{
-                flex: 1, padding: "8px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                background: linkToExisting ? "#6f42c1" : "transparent",
-                color: linkToExisting ? "#fff" : "#6f42c1",
-                border: `1px solid #6f42c1`,
-              }}
+              style={{ flex: 1 }}
             >
               Link to Existing
-            </button>
+            </Button>
           </div>
 
           {!linkToExisting && (
@@ -713,8 +673,9 @@ export function RedirectRequestModal({
             <div
               style={{
                 padding: "10px 14px",
-                background: "#fee2e2",
-                color: "#b91c1c",
+                background: "var(--danger-bg)",
+                color: "var(--danger-text)",
+                border: "1px solid var(--danger-border)",
                 borderRadius: "8px",
                 marginBottom: "16px",
                 fontSize: "0.9rem",
@@ -728,8 +689,9 @@ export function RedirectRequestModal({
             <div
               style={{
                 padding: "10px 14px",
-                background: "#dcfce7",
-                color: "#166534",
+                background: "var(--success-bg)",
+                color: "var(--success-text)",
+                border: "1px solid var(--success-border)",
                 borderRadius: "8px",
                 marginBottom: "16px",
                 fontSize: "0.9rem",
@@ -739,46 +701,7 @@ export function RedirectRequestModal({
             </div>
           )}
 
-          {/* Actions */}
-          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              style={{
-                padding: "10px 20px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: "0.9rem",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || success || (linkToExisting && !targetRequestId)}
-              style={{
-                padding: "10px 20px",
-                border: "none",
-                borderRadius: "8px",
-                background: "var(--primary, #2563eb)",
-                color: "#fff",
-                cursor: "pointer",
-                fontSize: "0.9rem",
-                opacity: isSubmitting || success || (linkToExisting && !targetRequestId) ? 0.7 : 1,
-              }}
-            >
-              {isSubmitting
-                ? "Redirecting..."
-                : linkToExisting
-                  ? "Link to Request & Close Original"
-                  : "Create New Request & Close Original"}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

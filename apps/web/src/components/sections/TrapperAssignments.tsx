@@ -5,6 +5,7 @@ import { TrapperBadge } from "@/components/badges";
 import { fetchApi, postApi } from "@/lib/api-client";
 import { Skeleton } from "@/components/feedback/Skeleton";
 import { ConfirmDialog } from "@/components/feedback/ConfirmDialog";
+import { Button } from "@/components/ui/Button";
 
 interface TrapperAssignment {
   assignment_id: string;
@@ -378,13 +379,11 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
           </button>
         ))}
       </div>
-      <button
-        onClick={() => setShowReasonForm(false)}
-        className="btn btn-secondary btn-sm"
-        style={{ marginTop: "0.75rem" }}
-      >
-        Cancel
-      </button>
+      <div style={{ marginTop: "0.75rem" }}>
+        <Button variant="secondary" size="sm" onClick={() => setShowReasonForm(false)}>
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 
@@ -539,36 +538,20 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
 
       {/* Mode tabs */}
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        <button
+        <Button
+          variant={assignMode === "official" ? "primary" : "outline"}
+          size="sm"
           onClick={() => { setAssignMode("official"); setPersonSearch(""); setPersonResults([]); setSelectedTrapperId(""); }}
-          style={{
-            padding: "0.4rem 0.75rem",
-            borderRadius: "4px",
-            border: "1px solid var(--border)",
-            background: assignMode === "official" ? "var(--accent, #0d6efd)" : "transparent",
-            color: assignMode === "official" ? "#fff" : "var(--foreground)",
-            cursor: "pointer",
-            fontSize: "0.85rem",
-            fontWeight: 500,
-          }}
         >
           Official Trappers
-        </button>
-        <button
+        </Button>
+        <Button
+          variant={assignMode === "search" ? "primary" : "outline"}
+          size="sm"
           onClick={() => { setAssignMode("search"); setSelectedTrapperId(""); }}
-          style={{
-            padding: "0.4rem 0.75rem",
-            borderRadius: "4px",
-            border: "1px solid var(--border)",
-            background: assignMode === "search" ? "var(--accent, #0d6efd)" : "transparent",
-            color: assignMode === "search" ? "#fff" : "var(--foreground)",
-            cursor: "pointer",
-            fontSize: "0.85rem",
-            fontWeight: 500,
-          }}
         >
           Search All People
-        </button>
+        </Button>
       </div>
 
       {/* Official trappers mode */}
@@ -705,22 +688,15 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
         </label>
       </div>
       <div style={{ display: "flex", gap: "0.5rem" }}>
-        <button
-          onClick={handleAssign}
-          disabled={!selectedTrapperId || assigning}
-          className="btn btn-primary btn-sm"
-        >
-          {assigning ? "Assigning..." : "Assign"}
-        </button>
-        <button
-          onClick={() => { setShowAddForm(false); setSelectedTrapperId(""); setIsPrimary(false); setPersonSearch(""); setPersonResults([]); setAssignMode("official"); }}
-          className="btn btn-secondary btn-sm"
-        >
+        <Button variant="primary" size="sm" onClick={handleAssign} disabled={!selectedTrapperId} loading={assigning}>
+          Assign
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => { setShowAddForm(false); setSelectedTrapperId(""); setIsPrimary(false); setPersonSearch(""); setPersonResults([]); setAssignMode("official"); }}>
           Cancel
-        </button>
+        </Button>
       </div>
       {errorMsg && (
-        <div style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", background: "#fef2f2", color: "#991b1b", borderRadius: "4px", fontSize: "0.85rem", border: "1px solid #fecaca" }}>
+        <div style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", background: "var(--danger-bg)", color: "var(--danger-text)", borderRadius: "4px", fontSize: "0.85rem", border: "1px solid var(--danger-border)" }}>
           {errorMsg}
         </div>
       )}
@@ -735,55 +711,21 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
         {!showAddForm && !showReasonForm && (
           <div>
             {noTrapperReason ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
                 {reasonBadge}
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "#0d6efd",
-                    fontSize: "0.8rem",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  + Add Trapper Instead
-                </button>
+                <Button variant="ghost" size="sm" icon="plus" onClick={() => setShowAddForm(true)}>
+                  Assign Trapper Instead
+                </Button>
               </div>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-                <span className="text-muted">No trappers assigned</span>
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="btn btn-sm"
-                  style={{
-                    background: "var(--accent)",
-                    color: "#fff",
-                    padding: "0.25rem 0.75rem",
-                    borderRadius: "4px",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "0.8rem"
-                  }}
-                >
-                  + Add Trapper
-                </button>
-                <button
-                  onClick={() => setShowReasonForm(true)}
-                  className="btn btn-sm"
-                  style={{
-                    background: "transparent",
-                    color: "var(--foreground)",
-                    padding: "0.25rem 0.75rem",
-                    borderRadius: "4px",
-                    border: "1px solid var(--border)",
-                    cursor: "pointer",
-                    fontSize: "0.8rem"
-                  }}
-                >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>No trappers assigned</span>
+                <Button variant="primary" size="sm" icon="plus" onClick={() => setShowAddForm(true)}>
+                  Assign Trapper
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowReasonForm(true)}>
                   No trapper needed
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -864,8 +806,8 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
                     style={{
                       fontSize: "0.65rem",
                       padding: "0.15rem 0.4rem",
-                      background: "#0d6efd",
-                      color: "#fff",
+                      background: "var(--primary)",
+                      color: "var(--primary-foreground)",
                       borderRadius: "3px",
                       fontWeight: 600,
                     }}
@@ -881,34 +823,16 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
                 )}
               </div>
             </div>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => { setPendingUnassign({ id: t.trapper_person_id, name: t.trapper_name }); setShowUnassignConfirm(true); }}
-              disabled={unassigningId === t.trapper_person_id}
+              loading={unassigningId === t.trapper_person_id}
               title="Unassign trapper"
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#6c757d",
-                cursor: unassigningId === t.trapper_person_id ? "not-allowed" : "pointer",
-                padding: "0.25rem 0.5rem",
-                fontSize: "1.1rem",
-                lineHeight: 1,
-                borderRadius: "4px",
-                opacity: unassigningId === t.trapper_person_id ? 0.5 : 1,
-              }}
-              onMouseOver={(e) => {
-                if (unassigningId !== t.trapper_person_id) {
-                  e.currentTarget.style.background = "rgba(220, 53, 69, 0.1)";
-                  e.currentTarget.style.color = "#dc3545";
-                }
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.color = "#6c757d";
-              }}
+              style={{ color: "var(--text-muted)", padding: "0.25rem 0.5rem" }}
             >
-              {unassigningId === t.trapper_person_id ? "..." : "×"}
-            </button>
+              ×
+            </Button>
           </div>
         ))}
       </div>
@@ -916,40 +840,19 @@ export function TrapperAssignments({ requestId, placeId, compact = false, onAssi
       {/* Add trapper button and form */}
       {addTrapperForm}
       {!showAddForm && (
-        <button
-          onClick={() => setShowAddForm(true)}
-          style={{
-            marginTop: "0.75rem",
-            background: "var(--accent, #0d6efd)",
-            color: "#fff",
-            padding: "0.35rem 0.85rem",
-            borderRadius: "4px",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "0.8rem",
-            fontWeight: 500,
-          }}
-        >
-          + Add Trapper
-        </button>
+        <div style={{ marginTop: "0.75rem" }}>
+          <Button variant="primary" size="sm" icon="plus" onClick={() => setShowAddForm(true)}>
+            Assign Trapper
+          </Button>
+        </div>
       )}
 
       {/* History toggle */}
       {history.length > trappers.length && (
         <div style={{ marginTop: "1rem" }}>
-          <button
-            onClick={() => setShowHistory(!showHistory)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#0d6efd",
-              fontSize: "0.8rem",
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setShowHistory(!showHistory)}>
             {showHistory ? "Hide history" : `Show assignment history (${history.length} total)`}
-          </button>
+          </Button>
 
           {showHistory && (
             <div style={{ marginTop: "0.75rem" }}>

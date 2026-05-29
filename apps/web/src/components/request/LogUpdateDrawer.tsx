@@ -131,9 +131,9 @@ function ToggleChip({
       onClick={() => onChange(!isOn)}
       style={{
         padding: "0.3rem 0.6rem", borderRadius: "9999px", cursor: "pointer",
-        border: `1px solid ${isOn ? "#166534" : "var(--border)"}`,
-        background: isOn ? "#dcfce7" : "transparent",
-        color: isOn ? "#166534" : "var(--muted)",
+        border: `1px solid ${isOn ? "var(--success-border)" : "var(--border)"}`,
+        background: isOn ? "var(--success-bg)" : "transparent",
+        color: isOn ? "var(--success-text)" : "var(--muted)",
         fontSize: "0.8rem", fontWeight: 500,
       }}
     >
@@ -593,7 +593,7 @@ export function LogUpdateDrawer({
           </span>
         )}
         {parseError && (
-          <div style={{ fontSize: "0.8rem", color: "#991b1b" }}>{parseError}</div>
+          <div style={{ fontSize: "0.8rem", color: "var(--danger-text)" }}>{parseError}</div>
         )}
 
         {/* 4. Location section (collapsed) */}
@@ -608,19 +608,15 @@ export function LogUpdateDrawer({
           </div>
 
           {requesterHomeIsDifferent && (
-            <div style={{ fontSize: "0.8rem", color: "#6366f1", marginBottom: "0.5rem", padding: "0.35rem 0.6rem", background: "#eef2ff", borderRadius: "4px" }}>
+            <div style={{ fontSize: "0.8rem", color: "var(--primary)", marginBottom: "0.5rem", padding: "0.35rem 0.6rem", background: "var(--info-bg)", borderRadius: "4px" }}>
               Requester lives at: {request?.requester_home_address}
             </div>
           )}
 
           {!changingLocation ? (
-            <button
-              onClick={() => setChangingLocation(true)}
-              className="btn btn-sm btn-secondary"
-              style={{ fontSize: "0.8rem" }}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setChangingLocation(true)}>
               Change to different address
-            </button>
+            </Button>
           ) : (
             <div style={{ marginTop: "0.25rem" }}>
               <PlaceResolver value={newPlace} onChange={setNewPlace} placeholder="Search for the cat location..." />

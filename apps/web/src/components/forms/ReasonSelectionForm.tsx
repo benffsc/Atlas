@@ -88,11 +88,11 @@ export function ReasonSelectionForm({
                 alignItems: "flex-start",
                 gap: "0.75rem",
                 padding: "0.75rem",
-                border: `2px solid ${selectedReason === r.value ? accentColor : "var(--border)"}`,
+                border: `2px solid ${selectedReason === r.value ? accentColor : "var(--border-light, #d1d5db)"}`,
                 borderRadius: "8px",
                 cursor: "pointer",
                 background:
-                  selectedReason === r.value ? `${accentColor}0d` : "transparent",
+                  selectedReason === r.value ? `${accentColor}15` : "transparent",
               }}
             >
               <input
@@ -101,7 +101,7 @@ export function ReasonSelectionForm({
                 value={r.value}
                 checked={selectedReason === r.value}
                 onChange={(e) => onReasonChange(e.target.value)}
-                style={{ marginTop: "0.2rem" }}
+                style={{ marginTop: "0.2rem", accentColor: accentColor }}
               />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>

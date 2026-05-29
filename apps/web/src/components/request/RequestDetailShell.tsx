@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { CaseSection, JournalSection, LinkedCatsSection, TrapperAssignments, ClinicNotesSection } from "@/components/sections";
 import { EditHistory, ContactCard } from "@/components/common";
@@ -36,6 +36,143 @@ import { ColonyContextSection } from "./sections/ColonyContextSection";
 import { TripReportsTab } from "./sections/TripReportsTab";
 import { IntelligenceSection } from "./sections/IntelligenceSection";
 import { RequestAdminTab } from "./sections/RequestAdminTab";
+
+// Quick note bar — minimal textarea that posts a journal entry without opening the full drawer
+function QuickNoteBar({
+  requestId,
+  onSaved,
+}: {
+  requestId: string;
+  onSaved: () => void;
+}) {
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSave = async () => {
+    if (!note.trim() || saving) return;
+    setSaving(true);
+    try {
+      await postApi("/api/journal", {
+        request_id: requestId,
+        entry_kind: "note",
+        body: note.trim(),
+        tags: ["quick_note"],
+      });
+      setNote("");
+      onSaved();
+    } catch {
+      // keep the note so user doesn't lose it
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Focus when mounted
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  return (
+    <div style={{
+      display: "flex", gap: "0.375rem", alignItems: "flex-end",
+      padding: "0.5rem 0.625rem", background: "var(--section-bg, #f9fafb)",
+      borderRadius: "8px", border: "1px solid var(--border)",
+      marginBottom: "0.5rem",
+    }}>
+      <textarea
+        ref={inputRef}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSave(); }
+          if (e.key === "Escape") setNote("");
+        }}
+        placeholder="Quick note... (Enter to save, Shift+Enter for newline)"
+        rows={1}
+        style={{
+          flex: 1, resize: "none", fontSize: "0.85rem", padding: "0.35rem 0.5rem",
+          border: "1px solid var(--border)", borderRadius: "6px",
+          background: "var(--background)", lineHeight: 1.4,
+          minHeight: "2rem",
+        }}
+      />
+      <Button variant="primary" size="sm" onClick={handleSave} disabled={!note.trim()} loading={saving}>
+        Save
+      </Button>
+    </div>
+  );
+}
+
+// Inline-edit for hero card attributes — click to edit, Enter/Escape/blur to save/cancel
+function InlineEditField({
+  value,
+  displayValue,
+  onSave,
+  type = "text",
+  placeholder,
+}: {
+  value: string;
+  displayValue?: string;
+  onSave: (val: string) => Promise<void>;
+  type?: "text" | "number" | "tel";
+  placeholder?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (draft === value) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onSave(draft);
+      setEditing(false);
+    } catch {
+      // revert on error
+      setDraft(value);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        type={type}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSave();
+          if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        }}
+        onBlur={handleSave}
+        autoFocus
+        disabled={saving}
+        placeholder={placeholder}
+        style={{
+          fontSize: "0.85rem", fontWeight: 500, padding: "0.15rem 0.35rem",
+          border: "1.5px solid var(--primary)", borderRadius: "4px",
+          width: "100%", maxWidth: "140px", background: "var(--background)",
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => { setDraft(value); setEditing(true); }}
+      title="Click to edit"
+      style={{
+        fontSize: "0.85rem", fontWeight: 500,
+        color: (displayValue || value) ? "var(--foreground)" : "var(--text-muted)",
+        cursor: "pointer", borderBottom: "1px dashed var(--border-light, #d1d5db)",
+        paddingBottom: "1px",
+      }}
+    >
+      {displayValue || value || "—"}
+    </span>
+  );
+}
 
 function LegacyBadge() {
   return (
@@ -97,6 +234,27 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   const [copied, setCopied] = useState(false);
   const [showLogUpdate, setShowLogUpdate] = useState(false);
   const [logUpdateInitialSection, setLogUpdateInitialSection] = useState<string | undefined>(undefined);
+  const [showQuickNote, setShowQuickNote] = useState(false);
+
+  // Keyboard shortcuts: L = Log Update, N = Quick Note
+  useEffect(() => {
+    if (!request || loading) return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement)?.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        setShowLogUpdate(true);
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        setShowQuickNote(true);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [request, loading]);
 
   const copyForText = useCallback(() => {
     if (!request) return;
@@ -312,12 +470,25 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
   // ─── Hero attribute grid data ───
   const locationDisplay = rd.neighborhood(request.place_name || (request.place_address ? formatAddress({ place_address: request.place_address, place_city: request.place_city, place_postal_code: request.place_postal_code }, { short: true }) : null));
   const PII_LABELS = new Set(["Location", "Requester", "Contact"]);
+
+  // Inline edit handlers for hero fields
+  const handleInlineEdit = async (field: string, value: string) => {
+    const patch: Record<string, unknown> = {};
+    if (field === "estimated_cat_count") patch.estimated_cat_count = value ? parseInt(value) : null;
+    else if (field === "requester_phone") patch.requester_phone = value || null;
+    else if (field === "requester_email") patch.requester_email = value || null;
+    if (Object.keys(patch).length > 0) {
+      await patchRequest(requestId, patch);
+      await refreshAndNotify();
+    }
+  };
+
   const heroAttributes = [
     { label: "Location", value: locationDisplay, href: request.place_id ? `/places/${request.place_id}` : undefined, editable: true },
     { label: "Zone", value: request.place_service_zone },
     { label: "Requester", value: rd.name(request.requester_name), href: request.requester_person_id ? `/people/${request.requester_person_id}` : undefined },
-    { label: "Contact", value: request.requester_phone ? rd.phone(formatPhone(request.requester_phone)) : rd.email(request.requester_email) },
-    { label: "Est. Colony", value: request.colony_size_estimate != null ? String(request.colony_size_estimate) : null },
+    { label: "Contact", value: request.requester_phone ? rd.phone(formatPhone(request.requester_phone)) : rd.email(request.requester_email), inlineEdit: !isShowcase ? { rawValue: request.requester_phone || request.requester_email || "", field: request.requester_phone ? "requester_phone" : "requester_email", type: "tel" as const } : undefined },
+    { label: "Cats", value: request.estimated_cat_count != null ? String(request.estimated_cat_count) : null, inlineEdit: !isShowcase ? { rawValue: request.estimated_cat_count?.toString() || "", field: "estimated_cat_count", type: "number" as const } : undefined },
     { label: "Coverage", value: request.colony_alteration_rate != null ? `${Math.round(request.colony_alteration_rate)}%` : null },
     { label: "Created", value: new Date(request.created_at).toLocaleDateString() },
     { label: "Source", value: request.source_system?.replace(/_/g, " ") },
@@ -354,23 +525,28 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
       )}
 
       {/* ═══ Hero Card ═══ */}
-      <div className="card" style={{ padding: isNarrow ? "0.75rem" : "1.25rem", marginBottom: "1rem" }}>
-        {/* Title row */}
-        <div style={{ display: "flex", alignItems: "center", gap: isNarrow ? "0.5rem" : "0.75rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+      <div className="card" style={{ padding: isPanel ? "0.625rem" : isNarrow ? "0.75rem" : "1.25rem", marginBottom: isPanel ? "0.5rem" : "1rem" }}>
+        {/* Title row — title on its own line */}
+        <div style={{ marginBottom: "0.5rem" }}>
           {renaming ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", width: "100%" }}>
-              <input type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") setRenaming(false); }} autoFocus style={{ fontSize: isNarrow ? "1.1rem" : "1.5rem", fontWeight: 700, padding: "0.25rem 0.5rem", border: "2px solid var(--primary)", borderRadius: "4px", width: "100%" }} />
-              <button onClick={handleRename} disabled={savingRename} className="btn btn-sm">{savingRename ? "..." : "Save"}</button>
-              <button onClick={() => setRenaming(false)} className="btn btn-sm btn-secondary">Cancel</button>
+              <input type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") setRenaming(false); }} autoFocus style={{ fontSize: isPanel ? "1rem" : isNarrow ? "1.1rem" : "1.5rem", fontWeight: 700, padding: "0.25rem 0.5rem", border: "2px solid var(--primary)", borderRadius: "4px", width: "100%" }} />
+              <Button variant="primary" size="sm" onClick={handleRename} loading={savingRename}>Save</Button>
+              <Button variant="secondary" size="sm" onClick={() => setRenaming(false)}>Cancel</Button>
             </div>
           ) : (
-            <>
-              <h1 data-pii="name" style={{ margin: 0, fontSize: isNarrow ? "1.1rem" : "1.5rem", lineHeight: 1.2 }}>{isShowcase ? (rd.neighborhood(request.place_name) || "FFR Request") : (request.summary || request.place_name || "FFR Request")}</h1>
-              <button onClick={startRename} title="Rename" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem", color: "var(--muted)", opacity: 0.7 }}><Icon name="pencil" size={14} /></button>
-            </>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <h1 data-pii="name" style={{ margin: 0, fontSize: isPanel ? "1.05rem" : isNarrow ? "1.1rem" : "1.35rem", lineHeight: 1.2, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {isShowcase ? (rd.neighborhood(request.place_name) || "FFR Request") : (request.summary || request.place_name || "FFR Request")}
+              </h1>
+              <button onClick={startRename} title="Rename" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", opacity: 0.6, padding: "0.125rem", flexShrink: 0 }}><Icon name="pencil" size={14} /></button>
+            </div>
           )}
-          {request.source_system?.startsWith("airtable") && <LegacyBadge />}
-          <StatusBadge status={request.status} size="lg" />
+        </div>
+
+        {/* Badge row — separated from title */}
+        <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "0.625rem" }}>
+          <StatusBadge status={request.status} size={isPanel ? "sm" : "lg"} />
           {request.resolution_outcome && (() => {
             const oc = getOutcomeColor(request.resolution_outcome);
             return (
@@ -380,16 +556,23 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
             );
           })()}
           <PriorityBadge priority={request.priority} />
-          {request.request_purpose && <span className="badge" style={{ background: "#7c3aed", color: "#fff", textTransform: "capitalize" }}>{request.request_purpose.replace(/_/g, " ")}</span>}
-          {request.property_type && <PropertyTypeBadge type={request.property_type} />}
-          {request.hold_reason && <span className="badge" style={{ background: COLORS.warning, color: COLORS.black }}>Hold: {request.hold_reason.replace(/_/g, " ")}</span>}
+          {request.hold_reason && <span className="badge" style={{ background: "var(--warning-bg)", color: "var(--warning-text)", border: "1px solid var(--warning-border)" }}>Hold: {request.hold_reason.replace(/_/g, " ")}</span>}
           {request.is_archived && <span className="badge" style={{ background: COLORS.gray500, color: COLORS.white }}>Archived</span>}
+          {request.source_system?.startsWith("airtable") && <LegacyBadge />}
+          {request.request_purpose && <span className="badge" style={{ background: "var(--primary)", color: "var(--primary-foreground)", textTransform: "capitalize" }}>{request.request_purpose.replace(/_/g, " ")}</span>}
+          {request.property_type && <PropertyTypeBadge type={request.property_type} />}
         </div>
 
         {/* Consolidated action row */}
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.75rem" }}>
-          <Button variant="primary" size="sm" onClick={() => setShowLogUpdate(true)} icon="pencil">
+        <div style={{
+          display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.625rem",
+          ...(isPanel ? { position: "sticky", top: 0, zIndex: 5, background: "var(--background)", paddingTop: "0.375rem", paddingBottom: "0.375rem", borderBottom: "1px solid var(--border)" } : {}),
+        }}>
+          <Button variant="primary" size="sm" onClick={() => setShowLogUpdate(true)} icon="pencil" title="Log Update (L)">
             Log Update
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowQuickNote(!showQuickNote)} icon="message-square" title="Quick Note (N)">
+            Note
           </Button>
           <StatusDropdown
             request={request}
@@ -411,21 +594,35 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
         {/* Inline error banner for status changes */}
         {error && request && (
-          <div style={{ padding: "0.5rem 0.75rem", marginBottom: "0.5rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", color: "#991b1b", fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ padding: "0.5rem 0.75rem", marginBottom: "0.5rem", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: "6px", color: "var(--danger-text)", fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span>{error}</span>
-            <button onClick={() => setError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontWeight: 600, padding: "0 0.25rem" }}>&times;</button>
+            <button onClick={() => setError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger-text)", fontWeight: 600, padding: "0 0.25rem" }}>&times;</button>
           </div>
         )}
 
-        {/* Attribute grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.75rem", padding: "0.75rem 0", borderTop: "1px solid var(--border)" }}>
-          {heroAttributes.map((attr) => (
+        {/* Quick note bar — triggered by N key or button */}
+        {showQuickNote && (
+          <QuickNoteBar
+            requestId={requestId}
+            onSaved={() => {
+              setShowQuickNote(false);
+              refreshAndNotify();
+              fetchJournalEntries();
+            }}
+          />
+        )}
+
+        {/* Attribute grid — key fields prioritized, compact in panel */}
+        <div style={{ display: "grid", gridTemplateColumns: isPanel ? "1fr 1fr" : "repeat(auto-fit, minmax(120px, 1fr))", gap: isPanel ? "0.5rem" : "0.75rem", padding: isPanel ? "0.5rem 0" : "0.75rem 0", borderTop: "1px solid var(--border)" }}>
+          {heroAttributes
+            .filter((attr) => isPanel ? ["Location", "Requester", "Contact", "Zone"].includes(attr.label) : true)
+            .map((attr) => (
             <div key={attr.label} {...(PII_LABELS.has(attr.label) ? { "data-pii": "name" } : {})}>
-              <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "0.25rem" }}>{attr.label}</div>
+              <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: "0.2rem" }}>{attr.label}</div>
               {attr.label === "Location" ? (
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                   {attr.href && attr.value ? (
-                    <a href={attr.href} onClick={request.place_id ? (e) => { if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); modals.preview.open("place", request.place_id!); } } : undefined} style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>
+                    <a href={attr.href} onClick={request.place_id ? (e) => { if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); modals.preview.open("place", request.place_id!); } } : undefined} style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--primary)", textDecoration: "none" }}>
                       {attr.value}
                     </a>
                   ) : (
@@ -440,6 +637,14 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
                 <a href={attr.href} onClick={attr.label === "Requester" && request.requester_person_id ? (e) => { if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); modals.preview.open("person", request.requester_person_id!); } } : undefined} style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)", textDecoration: "none" }}>
                   {attr.value}
                 </a>
+              ) : (attr as { inlineEdit?: { rawValue: string; field: string; type: "text" | "number" | "tel" } }).inlineEdit ? (
+                <InlineEditField
+                  value={(attr as { inlineEdit: { rawValue: string; field: string; type: "text" | "number" | "tel" } }).inlineEdit.rawValue}
+                  displayValue={attr.value || undefined}
+                  type={(attr as { inlineEdit: { rawValue: string; field: string; type: "text" | "number" | "tel" } }).inlineEdit.type}
+                  onSave={(val) => handleInlineEdit((attr as { inlineEdit: { rawValue: string; field: string; type: "text" | "number" | "tel" } }).inlineEdit.field, val)}
+                  placeholder={attr.label}
+                />
               ) : (
                 <div style={{ fontSize: "0.85rem", fontWeight: 500, color: attr.value ? "var(--foreground)" : "var(--text-muted)" }}>
                   {attr.value || "—"}
@@ -692,9 +897,9 @@ export function RequestDetailShell({ id, mode = "page", onClose, onRequestUpdate
 
             {/* Location Card */}
             <div style={{ marginTop: "1rem", background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", overflow: "hidden" }}>
-              <div style={{ padding: "0.75rem 1rem", background: "linear-gradient(135deg, #166534 0%, #22c55e 100%)", color: "#fff" }}>
-                <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <Icon name="map-pin" size={16} color="#fff" />
+              <div style={{ padding: "0.75rem 1rem", background: "var(--success-bg)", borderBottom: "1px solid var(--success-border)" }}>
+                <h3 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--success-text)" }}>
+                  <Icon name="map-pin" size={16} />
                   Location
                 </h3>
               </div>

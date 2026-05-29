@@ -7,6 +7,8 @@ import { fetchApi, postApi } from "@/lib/api-client";
 import { PersonSection } from "@/components/request-sections";
 import type { PersonSectionValue } from "@/components/request-sections";
 import { HANDOFF_REASON, HANDOFF_REASON_LABELS, PERSON_PLACE_ROLE } from "@/lib/enums";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui";
 
 interface HandoffRequestModalProps {
   isOpen: boolean;
@@ -207,118 +209,75 @@ export function HandoffRequestModal({
     }
   };
 
-  if (!isOpen) return null;
+  const footer = (
+    <>
+      <Button variant="secondary" size="md" onClick={onClose} disabled={isSubmitting}>
+        Cancel
+      </Button>
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        loading={isSubmitting}
+        disabled={success || (linkToExisting && !targetRequestId)}
+        onClick={handleSubmit}
+      >
+        {linkToExisting ? "Link & Hand Off" : "Hand Off to New Caretaker"}
+      </Button>
+    </>
+  );
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1100,
-        padding: "16px",
-      }}
-      onClick={onClose}
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="Hand Off Request" size="lg" footer={footer}>
+      <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+        Transfer responsibility to a new caretaker
+      </p>
+
+      {/* Original Request Info */}
       <div
         style={{
-          background: "var(--card-bg, #fff)",
-          borderRadius: "12px",
-          width: "100%",
-          maxWidth: "550px",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          padding: "0.75rem",
+          background: "var(--section-bg, #f8f9fa)",
+          borderRadius: "8px",
+          marginBottom: "0.75rem",
+          border: "1px solid var(--border)",
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div
-          style={{
-            padding: "20px 24px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            background: "linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)",
-            borderRadius: "12px 12px 0 0",
-            color: "#fff",
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 600 }}>
-              Hand Off Request
-            </h2>
-            <p style={{ margin: "4px 0 0", fontSize: "0.85rem", opacity: 0.9 }}>
-              Transfer responsibility to a new caretaker
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "rgba(255,255,255,0.2)",
-              border: "none",
-              fontSize: "1.5rem",
-              cursor: "pointer",
-              color: "#fff",
-              lineHeight: 1,
-              width: "32px",
-              height: "32px",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            &times;
-          </button>
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "4px", textTransform: "uppercase", fontWeight: 600 }}>
+          Current Request
         </div>
-
-        {/* Original Request Info */}
-        <div
-          style={{
-            padding: "12px 24px",
-            background: "var(--section-bg, #f8f9fa)",
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
-          <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "4px" }}>
-            Current Request
-          </div>
-          <div style={{ fontSize: "0.9rem" }}>
-            {originalSummary || "No summary"}
-          </div>
-          {originalAddress && (
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: "2px" }}>
-              {originalAddress}
-            </div>
-          )}
-          {originalRequesterName && (
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-              Current caretaker: {originalRequesterName}
-            </div>
-          )}
+        <div style={{ fontSize: "0.9rem" }}>
+          {originalSummary || "No summary"}
         </div>
+        {originalAddress && (
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginTop: "2px" }}>
+            {originalAddress}
+          </div>
+        )}
+        {originalRequesterName && (
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            Current caretaker: {originalRequesterName}
+          </div>
+        )}
+      </div>
 
-        {/* Info Banner */}
-        <div
-          style={{
-            padding: "12px 24px",
-            background: "#f0fdfa",
-            borderBottom: "1px solid #99f6e4",
-            fontSize: "0.85rem",
-            color: "#0f766e",
-          }}
-        >
-          <strong>Note:</strong> This will close the current request and create a new one
-          for the new caretaker. Both requests will be linked together.
-        </div>
+      {/* Info Banner */}
+      <div
+        style={{
+          padding: "0.75rem",
+          background: "var(--info-bg)",
+          border: "1px solid var(--info-border)",
+          borderRadius: "8px",
+          marginBottom: "1rem",
+          fontSize: "0.85rem",
+          color: "var(--foreground)",
+        }}
+      >
+        <strong>Note:</strong> This will close the current request and create a new one
+        for the new caretaker. Both requests will be linked together.
+      </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: "20px 24px" }}>
+        <form onSubmit={handleSubmit}>
           {/* Handoff Reason */}
           <div style={{ marginBottom: "16px" }}>
             <label
@@ -386,35 +345,27 @@ export function HandoffRequestModal({
 
           {/* Mode toggle: Create new vs Link to existing */}
           <div style={{ display: "flex", gap: "8px", margin: "16px 0" }}>
-            <button
-              type="button"
+            <Button
+              variant={!linkToExisting ? "primary" : "outline"}
+              size="sm"
               onClick={() => { setLinkToExisting(false); setTargetRequestId(null); setTargetRequest(null); setRequestSearchQuery(""); }}
-              style={{
-                flex: 1, padding: "8px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                background: !linkToExisting ? "#0d9488" : "transparent",
-                color: !linkToExisting ? "#fff" : "#0d9488",
-                border: `1px solid #0d9488`,
-              }}
+              style={{ flex: 1 }}
             >
               Create New Request
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant={linkToExisting ? "primary" : "outline"}
+              size="sm"
               onClick={() => setLinkToExisting(true)}
-              style={{
-                flex: 1, padding: "8px", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                background: linkToExisting ? "#0d9488" : "transparent",
-                color: linkToExisting ? "#fff" : "#0d9488",
-                border: `1px solid #0d9488`,
-              }}
+              style={{ flex: 1 }}
             >
               Link to Existing
-            </button>
+            </Button>
           </div>
 
           {!linkToExisting && (
           <>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px", color: "#0d9488" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>
             New Caretaker Details
           </h3>
 
@@ -869,8 +820,9 @@ export function HandoffRequestModal({
             <div
               style={{
                 padding: "10px 14px",
-                background: "#fee2e2",
-                color: "#b91c1c",
+                background: "var(--danger-bg)",
+                color: "var(--danger-text)",
+                border: "1px solid var(--danger-border)",
                 borderRadius: "8px",
                 marginBottom: "16px",
                 fontSize: "0.9rem",
@@ -884,8 +836,9 @@ export function HandoffRequestModal({
             <div
               style={{
                 padding: "10px 14px",
-                background: "#d1fae5",
-                color: "#065f46",
+                background: "var(--success-bg)",
+                color: "var(--success-text)",
+                border: "1px solid var(--success-border)",
                 borderRadius: "8px",
                 marginBottom: "16px",
                 fontSize: "0.9rem",
@@ -895,43 +848,7 @@ export function HandoffRequestModal({
             </div>
           )}
 
-          {/* Actions */}
-          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              style={{
-                padding: "10px 20px",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: "0.9rem",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || success || (linkToExisting && !targetRequestId)}
-              style={{
-                padding: "10px 20px",
-                border: "none",
-                borderRadius: "8px",
-                background: "#0d9488",
-                color: "#fff",
-                cursor: "pointer",
-                fontSize: "0.9rem",
-                opacity: isSubmitting || success || (linkToExisting && !targetRequestId) ? 0.7 : 1,
-              }}
-            >
-              {isSubmitting ? "Handing Off..." : linkToExisting ? "Link & Hand Off" : "Hand Off to New Caretaker"}
-            </button>
-          </div>
         </form>
-      </div>
-
-    </div>
+    </Modal>
   );
 }
