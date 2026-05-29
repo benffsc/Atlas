@@ -132,7 +132,7 @@ export function InfoSlide({ variant, heading, body, stats, showLogo, progress, h
               width={180}
               height={180}
             />
-            <span className="info-slide__qr-label">Scan to donate</span>
+            <span className="info-slide__qr-label">Scan to learn more</span>
           </div>
         )}
 
