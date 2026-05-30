@@ -176,6 +176,8 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
       return;
     }
     document.body.classList.add("tv-tour-active");
+    // Request browser fullscreen (hides address bar, tabs, etc.)
+    document.documentElement.requestFullscreen?.().catch(() => {});
     setTourState("playing");
     setCurrentStep(0);
     setProgress(0);
@@ -188,6 +190,7 @@ export function ScreensaverTour({ enabled }: ScreensaverTourProps) {
   const stopTour = useCallback(() => {
     clearTimers();
     document.body.classList.remove("tv-tour-active");
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     setTourState("idle");
     setCurrentStep(0);
     setProgress(0);
